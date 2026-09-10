@@ -79,6 +79,7 @@
       coverTitleDev: 'DEV: Waiver Request For',
       coverSubtitle: 'List of Waiver Requested :',
       footer: 'Gerência técnica operacional',
+      showCoverDate: true,   // data de emissão no pé da capa
       ncrs: [],
       devs: [],
       sessions: [],
@@ -158,6 +159,7 @@
       coverTitleDev: str(raw.coverTitleDev) || base.coverTitleDev,
       coverSubtitle: str(raw.coverSubtitle) || base.coverSubtitle,
       footer: raw.footer === '' ? '' : (str(raw.footer) || base.footer),
+      showCoverDate: raw.showCoverDate !== false,
       ncrs: Array.isArray(raw.ncrs) ? raw.ncrs.map(normalizeNcr) : [],
       devs: Array.isArray(raw.devs) ? raw.devs.map(normalizeNcr) : [],
       sessions: Array.isArray(raw.sessions) ? raw.sessions.map(normalizeSession).slice(-MAX_SESSIONS) : [],

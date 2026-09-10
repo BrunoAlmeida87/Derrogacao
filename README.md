@@ -19,7 +19,8 @@ login e nenhum dado sai do computador.
   conviver no mesmo navegador — o seletor **Relatório** alterna entre eles, e
   cada um carrega as suas duas abas.
 - **Data de emissão.** A capa do PDF traz, discreta no canto inferior direito,
-  a data em que o relatório foi gerado.
+  a data em que o relatório foi gerado. Pode ser desligada em
+  **⋯ → Ajustes de capa e rodapé**.
 - **Uma página por item.** Cada NCR ou DEV inserida vira um item na lista
   lateral e uma página no PDF, com todos os campos de derrogação:
   *Description*, *Current Situation*, *Why is not possible to treat the
@@ -104,6 +105,28 @@ Imagens são reduzidas para no máximo 1600 px e recomprimidas em JPEG ao serem
 inseridas, para manter os arquivos de backup e o armazenamento em tamanho
 razoável. O indicador **salvo no navegador** mostra, ao passar o mouse, quanto
 espaço os dados ocupam.
+
+## Usar sem internet, no próprio computador
+
+O `index.html` sozinho **não funciona** — ele carrega seis arquivos ao lado dele.
+Para uso local existe uma versão de **arquivo único**, com todo o CSS e o
+JavaScript embutidos:
+
+**https://brunoalmeida87.github.io/Derrogacao/derrogacao.html**
+(ou pelo menu **⋯ → ⤓ Baixar para usar sem internet**)
+
+Salve o arquivo e abra com dois cliques. Não precisa de servidor, instalação
+nem conexão — funciona inclusive numa pasta de rede, onde cada pessoa abre a
+sua cópia.
+
+> **Os dados não são compartilhados entre as versões.** O navegador guarda o
+> armazenamento por origem: o que você escreve no site fica no site, e o que
+> escreve no arquivo local fica no arquivo local — mesmo estando na mesma
+> máquina. Para levar o trabalho de um para o outro, use **★ Salvar backup de
+> tudo** de um lado e **Abrir arquivo…** do outro.
+
+O arquivo é gerado a cada publicação por `tools/build-standalone.py`, então
+acompanha sempre a versão do site.
 
 ## Aba Resumo
 
@@ -226,6 +249,7 @@ assets/css/report.css    layout do relatório (tela e impressão A4)
 assets/js/store.js       modelo de dados e persistência (IndexedDB)
 assets/js/report.js      montagem das páginas no padrão do PDF
 assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
+tools/build-standalone.py  gera a versão de arquivo único
 assets/js/app.js         lógica do editor
 ```
 

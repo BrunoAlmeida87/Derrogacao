@@ -1216,6 +1216,8 @@
   /* Textos fixos da capa e do rodapé, e o marco alternativo da DEV — coisas
      que quase nunca mudam e por isso ficam fora da barra principal. */
   var SETTINGS = [
+    ['showCoverDate', 'Mostrar a data de emissão na capa', 'checkbox',
+     'Sai pequena, no canto inferior direito da primeira página.'],
     ['coverTitle',    'Título da capa — NCR',  'Waiver Request For',
      'Sai como "Waiver Request For <marco>".'],
     ['coverTitleDev', 'Título da capa — DEV',  'DEV: Waiver Request For',
@@ -1232,16 +1234,31 @@
     SETTINGS.forEach(function (def) {
       var f = el('div', 'field');
       f.style.marginBottom = '12px';
-      f.appendChild(el('label', null, def[1]));
       var input = document.createElement('input');
-      input.type = 'text';
-      input.value = state.project[def[0]] || '';
-      input.placeholder = def[2];
-      input.addEventListener('input', function () {
-        state.project[def[0]] = input.value;
-        scheduleSave();
-      });
-      f.appendChild(input);
+
+      if (def[2] === 'checkbox') {
+        input.type = 'checkbox';
+        input.checked = state.project[def[0]] !== false;
+        input.style.width = 'auto';
+        var lab = el('label', 'field-check');
+        lab.appendChild(input);
+        lab.appendChild(document.createTextNode(def[1]));
+        f.appendChild(lab);
+        input.addEventListener('change', function () {
+          state.project[def[0]] = input.checked;
+          scheduleSave();
+        });
+      } else {
+        f.appendChild(el('label', null, def[1]));
+        input.type = 'text';
+        input.value = state.project[def[0]] || '';
+        input.placeholder = def[2];
+        input.addEventListener('input', function () {
+          state.project[def[0]] = input.value;
+          scheduleSave();
+        });
+        f.appendChild(input);
+      }
       if (def[3]) f.appendChild(el('div', 'hint', def[3]));
       body.appendChild(f);
     });
@@ -2099,12 +2116,18 @@
      um index.html novo servido junto de um app.js velho do cache já causou
      erros difíceis de entender. */
   function renderVersion() {
+    /* no site, a versão vem do carimbo no src; no arquivo único, da meta */
     var tag = document.querySelector('script[src*="app.js"]');
-    var src = tag ? tag.getAttribute('src') : '';
-    var m = /[?&]v=([^&]+)/.exec(src || '');
-    var box = $('#menuVersion');
-    box.textContent = m ? 'versão ' + m[1] : 'versão local (sem carimbo)';
-    if (m) $('#menuBtn').title = 'Mais ações — versão ' + m[1];
+    var m = /[?&]v=([^&]+)/.exec((tag && tag.getAttribute('src')) || '');
+    var meta = document.querySelector('meta[name="app-version"]');
+    var v = m ? m[1] : (meta ? meta.getAttribute('content') : '');
+
+    $('#menuVersion').textContent = v ? 'versão ' + v : 'versão não identificada';
+    if (v) $('#menuBtn').title = 'Mais ações — versão ' + v;
+
+    /* o link para baixar o arquivo único só faz sentido servido pela web */
+    var link = $('#standaloneLink');
+    if (link) link.hidden = location.protocol === 'file:';
   }
 
   function boot() {
