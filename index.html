@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Waiver Request — Gerador de Relatórios de Derrogação</title>
+<meta name="description" content="Editor de relatórios de derrogação de NCR com exportação em PDF no padrão Waiver Request.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%234B0082'/><text y='72' x='50' text-anchor='middle' font-size='60' fill='white' font-family='Arial'>W</text></svg>">
+<link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/report.css">
+</head>
+<body>
+
+<!-- ====================== barra superior ====================== -->
+<header class="topbar">
+  <div class="brand">Waiver Request <small>gerador de relatórios de derrogação</small></div>
+
+  <div class="topbar-field">
+    <label for="projectSelect">Relatório</label>
+    <select id="projectSelect" style="width:auto;min-width:190px"></select>
+    <button class="btn btn--sm" id="newProjectBtn" title="Criar um relatório para outro marco">+ Novo</button>
+    <button class="btn btn--sm btn--danger" id="deleteProjectBtn" title="Excluir este relatório">Excluir</button>
+  </div>
+
+  <div class="topbar-field" style="flex:1 1 220px">
+    <label for="marcoInput">Marco</label>
+    <input type="text" id="marcoInput" placeholder="RANAE J06">
+  </div>
+
+  <div class="topbar-field" style="flex:0 1 210px">
+    <label for="footerInput">Rodapé</label>
+    <input type="text" id="footerInput" placeholder="Gerência técnica operacional">
+  </div>
+
+  <div class="topbar-spacer"></div>
+
+  <div class="topbar-actions">
+    <button class="btn" id="previewBtn">Pré-visualizar</button>
+    <button class="btn btn--primary" id="pdfBtn">Exportar PDF</button>
+    <button class="btn" id="backupBtn" title="Salvar este relatório em um arquivo .json">Backup</button>
+    <button class="btn" id="backupAllBtn" title="Salvar todos os relatórios deste navegador">Backup total</button>
+    <button class="btn" id="restoreBtn" title="Carregar um arquivo .json de backup">Restaurar</button>
+    <input type="file" id="restoreInput" accept="application/json,.json" hidden>
+  </div>
+
+  <span id="saveState" data-state="saved">salvo no navegador</span>
+</header>
+
+<!-- ====================== corpo ====================== -->
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="sidebar-head-row">
+        <h2>NCRs</h2>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn--sm btn--primary" id="addNcrBtn">+ Nova NCR</button>
+          <button class="btn btn--sm" id="dupNcrBtn" title="Duplicar a NCR selecionada">Duplicar</button>
+          <button class="btn btn--sm btn--danger" id="delNcrBtn" title="Excluir a NCR selecionada">Excluir</button>
+        </div>
+      </div>
+      <input type="search" id="ncrFilter" placeholder="Filtrar por número, sistema ou função…">
+    </div>
+
+    <ul class="ncr-list" id="ncrList" hidden></ul>
+    <div class="sidebar-empty" id="sidebarEmpty">
+      Nenhuma NCR ainda.<br>Clique em <strong>+ Nova NCR</strong> para adicionar a primeira.
+      <br><br>A ordem da lista é a ordem no PDF — arraste para reordenar.
+    </div>
+  </aside>
+
+  <main class="editor">
+    <div class="editor-scroll" id="editorScroll"></div>
+  </main>
+
+</div>
+
+<!-- ====================== pré-visualização ====================== -->
+<div class="preview" id="preview" hidden>
+  <div class="preview-bar">
+    <strong>Pré-visualização</strong>
+    <span class="note">Cada folha abaixo corresponde a uma página do PDF.</span>
+    <div class="topbar-spacer"></div>
+    <button class="btn btn--primary" id="previewPrintBtn">Exportar PDF</button>
+    <button class="btn" id="closePreviewBtn">Fechar (Esc)</button>
+  </div>
+  <div class="preview-stage" id="previewStage"></div>
+</div>
+
+<!-- ====================== diálogo de exportação ====================== -->
+<dialog id="pdfDialog">
+  <div class="dlg-body">
+    <h3>Exportar para PDF</h3>
+    <p>A janela de impressão do navegador será aberta. Para obter o PDF idêntico ao padrão, ajuste:</p>
+    <ol>
+      <li><strong>Destino</strong>: “Salvar como PDF”</li>
+      <li><strong>Margens</strong>: “Nenhuma” (o layout já traz as margens corretas)</li>
+      <li><strong>Gráficos de plano de fundo</strong>: marcado (mantém as cores das faixas)</li>
+      <li><strong>Cabeçalhos e rodapés</strong>: desmarcado</li>
+    </ol>
+    <p>As páginas de evidência saem automaticamente em paisagem.</p>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="pdfCancelBtn">Cancelar</button>
+    <button class="btn btn--primary" id="pdfGoBtn">Abrir impressão</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" hidden></div>
+
+<!-- conteúdo montado apenas para impressão -->
+<div class="print-root" id="printRoot"></div>
+
+<script src="assets/js/store.js"></script>
+<script src="assets/js/report.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

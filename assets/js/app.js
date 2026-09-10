@@ -1,0 +1,864 @@
+/* ==========================================================================
+   app.js — interface do editor de relatórios de derrogação
+   ========================================================================== */
+
+(function () {
+  'use strict';
+
+  var MAX_IMAGE_DIM = 1600;   // px — imagens maiores são reduzidas
+  var JPEG_QUALITY = 0.85;
+
+  var state = {
+    projects: [],
+    project: null,
+    ncrId: null      // id da NCR selecionada
+  };
+
+  var $ = function (sel, root) { return (root || document).querySelector(sel); };
+  var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
+
+  /* ---------------------------------------------------------------------- */
+  /* utilidades                                                             */
+  /* ---------------------------------------------------------------------- */
+
+  var toastTimer = null;
+  function toast(msg) {
+    var t = $('#toast');
+    t.textContent = msg;
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.hidden = true; }, 2600);
+  }
+
+  var saveTimer = null;
+  function markSaving() {
+    var s = $('#saveState');
+    s.dataset.state = 'saving';
+    s.textContent = 'salvando…';
+  }
+  function markSaved() {
+    var s = $('#saveState');
+    s.dataset.state = 'saved';
+    s.textContent = 'salvo no navegador';
+    updateStorageInfo(s);
+  }
+
+  /* Mostra, na dica do indicador, quanto espaço os relatórios ocupam. */
+  function updateStorageInfo(node) {
+    if (!navigator.storage || !navigator.storage.estimate) return;
+    navigator.storage.estimate().then(function (est) {
+      if (!est || !est.usage) return;
+      var mb = (est.usage / 1048576).toFixed(1);
+      node.title = 'Dados guardados neste navegador: ' + mb + ' MB' +
+        (est.quota ? ' de ~' + (est.quota / 1048576).toFixed(0) + ' MB disponíveis' : '') +
+        '.\nFaça backup em arquivo para não depender do cache do navegador.';
+    }).catch(function () { /* estimativa é opcional */ });
+  }
+
+  /* Pede ao navegador para não descartar os dados ao limpar o cache. */
+  function requestPersistentStorage() {
+    if (navigator.storage && navigator.storage.persist && navigator.storage.persisted) {
+      navigator.storage.persisted().then(function (already) {
+        if (!already) return navigator.storage.persist();
+      }).catch(function () { /* sem suporte: segue com armazenamento comum */ });
+    }
+  }
+  function markError(e) {
+    var s = $('#saveState');
+    s.dataset.state = 'error';
+    s.textContent = 'erro ao salvar';
+    console.error(e);
+  }
+
+  /** Grava o projeto atual com atraso, para não escrever a cada tecla. */
+  function scheduleSave() {
+    if (!state.project) return;
+    markSaving();
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flushSave, 500);
+  }
+
+  function flushSave() {
+    clearTimeout(saveTimer);
+    if (!state.project) return Promise.resolve();
+    return Store.save(state.project).then(function () {
+      markSaved();
+      refreshProjectSelect();
+    }).catch(markError);
+  }
+
+  function currentNcr() {
+    if (!state.project || !state.ncrId) return null;
+    return state.project.ncrs.filter(function (n) { return n.id === state.ncrId; })[0] || null;
+  }
+
+  function download(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* seletor de relatórios                                                  */
+  /* ---------------------------------------------------------------------- */
+
+  function refreshProjectSelect() {
+    var sel = $('#projectSelect');
+    sel.innerHTML = '';
+    state.projects.forEach(function (p) {
+      var o = document.createElement('option');
+      o.value = p.id;
+      o.textContent = (p.marco || p.name || 'sem nome') + ' (' + p.ncrs.length + ' NCR)';
+      sel.appendChild(o);
+    });
+    if (state.project) sel.value = state.project.id;
+  }
+
+  function loadProject(project) {
+    state.project = project;
+    var idx = state.projects.findIndex(function (p) { return p.id === project.id; });
+    if (idx >= 0) state.projects[idx] = project; else state.projects.unshift(project);
+    state.ncrId = project.ncrs.length ? project.ncrs[0].id : null;
+    $('#marcoInput').value = project.marco;
+    $('#footerInput').value = project.footer;
+    refreshProjectSelect();
+    renderNcrList();
+    renderEditor();
+    markSaved();
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* lista lateral de NCRs                                                  */
+  /* ---------------------------------------------------------------------- */
+
+  var dragFrom = null;
+
+  function renderNcrList() {
+    var ul = $('#ncrList');
+    ul.innerHTML = '';
+    var p = state.project;
+    var term = $('#ncrFilter').value.trim().toLowerCase();
+
+    if (!p || !p.ncrs.length) {
+      $('#sidebarEmpty').hidden = false;
+      ul.hidden = true;
+      return;
+    }
+    $('#sidebarEmpty').hidden = true;
+    ul.hidden = false;
+
+    p.ncrs.forEach(function (ncr, i) {
+      var hay = (ncr.ncrId + ' ' + ncr.systems + ' ' + ncr.func).toLowerCase();
+      if (term && hay.indexOf(term) === -1) return;
+
+      var li = el('li', 'ncr-item');
+      li.tabIndex = 0;
+      li.draggable = true;
+      li.dataset.id = ncr.id;
+      if (ncr.id === state.ncrId) li.setAttribute('aria-current', 'true');
+
+      li.appendChild(el('span', 'ncr-item-num', String(i + 1)));
+
+      var main = el('div', 'ncr-item-main');
+      main.appendChild(el('div', 'ncr-item-id', ncr.ncrId || '(sem número)'));
+      var sub = [ncr.systems, ncr.func].filter(Boolean).join(' | ');
+      main.appendChild(el('div', 'ncr-item-sub', sub || 'sem sistema/função'));
+      li.appendChild(main);
+
+      var imgCount = ncr.evidence.reduce(function (s, e) { return s + e.images.length; }, 0);
+      if (imgCount) li.appendChild(el('span', 'ncr-item-badge', '🖼 ' + imgCount));
+
+      li.addEventListener('click', function () { selectNcr(ncr.id); });
+      li.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectNcr(ncr.id); }
+      });
+
+      li.addEventListener('dragstart', function (e) {
+        dragFrom = ncr.id;
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', ncr.id); } catch (err) { /* Safari */ }
+      });
+      li.addEventListener('dragover', function (e) {
+        if (!dragFrom || dragFrom === ncr.id) return;
+        e.preventDefault();
+        li.classList.add('is-dragover');
+      });
+      li.addEventListener('dragleave', function () { li.classList.remove('is-dragover'); });
+      li.addEventListener('drop', function (e) {
+        e.preventDefault();
+        li.classList.remove('is-dragover');
+        moveNcr(dragFrom, ncr.id);
+        dragFrom = null;
+      });
+      li.addEventListener('dragend', function () {
+        dragFrom = null;
+        $$('.ncr-item').forEach(function (n) { n.classList.remove('is-dragover'); });
+      });
+
+      ul.appendChild(li);
+    });
+  }
+
+  function moveNcr(fromId, toId) {
+    var list = state.project.ncrs;
+    var from = list.findIndex(function (n) { return n.id === fromId; });
+    var to = list.findIndex(function (n) { return n.id === toId; });
+    if (from < 0 || to < 0 || from === to) return;
+    list.splice(to, 0, list.splice(from, 1)[0]);
+    renderNcrList();
+    scheduleSave();
+  }
+
+  function selectNcr(id) {
+    state.ncrId = id;
+    renderNcrList();
+    renderEditor();
+    $('#editorScroll').scrollTop = 0;
+  }
+
+  function addNcr() {
+    var ncr = Store.newNcr();
+    state.project.ncrs.push(ncr);
+    state.ncrId = ncr.id;
+    renderNcrList();
+    renderEditor();
+    scheduleSave();
+    var f = $('#f-ncrId');
+    if (f) f.focus();
+  }
+
+  function duplicateNcr() {
+    var ncr = currentNcr();
+    if (!ncr) return;
+    var copy = Store.normalizeNcr(JSON.parse(JSON.stringify(ncr)));
+    copy.id = Store.uid();
+    copy.ncrId = ncr.ncrId ? ncr.ncrId + ' (cópia)' : '';
+    copy.evidence.forEach(function (ev) {
+      ev.id = Store.uid();
+      ev.images.forEach(function (im) { im.id = Store.uid(); });
+    });
+    var at = state.project.ncrs.findIndex(function (n) { return n.id === ncr.id; });
+    state.project.ncrs.splice(at + 1, 0, copy);
+    state.ncrId = copy.id;
+    renderNcrList();
+    renderEditor();
+    scheduleSave();
+  }
+
+  function deleteNcr() {
+    var ncr = currentNcr();
+    if (!ncr) return;
+    if (!confirm('Excluir a NCR "' + (ncr.ncrId || 'sem número') + '" e todas as suas evidências?')) return;
+    var list = state.project.ncrs;
+    var at = list.findIndex(function (n) { return n.id === ncr.id; });
+    list.splice(at, 1);
+    state.ncrId = list.length ? list[Math.min(at, list.length - 1)].id : null;
+    renderNcrList();
+    renderEditor();
+    scheduleSave();
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* formulário da NCR                                                      */
+  /* ---------------------------------------------------------------------- */
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  /** Campo de texto ligado a uma propriedade da NCR. */
+  function field(label, key, opts) {
+    opts = opts || {};
+    var ncr = currentNcr();
+    var wrap = el('div', 'field');
+    var id = 'f-' + key;
+    var lab = el('label', null, label);
+    lab.htmlFor = id;
+    wrap.appendChild(lab);
+
+    var input;
+    if (opts.rows) {
+      input = document.createElement('textarea');
+      input.rows = opts.rows;
+    } else {
+      input = document.createElement('input');
+      input.type = 'text';
+    }
+    input.id = id;
+    input.value = ncr[key] || '';
+    if (opts.placeholder) input.placeholder = opts.placeholder;
+    input.addEventListener('input', function () {
+      var n = currentNcr();
+      if (!n) return;
+      n[key] = input.value;
+      if (opts.refreshList) renderNcrList();
+      scheduleSave();
+    });
+    wrap.appendChild(input);
+    if (opts.hint) wrap.appendChild(el('div', 'hint', opts.hint));
+    return wrap;
+  }
+
+  function card(title, swatchColor) {
+    var c = el('div', 'card');
+    var h = el('h3');
+    if (swatchColor) {
+      var sw = el('span', 'swatch');
+      sw.style.background = swatchColor;
+      h.appendChild(sw);
+    }
+    h.appendChild(document.createTextNode(title));
+    c.appendChild(h);
+    return c;
+  }
+
+  function renderEditor() {
+    var host = $('#editorScroll');
+    host.innerHTML = '';
+    var ncr = currentNcr();
+
+    if (!state.project) return;
+    if (!ncr) {
+      var empty = el('div', 'editor-empty');
+      empty.appendChild(el('p', null, 'Nenhuma NCR selecionada.'));
+      empty.appendChild(el('p', null, 'Use “+ Nova NCR” no painel à esquerda para começar, ou carregue um backup existente.'));
+      host.appendChild(empty);
+      return;
+    }
+
+    /* --- identificação --- */
+    var idCard = card('Identificação da NCR', '#4B0082');
+    var g = el('div', 'grid grid--3');
+    g.appendChild(field('Número da NCR', 'ncrId', {
+      placeholder: 'NCR-ICN-ESC-13-1098-2023', refreshList: true
+    }));
+    g.appendChild(field('Sistema(s)', 'systems', {
+      placeholder: 'RM   ou   BX,BQ,BD', refreshList: true
+    }));
+    g.appendChild(field('Função', 'func', {
+      placeholder: 'FV 01 - Sea water circuit integrity', refreshList: true
+    }));
+    idCard.appendChild(g);
+    var prev = el('div', 'hint');
+    prev.style.marginTop = '10px';
+    prev.textContent = 'Título gerado: Waiver Request for ' + Report.ncrLabel(ncr);
+    idCard.appendChild(prev);
+    ['f-ncrId', 'f-systems', 'f-func'].forEach(function (fid) {
+      var input = $('#' + fid, idCard);
+      if (input) input.addEventListener('input', function () {
+        prev.textContent = 'Título gerado: Waiver Request for ' + Report.ncrLabel(currentNcr());
+      });
+    });
+    host.appendChild(idCard);
+
+    /* --- seções textuais, na ordem e nas cores do relatório --- */
+    var textCard = card('Conteúdo da derrogação');
+    var stack = el('div', 'stack');
+    var defs = [
+      ['description',      'Description',                                  '#A9A9A9', 4],
+      ['currentSituation', 'Current Situation',                            '#8FBC8B', 6],
+      ['whyNotPossible',   'Why is not possible to treat the deviation',   '#FFCCE5', 5],
+      ['arguments',        'What are the arguments for the derrogation',   '#CCCCFF', 5],
+      ['archAnswer',       'Arch Answer',                                  '#00B4FF', 3]
+    ];
+    defs.forEach(function (d) {
+      var f = field(d[1], d[0], { rows: d[3] });
+      var lab = $('label', f);
+      var sw = el('span', 'swatch');
+      sw.style.cssText = 'display:inline-block;width:11px;height:11px;border:1px solid #999;border-radius:2px;margin-right:6px;vertical-align:middle;background:' + d[2];
+      lab.insertBefore(sw, lab.firstChild);
+      stack.appendChild(f);
+    });
+    textCard.appendChild(stack);
+    host.appendChild(textCard);
+
+    /* --- status --- */
+    var stCard = card('Status do waiver');
+    var g2 = el('div', 'grid grid--2');
+    g2.appendChild(field('Waiver Request Expiry (before)', 'requestExpiry', { placeholder: 'PÓS TRAP' }));
+    g2.appendChild(field('Arch Status Waiver', 'archStatus', { placeholder: 'WAIVER ACCEPTED' }));
+    g2.appendChild(field('Waiver Approved Expiry (before)', 'approvedExpiry', { placeholder: 'PÓS TRAP' }));
+    g2.appendChild(field('Waiver Historic', 'historic', {
+      rows: 3, placeholder: 'J06 To: RANAE J06\nJ06Cer To: RANAE', hint: 'Uma entrada por linha.'
+    }));
+    stCard.appendChild(g2);
+    stCard.appendChild(renderCertificates());
+    host.appendChild(stCard);
+
+    /* --- evidências --- */
+    host.appendChild(renderEvidenceCard());
+  }
+
+  /* --- certificados ------------------------------------------------------ */
+
+  function renderCertificates() {
+    var ncr = currentNcr();
+    var wrap = el('div', 'field');
+    wrap.style.marginTop = '12px';
+    wrap.appendChild(el('label', null, 'Certificate Impacted'));
+
+    var list = el('div', 'row-list');
+    function redraw() {
+      list.innerHTML = '';
+      ncr.certificates.forEach(function (c, i) {
+        var line = el('div', 'row-line');
+        var inp = document.createElement('input');
+        inp.type = 'text';
+        inp.value = c;
+        inp.placeholder = 'Shipyard Certificate';
+        inp.addEventListener('input', function () {
+          currentNcr().certificates[i] = inp.value;
+          scheduleSave();
+        });
+        var del = el('button', 'btn btn--sm btn--danger', '✕');
+        del.type = 'button';
+        del.title = 'Remover certificado';
+        del.addEventListener('click', function () {
+          currentNcr().certificates.splice(i, 1);
+          redraw();
+          scheduleSave();
+        });
+        line.appendChild(inp);
+        line.appendChild(del);
+        list.appendChild(line);
+      });
+      if (!ncr.certificates.length) {
+        list.appendChild(el('div', 'hint', 'Nenhum certificado — o bloco não aparecerá no relatório.'));
+      }
+    }
+    redraw();
+    wrap.appendChild(list);
+
+    var add = el('button', 'btn btn--sm', '+ Certificado');
+    add.type = 'button';
+    add.style.alignSelf = 'flex-start';
+    add.style.marginTop = '6px';
+    add.addEventListener('click', function () {
+      currentNcr().certificates.push('');
+      redraw();
+      scheduleSave();
+    });
+    wrap.appendChild(add);
+    return wrap;
+  }
+
+  /* --- evidências -------------------------------------------------------- */
+
+  function renderEvidenceCard() {
+    var ncr = currentNcr();
+    var c = card('Evidências (páginas de anexo, em paisagem)');
+    c.appendChild(el('div', 'hint',
+      'Cada anexo vira uma página no fim do relatório, com o link “Go to Evidence” apontando para ela.'));
+
+    var host = el('div');
+    host.style.marginTop = '10px';
+
+    function redraw() {
+      host.innerHTML = '';
+      var n = currentNcr();
+      n.evidence.forEach(function (ev, i) { host.appendChild(renderEvidencePage(ev, i, redraw)); });
+      if (!n.evidence.length) {
+        host.appendChild(el('div', 'hint', 'Nenhuma evidência para esta NCR.'));
+      }
+      var add = el('button', 'btn btn--sm', '+ Novo anexo');
+      add.type = 'button';
+      add.style.marginTop = '8px';
+      add.addEventListener('click', function () {
+        currentNcr().evidence.push(Store.newEvidence(currentNcr().evidence.length + 1));
+        redraw();
+        renderNcrList();
+        scheduleSave();
+      });
+      host.appendChild(add);
+    }
+    redraw();
+    c.appendChild(host);
+    return c;
+  }
+
+  function renderEvidencePage(ev, index, redrawAll) {
+    var box = el('div', 'evid-page');
+
+    var head = el('div', 'evid-page-head');
+    var refField = el('div', 'field');
+    refField.appendChild(el('label', null, 'Referência do anexo'));
+    var refInput = document.createElement('input');
+    refInput.type = 'text';
+    refInput.value = ev.ref;
+    refInput.placeholder = 'Attachment ' + (index + 1);
+    refInput.addEventListener('input', function () { ev.ref = refInput.value; scheduleSave(); });
+    refField.appendChild(refInput);
+    head.appendChild(refField);
+
+    var del = el('button', 'btn btn--sm btn--danger', 'Excluir anexo');
+    del.type = 'button';
+    del.addEventListener('click', function () {
+      if (!confirm('Excluir este anexo e suas imagens?')) return;
+      var list = currentNcr().evidence;
+      list.splice(list.indexOf(ev), 1);
+      redrawAll();
+      renderNcrList();
+      scheduleSave();
+    });
+    head.appendChild(del);
+    box.appendChild(head);
+
+    var noteField = el('div', 'field');
+    noteField.style.marginBottom = '10px';
+    noteField.appendChild(el('label', null, 'Texto explicativo (opcional)'));
+    var note = document.createElement('textarea');
+    note.rows = 2;
+    note.value = ev.note;
+    note.placeholder = 'Comentário exibido acima das imagens.';
+    note.addEventListener('input', function () { ev.note = note.value; scheduleSave(); });
+    noteField.appendChild(note);
+    box.appendChild(noteField);
+
+    /* miniaturas */
+    var thumbs = el('div', 'evid-thumbs');
+    function redrawThumbs() {
+      thumbs.innerHTML = '';
+      ev.images.forEach(function (img, i) {
+        var t = el('div', 'evid-thumb');
+        var im = document.createElement('img');
+        im.src = img.src;
+        im.alt = img.caption || 'Evidência ' + (i + 1);
+        t.appendChild(im);
+
+        var cap = document.createElement('input');
+        cap.type = 'text';
+        cap.value = img.caption;
+        cap.placeholder = 'Legenda (opcional)';
+        cap.addEventListener('input', function () { img.caption = cap.value; scheduleSave(); });
+        t.appendChild(cap);
+
+        var acts = el('div', 'evid-thumb-actions');
+        var left = el('button', 'btn btn--icon', '←');
+        left.type = 'button'; left.title = 'Mover para a esquerda';
+        left.disabled = i === 0;
+        left.addEventListener('click', function () {
+          ev.images.splice(i - 1, 0, ev.images.splice(i, 1)[0]);
+          redrawThumbs(); scheduleSave();
+        });
+        var right = el('button', 'btn btn--icon', '→');
+        right.type = 'button'; right.title = 'Mover para a direita';
+        right.disabled = i === ev.images.length - 1;
+        right.addEventListener('click', function () {
+          ev.images.splice(i + 1, 0, ev.images.splice(i, 1)[0]);
+          redrawThumbs(); scheduleSave();
+        });
+        var rm = el('button', 'btn btn--icon btn--danger', '✕');
+        rm.type = 'button'; rm.title = 'Remover imagem';
+        rm.addEventListener('click', function () {
+          ev.images.splice(i, 1);
+          redrawThumbs(); renderNcrList(); scheduleSave();
+        });
+        acts.appendChild(left); acts.appendChild(right); acts.appendChild(rm);
+        t.appendChild(acts);
+        thumbs.appendChild(t);
+      });
+      thumbs.hidden = !ev.images.length;
+    }
+    redrawThumbs();
+    box.appendChild(thumbs);
+
+    /* área de upload */
+    var drop = el('div', 'evid-drop', 'Clique para escolher imagens, cole (Ctrl+V) ou arraste os arquivos aqui.');
+    var picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/*';
+    picker.multiple = true;
+    picker.hidden = true;
+
+    function ingest(files) {
+      var imgs = Array.prototype.slice.call(files).filter(function (f) { return /^image\//.test(f.type); });
+      if (!imgs.length) return;
+      drop.textContent = 'Processando ' + imgs.length + ' imagem(ns)…';
+      Promise.all(imgs.map(fileToCompressedDataUrl)).then(function (srcs) {
+        srcs.forEach(function (src) {
+          ev.images.push({ id: Store.uid(), src: src, caption: '' });
+        });
+        drop.textContent = 'Clique para escolher imagens, cole (Ctrl+V) ou arraste os arquivos aqui.';
+        redrawThumbs();
+        renderNcrList();
+        scheduleSave();
+      }).catch(function (e) {
+        console.error(e);
+        drop.textContent = 'Não foi possível ler alguma imagem. Tente novamente.';
+        toast('Falha ao carregar imagem.');
+      });
+    }
+
+    drop.addEventListener('click', function () { picker.click(); });
+    picker.addEventListener('change', function () { ingest(picker.files); picker.value = ''; });
+    drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('is-over'); });
+    drop.addEventListener('dragleave', function () { drop.classList.remove('is-over'); });
+    drop.addEventListener('drop', function (e) {
+      e.preventDefault();
+      drop.classList.remove('is-over');
+      if (e.dataTransfer && e.dataTransfer.files) ingest(e.dataTransfer.files);
+    });
+    drop.addEventListener('paste', function (e) {
+      if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length) {
+        e.preventDefault();
+        ingest(e.clipboardData.files);
+      }
+    });
+    drop.tabIndex = 0;
+
+    box.appendChild(drop);
+    box.appendChild(picker);
+    return box;
+  }
+
+  /** Lê o arquivo, reduz a imagem se necessário e devolve um data URL. */
+  function fileToCompressedDataUrl(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onerror = function () { reject(reader.error); };
+      reader.onload = function () {
+        var dataUrl = String(reader.result);
+        var img = new Image();
+        img.onerror = function () { resolve(dataUrl); };  // formato exótico: guarda como veio
+        img.onload = function () {
+          var scale = Math.min(1, MAX_IMAGE_DIM / Math.max(img.width, img.height));
+          if (scale === 1 && dataUrl.length < 700000) { resolve(dataUrl); return; }
+          var w = Math.max(1, Math.round(img.width * scale));
+          var h = Math.max(1, Math.round(img.height * scale));
+          var canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          var ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          try {
+            resolve(canvas.toDataURL('image/jpeg', JPEG_QUALITY));
+          } catch (e) {
+            resolve(dataUrl);
+          }
+        };
+        img.src = dataUrl;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* pré-visualização e exportação em PDF                                   */
+  /* ---------------------------------------------------------------------- */
+
+  function buildPrintRoot() {
+    var root = $('#printRoot');
+    Report.build(state.project, root);
+    return root;
+  }
+
+  function openPreview() {
+    if (!state.project) return;
+    var stage = $('#previewStage');
+    Report.build(state.project, stage);
+    $('#preview').hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closePreview() {
+    $('#preview').hidden = true;
+    $('#previewStage').innerHTML = '';
+    document.body.style.overflow = '';
+  }
+
+  function exportPdf() {
+    if (!state.project) return;
+    buildPrintRoot();
+    $('#pdfDialog').showModal();
+  }
+
+  function doPrint() {
+    $('#pdfDialog').close();
+    var title = document.title;
+    document.title = Report.suggestedFileName(state.project, 'pdf').replace(/\.pdf$/, '');
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.title = title; }, 500);
+    }, 60);
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* backup / restauração                                                   */
+  /* ---------------------------------------------------------------------- */
+
+  function exportBackup(all) {
+    var projects = all ? state.projects : [state.project];
+    var data = Store.toBackup(projects);
+    var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    var name = all
+      ? 'WaiverRequest_backup_completo_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.json'
+      : Report.suggestedFileName(state.project, 'json');
+    download(blob, name);
+    toast(all ? 'Backup de todos os relatórios salvo.' : 'Backup do relatório salvo.');
+  }
+
+  function importBackupFile(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var incoming;
+      try {
+        incoming = Store.fromBackup(JSON.parse(String(reader.result)));
+      } catch (e) {
+        alert('Não foi possível ler o backup: ' + e.message);
+        return;
+      }
+      var replace = state.projects.some(function (p) {
+        return incoming.some(function (q) { return q.id === p.id; });
+      }) && confirm(
+        'Este backup contém relatórios que já existem neste navegador.\n\n' +
+        'OK = substituir as versões existentes\n' +
+        'Cancelar = importar como cópias novas'
+      );
+
+      var saves = incoming.map(function (p) {
+        if (!replace) {
+          p.id = Store.uid();
+          p.name = p.name + ' (importado)';
+        }
+        return Store.save(p);
+      });
+
+      Promise.all(saves)
+        .then(function () { return Store.list(); })
+        .then(function (list) {
+          state.projects = list;
+          var target = list.filter(function (p) { return p.id === incoming[0].id; })[0] || list[0];
+          loadProject(target);
+          toast(incoming.length + ' relatório(s) importado(s).');
+        })
+        .catch(function (e) { markError(e); alert('Falha ao gravar os relatórios importados.'); });
+    };
+    reader.readAsText(file);
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* inicialização                                                          */
+  /* ---------------------------------------------------------------------- */
+
+  function wire() {
+    $('#marcoInput').addEventListener('input', function () {
+      state.project.marco = this.value;
+      state.project.name = this.value || 'Relatório sem nome';
+      scheduleSave();
+    });
+    $('#footerInput').addEventListener('input', function () {
+      state.project.footer = this.value;
+      scheduleSave();
+    });
+
+    $('#projectSelect').addEventListener('change', function () {
+      var sel = this.value;
+      flushSave().then(function () {
+        var p = state.projects.filter(function (x) { return x.id === sel; })[0];
+        if (p) loadProject(p);
+      });
+    });
+
+    $('#newProjectBtn').addEventListener('click', function () {
+      var marco = prompt('Marco do novo relatório (ex.: RANAE J06):', '');
+      if (marco === null) return;
+      var p = Store.newProject(marco.trim());
+      flushSave().then(function () { return Store.save(p); }).then(function () {
+        state.projects.unshift(p);
+        loadProject(p);
+        toast('Relatório criado.');
+      }).catch(markError);
+    });
+
+    $('#deleteProjectBtn').addEventListener('click', function () {
+      if (!state.project) return;
+      if (!confirm('Excluir o relatório "' + (state.project.marco || state.project.name) + '" deste navegador?\n\nFaça um backup antes se quiser conservá-lo.')) return;
+      var id = state.project.id;
+      Store.remove(id).then(function () {
+        state.projects = state.projects.filter(function (p) { return p.id !== id; });
+        if (!state.projects.length) {
+          var p = Store.newProject('');
+          return Store.save(p).then(function () { state.projects = [p]; loadProject(p); });
+        }
+        loadProject(state.projects[0]);
+      }).then(function () { toast('Relatório excluído.'); }).catch(markError);
+    });
+
+    $('#addNcrBtn').addEventListener('click', addNcr);
+    $('#dupNcrBtn').addEventListener('click', duplicateNcr);
+    $('#delNcrBtn').addEventListener('click', deleteNcr);
+    $('#ncrFilter').addEventListener('input', renderNcrList);
+
+    $('#previewBtn').addEventListener('click', openPreview);
+    $('#closePreviewBtn').addEventListener('click', closePreview);
+    $('#previewPrintBtn').addEventListener('click', function () { closePreview(); exportPdf(); });
+    $('#pdfBtn').addEventListener('click', exportPdf);
+    $('#pdfCancelBtn').addEventListener('click', function () { $('#pdfDialog').close(); });
+    $('#pdfGoBtn').addEventListener('click', doPrint);
+
+    $('#backupBtn').addEventListener('click', function () { exportBackup(false); });
+    $('#backupAllBtn').addEventListener('click', function () { exportBackup(true); });
+    $('#restoreBtn').addEventListener('click', function () { $('#restoreInput').click(); });
+    $('#restoreInput').addEventListener('change', function () {
+      if (this.files && this.files[0]) importBackupFile(this.files[0]);
+      this.value = '';
+    });
+
+    /* arrastar um .json para qualquer lugar da janela restaura o backup */
+    window.addEventListener('dragover', function (e) {
+      if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0) e.preventDefault();
+    });
+    window.addEventListener('drop', function (e) {
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f && /\.json$/i.test(f.name)) {
+        e.preventDefault();
+        importBackupFile(f);
+      }
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !$('#preview').hidden) closePreview();
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); flushSave(); toast('Salvo.'); }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') { e.preventDefault(); exportPdf(); }
+    });
+
+    window.addEventListener('beforeunload', function () {
+      if (saveTimer) flushSave();
+    });
+  }
+
+  function boot() {
+    wire();
+    requestPersistentStorage();
+    Store.list().then(function (list) {
+      state.projects = list;
+      if (!list.length) {
+        var p = Store.newProject('');
+        return Store.save(p).then(function () {
+          state.projects = [p];
+          loadProject(p);
+        });
+      }
+      loadProject(list[0]);
+    }).catch(function (e) {
+      markError(e);
+      var p = Store.newProject('');
+      state.projects = [p];
+      loadProject(p);
+      toast('Não foi possível ler o armazenamento local; começando do zero.');
+    });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
