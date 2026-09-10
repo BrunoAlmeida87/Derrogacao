@@ -205,10 +205,17 @@ de um colega você vê exatamente o que ele mexeu na sessão dele. São guardada
 
 ## Publicação
 
-O site é servido pela branch `gh-pages`, que o workflow
-`.github/workflows/pages.yml` mantém idêntica à `main` a cada push. A ativação
-é feita uma única vez em **Settings → Pages → Source: Deploy from a branch →
-`gh-pages` / (root)**.
+Cada `css` e `js` carregado pelo `index.html` é carimbado, na publicação, com o
+SHA do commit (`app.js?v=abc1234`). Sem isso o navegador pode servir um
+`index.html` novo junto de um `app.js` antigo guardado em cache — a página abre
+com a marcação nova e o código velho, e quebra de formas difíceis de
+diagnosticar. A versão em uso aparece no rodapé do menu **⋯**; se ela não bater
+com o último commit, é cache do navegador (Ctrl+F5 resolve).
+
+O site é servido pela branch `gh-pages`, publicada pelo workflow
+`.github/workflows/pages.yml` a cada push na `main`. A ativação foi feita uma
+única vez em **Settings → Pages → Source: Deploy from a branch → `gh-pages` /
+(root)**.
 
 ## Estrutura
 

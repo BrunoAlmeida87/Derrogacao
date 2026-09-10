@@ -1,7 +1,10 @@
-# Mantém a branch gh-pages idêntica à main.
-# Em Settings > Pages, escolha "Deploy from a branch" > gh-pages > / (root).
-# Essa rota não exige a permissão de criação de site que o token do Actions
-# não possui neste repositório.
+# Publica o site na branch gh-pages.
+# Em Settings > Pages, a origem é "Deploy from a branch" > gh-pages > / (root).
+#
+# O index.html é carimbado com o SHA do commit em cada css/js que ele carrega.
+# Sem isso o navegador pode servir um index.html novo junto de um app.js velho
+# guardado em cache — a página abre com a marcação nova e o código antigo, e
+# quebra de formas difíceis de diagnosticar.
 name: Publicar no GitHub Pages
 
 on:
@@ -24,8 +27,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Espelhar main em gh-pages
+      - name: Carimbar a versão nos assets
+        run: |
+          SHA="${GITHUB_SHA:0:7}"
+          sed -i -E "s#(assets/(css|js)/[A-Za-z0-9._-]+\.(css|js))\"#\1?v=${SHA}\"#g" index.html
+          echo "--- referências carimbadas ---"
+          grep -nE 'assets/(css|js)/' index.html
+
+      - name: Publicar em gh-pages
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git push --force origin "${GITHUB_SHA}:refs/heads/gh-pages"
+          git add index.html
+          git commit -m "Publica ${GITHUB_SHA:0:7}"
+          git push --force origin HEAD:refs/heads/gh-pages

@@ -2094,10 +2094,24 @@
     });
   }
 
+  /* A publicação carimba os assets com o SHA do commit. Mostrar essa marca
+     permite conferir, em segundos, se o navegador está com a versão certa —
+     um index.html novo servido junto de um app.js velho do cache já causou
+     erros difíceis de entender. */
+  function renderVersion() {
+    var tag = document.querySelector('script[src*="app.js"]');
+    var src = tag ? tag.getAttribute('src') : '';
+    var m = /[?&]v=([^&]+)/.exec(src || '');
+    var box = $('#menuVersion');
+    box.textContent = m ? 'versão ' + m[1] : 'versão local (sem carimbo)';
+    if (m) $('#menuBtn').title = 'Mais ações — versão ' + m[1];
+  }
+
   function boot() {
     wire();
     requestPersistentStorage();
     refreshUndo();
+    renderVersion();
     Store.list().then(function (list) {
       state.projects = list;
       if (!list.length) {

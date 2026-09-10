@@ -463,9 +463,8 @@ input:focus, select:focus, textarea:focus {
   background: #f7f8fa;
   border: none;
   border-top: 1px solid var(--line);
-  border-radius: 0 0 7px 7px;
   padding: 9px 10px;
-  margin: 8px -6px -6px;
+  margin: 8px -6px 0;
   width: calc(100% + 12px);
   cursor: pointer;
   color: var(--ink);
@@ -473,6 +472,16 @@ input:focus, select:focus, textarea:focus {
 .menu-foot:hover { background: #eef0f3; }
 .menu-foot-who { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu-foot-act { color: var(--accent); flex: 0 0 auto; }
+
+.menu-version {
+  font-size: 10px;
+  color: #9aa0aa;
+  text-align: center;
+  padding: 6px 0 2px;
+  margin: 0 -6px -6px;
+  background: #f7f8fa;
+  border-radius: 0 0 7px 7px;
+}
 .menu-item {
   display: flex;
   flex-direction: column;
