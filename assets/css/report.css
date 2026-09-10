@@ -41,6 +41,10 @@
 .rep-page--landscape {
   width: 297mm;
   min-height: 210mm;
+}
+
+/* páginas de anexo têm margens menores, para caber mais imagem */
+.rep-page--evidence {
   --rep-pad-x: 12mm;
   --rep-pad-top: 10mm;
   --rep-pad-bottom: 10mm;
@@ -98,6 +102,8 @@
   font-size: 12pt;
   text-align: center;
   padding: 1.4mm 3mm;
+  break-after: avoid;
+  page-break-after: avoid;
 }
 
 /* --- seções (cabeçalho colorido + caixa de texto) ---------------------- */
@@ -110,6 +116,10 @@
   text-align: center;
   font-size: 12pt;
   padding: 0.6mm 2mm;
+  /* um cabeçalho nunca fica sozinho no fim da página */
+  break-after: avoid;
+  page-break-after: avoid;
+  break-inside: avoid;
 }
 .rep-section-body {
   border: 1px solid var(--rep-line);
@@ -134,6 +144,8 @@
   width: 58%;
   font-weight: bold;
   font-size: 11pt;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 .rep-status-row {
   border: 1px solid var(--rep-line);
@@ -149,6 +161,8 @@
   margin-top: 5mm;
   width: 52%;
   font-size: 12pt;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 .rep-cert-head {
   background: #000;
@@ -200,6 +214,8 @@
   margin-top: 4mm;
 }
 .rep-evidence-fig {
+  break-inside: avoid;
+  page-break-inside: avoid;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -217,14 +233,23 @@
   max-width: 100%;
 }
 
-/* nº de imagens define o tamanho máximo de cada figura */
-.rep-evidence-grid[data-count="1"] .rep-evidence-fig img { max-height: 150mm; max-width: 250mm; }
-.rep-evidence-grid[data-count="2"] .rep-evidence-fig img { max-height: 145mm; max-width: 128mm; }
-.rep-evidence-grid[data-count="3"] .rep-evidence-fig img { max-height: 140mm; max-width: 84mm;  }
-.rep-evidence-grid[data-count="4"] .rep-evidence-fig img { max-height: 68mm;  max-width: 128mm; }
-.rep-evidence-grid[data-count="5"] .rep-evidence-fig img,
-.rep-evidence-grid[data-count="6"] .rep-evidence-fig img { max-height: 66mm; max-width: 84mm; }
-.rep-evidence-grid[data-count="many"] .rep-evidence-fig img { max-height: 62mm; max-width: 62mm; }
+/* nº de imagens define o tamanho máximo de cada figura — paisagem (273x180mm úteis) */
+.rep-page--landscape .rep-evidence-grid[data-count="1"] .rep-evidence-fig img { max-height: 150mm; max-width: 250mm; }
+.rep-page--landscape .rep-evidence-grid[data-count="2"] .rep-evidence-fig img { max-height: 145mm; max-width: 128mm; }
+.rep-page--landscape .rep-evidence-grid[data-count="3"] .rep-evidence-fig img { max-height: 140mm; max-width: 84mm;  }
+.rep-page--landscape .rep-evidence-grid[data-count="4"] .rep-evidence-fig img { max-height: 68mm;  max-width: 128mm; }
+.rep-page--landscape .rep-evidence-grid[data-count="5"] .rep-evidence-fig img,
+.rep-page--landscape .rep-evidence-grid[data-count="6"] .rep-evidence-fig img { max-height: 66mm; max-width: 84mm; }
+.rep-page--landscape .rep-evidence-grid[data-count="many"] .rep-evidence-fig img { max-height: 62mm; max-width: 62mm; }
+
+/* retrato (186x267mm úteis) */
+.rep-page--evidence:not(.rep-page--landscape) .rep-evidence-grid[data-count="1"] .rep-evidence-fig img { max-height: 235mm; max-width: 186mm; }
+.rep-page--evidence:not(.rep-page--landscape) .rep-evidence-grid[data-count="2"] .rep-evidence-fig img { max-height: 113mm; max-width: 186mm; }
+.rep-page--evidence:not(.rep-page--landscape) .rep-evidence-grid[data-count="3"] .rep-evidence-fig img { max-height: 74mm;  max-width: 186mm; }
+.rep-page--evidence:not(.rep-page--landscape) .rep-evidence-grid[data-count="4"] .rep-evidence-fig img { max-height: 112mm; max-width: 88mm; }
+.rep-page--evidence:not(.rep-page--landscape) .rep-evidence-grid[data-count="5"] .rep-evidence-fig img,
+.rep-page--evidence:not(.rep-page--landscape) .rep-evidence-grid[data-count="6"] .rep-evidence-fig img { max-height: 74mm; max-width: 88mm; }
+.rep-page--evidence:not(.rep-page--landscape) .rep-evidence-grid[data-count="many"] .rep-evidence-fig img { max-height: 62mm; max-width: 58mm; }
 
 /* --- pré-visualização em tela ------------------------------------------ */
 

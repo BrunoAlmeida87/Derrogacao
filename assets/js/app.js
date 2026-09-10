@@ -498,16 +498,59 @@
     refField.appendChild(refInput);
     head.appendChild(refField);
 
+    var list = currentNcr().evidence;
+
+    var up = el('button', 'btn btn--sm', '↑');
+    up.type = 'button';
+    up.title = 'Mover anexo para cima';
+    up.disabled = index === 0;
+    up.addEventListener('click', function () {
+      var l = currentNcr().evidence;
+      l.splice(index - 1, 0, l.splice(index, 1)[0]);
+      redrawAll(); scheduleSave();
+    });
+
+    var down = el('button', 'btn btn--sm', '↓');
+    down.type = 'button';
+    down.title = 'Mover anexo para baixo';
+    down.disabled = index === list.length - 1;
+    down.addEventListener('click', function () {
+      var l = currentNcr().evidence;
+      l.splice(index + 1, 0, l.splice(index, 1)[0]);
+      redrawAll(); scheduleSave();
+    });
+
+    var orient = el('div', 'field');
+    orient.style.flex = '0 0 130px';
+    orient.appendChild(el('label', null, 'Orientação'));
+    var orientSel = document.createElement('select');
+    [['landscape', 'Paisagem'], ['portrait', 'Retrato']].forEach(function (o) {
+      var opt = document.createElement('option');
+      opt.value = o[0];
+      opt.textContent = o[1];
+      orientSel.appendChild(opt);
+    });
+    orientSel.value = ev.orientation || 'landscape';
+    orientSel.addEventListener('change', function () {
+      ev.orientation = orientSel.value;
+      scheduleSave();
+    });
+    orient.appendChild(orientSel);
+    head.appendChild(orient);
+
     var del = el('button', 'btn btn--sm btn--danger', 'Excluir anexo');
     del.type = 'button';
     del.addEventListener('click', function () {
       if (!confirm('Excluir este anexo e suas imagens?')) return;
-      var list = currentNcr().evidence;
-      list.splice(list.indexOf(ev), 1);
+      var l = currentNcr().evidence;
+      l.splice(l.indexOf(ev), 1);
       redrawAll();
       renderNcrList();
       scheduleSave();
     });
+
+    head.appendChild(up);
+    head.appendChild(down);
     head.appendChild(del);
     box.appendChild(head);
 
@@ -653,6 +696,181 @@
   }
 
   /* ---------------------------------------------------------------------- */
+  /* copiar NCRs de outro relatório                                          */
+  /* ---------------------------------------------------------------------- */
+
+  /* Um marco novo costuma repetir NCRs do marco anterior; isto evita
+     redigitar tudo. As NCRs entram como cópias independentes. */
+  function openCopyDialog() {
+    var others = state.projects.filter(function (p) {
+      return p.id !== state.project.id && p.ncrs.length;
+    });
+    var dlg = $('#copyDialog');
+    var body = $('#copyBody');
+    body.innerHTML = '';
+
+    if (!others.length) {
+      body.appendChild(el('p', null,
+        'Não há outro relatório com NCRs neste navegador. Crie outro relatório ou restaure um backup primeiro.'));
+      $('#copyGoBtn').disabled = true;
+      dlg.showModal();
+      return;
+    }
+    $('#copyGoBtn').disabled = false;
+
+    var pick = el('div', 'field');
+    pick.appendChild(el('label', null, 'Copiar de'));
+    var sel = document.createElement('select');
+    others.forEach(function (p) {
+      var o = document.createElement('option');
+      o.value = p.id;
+      o.textContent = (p.marco || p.name) + ' — ' + p.ncrs.length + ' NCR';
+      sel.appendChild(o);
+    });
+    pick.appendChild(sel);
+    body.appendChild(pick);
+
+    var listBox = el('div');
+    listBox.style.cssText = 'margin-top:12px;max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:8px';
+    body.appendChild(listBox);
+
+    var withImages = document.createElement('input');
+    withImages.type = 'checkbox';
+    withImages.checked = true;
+    var wiLabel = el('label');
+    wiLabel.style.cssText = 'display:flex;gap:6px;align-items:center;margin-top:10px;font-size:13px';
+    wiLabel.appendChild(withImages);
+    wiLabel.appendChild(document.createTextNode('Copiar também as imagens de evidência'));
+    body.appendChild(wiLabel);
+
+    function drawList() {
+      listBox.innerHTML = '';
+      var src = others.filter(function (p) { return p.id === sel.value; })[0];
+      var all = el('label');
+      all.style.cssText = 'display:flex;gap:6px;align-items:center;font-size:13px;font-weight:600;margin-bottom:6px';
+      var allCb = document.createElement('input');
+      allCb.type = 'checkbox';
+      allCb.checked = true;
+      all.appendChild(allCb);
+      all.appendChild(document.createTextNode('Selecionar todas'));
+      listBox.appendChild(all);
+
+      src.ncrs.forEach(function (n) {
+        var row = el('label');
+        row.style.cssText = 'display:flex;gap:6px;align-items:flex-start;font-size:13px;padding:3px 0';
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = true;
+        cb.value = n.id;
+        cb.className = 'copy-ncr';
+        row.appendChild(cb);
+        row.appendChild(document.createTextNode((n.ncrId || '(sem número)') +
+          (n.systems ? ' | ' + n.systems : '')));
+        listBox.appendChild(row);
+      });
+
+      allCb.addEventListener('change', function () {
+        $$('.copy-ncr', listBox).forEach(function (cb) { cb.checked = allCb.checked; });
+      });
+    }
+    drawList();
+    sel.addEventListener('change', drawList);
+
+    dlg.returnValue = '';
+    dlg.showModal();
+
+    $('#copyGoBtn').onclick = function () {
+      var src = others.filter(function (p) { return p.id === sel.value; })[0];
+      var wanted = $$('.copy-ncr', listBox)
+        .filter(function (cb) { return cb.checked; })
+        .map(function (cb) { return cb.value; });
+      if (!wanted.length) { dlg.close(); return; }
+
+      wanted.forEach(function (id) {
+        var origin = src.ncrs.filter(function (n) { return n.id === id; })[0];
+        var copy = Store.normalizeNcr(JSON.parse(JSON.stringify(origin)));
+        copy.id = Store.uid();
+        if (!withImages.checked) copy.evidence = [];
+        copy.evidence.forEach(function (evd) {
+          evd.id = Store.uid();
+          evd.images.forEach(function (im) { im.id = Store.uid(); });
+        });
+        state.project.ncrs.push(copy);
+      });
+
+      dlg.close();
+      state.ncrId = state.project.ncrs[state.project.ncrs.length - 1].id;
+      renderNcrList();
+      renderEditor();
+      scheduleSave();
+      toast(wanted.length + ' NCR(s) copiada(s) de "' + (src.marco || src.name) + '".');
+    };
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* verificação de campos vazios                                            */
+  /* ---------------------------------------------------------------------- */
+
+  var REQUIRED = [
+    ['ncrId', 'número da NCR'],
+    ['func', 'função'],
+    ['description', 'Description'],
+    ['currentSituation', 'Current Situation'],
+    ['whyNotPossible', 'Why is not possible to treat the deviation'],
+    ['arguments', 'What are the arguments for the derrogation']
+  ];
+
+  /** Lista o que está faltando, para avisar antes de exportar. */
+  function findGaps() {
+    var gaps = [];
+    if (!(state.project.marco || '').trim()) gaps.push({ ncr: null, what: 'O marco do relatório está vazio.' });
+    state.project.ncrs.forEach(function (n, i) {
+      var missing = REQUIRED
+        .filter(function (r) { return !(n[r[0]] || '').trim(); })
+        .map(function (r) { return r[1]; });
+      if (missing.length) {
+        gaps.push({
+          ncr: n,
+          what: 'NCR ' + (i + 1) + ' (' + (n.ncrId || 'sem número') + '): ' + missing.join(', ') + '.'
+        });
+      }
+    });
+    if (!state.project.ncrs.length) gaps.push({ ncr: null, what: 'O relatório não tem nenhuma NCR.' });
+    return gaps;
+  }
+
+  function renderGaps() {
+    var host = $('#pdfGaps');
+    host.innerHTML = '';
+    var gaps = findGaps();
+    if (!gaps.length) {
+      host.appendChild(el('p', null, '✓ Todos os campos essenciais estão preenchidos.'));
+      return;
+    }
+    host.appendChild(el('p', null, 'Atenção — itens em branco sairão vazios no PDF:'));
+    var ul = document.createElement('ul');
+    ul.style.cssText = 'margin:0 0 12px;padding-left:20px;line-height:1.6;max-height:150px;overflow:auto';
+    gaps.forEach(function (g) {
+      var li = document.createElement('li');
+      if (g.ncr) {
+        var a = document.createElement('a');
+        a.href = '#';
+        a.textContent = g.what;
+        a.addEventListener('click', function (e) {
+          e.preventDefault();
+          $('#pdfDialog').close();
+          selectNcr(g.ncr.id);
+        });
+        li.appendChild(a);
+      } else {
+        li.textContent = g.what;
+      }
+      ul.appendChild(li);
+    });
+    host.appendChild(ul);
+  }
+
+  /* ---------------------------------------------------------------------- */
   /* pré-visualização e exportação em PDF                                   */
   /* ---------------------------------------------------------------------- */
 
@@ -668,6 +886,21 @@
     Report.build(state.project, stage);
     $('#preview').hidden = false;
     document.body.style.overflow = 'hidden';
+    applyZoom();
+  }
+
+  /* A folha A4 é mais larga que muitas telas; o zoom deixa ver a página
+     inteira sem rolagem horizontal. */
+  function applyZoom() {
+    var z = Number($('#zoomRange').value) / 100;
+    $('#zoomLabel').textContent = Math.round(z * 100) + '%';
+    $$('#previewStage .rep-page').forEach(function (pg) {
+      pg.style.transform = 'scale(' + z + ')';
+      pg.style.transformOrigin = 'top center';
+      /* compensa o espaço que a escala deixa sobrando abaixo da folha */
+      var h = pg.classList.contains('rep-page--landscape') ? 210 : 297;
+      pg.style.marginBottom = (24 - h * (1 - z) * 3.78) + 'px';
+    });
   }
 
   function closePreview() {
@@ -679,6 +912,7 @@
   function exportPdf() {
     if (!state.project) return;
     buildPrintRoot();
+    renderGaps();
     $('#pdfDialog').showModal();
   }
 
@@ -799,6 +1033,10 @@
     $('#delNcrBtn').addEventListener('click', deleteNcr);
     $('#ncrFilter').addEventListener('input', renderNcrList);
 
+    $('#copyNcrBtn').addEventListener('click', openCopyDialog);
+    $('#copyCancelBtn').addEventListener('click', function () { $('#copyDialog').close(); });
+    $('#zoomRange').addEventListener('input', applyZoom);
+
     $('#previewBtn').addEventListener('click', openPreview);
     $('#closePreviewBtn').addEventListener('click', closePreview);
     $('#previewPrintBtn').addEventListener('click', function () { closePreview(); exportPdf(); });
@@ -824,6 +1062,34 @@
         e.preventDefault();
         importBackupFile(f);
       }
+    });
+
+    /* Ctrl+V em qualquer ponto do editor manda a imagem para o último anexo
+       da NCR aberta (criando um anexo, se ainda não houver nenhum). */
+    document.addEventListener('paste', function (e) {
+      if (!$('#preview').hidden) return;
+      var tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') {
+        /* dentro de um campo de texto só interceptamos se vier imagem */
+        if (!e.clipboardData || !e.clipboardData.files.length) return;
+      }
+      var ncr = currentNcr();
+      if (!ncr || !e.clipboardData) return;
+      var files = Array.prototype.slice.call(e.clipboardData.files)
+        .filter(function (f) { return /^image\//.test(f.type); });
+      if (!files.length) return;
+      e.preventDefault();
+      if (!ncr.evidence.length) ncr.evidence.push(Store.newEvidence(1));
+      var target = ncr.evidence[ncr.evidence.length - 1];
+      Promise.all(files.map(fileToCompressedDataUrl)).then(function (srcs) {
+        srcs.forEach(function (src) {
+          target.images.push({ id: Store.uid(), src: src, caption: '' });
+        });
+        renderEditor();
+        renderNcrList();
+        scheduleSave();
+        toast(srcs.length + ' imagem(ns) colada(s) em "' + target.ref + '".');
+      });
     });
 
     document.addEventListener('keydown', function (e) {

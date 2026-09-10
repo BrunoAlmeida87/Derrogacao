@@ -17,10 +17,15 @@ login e nenhum dado sai do computador.
   deviation*, *What are the arguments for the derrogation* e *Arch Answer*,
   além de *Waiver Request Expiry*, *Arch Status Waiver*, *Waiver Approved
   Expiry*, *Waiver Historic* e *Certificate Impacted*.
-- **Imagens ao fim de cada NCR.** Cada anexo gera uma página de evidência em
-  paisagem, com o link `Go to Evidence` na página da NCR e `Back to <NCR>` na
-  página do anexo. Imagens entram por clique, arrastar-e-soltar ou colar
-  (Ctrl+V), com legenda opcional.
+- **Imagens ao fim de cada NCR.** Cada anexo gera uma página de evidência,
+  com o link `Go to Evidence` na página da NCR e `Back to <NCR>` na página do
+  anexo. Imagens entram por clique, arrastar-e-soltar ou colar (Ctrl+V), com
+  legenda opcional. O anexo sai em paisagem (padrão do relatório original) ou
+  em retrato, à sua escolha.
+- **Reaproveitamento entre marcos.** **Copiar de…** traz NCRs já escritas de
+  outro relatório, com ou sem as imagens, como cópias independentes.
+- **Conferência antes de exportar.** A janela de exportação lista as NCRs com
+  campos essenciais em branco, com link direto para corrigir.
 - **Exportação em PDF** no mesmo padrão do relatório original: capa com o índice
   de NCRs, páginas A4 retrato para as NCRs, páginas A4 paisagem para as
   evidências, mesmas cores de faixa e mesmo rodapé.
@@ -33,6 +38,7 @@ login e nenhum dado sai do computador.
 2. **+ Nova NCR** na lateral esquerda e preencha número, sistema(s) e função.
    O título da página é montado como `NCR-...|RM|FV 01 - ...`, igual ao original.
 3. Preencha os textos da derrogação. O salvamento é automático.
+   Para um marco que repete NCRs de outro relatório, use **Copiar de…**.
 4. Em **Evidências**, use **+ Novo anexo** e adicione as imagens necessárias.
 5. **Pré-visualizar** mostra as folhas exatamente como sairão no PDF.
 6. **Exportar PDF** abre a janela de impressão. Escolha:
@@ -76,6 +82,14 @@ espaço os dados ocupam.
 | `Ctrl` + `S` | Gravar imediatamente |
 | `Ctrl` + `P` | Exportar PDF |
 | `Esc` | Fechar a pré-visualização |
+| `Ctrl` + `V` | Colar imagem no último anexo da NCR aberta |
+
+## Publicação
+
+O site é servido pela branch `gh-pages`, que o workflow
+`.github/workflows/pages.yml` mantém idêntica à `main` a cada push. A ativação
+é feita uma única vez em **Settings → Pages → Source: Deploy from a branch →
+`gh-pages` / (root)**.
 
 ## Estrutura
 

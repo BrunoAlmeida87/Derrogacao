@@ -56,6 +56,7 @@
         <div style="display:flex;gap:4px">
           <button class="btn btn--sm btn--primary" id="addNcrBtn">+ Nova NCR</button>
           <button class="btn btn--sm" id="dupNcrBtn" title="Duplicar a NCR selecionada">Duplicar</button>
+          <button class="btn btn--sm" id="copyNcrBtn" title="Copiar NCRs de outro relatório">Copiar de…</button>
           <button class="btn btn--sm btn--danger" id="delNcrBtn" title="Excluir a NCR selecionada">Excluir</button>
         </div>
       </div>
@@ -81,6 +82,9 @@
     <strong>Pré-visualização</strong>
     <span class="note">Cada folha abaixo corresponde a uma página do PDF.</span>
     <div class="topbar-spacer"></div>
+    <label class="note" for="zoomRange">Zoom</label>
+    <input type="range" id="zoomRange" min="40" max="130" step="5" value="80" style="width:120px">
+    <span class="note" id="zoomLabel">80%</span>
     <button class="btn btn--primary" id="previewPrintBtn">Exportar PDF</button>
     <button class="btn" id="closePreviewBtn">Fechar (Esc)</button>
   </div>
@@ -91,6 +95,7 @@
 <dialog id="pdfDialog">
   <div class="dlg-body">
     <h3>Exportar para PDF</h3>
+    <div id="pdfGaps" class="dlg-gaps"></div>
     <p>A janela de impressão do navegador será aberta. Para obter o PDF idêntico ao padrão, ajuste:</p>
     <ol>
       <li><strong>Destino</strong>: “Salvar como PDF”</li>
@@ -103,6 +108,18 @@
   <div class="dlg-actions">
     <button class="btn" id="pdfCancelBtn">Cancelar</button>
     <button class="btn btn--primary" id="pdfGoBtn">Abrir impressão</button>
+  </div>
+</dialog>
+
+<dialog id="copyDialog">
+  <div class="dlg-body">
+    <h3>Copiar NCRs de outro relatório</h3>
+    <p>As NCRs entram como cópias independentes: alterá-las aqui não afeta o relatório de origem.</p>
+    <div id="copyBody"></div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="copyCancelBtn">Cancelar</button>
+    <button class="btn btn--primary" id="copyGoBtn">Copiar</button>
   </div>
 </dialog>
 

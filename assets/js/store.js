@@ -25,7 +25,13 @@
   /* --- fábrica de registros --------------------------------------------- */
 
   function newEvidence(index) {
-    return { id: uid(), ref: 'Attachment ' + (index || 1), note: '', images: [] };
+    return {
+      id: uid(),
+      ref: 'Attachment ' + (index || 1),
+      note: '',
+      orientation: 'landscape',   // padrão do relatório original
+      images: []
+    };
   }
 
   function newNcr() {
@@ -82,6 +88,7 @@
       id: str(ev && ev.id) || uid(),
       ref: str(ev && ev.ref) || 'Attachment ' + (i + 1),
       note: str(ev && ev.note),
+      orientation: str(ev && ev.orientation) === 'portrait' ? 'portrait' : 'landscape',
       images: images
     };
   }

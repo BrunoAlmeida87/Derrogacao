@@ -128,7 +128,8 @@
   /* --- páginas de evidência (paisagem) ---------------------------------- */
 
   function buildEvidencePage(project, ncr, ev) {
-    var p = page(true);
+    var p = page(ev.orientation !== 'portrait');
+    p.classList.add('rep-page--evidence');
     p.id = anchorEvid(ev);
 
     var head = el('div', 'rep-evidence-head');

@@ -383,6 +383,18 @@ dialog::backdrop { background: rgba(0, 0, 0, .45); }
 .dlg-body h3 { margin: 0 0 12px; font-size: 16px; }
 .dlg-body p  { margin: 0 0 12px; line-height: 1.55; color: #3f4550; }
 .dlg-body ol { margin: 0 0 12px; padding-left: 20px; line-height: 1.7; }
+.dlg-gaps {
+  font-size: 13px;
+  line-height: 1.5;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-sf);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.dlg-gaps p { margin: 0 0 6px; }
+.dlg-gaps a { color: var(--danger); }
+
 .dlg-actions {
   display: flex;
   justify-content: flex-end;
