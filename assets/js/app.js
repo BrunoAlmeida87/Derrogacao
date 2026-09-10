@@ -1063,6 +1063,7 @@
       $('#menuMarco').textContent = state.project.marco || state.project.name || 'sem marco';
     }
     $('#menuBtn').classList.toggle('btn--nudge', !name);
+    renderDuplicado();
 
     var p = state.project;
     var box = $('#editedBy');
@@ -1187,6 +1188,29 @@
     $('#userNameInput').value = Store.getUser();
     $('#userDialog').showModal();
     $('#userNameInput').focus();
+  }
+
+  /* Importações feitas antes de o pareamento por marco existir deixaram
+     relatórios repetidos. Enquanto houver um, o menu oferece juntá-los. */
+  function duplicadoDoMarco() {
+    if (!state.project) return null;
+    var k = marcoChave(state.project);
+    if (!k) return null;
+    return state.projects.filter(function (p) {
+      return p.id !== state.project.id && marcoChave(p) === k;
+    })[0] || null;
+  }
+
+  function renderDuplicado() {
+    var btn = $('#mergeLocalBtn');
+    if (!btn) return;
+    var dup = duplicadoDoMarco();
+    btn.hidden = !dup;
+    if (dup) {
+      $('#mergeLocalWho').textContent =
+        'há outro "' + (dup.marco || dup.name) + '" neste navegador, com ' +
+        (dup.ncrs.length + dup.devs.length) + ' item(ns)';
+    }
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1717,18 +1741,25 @@
   var pendingMerge = null;
 
   /** Junta o diff das duas abas de um relatório. */
-  function diffBoth(local, incoming) {
-    var a = Store.diffProject(local, incoming, 'ncr');
-    var b = Store.diffProject(local, incoming, 'dev');
+  function diffBoth(local, incoming, porMarco) {
+    var opts = { semRemocoes: !!porMarco };
+    var a = Store.diffProject(local, incoming, 'ncr', opts);
+    var b = Store.diffProject(local, incoming, 'dev', opts);
     return {
       local: local,
       incoming: incoming,
+      porMarco: !!porMarco,
       novos: a.novos.concat(b.novos),
       atualizados: a.atualizados.concat(b.atualizados),
       conflitos: a.conflitos.concat(b.conflitos),
       removidos: a.removidos.concat(b.removidos),
       iguais: a.iguais + b.iguais
     };
+  }
+
+  /** Marco normalizado: "RANAE  j06" e "ranae j06" são o mesmo marco. */
+  function marcoChave(p) {
+    return String((p && (p.marco || p.name)) || '').trim().toUpperCase().replace(/\s+/g, ' ');
   }
 
   function kindTag(k) { return k === 'dev' ? 'DEV' : 'NCR'; }
@@ -1744,6 +1775,16 @@
     var body = $('#mergeBody');
     body.innerHTML = '';
     $('#mergeOrigin').textContent = origem || '';
+
+    /* Quando o pareamento foi pelo marco, os dois relatórios nunca foram o
+       mesmo: convém dizer isso, e por que não há sugestão de exclusão. */
+    var match = $('#mergeMatch');
+    match.hidden = !plan.porMarco;
+    match.textContent = plan.porMarco
+      ? 'O arquivo traz outro relatório de "' + (plan.local.marco || plan.local.name) +
+        '", criado noutro navegador. Os itens são pareados pelo número; ' +
+        'como os dois nunca foram o mesmo relatório, nada é proposto para exclusão.'
+      : '';
 
     var total = 0;
 
@@ -1784,12 +1825,17 @@
         return row;
       });
 
-    grupo('Conflitos', 'os dois lados mexeram — escolha qual versão fica', plan.conflitos,
+    grupo('Precisam da sua escolha', 'os dois lados escreveram — diga qual versão fica', plan.conflitos,
       function (e, i) {
         var row = el('div', 'mg-row mg-row--conflict');
         var head = el('div', 'mg-conflict-head');
         head.appendChild(el('span', 'sess-kind', kindTag(e.kind)));
         head.appendChild(el('span', 'mg-label', e.mine.ncrId || e.incoming.ncrId || '(sem número)'));
+        if (e.porNumero) {
+          var tag = el('span', 'mg-tag', 'mesmo número');
+          tag.title = 'Escritos em separado, cada um no seu navegador — não há versão "mais nova"';
+          head.appendChild(tag);
+        }
         row.appendChild(head);
 
         var opts = el('div', 'mg-choices');
@@ -1904,7 +1950,10 @@
         $('#mergeDialog').close();
         pendingMerge = null;
         toast('Mesclado: ' + novos.length + ' novo(s), ' +
-          (upds.length + confs.length) + ' atualizado(s), ' + dels.length + ' excluído(s).');
+          (upds.length + confs.length) + ' atualizado(s), ' + dels.length + ' excluído(s).' +
+          (plan.localOrigem
+            ? ' Confira e, se estiver tudo aqui, exclua o relatório repetido.'
+            : ''));
       })
       .catch(function (e) { markError(e); alert('Falha ao mesclar.'); });
   }
@@ -1954,12 +2003,30 @@
           (raw.exportedAt ? ', gerado em ' + shortDate(raw.exportedAt) : '') + '.'
         : 'O arquivo não diz quem o gerou.';
 
+      /* Achar o relatório correspondente aqui. Pelo id resolve quando o
+         arquivo veio de uma cópia deste mesmo relatório. Pelo marco resolve
+         a primeira troca entre duas pessoas que criaram, cada uma, o seu
+         relatório do mesmo marco: os ids são diferentes, mas é o mesmo
+         trabalho, e importar como um segundo "RANAE J06" só duplica. */
+      var porId = {};
+      var porMarco = {};
+      state.projects.forEach(function (p) {
+        porId[p.id] = p;
+        var k = marcoChave(p);
+        if (k && !porMarco[k]) porMarco[k] = p;
+      });
+
+      function correspondente(q) {
+        if (porId[q.id]) return { local: porId[q.id], porMarco: false };
+        var k = marcoChave(q);
+        if (k && porMarco[k]) return { local: porMarco[k], porMarco: true };
+        return null;
+      }
+
       /* Relatórios que ainda não existem aqui entram inteiros, sem perguntar:
          não há nada para sobrescrever. */
-      var conhecidos = {};
-      state.projects.forEach(function (p) { conhecidos[p.id] = p; });
-      var inteiros = incoming.filter(function (q) { return !conhecidos[q.id]; });
-      var repetidos = incoming.filter(function (q) { return conhecidos[q.id]; });
+      var inteiros = incoming.filter(function (q) { return !correspondente(q); });
+      var repetidos = incoming.filter(function (q) { return !!correspondente(q); });
 
       Promise.all(inteiros.map(function (q) {
         ['ncrs', 'devs'].forEach(function (k) {
@@ -1978,13 +2045,14 @@
 
           /* Já existe aqui: em vez de substituir, comparar item a item. */
           var alvo = repetidos[0];
-          var localAlvo = state.projects.filter(function (p) { return p.id === alvo.id; })[0];
+          var par = correspondente(alvo);
+          var localAlvo = state.projects.filter(function (p) { return p.id === par.local.id; })[0];
           loadProject(localAlvo);
 
           if (repetidos.length > 1) {
             toast('Mesclando "' + (alvo.marco || alvo.name) + '". Os demais relatórios repetidos ficam para uma próxima importação.');
           }
-          openMergeDialog(diffBoth(localAlvo, alvo), origem);
+          openMergeDialog(diffBoth(localAlvo, alvo, par.porMarco), origem);
         })
         .catch(function (e) { markError(e); alert('Falha ao ler os relatórios do arquivo.'); });
     };
@@ -2096,6 +2164,15 @@
     });
     $('#mergeApplyBtn').addEventListener('click', applyMerge);
     $('#undoMergeBtn').addEventListener('click', undoMerge);
+
+    $('#mergeLocalBtn').addEventListener('click', function () {
+      var dup = duplicadoDoMarco();
+      if (!dup) return;
+      var plan = diffBoth(state.project, dup, true);
+      plan.localOrigem = dup;
+      openMergeDialog(plan,
+        'Outro relatório de "' + (dup.marco || dup.name) + '" que já está neste navegador.');
+    });
 
     $('#sessionsBtn').addEventListener('click', openSessions);
     $('#sessionInfoBtn').addEventListener('click', openSessions);

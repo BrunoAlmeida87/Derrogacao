@@ -205,20 +205,48 @@ Não há servidor: cada pessoa trabalha na sua cópia, no próprio navegador, e 
 arquivos `.json` circulam por uma pasta compartilhada. Por isso **abrir um
 arquivo nunca substitui o que você tem** — a aplicação compara item a item.
 
-Ao abrir um arquivo de um relatório que já existe aqui, a tela de mesclagem
-separa o que mudou em quatro grupos:
+### Quando o arquivo é do mesmo marco
+
+**Marco igual, um relatório só.** Ao abrir um arquivo, a aplicação procura o
+relatório correspondente aqui: primeiro pelo identificador interno (quando o
+arquivo saiu de uma cópia deste mesmo relatório) e, na falta dele, **pelo
+marco**. Assim, se você e um colega criaram cada um o seu `RANAE J06` do zero,
+o arquivo dele **não** vira um segundo `RANAE J06` — cai na tela de mesclagem
+contra o que você já tem. A comparação do marco ignora maiúsculas e espaços a
+mais, então `ranae j06` e `RANAE  J06` são o mesmo marco. Só quando o marco é
+realmente diferente é que o relatório entra inteiro, sem perguntar.
+
+Dentro do relatório, os itens são pareados **pelo identificador interno e, na
+falta dele, pelo número da NCR/DEV** — sem isso, a mesma `NCR-001` escrita
+pelos dois entraria duplicada.
+
+### Os grupos da tela de mesclagem
 
 | Grupo | O que é | Padrão |
 | --- | --- | --- |
 | **Novos** | Existem no arquivo e não aqui | acrescentar |
 | **Atualizados pelo colega** | Você não mexeu; a versão do arquivo é mais nova | aceitar |
-| **Conflitos** | Os dois mexeram no mesmo item | **manter a sua** — você escolhe |
+| **Precisam da sua escolha** | Os dois escreveram no mesmo item | **manter a sua** — você escolhe |
 | **Excluídos pelo colega** | Existem aqui e sumiram do arquivo | não excluir |
 
 Itens em que **só você** mexeu nem aparecem: ficam como estão, sem risco. A
 decisão usa o carimbo da última troca de arquivo (`syncBase`), não apenas a
 hora — é isso que permite distinguir "o colega atualizou" de "os dois
 mexeram".
+
+Dois detalhes valem para o **primeiro encontro** entre relatórios pareados pelo
+marco, que nunca foram o mesmo arquivo:
+
+- itens pareados pelo número vão sempre para *Precisam da sua escolha*, com a
+  etiqueta **mesmo número** — não existe base comum, logo não existe versão
+  "mais nova", e a decisão é sua;
+- **nada é proposto para exclusão**: um item que só você tem não significa que o
+  colega o apagou.
+
+Se você já tem dois relatórios repetidos do mesmo marco (de importações feitas
+antes disso), o menu **⋯ Mais** oferece **⇄ Juntar com o outro relatório deste
+marco**, que abre a mesma tela de mesclagem entre os dois. Depois de conferir,
+exclua o repetido.
 
 Antes de aplicar, a aplicação guarda um retrato do estado anterior:
 **⋯ Mais → ↩ Desfazer a última mesclagem** volta tudo, se a escolha foi errada.

@@ -60,6 +60,9 @@
         </button>
 
         <div class="menu-title">Relatório aberto <small id="menuMarco"></small></div>
+        <button class="menu-item menu-item--warn" id="mergeLocalBtn" hidden>
+          ⇄ Juntar com o outro relatório deste marco <small id="mergeLocalWho"></small>
+        </button>
         <button class="menu-item" id="sessionsBtn">
           Histórico de alterações <small>quem mexeu em quê, por sessão</small>
         </button>
@@ -201,9 +204,11 @@
 <dialog id="mergeDialog" class="dlg--wide">
   <div class="dlg-body">
     <h3>Mesclar com o arquivo</h3>
-    <p>Este relatório já existe aqui. Em vez de substituir tudo, compare item a
-       item — nada é apagado sem você marcar.</p>
+    <p>Este marco já existe aqui. Em vez de substituir tudo ou criar um
+       segundo relatório do mesmo marco, compare item a item — nada é apagado
+       sem você marcar.</p>
     <p class="mg-origin" id="mergeOrigin"></p>
+    <p class="mg-match" id="mergeMatch" hidden></p>
     <div id="mergeBody" class="mg-box"></div>
     <p class="pick-summary" id="mergeSummary"></p>
   </div>

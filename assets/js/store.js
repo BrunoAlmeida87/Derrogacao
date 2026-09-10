@@ -260,25 +260,77 @@
    *   - só este lado mexeu     -> nada a fazer;
    *   - os dois mexeram        -> conflito de verdade, que vai para o usuário.
    */
-  function diffProject(local, incoming, kind) {
+  /** Número da NCR/DEV normalizado, para parear itens de origens diferentes. */
+  function numeroChave(n) {
+    return str(n && n.ncrId).trim().toUpperCase().replace(/\s+/g, ' ');
+  }
+
+  /**
+   * @param opts.semRemocoes  não propor exclusões. Vale quando os dois lados
+   *   nunca foram o mesmo relatório (pareados pelo marco): a ausência de um
+   *   item no arquivo do colega não quer dizer que ele o excluiu.
+   */
+  function diffProject(local, incoming, kind, opts) {
+    opts = opts || {};
     var key = itemsKey(kind);
     var mine = local ? local[key] : [];
     var theirs = incoming[key] || [];
+
     var byId = {};
     mine.forEach(function (n) { byId[n.id] = n; });
-    var seen = {};
 
-    var out = { novos: [], atualizados: [], conflitos: [], removidos: [], iguais: 0 };
+    /* Pareamento em duas passadas. Pelo id resolve o caso normal — o mesmo
+       item que já circulou entre os dois. Pelo número resolve o caso de duas
+       pessoas terem criado a mesma NCR cada uma no seu navegador: os ids são
+       diferentes, mas é o mesmo item, e sem isso ele entraria duplicado. */
+    var usados = {};
+    var pares = [];
+    var sobraram = [];
 
     theirs.forEach(function (t) {
-      seen[t.id] = true;
       var m = byId[t.id];
-      if (!m) { out.novos.push({ kind: kind, incoming: t }); return; }
+      if (m && !usados[m.id]) {
+        usados[m.id] = true;
+        pares.push({ m: m, t: t, porNumero: false });
+      } else {
+        sobraram.push(t);
+      }
+    });
+
+    var porNumero = {};
+    mine.forEach(function (n) {
+      var k = numeroChave(n);
+      if (!k || usados[n.id]) return;
+      (porNumero[k] = porNumero[k] || []).push(n);
+    });
+
+    var novos = [];
+    sobraram.forEach(function (t) {
+      var k = numeroChave(t);
+      var fila = k ? porNumero[k] : null;
+      var m = fila && fila.length ? fila.shift() : null;
+      if (m) {
+        usados[m.id] = true;
+        pares.push({ m: m, t: t, porNumero: true });
+      } else {
+        novos.push(t);
+      }
+    });
+
+    var out = { novos: [], atualizados: [], conflitos: [], removidos: [], iguais: 0 };
+    novos.forEach(function (t) { out.novos.push({ kind: kind, incoming: t }); });
+
+    pares.forEach(function (par) {
+      var m = par.m, t = par.t;
       if (signature(m) === signature(t)) { out.iguais++; return; }
+      var entry = { kind: kind, mine: m, incoming: t, porNumero: par.porNumero };
+
+      /* Pareado pelo número não há base comum: os dois lados escreveram por
+         conta própria, então a escolha é sempre de quem está mesclando. */
+      if (par.porNumero) { out.conflitos.push(entry); return; }
 
       var euMudei = m.editedAt !== m.syncBase;
       var eleMudou = t.editedAt !== m.syncBase;
-      var entry = { kind: kind, mine: m, incoming: t };
 
       if (!euMudei && eleMudou) out.atualizados.push(entry);
       else if (euMudei && !eleMudou) { /* só eu mexi: o meu permanece */ }
@@ -287,9 +339,11 @@
 
     /* Presente aqui e ausente no arquivo: se já foi sincronizado antes, o
        outro lado provavelmente o excluiu. Nunca apagamos sozinhos. */
-    mine.forEach(function (m) {
-      if (!seen[m.id] && m.syncBase) out.removidos.push({ kind: kind, mine: m });
-    });
+    if (!opts.semRemocoes) {
+      mine.forEach(function (m) {
+        if (!usados[m.id] && m.syncBase) out.removidos.push({ kind: kind, mine: m });
+      });
+    }
 
     return out;
   }
@@ -474,6 +528,7 @@
     MAX_SESSIONS: MAX_SESSIONS,
     signature: signature,
     diffProject: diffProject,
+    numeroChave: numeroChave,
     saveSnapshot: saveSnapshot,
     getSnapshot: getSnapshot,
     clearSnapshot: clearSnapshot,
