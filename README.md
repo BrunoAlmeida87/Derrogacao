@@ -77,6 +77,11 @@ Cada aba tem a sua cor (NCR em roxo, DEV em azul-petróleo, Resumo em âmbar),
 que tinge a lateral e os realces da tela; e cada bloco de texto do formulário
 leva a cor da faixa correspondente no PDF.
 
+Campos vazios mostram um **exemplo do padrão** em letra menor e itálico,
+prefixado por `ex.:` — é só um modelo do formato esperado, nunca um valor
+gravado. Nos **Ajustes**, o texto de fundo aparece como `padrão: …`: ali ele é
+mesmo o valor usado quando o campo fica em branco.
+
 Os títulos de capa, o rodapé, a data de emissão e o marco alternativo da capa
 da DEV ficam em **⋯ Mais → Ajustes de capa e rodapé** — textos fixos que quase
 nunca mudam.

@@ -503,7 +503,9 @@
     }
     input.id = id;
     input.value = ncr[key] || '';
-    if (opts.placeholder) input.placeholder = opts.placeholder;
+    /* O texto de fundo é um exemplo do padrão, não um valor preenchido: o
+       "ex.:" e a letra menor (app.css) deixam isso claro. */
+    if (opts.placeholder) input.placeholder = 'ex.: ' + opts.placeholder;
     input.addEventListener('input', function () {
       var n = currentNcr();
       if (!n) return;
@@ -532,7 +534,7 @@
       sw.style.background = swatchColor;
       h.appendChild(sw);
       c.style.setProperty('--card-color', swatchColor);
-      c.style.setProperty('--card-tint', tint(swatchColor, .88));
+      c.style.setProperty('--card-tint', tint(swatchColor, .93));
     }
     h.appendChild(document.createTextNode(title));
     c.appendChild(h);
@@ -618,7 +620,7 @@
       det.className = 'sec';
       det.open = true;
       det.style.setProperty('--sec-color', d[2]);
-      det.style.setProperty('--sec-tint', tint(d[2], .84));
+      det.style.setProperty('--sec-tint', tint(d[2], .89));
       var sum = document.createElement('summary');
       var sw = el('span', 'swatch');
       sw.style.cssText = 'display:inline-block;width:11px;height:11px;border:1px solid rgba(0,0,0,.25);border-radius:2px;margin-right:7px;vertical-align:middle;background:' + d[2];
@@ -759,7 +761,7 @@
         var inp = document.createElement('input');
         inp.type = 'text';
         inp.value = c;
-        inp.placeholder = 'Shipyard Certificate';
+        inp.placeholder = 'ex.: Shipyard Certificate';
         inp.setAttribute('list', listId('certificates'));
         inp.addEventListener('input', function () {
           currentNcr().certificates[i] = inp.value;
@@ -844,7 +846,7 @@
     var refInput = document.createElement('input');
     refInput.type = 'text';
     refInput.value = ev.ref;
-    refInput.placeholder = 'Attachment ' + (index + 1);
+    refInput.placeholder = 'ex.: Attachment ' + (index + 1);
     refInput.addEventListener('input', function () { ev.ref = refInput.value; touch(); scheduleSave(); });
     refField.appendChild(refInput);
     head.appendChild(refField);
@@ -1304,7 +1306,7 @@
         f.appendChild(el('label', null, def[1]));
         input.type = 'text';
         input.value = state.project[def[0]] || '';
-        input.placeholder = def[2];
+        input.placeholder = def[2] ? 'padrão: ' + def[2] : '';
         input.addEventListener('input', function () {
           state.project[def[0]] = input.value;
           scheduleSave();

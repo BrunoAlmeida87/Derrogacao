@@ -3,14 +3,19 @@
    ========================================================================== */
 
 :root {
-  --bg:        #eceef5;
-  --bg-2:      #e2e5ef;
+  --bg:        #eef0f3;
+  --bg-2:      #e5e8ed;
+
+  /* cromo da aplicação: cinza-ardósia, neutro de propósito — a cor forte
+     fica reservada ao que representa o documento */
+  --chrome:    #232c3a;
+  --chrome-br: #161e29;
   --panel:     #ffffff;
   --ink:       #14161c;
   --ink-2:     #3d4351;
   --muted:     #6d7383;
-  --line:      #dde1ea;
-  --line-2:    #edeff5;
+  --line:      #dcdfe5;
+  --line-2:    #eceef2;
 
   --accent:    #4B0082;
   --accent-hi: #63009e;
@@ -74,8 +79,8 @@ body {
   flex-wrap: wrap;
   padding: 9px 16px;
   color: #fff;
-  background: linear-gradient(120deg, var(--accent-dk) 0%, var(--accent) 46%, #5f2a8c 100%);
-  box-shadow: 0 2px 10px rgba(20, 22, 28, .22);
+  background: var(--chrome);
+  border-bottom: 1px solid var(--chrome-br);
   position: relative;
   z-index: 30;
 }
@@ -89,18 +94,18 @@ body {
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 29px;
+  height: 29px;
   flex: 0 0 auto;
-  border-radius: 8px;
-  background: #fff;
-  color: var(--accent);
-  font-weight: 800;
-  font-size: 16px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
 }
 .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
 .brand-text b { font-size: 15px; font-weight: 700; letter-spacing: .01em; }
-.brand-text small { font-size: 11px; color: rgba(255, 255, 255, .68); }
+.brand-text small { font-size: 11px; color: rgba(255, 255, 255, .5); }
 
 .topbar-group { display: flex; align-items: center; gap: 8px; }
 
@@ -114,7 +119,7 @@ body {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .05em;
-  color: rgba(255, 255, 255, .7);
+  color: rgba(255, 255, 255, .55);
   white-space: nowrap;
 }
 .topbar-field--grow { flex: 1 1 170px; min-width: 140px; }
@@ -145,15 +150,15 @@ body {
 #saveState {
   font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, .78);
+  color: rgba(255, 255, 255, .62);
   text-align: right;
 }
-#saveState[data-state="saving"] { color: #ffdf9b; }
-#saveState[data-state="saved"]  { color: #93e9be; }
-#saveState[data-state="error"]  { color: #ffb9b1; }
+#saveState[data-state="saving"] { color: #f2cf8a; }
+#saveState[data-state="saved"]  { color: #86ccaa; }
+#saveState[data-state="error"]  { color: #f0a79e; }
 .edited-by {
   font-size: 11px;
-  color: rgba(255, 255, 255, .6);
+  color: rgba(255, 255, 255, .45);
   max-width: 320px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -175,6 +180,15 @@ textarea {
   width: 100%;
 }
 textarea { resize: vertical; line-height: 1.5; }
+
+/* Texto de fundo = exemplo do padrão. Menor e em itálico para nunca ser
+   confundido com um valor já digitado. */
+::placeholder {
+  font-size: 12px;
+  font-style: italic;
+  color: #9aa1ad;
+  opacity: 1;
+}
 input:focus, select:focus, textarea:focus {
   outline: 2px solid var(--kind);
   outline-offset: -1px;
@@ -208,21 +222,21 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
 
 /* botões sobre a barra escura */
 .btn--onDark {
-  background: rgba(255, 255, 255, .13);
-  border-color: rgba(255, 255, 255, .32);
-  color: #fff;
+  background: rgba(255, 255, 255, .07);
+  border-color: rgba(255, 255, 255, .22);
+  color: rgba(255, 255, 255, .92);
   box-shadow: none;
 }
-.btn--onDark:hover { background: rgba(255, 255, 255, .24); border-color: rgba(255, 255, 255, .5); color: #fff; }
+.btn--onDark:hover { background: rgba(255, 255, 255, .15); border-color: rgba(255, 255, 255, .38); color: #fff; }
 
-/* ação principal da barra: branco sólido, o único do tipo */
+/* ação principal da barra: a única preenchida */
 .btn--go {
   background: #fff;
   border-color: #fff;
-  color: var(--accent);
+  color: var(--chrome);
   font-weight: 700;
 }
-.btn--go:hover { background: #f0e8fa; border-color: #f0e8fa; color: var(--accent); }
+.btn--go:hover { background: #e6e9ee; border-color: #e6e9ee; color: var(--chrome); }
 
 .btn--menu { padding-inline: 10px; letter-spacing: .06em; }
 
@@ -258,7 +272,7 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   width: 332px;
   flex: 0 0 332px;
   background: var(--bg-2);
-  border-right: 1px solid #d2d6e2;
+  border-right: 1px solid #d3d7de;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -466,9 +480,7 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(900px 320px at 70% -60px, var(--kind-sf), transparent 70%),
-    var(--bg);
+  background: var(--bg);
 }
 
 .editor-scroll {
@@ -486,7 +498,7 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   padding: 34px 26px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-top: 3px solid var(--kind);
+  border-top: 2px solid var(--kind);
   border-radius: var(--radius);
   box-shadow: var(--sh-2);
 }
@@ -495,7 +507,7 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
 .card {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-top: 3px solid var(--card-color, var(--kind));
+  border-top: 2px solid var(--card-color, var(--kind));
   border-radius: var(--radius);
   box-shadow: var(--sh-1);
   padding: 0 0 16px;
@@ -731,7 +743,7 @@ a.menu-item { text-decoration: none; }
 }
 
 /* chama a atenção enquanto o nome não estiver definido */
-.btn--nudge { border-color: #ffd97a; background: rgba(255, 217, 122, .22); color: #fff; }
+.btn--nudge { border-color: #d8b877; background: rgba(216, 184, 119, .16); color: #fff; }
 
 /* --- lembrete de backup -------------------------------------------------- */
 
@@ -1080,7 +1092,7 @@ dialog.dlg--wide { max-width: 620px; }
 
 dialog {
   border: none;
-  border-top: 4px solid var(--accent);
+  border-top: 3px solid var(--accent);
   border-radius: 12px;
   padding: 0;
   max-width: 560px;
@@ -1207,7 +1219,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   gap: 2px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-top: 3px solid var(--kind);
+  border-top: 2px solid var(--kind);
   border-radius: var(--radius);
   box-shadow: var(--sh-1);
   padding: 12px 14px;
