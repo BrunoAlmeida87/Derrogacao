@@ -907,7 +907,10 @@
 
   function renderUser() {
     var name = Store.getUser();
-    $('#userBtnLabel').textContent = name ? 'Meu nome: ' + name : 'Definir meu nome';
+    $('#userBtnLabel').textContent = name ? '👤 ' + name : 'Definir meu nome';
+    if (state.project) {
+      $('#menuMarco').textContent = state.project.marco || state.project.name || 'sem marco';
+    }
     $('#menuBtn').classList.toggle('btn--nudge', !name);
 
     var p = state.project;
@@ -1516,6 +1519,233 @@
       : 'Backup apenas deste relatório salvo.');
   }
 
+  /* ---------------------------------------------------------------------- */
+  /* mesclagem de arquivos                                                   */
+  /* ---------------------------------------------------------------------- */
+
+  var pendingMerge = null;
+
+  /** Junta o diff das duas abas de um relatório. */
+  function diffBoth(local, incoming) {
+    var a = Store.diffProject(local, incoming, 'ncr');
+    var b = Store.diffProject(local, incoming, 'dev');
+    return {
+      local: local,
+      incoming: incoming,
+      novos: a.novos.concat(b.novos),
+      atualizados: a.atualizados.concat(b.atualizados),
+      conflitos: a.conflitos.concat(b.conflitos),
+      removidos: a.removidos.concat(b.removidos),
+      iguais: a.iguais + b.iguais
+    };
+  }
+
+  function kindTag(k) { return k === 'dev' ? 'DEV' : 'NCR'; }
+
+  function quem(item) {
+    if (!item || (!item.editedBy && !item.editedAt)) return 'sem registro';
+    return (item.editedBy || 'sem nome') + ' · ' + shortDate(item.editedAt);
+  }
+
+  /* Monta a tela que explica, item a item, o que vai acontecer. */
+  function openMergeDialog(plan, origem) {
+    pendingMerge = plan;
+    var body = $('#mergeBody');
+    body.innerHTML = '';
+    $('#mergeOrigin').textContent = origem || '';
+
+    var total = 0;
+
+    function grupo(titulo, explica, entradas, render) {
+      if (!entradas.length) return;
+      total += entradas.length;
+      var box = el('div', 'mg-group');
+      var h = el('div', 'mg-group-head');
+      h.appendChild(el('strong', null, titulo + ' (' + entradas.length + ')'));
+      h.appendChild(el('span', 'mg-group-sub', explica));
+      box.appendChild(h);
+      entradas.forEach(function (e, i) { box.appendChild(render(e, i)); });
+      body.appendChild(box);
+    }
+
+    grupo('Novos', 'não existem aqui — serão acrescentados', plan.novos, function (e) {
+      var row = el('label', 'mg-row');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = true; cb.className = 'mg-new';
+      cb.dataset.idx = plan.novos.indexOf(e);
+      row.appendChild(cb);
+      row.appendChild(el('span', 'sess-kind', kindTag(e.kind)));
+      row.appendChild(el('span', 'mg-label', e.incoming.ncrId || '(sem número)'));
+      row.appendChild(el('span', 'mg-who', quem(e.incoming)));
+      return row;
+    });
+
+    grupo('Atualizados pelo colega', 'você não mexeu neles — a versão do arquivo é mais nova',
+      plan.atualizados, function (e) {
+        var row = el('label', 'mg-row');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.checked = true; cb.className = 'mg-upd';
+        cb.dataset.idx = plan.atualizados.indexOf(e);
+        row.appendChild(cb);
+        row.appendChild(el('span', 'sess-kind', kindTag(e.kind)));
+        row.appendChild(el('span', 'mg-label', e.incoming.ncrId || e.mine.ncrId || '(sem número)'));
+        row.appendChild(el('span', 'mg-who', quem(e.incoming)));
+        return row;
+      });
+
+    grupo('Conflitos', 'os dois lados mexeram — escolha qual versão fica', plan.conflitos,
+      function (e, i) {
+        var row = el('div', 'mg-row mg-row--conflict');
+        var head = el('div', 'mg-conflict-head');
+        head.appendChild(el('span', 'sess-kind', kindTag(e.kind)));
+        head.appendChild(el('span', 'mg-label', e.mine.ncrId || e.incoming.ncrId || '(sem número)'));
+        row.appendChild(head);
+
+        var opts = el('div', 'mg-choices');
+        [['mine', 'Manter a minha', quem(e.mine)],
+         ['theirs', 'Usar a do arquivo', quem(e.incoming)]].forEach(function (o, k) {
+          var lab = el('label', 'mg-choice');
+          var r = document.createElement('input');
+          r.type = 'radio';
+          r.name = 'mg-conf-' + i;
+          r.value = o[0];
+          r.className = 'mg-conf';
+          r.dataset.idx = String(i);
+          /* por segurança, o que já está aqui é o padrão */
+          if (k === 0) r.checked = true;
+          lab.appendChild(r);
+          var txt = el('span');
+          txt.appendChild(el('span', 'mg-choice-name', o[1]));
+          txt.appendChild(el('span', 'mg-who', o[2]));
+          lab.appendChild(txt);
+          opts.appendChild(lab);
+        });
+        row.appendChild(opts);
+        return row;
+      });
+
+    grupo('Excluídos pelo colega', 'existem aqui e sumiram do arquivo — marque para excluir também',
+      plan.removidos, function (e) {
+        var row = el('label', 'mg-row');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.checked = false; cb.className = 'mg-del';
+        cb.dataset.idx = plan.removidos.indexOf(e);
+        row.appendChild(cb);
+        row.appendChild(el('span', 'sess-kind', kindTag(e.kind)));
+        row.appendChild(el('span', 'mg-label', e.mine.ncrId || '(sem número)'));
+        row.appendChild(el('span', 'mg-who', quem(e.mine)));
+        return row;
+      });
+
+    if (!total) {
+      body.appendChild(el('p', 'mg-none',
+        '✓ Nenhuma diferença: o arquivo está igual ao que você já tem' +
+        (plan.iguais ? ' (' + plan.iguais + ' itens conferidos).' : '.')));
+    }
+    $('#mergeApplyBtn').disabled = !total;
+    $('#mergeSummary').textContent = total
+      ? plan.iguais + ' itens já estão iguais nos dois lados.'
+      : '';
+    $('#mergeDialog').showModal();
+  }
+
+  /** Aplica as escolhas da tela, guardando antes um retrato para desfazer. */
+  function applyMerge() {
+    var plan = pendingMerge;
+    if (!plan) return;
+    var local = plan.local;
+
+    var novos = $$('.mg-new').filter(function (c) { return c.checked; })
+      .map(function (c) { return plan.novos[+c.dataset.idx]; });
+    var upds = $$('.mg-upd').filter(function (c) { return c.checked; })
+      .map(function (c) { return plan.atualizados[+c.dataset.idx]; });
+    var confs = $$('.mg-conf').filter(function (r) { return r.checked && r.value === 'theirs'; })
+      .map(function (r) { return plan.conflitos[+r.dataset.idx]; });
+    var dels = $$('.mg-del').filter(function (c) { return c.checked; })
+      .map(function (c) { return plan.removidos[+c.dataset.idx]; });
+
+    Store.saveSnapshot(state.projects, 'antes de mesclar ' + (local.marco || local.name))
+      .then(function () {
+        novos.forEach(function (e) {
+          var copia = Store.normalizeNcr(JSON.parse(JSON.stringify(e.incoming)));
+          copia.syncBase = copia.editedAt;
+          local[Store.itemsKey(e.kind)].push(copia);
+        });
+
+        upds.concat(confs).forEach(function (e) {
+          var lista = local[Store.itemsKey(e.kind)];
+          var at = lista.findIndex(function (n) { return n.id === e.mine.id; });
+          if (at < 0) return;
+          var copia = Store.normalizeNcr(JSON.parse(JSON.stringify(e.incoming)));
+          copia.syncBase = copia.editedAt;
+          lista[at] = copia;
+        });
+
+        dels.forEach(function (e) {
+          var lista = local[Store.itemsKey(e.kind)];
+          var at = lista.findIndex(function (n) { return n.id === e.mine.id; });
+          if (at >= 0) lista.splice(at, 1);
+        });
+
+        /* o que eu mantive vira a nova base comum */
+        ['ncrs', 'devs'].forEach(function (k) {
+          local[k].forEach(function (n) { if (!n.syncBase) n.syncBase = n.editedAt; });
+        });
+
+        /* as sessões do colega entram no histórico deste relatório */
+        var minhas = {};
+        (local.sessions || []).forEach(function (x) { minhas[x.id] = true; });
+        (plan.incoming.sessions || []).forEach(function (x) {
+          if (!minhas[x.id]) local.sessions.push(x);
+        });
+        local.sessions.sort(function (a, b) { return String(a.startedAt).localeCompare(String(b.startedAt)); });
+        if (local.sessions.length > Store.MAX_SESSIONS) {
+          local.sessions = local.sessions.slice(-Store.MAX_SESSIONS);
+        }
+
+        return Store.save(local);
+      })
+      .then(function () { return Store.list(); })
+      .then(function (list) {
+        state.projects = list;
+        loadProject(list.filter(function (p) { return p.id === local.id; })[0] || list[0]);
+        refreshUndo();
+        $('#mergeDialog').close();
+        pendingMerge = null;
+        toast('Mesclado: ' + novos.length + ' novo(s), ' +
+          (upds.length + confs.length) + ' atualizado(s), ' + dels.length + ' excluído(s).');
+      })
+      .catch(function (e) { markError(e); alert('Falha ao mesclar.'); });
+  }
+
+  /* --- desfazer --------------------------------------------------------- */
+
+  function refreshUndo() {
+    Store.getSnapshot().then(function (snap) {
+      var b = $('#undoMergeBtn');
+      b.hidden = !snap;
+      if (snap) $('#undoMergeWhen').textContent = 'volta ao estado de ' + shortDate(snap.at);
+    });
+  }
+
+  function undoMerge() {
+    Store.getSnapshot().then(function (snap) {
+      if (!snap) { toast('Não há mesclagem para desfazer.'); return; }
+      if (!confirm('Voltar ao estado de ' + shortDate(snap.at) + '?\n\n' +
+        'Tudo que foi mesclado ou editado depois disso será descartado.')) return;
+      Promise.all(snap.projects.map(function (p) { return Store.save(Store.normalizeProject(p)); }))
+        .then(Store.clearSnapshot)
+        .then(Store.list)
+        .then(function (list) {
+          state.projects = list;
+          loadProject(list[0]);
+          refreshUndo();
+          toast('Mesclagem desfeita.');
+        })
+        .catch(function (e) { markError(e); alert('Falha ao desfazer.'); });
+    });
+  }
+
   function importBackupFile(file) {
     var reader = new FileReader();
     reader.onload = function () {
@@ -1527,36 +1757,45 @@
         alert('Não foi possível ler o backup: ' + e.message);
         return;
       }
+
       var origem = raw && raw.exportedBy
-        ? '\n\nArquivo gerado por ' + raw.exportedBy +
-          (raw.exportedAt ? ' em ' + shortDate(raw.exportedAt) : '') + '.'
-        : '';
-      var replace = state.projects.some(function (p) {
-        return incoming.some(function (q) { return q.id === p.id; });
-      }) && confirm(
-        'Este backup contém relatórios que já existem neste navegador.' + origem + '\n\n' +
-        'OK = substituir as versões existentes\n' +
-        'Cancelar = importar como cópias novas'
-      );
+        ? 'Arquivo de ' + raw.exportedBy +
+          (raw.exportedAt ? ', gerado em ' + shortDate(raw.exportedAt) : '') + '.'
+        : 'O arquivo não diz quem o gerou.';
 
-      var saves = incoming.map(function (p) {
-        if (!replace) {
-          p.id = Store.uid();
-          p.name = p.name + ' (importado)';
-        }
-        return Store.save(p);
-      });
+      /* Relatórios que ainda não existem aqui entram inteiros, sem perguntar:
+         não há nada para sobrescrever. */
+      var conhecidos = {};
+      state.projects.forEach(function (p) { conhecidos[p.id] = p; });
+      var inteiros = incoming.filter(function (q) { return !conhecidos[q.id]; });
+      var repetidos = incoming.filter(function (q) { return conhecidos[q.id]; });
 
-      Promise.all(saves)
-        .then(function () { return Store.list(); })
+      Promise.all(inteiros.map(function (q) {
+        ['ncrs', 'devs'].forEach(function (k) {
+          q[k].forEach(function (n) { n.syncBase = n.editedAt; });
+        });
+        return Store.save(q);
+      }))
+        .then(Store.list)
         .then(function (list) {
           state.projects = list;
-          var target = list.filter(function (p) { return p.id === incoming[0].id; })[0] || list[0];
-          loadProject(target);
-          toast(incoming.length + ' relatório(s) importado(s)' +
-            (raw && raw.exportedBy ? ' — backup de ' + raw.exportedBy : '') + '.');
+          if (!repetidos.length) {
+            loadProject(list.filter(function (p) { return p.id === incoming[0].id; })[0] || list[0]);
+            toast(inteiros.length + ' relatório(s) importado(s) — ' + origem);
+            return;
+          }
+
+          /* Já existe aqui: em vez de substituir, comparar item a item. */
+          var alvo = repetidos[0];
+          var localAlvo = state.projects.filter(function (p) { return p.id === alvo.id; })[0];
+          loadProject(localAlvo);
+
+          if (repetidos.length > 1) {
+            toast('Mesclando "' + (alvo.marco || alvo.name) + '". Os demais relatórios repetidos ficam para uma próxima importação.');
+          }
+          openMergeDialog(diffBoth(localAlvo, alvo), origem);
         })
-        .catch(function (e) { markError(e); alert('Falha ao gravar os relatórios importados.'); });
+        .catch(function (e) { markError(e); alert('Falha ao ler os relatórios do arquivo.'); });
     };
     reader.readAsText(file);
   }
@@ -1653,6 +1892,13 @@
     $('#pendingOnly').addEventListener('change', renderNcrList);
 
     /* histórico de alterações */
+    $('#mergeCancelBtn').addEventListener('click', function () {
+      $('#mergeDialog').close();
+      pendingMerge = null;
+    });
+    $('#mergeApplyBtn').addEventListener('click', applyMerge);
+    $('#undoMergeBtn').addEventListener('click', undoMerge);
+
     $('#sessionsBtn').addEventListener('click', openSessions);
     $('#sessionInfoBtn').addEventListener('click', openSessions);
     $('#sessionsCloseBtn').addEventListener('click', function () { $('#sessionsDialog').close(); });
@@ -1743,6 +1989,7 @@
   function boot() {
     wire();
     requestPersistentStorage();
+    refreshUndo();
     Store.list().then(function (list) {
       state.projects = list;
       if (!list.length) {

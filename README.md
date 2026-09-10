@@ -103,6 +103,40 @@ inseridas, para manter os arquivos de backup e o armazenamento em tamanho
 razoável. O indicador **salvo no navegador** mostra, ao passar o mouse, quanto
 espaço os dados ocupam.
 
+## Duas ou mais pessoas ao mesmo tempo
+
+Não há servidor: cada pessoa trabalha na sua cópia, no próprio navegador, e os
+arquivos `.json` circulam por uma pasta compartilhada. Por isso **abrir um
+arquivo nunca substitui o que você tem** — a aplicação compara item a item.
+
+Ao abrir um arquivo de um relatório que já existe aqui, a tela de mesclagem
+separa o que mudou em quatro grupos:
+
+| Grupo | O que é | Padrão |
+| --- | --- | --- |
+| **Novos** | Existem no arquivo e não aqui | acrescentar |
+| **Atualizados pelo colega** | Você não mexeu; a versão do arquivo é mais nova | aceitar |
+| **Conflitos** | Os dois mexeram no mesmo item | **manter a sua** — você escolhe |
+| **Excluídos pelo colega** | Existem aqui e sumiram do arquivo | não excluir |
+
+Itens em que **só você** mexeu nem aparecem: ficam como estão, sem risco. A
+decisão usa o carimbo da última troca de arquivo (`syncBase`), não apenas a
+hora — é isso que permite distinguir "o colega atualizou" de "os dois
+mexeram".
+
+Antes de aplicar, a aplicação guarda um retrato do estado anterior:
+**⋯ → ↩ Desfazer a última mesclagem** volta tudo, se a escolha foi errada.
+
+### Rotina sugerida para a pasta compartilhada
+
+1. Ao começar o dia, **Abrir arquivo…** com a versão que está na pasta.
+2. Trabalhe normalmente.
+3. Ao terminar, **★ Salvar backup de tudo** e grave na pasta por cima.
+
+Combinar quem cuida de quais NCRs reduz ainda mais o atrito — mas, se dois
+mexerem na mesma, a tela de mesclagem mostra o conflito em vez de perder
+trabalho em silêncio.
+
 ## Quem editou por último
 
 Não há login. Na primeira vez que você gera um backup, o sistema pede o seu

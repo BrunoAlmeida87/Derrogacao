@@ -11,7 +11,7 @@
   var USER_KEY = 'derrogacao:user';
   var BACKUP_KEY = 'derrogacao:lastBackupAt';
   var DB_NAME = 'derrogacao';
-  var DB_VERSION = 1;
+  var DB_VERSION = 2;
   var STORE = 'projects';
   var LS_KEY = 'derrogacao:projects';
   var SCHEMA = 1;
@@ -56,7 +56,8 @@
       evidence: [],
       done: false,           // marcado pelo botão "Concluir" — só organiza o trabalho
       editedBy: '',          // quem mexeu nele por último
-      editedAt: ''
+      editedAt: '',
+      syncBase: ''           // editedAt na última troca de arquivo — base da mesclagem
     };
   }
 
@@ -133,7 +134,8 @@
       evidence: Array.isArray(raw.evidence) ? raw.evidence.map(normalizeEvidence) : [],
       done: raw.done === true,
       editedBy: str(raw.editedBy),
-      editedAt: str(raw.editedAt)
+      editedAt: str(raw.editedAt),
+      syncBase: str(raw.syncBase)
     };
   }
 
@@ -187,6 +189,73 @@
   /* Nome da lista de itens de cada aba, dentro do projeto. */
   function itemsKey(kind) { return kind === 'dev' ? 'devs' : 'ncrs'; }
 
+  /* --- comparação de itens ---------------------------------------------- */
+
+  /**
+   * Resumo do conteúdo do item, ignorando os campos de controle. Serve para
+   * saber se dois lados realmente divergem, e não apenas se têm carimbos de
+   * hora diferentes. As imagens entram pelo id e pela legenda: trocar uma
+   * imagem gera um id novo, então a diferença é detectada sem comparar os
+   * megabytes do base64.
+   */
+  function signature(item) {
+    return JSON.stringify([
+      item.ncrId, item.systems, item.func,
+      item.description, item.currentSituation, item.whyNotPossible,
+      item['arguments'], item.archAnswer,
+      item.requestExpiry, item.archStatus, item.approvedExpiry, item.historic,
+      item.certificates,
+      item.done === true,
+      (item.evidence || []).map(function (ev) {
+        return [ev.id, ev.ref, ev.note, ev.orientation,
+          (ev.images || []).map(function (im) { return [im.id, im.caption]; })];
+      })
+    ]);
+  }
+
+  /**
+   * Compara o relatório local com o que veio do arquivo, item a item.
+   *
+   * A decisão usa o syncBase — o editedAt que o item tinha na última troca de
+   * arquivo. Com ele dá para separar os três casos:
+   *   - só o outro lado mexeu  -> atualização limpa;
+   *   - só este lado mexeu     -> nada a fazer;
+   *   - os dois mexeram        -> conflito de verdade, que vai para o usuário.
+   */
+  function diffProject(local, incoming, kind) {
+    var key = itemsKey(kind);
+    var mine = local ? local[key] : [];
+    var theirs = incoming[key] || [];
+    var byId = {};
+    mine.forEach(function (n) { byId[n.id] = n; });
+    var seen = {};
+
+    var out = { novos: [], atualizados: [], conflitos: [], removidos: [], iguais: 0 };
+
+    theirs.forEach(function (t) {
+      seen[t.id] = true;
+      var m = byId[t.id];
+      if (!m) { out.novos.push({ kind: kind, incoming: t }); return; }
+      if (signature(m) === signature(t)) { out.iguais++; return; }
+
+      var euMudei = m.editedAt !== m.syncBase;
+      var eleMudou = t.editedAt !== m.syncBase;
+      var entry = { kind: kind, mine: m, incoming: t };
+
+      if (!euMudei && eleMudou) out.atualizados.push(entry);
+      else if (euMudei && !eleMudou) { /* só eu mexi: o meu permanece */ }
+      else out.conflitos.push(entry);
+    });
+
+    /* Presente aqui e ausente no arquivo: se já foi sincronizado antes, o
+       outro lado provavelmente o excluiu. Nunca apagamos sozinhos. */
+    mine.forEach(function (m) {
+      if (!seen[m.id] && m.syncBase) out.removidos.push({ kind: kind, mine: m });
+    });
+
+    return out;
+  }
+
   /* --- IndexedDB -------------------------------------------------------- */
 
   var dbPromise = null;
@@ -199,6 +268,7 @@
       req.onupgradeneeded = function () {
         var db = req.result;
         if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('snapshots')) db.createObjectStore('snapshots', { keyPath: 'id' });
       };
       req.onsuccess = function () { resolve(req.result); };
       req.onerror = function () { reject(req.error || new Error('Falha ao abrir o banco local')); };
@@ -238,6 +308,49 @@
         tx.onerror = function () { reject(tx.error); };
       });
     });
+  }
+
+  /* --- retrato antes da mesclagem ---------------------------------------- */
+
+  var SNAP_STORE = 'snapshots';
+
+  /* Guarda o estado anterior à mesclagem, para que uma escolha errada possa
+     ser desfeita. Só o último é mantido. */
+  function saveSnapshot(projects, info) {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(SNAP_STORE, 'readwrite');
+        tx.objectStore(SNAP_STORE).put({
+          id: 'last',
+          at: nowIso(),
+          info: info || '',
+          projects: JSON.parse(JSON.stringify(projects))
+        });
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    }).catch(function (e) { console.warn('Não foi possível guardar o retrato.', e); });
+  }
+
+  function getSnapshot() {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).get('last');
+        req.onsuccess = function () { resolve(req.result || null); };
+        req.onerror = function () { reject(req.error); };
+      });
+    }).catch(function () { return null; });
+  }
+
+  function clearSnapshot() {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve) {
+        var tx = db.transaction(SNAP_STORE, 'readwrite');
+        tx.objectStore(SNAP_STORE).delete('last');
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { resolve(); };
+      });
+    }).catch(function () { /* sem retrato: nada a limpar */ });
   }
 
   /* --- localStorage (reserva) ------------------------------------------- */
@@ -317,6 +430,11 @@
     getUser: getUser,
     setUser: setUser,
     MAX_SESSIONS: MAX_SESSIONS,
+    signature: signature,
+    diffProject: diffProject,
+    saveSnapshot: saveSnapshot,
+    getSnapshot: getSnapshot,
+    clearSnapshot: clearSnapshot,
 
     /**
      * Anota, na sessão corrente do projeto, que um item foi criado, editado
@@ -382,6 +500,10 @@
         projects: projects.map(function (p) {
           p.lastBackupBy = who;
           p.lastBackupAt = when;
+          /* o que sai no arquivo passa a ser a base comum da próxima mesclagem */
+          ['ncrs', 'devs'].forEach(function (k) {
+            (p[k] || []).forEach(function (n) { n.syncBase = n.editedAt; });
+          });
           return JSON.parse(JSON.stringify(p));
         })
       };

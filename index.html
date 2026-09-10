@@ -33,38 +33,43 @@
     <div class="menu">
       <button class="btn" id="menuBtn" aria-haspopup="true" aria-expanded="false" title="Mais ações">⋯</button>
       <div class="menu-pop" id="menuPop" hidden>
-        <div class="menu-title">Backup</div>
+
+        <div class="menu-title">Arquivos <small>trocar trabalho com outras pessoas</small></div>
         <button class="menu-item menu-item--accent" id="backupAllBtn">
-          ★ Backup total <small>todos os relatórios · recomendado</small>
+          ★ Salvar backup de tudo <small>todos os relatórios · use este no dia a dia</small>
         </button>
         <button class="menu-item" id="restoreBtn">
-          Restaurar <small>carregar um arquivo .json</small>
+          Abrir arquivo… <small>recebe e mescla o trabalho de um colega</small>
         </button>
         <button class="menu-item" id="backupBtn">
-          Backup só deste <small>apenas o marco aberto</small>
+          Salvar só este relatório <small>apenas o marco aberto, para enviar a alguém</small>
+        </button>
+        <button class="menu-item" id="undoMergeBtn" hidden>
+          ↩ Desfazer a última mesclagem <small id="undoMergeWhen"></small>
         </button>
 
-        <div class="menu-title">Relatório</div>
-        <button class="menu-item" id="newProjectBtn">
-          + Novo relatório <small>para outro marco</small>
-        </button>
+        <div class="menu-title">Relatório aberto <small id="menuMarco"></small></div>
         <button class="menu-item" id="sessionsBtn">
-          Histórico de alterações <small>o que cada pessoa mexeu, por sessão</small>
+          Histórico de alterações <small>quem mexeu em quê, por sessão</small>
         </button>
         <button class="menu-item" id="settingsBtn">
-          Ajustes <small>títulos de capa, rodapé, marco da DEV</small>
+          Ajustes de capa e rodapé <small>títulos, rodapé, marco da DEV</small>
         </button>
+        <div class="menu-sep"></div>
         <button class="menu-item menu-item--danger" id="deleteProjectBtn">
           Excluir este relatório
         </button>
 
-        <div class="menu-title">Você</div>
-        <button class="menu-item" id="userBtn">
-          <span id="userBtnLabel">Definir meu nome</span>
-          <small>fica registrado em quem editou e em cada backup</small>
+        <div class="menu-title">Todos os relatórios</div>
+        <button class="menu-item" id="newProjectBtn">
+          + Criar outro relatório <small>para um marco diferente</small>
+        </button>
+
+        <button class="menu-foot" id="userBtn">
+          <span class="menu-foot-who" id="userBtnLabel">Definir meu nome</span>
+          <span class="menu-foot-act">trocar</span>
         </button>
       </div>
-    </div>
     <input type="file" id="restoreInput" accept="application/json,.json" hidden>
   </div>
 
@@ -169,6 +174,21 @@
   <div class="dlg-actions">
     <button class="btn" id="pdfCancelBtn">Cancelar</button>
     <button class="btn btn--primary" id="pdfGoBtn">Gerar PDF</button>
+  </div>
+</dialog>
+
+<dialog id="mergeDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>Mesclar com o arquivo</h3>
+    <p>Este relatório já existe aqui. Em vez de substituir tudo, compare item a
+       item — nada é apagado sem você marcar.</p>
+    <p class="mg-origin" id="mergeOrigin"></p>
+    <div id="mergeBody" class="mg-box"></div>
+    <p class="pick-summary" id="mergeSummary"></p>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="mergeCancelBtn">Cancelar</button>
+    <button class="btn btn--primary" id="mergeApplyBtn">Aplicar</button>
   </div>
 </dialog>
 
