@@ -407,6 +407,146 @@ input:focus, select:focus, textarea:focus {
 .evid-thumb-actions { display: flex; gap: 4px; justify-content: center; }
 .evid-thumb input { font-size: 12px; padding: 4px 6px; }
 
+/* --- menu ⋯ -------------------------------------------------------------- */
+
+.menu { position: relative; }
+.menu-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  width: 280px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .16);
+  padding: 6px;
+}
+.menu-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  padding: 8px 8px 4px;
+}
+.menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  padding: 7px 8px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.menu-item:hover { background: #f2f3f5; }
+.menu-item small { font-size: 11px; color: var(--muted); font-weight: 400; }
+.menu-item--accent { color: var(--accent); font-weight: 600; background: var(--accent-sf); }
+.menu-item--accent:hover { background: #e6d9f5; }
+.menu-item--danger { color: var(--danger); }
+.menu-item--danger:hover { background: #fdf2f1; }
+
+/* chama a atenção enquanto o nome não estiver definido */
+.btn--nudge { border-color: var(--accent); color: var(--accent); }
+
+.topbar-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  min-width: 120px;
+}
+.edited-by {
+  font-size: 11px;
+  color: var(--muted);
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- lembrete de backup -------------------------------------------------- */
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  background: #fff8e6;
+  border-bottom: 1px solid #f0dfae;
+  font-size: 13px;
+  color: #6b4e00;
+}
+.notice span { flex: 1; min-width: 240px; }
+
+/* --- progresso na lista -------------------------------------------------- */
+
+.progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.progress-row.is-complete #progressText { color: var(--ok); font-weight: 600; }
+.progress-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.progress-toggle input { width: auto; }
+
+/* --- seções recolhíveis do formulário ------------------------------------ */
+
+.sec {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fcfcfd;
+}
+.sec > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3f4550;
+  list-style: none;
+}
+.sec > summary::-webkit-details-marker { display: none; }
+.sec > summary::before {
+  content: '▸';
+  color: var(--muted);
+  font-size: 10px;
+  transition: transform .12s;
+}
+.sec[open] > summary::before { transform: rotate(90deg); }
+.sec > summary:hover { background: #f4f5f7; border-radius: var(--radius); }
+.sec-name { flex: 0 0 auto; }
+.sec-peek {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.sec[open] .sec-peek { display: none; }
+.sec-peek.is-empty { font-style: italic; opacity: .7; }
+.sec > .field { padding: 0 10px 10px; }
+
 /* --- barra de conclusão do item ----------------------------------------- */
 
 .done-bar {

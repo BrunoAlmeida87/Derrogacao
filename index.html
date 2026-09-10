@@ -18,14 +18,11 @@
   <div class="topbar-field">
     <label for="projectSelect">Relatório</label>
     <select id="projectSelect" style="width:auto;min-width:190px"></select>
-    <button class="btn btn--sm" id="newProjectBtn" title="Criar um relatório para outro marco">+ Novo</button>
-    <button class="btn btn--sm btn--danger" id="deleteProjectBtn" title="Excluir este relatório">Excluir</button>
   </div>
 
-  <div class="topbar-field" style="flex:1 1 220px">
+  <div class="topbar-field" style="flex:1 1 200px">
     <label for="marcoInput">Marco</label>
     <input type="text" id="marcoInput" placeholder="RANAE J06">
-    <button class="btn btn--sm" id="settingsBtn" title="Títulos de capa, rodapé e marco alternativo da DEV">Ajustes</button>
   </div>
 
   <div class="topbar-spacer"></div>
@@ -33,20 +30,52 @@
   <div class="topbar-actions">
     <button class="btn" id="previewBtn">Pré-visualizar NCR</button>
     <button class="btn btn--primary" id="pdfBtn">Exportar PDF…</button>
-    <button class="btn btn--accent" id="backupAllBtn"
-            title="Salva TODOS os relatórios deste navegador (NCR e DEV) em um arquivo só. É a opção recomendada.">
-      ★ Backup total
-    </button>
-    <button class="btn" id="restoreBtn" title="Carregar um arquivo .json de backup">Restaurar</button>
-    <button class="btn btn--quiet" id="backupBtn"
-            title="Salva apenas o relatório aberto. Prefira o Backup total para não perder os outros.">
-      Backup só deste
-    </button>
+    <div class="menu">
+      <button class="btn" id="menuBtn" aria-haspopup="true" aria-expanded="false" title="Mais ações">⋯</button>
+      <div class="menu-pop" id="menuPop" hidden>
+        <div class="menu-title">Backup</div>
+        <button class="menu-item menu-item--accent" id="backupAllBtn">
+          ★ Backup total <small>todos os relatórios · recomendado</small>
+        </button>
+        <button class="menu-item" id="restoreBtn">
+          Restaurar <small>carregar um arquivo .json</small>
+        </button>
+        <button class="menu-item" id="backupBtn">
+          Backup só deste <small>apenas o marco aberto</small>
+        </button>
+
+        <div class="menu-title">Relatório</div>
+        <button class="menu-item" id="newProjectBtn">
+          + Novo relatório <small>para outro marco</small>
+        </button>
+        <button class="menu-item" id="settingsBtn">
+          Ajustes <small>títulos de capa, rodapé, marco da DEV</small>
+        </button>
+        <button class="menu-item menu-item--danger" id="deleteProjectBtn">
+          Excluir este relatório
+        </button>
+
+        <div class="menu-title">Você</div>
+        <button class="menu-item" id="userBtn">
+          <span id="userBtnLabel">Definir meu nome</span>
+          <small>fica registrado em quem editou e em cada backup</small>
+        </button>
+      </div>
+    </div>
     <input type="file" id="restoreInput" accept="application/json,.json" hidden>
   </div>
 
-  <span id="saveState" data-state="saved">salvo no navegador</span>
+  <div class="topbar-status">
+    <span id="saveState" data-state="saved">salvo no navegador</span>
+    <span id="editedBy" class="edited-by"></span>
+  </div>
 </header>
+
+<div class="notice" id="backupNotice" hidden>
+  <span id="backupNoticeText"></span>
+  <button class="btn btn--sm btn--accent" id="backupNoticeBtn">★ Fazer backup total agora</button>
+  <button class="btn btn--sm btn--quiet" id="backupNoticeDismiss">Depois</button>
+</div>
 
 <!-- ====================== corpo ====================== -->
 <div class="layout">
@@ -66,12 +95,17 @@
         <h2 id="sidebarTitle">NCRs</h2>
         <div style="display:flex;gap:4px">
           <button class="btn btn--sm btn--primary" id="addNcrBtn">+ Nova NCR</button>
-          <button class="btn btn--sm" id="dupNcrBtn" title="Duplicar a NCR selecionada">Duplicar</button>
           <button class="btn btn--sm" id="copyNcrBtn" title="Copiar NCRs de outro relatório">Copiar de…</button>
           <button class="btn btn--sm btn--danger" id="delNcrBtn" title="Excluir a NCR selecionada">Excluir</button>
         </div>
       </div>
       <input type="search" id="ncrFilter" placeholder="Filtrar por número, sistema ou função…">
+      <div class="progress-row">
+        <span id="progressText"></span>
+        <label class="progress-toggle">
+          <input type="checkbox" id="pendingOnly"> só pendentes
+        </label>
+      </div>
     </div>
 
     <ul class="ncr-list" id="ncrList" hidden></ul>
@@ -130,6 +164,30 @@
     <button class="btn btn--primary" id="pdfGoBtn">Gerar PDF</button>
   </div>
 </dialog>
+
+<dialog id="userDialog">
+  <div class="dlg-body">
+    <h3>Quem está usando este computador?</h3>
+    <p>O nome não sai em nenhum relatório. Ele serve só para registrar quem foi
+       o último a editar e quem gerou cada backup — útil quando o arquivo passa
+       de mão em mão.</p>
+    <div class="field">
+      <label for="userNameInput">Seu nome</label>
+      <input type="text" id="userNameInput" placeholder="Bruno Almeida">
+    </div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="userCancelBtn">Agora não</button>
+    <button class="btn btn--primary" id="userSaveBtn">Salvar</button>
+  </div>
+</dialog>
+
+<datalist id="dl-systems"></datalist>
+<datalist id="dl-func"></datalist>
+<datalist id="dl-requestExpiry"></datalist>
+<datalist id="dl-archStatus"></datalist>
+<datalist id="dl-approvedExpiry"></datalist>
+<datalist id="dl-certificates"></datalist>
 
 <dialog id="settingsDialog">
   <div class="dlg-body">

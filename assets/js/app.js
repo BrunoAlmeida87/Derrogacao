@@ -98,7 +98,10 @@
     return Store.save(state.project).then(function () {
       markSaved();
       refreshProjectSelect();
+      refreshSuggestions();
       renderTabs();
+      renderUser();
+      renderBackupNotice();
     }).catch(markError);
   }
 
@@ -144,9 +147,12 @@
     state.devId = project.devs.length ? project.devs[0].id : null;
     $('#marcoInput').value = project.marco;
     refreshProjectSelect();
+    refreshSuggestions();
     renderTabs();
     renderNcrList();
     renderEditor();
+    renderUser();
+    renderBackupNotice();
     markSaved();
   }
 
@@ -194,14 +200,18 @@
       $('#sidebarEmpty').hidden = false;
       $('#sidebarEmptyKind').textContent = kindName();
       ul.hidden = true;
+      renderProgress(rows);
       return;
     }
     $('#sidebarEmpty').hidden = true;
     ul.hidden = false;
+    renderProgress(rows);
 
+    var pendingOnly = $('#pendingOnly').checked;
     rows.forEach(function (ncr, i) {
       var hay = (ncr.ncrId + ' ' + ncr.systems + ' ' + ncr.func).toLowerCase();
       if (term && hay.indexOf(term) === -1) return;
+      if (pendingOnly && ncr.done) return;
 
       var li = el('li', 'ncr-item');
       li.tabIndex = 0;
@@ -257,6 +267,18 @@
     });
   }
 
+  /* "7 de 12 concluídas" — ajuda a saber o que ainda falta num marco grande. */
+  function renderProgress(rows) {
+    var total = rows.length;
+    var done = rows.filter(function (n) { return n.done; }).length;
+    var box = $('.progress-row');
+    box.hidden = total === 0;
+    $('#progressText').textContent = total
+      ? done + ' de ' + total + ' concluída' + (total > 1 ? 's' : '')
+      : '';
+    box.classList.toggle('is-complete', total > 0 && done === total);
+  }
+
   function moveNcr(fromId, toId) {
     var list = items();
     var from = list.findIndex(function (n) { return n.id === fromId; });
@@ -284,26 +306,6 @@
     scheduleSave();
     var f = $('#f-ncrId');
     if (f) f.focus();
-  }
-
-  function duplicateNcr() {
-    var ncr = currentNcr();
-    if (!ncr) return;
-    var copy = Store.normalizeNcr(JSON.parse(JSON.stringify(ncr)));
-    copy.id = Store.uid();
-    copy.ncrId = ncr.ncrId ? ncr.ncrId + ' (cópia)' : '';
-    copy.evidence.forEach(function (ev) {
-      ev.id = Store.uid();
-      ev.images.forEach(function (im) { im.id = Store.uid(); });
-    });
-    var list = items();
-    var at = list.findIndex(function (n) { return n.id === ncr.id; });
-    list.splice(at + 1, 0, copy);
-    setSelectedId(copy.id);
-    renderTabs();
-    renderNcrList();
-    renderEditor();
-    scheduleSave();
   }
 
   function deleteNcr() {
@@ -348,6 +350,7 @@
     } else {
       input = document.createElement('input');
       input.type = 'text';
+      if (SUGGEST.indexOf(key) >= 0) input.setAttribute('list', 'dl-' + key);
     }
     input.id = id;
     input.value = ncr[key] || '';
@@ -434,6 +437,11 @@
 
     /* --- seções textuais, na ordem e nas cores do relatório --- */
     var textCard = card('Conteúdo da derrogação');
+    var collapseBtn = el('button', 'btn btn--sm', 'Recolher preenchidos');
+    collapseBtn.type = 'button';
+    collapseBtn.style.marginLeft = 'auto';
+    $('h3', textCard).appendChild(collapseBtn);
+
     var stack = el('div', 'stack');
     var defs = [
       ['description',      'Description',                                  '#A9A9A9', 4],
@@ -442,14 +450,46 @@
       ['arguments',        'What are the arguments for the derrogation',   '#CCCCFF', 5],
       ['archAnswer',       'Arch Answer',                                  '#00B4FF', 3]
     ];
+    var blocks = [];
     defs.forEach(function (d) {
-      var f = field(d[1], d[0], { rows: d[3] });
-      var lab = $('label', f);
+      /* Cada bloco é recolhível: com cinco caixas de texto a tela fica longa
+         demais para chegar às evidências. */
+      var det = document.createElement('details');
+      det.className = 'sec';
+      det.open = true;
+      var sum = document.createElement('summary');
       var sw = el('span', 'swatch');
-      sw.style.cssText = 'display:inline-block;width:11px;height:11px;border:1px solid #999;border-radius:2px;margin-right:6px;vertical-align:middle;background:' + d[2];
-      lab.insertBefore(sw, lab.firstChild);
-      stack.appendChild(f);
+      sw.style.cssText = 'display:inline-block;width:11px;height:11px;border:1px solid #999;border-radius:2px;margin-right:7px;vertical-align:middle;background:' + d[2];
+      sum.appendChild(sw);
+      sum.appendChild(el('span', 'sec-name', d[1]));
+      var peek = el('span', 'sec-peek');
+      sum.appendChild(peek);
+      det.appendChild(sum);
+
+      var f = field(d[1], d[0], { rows: d[3] });
+      $('label', f).remove();
+      det.appendChild(f);
+
+      function updatePeek() {
+        var v = (currentNcr()[d[0]] || '').trim();
+        peek.textContent = v ? v.split('\n')[0].slice(0, 70) : 'em branco';
+        peek.classList.toggle('is-empty', !v);
+      }
+      updatePeek();
+      $('#f-' + d[0], det).addEventListener('input', updatePeek);
+
+      blocks.push({ det: det, key: d[0] });
+      stack.appendChild(det);
     });
+
+    collapseBtn.addEventListener('click', function () {
+      var anyOpen = blocks.some(function (b) { return b.det.open && (currentNcr()[b.key] || '').trim(); });
+      blocks.forEach(function (b) {
+        if ((currentNcr()[b.key] || '').trim()) b.det.open = !anyOpen;
+      });
+      collapseBtn.textContent = anyOpen ? 'Expandir preenchidos' : 'Recolher preenchidos';
+    });
+
     textCard.appendChild(stack);
     host.appendChild(textCard);
 
@@ -538,6 +578,7 @@
         inp.type = 'text';
         inp.value = c;
         inp.placeholder = 'Shipyard Certificate';
+        inp.setAttribute('list', 'dl-certificates');
         inp.addEventListener('input', function () {
           currentNcr().certificates[i] = inp.value;
           scheduleSave();
@@ -816,6 +857,108 @@
         img.src = dataUrl;
       };
       reader.readAsDataURL(file);
+    });
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* identidade e histórico de edição                                        */
+  /* ---------------------------------------------------------------------- */
+
+  function renderUser() {
+    var name = Store.getUser();
+    $('#userBtnLabel').textContent = name ? 'Meu nome: ' + name : 'Definir meu nome';
+    $('#menuBtn').classList.toggle('btn--nudge', !name);
+
+    var p = state.project;
+    var box = $('#editedBy');
+    if (!p || (!p.lastEditedBy && !p.lastBackupBy)) { box.textContent = ''; return; }
+    var bits = [];
+    if (p.lastEditedBy) bits.push('editado por ' + p.lastEditedBy + ' · ' + shortDate(p.lastEditedAt));
+    if (p.lastBackupBy) bits.push('backup por ' + p.lastBackupBy + ' · ' + shortDate(p.lastBackupAt));
+    box.textContent = bits.join('  |  ');
+    box.title = bits.join('\n');
+  }
+
+  function shortDate(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    if (isNaN(d)) return '—';
+    return d.toLocaleDateString('pt-BR') + ' ' +
+      d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function openUserDialog() {
+    $('#userNameInput').value = Store.getUser();
+    $('#userDialog').showModal();
+    $('#userNameInput').focus();
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* lembrete de backup                                                      */
+  /* ---------------------------------------------------------------------- */
+
+  var DIAS_SEM_BACKUP = 7;
+  var noticeDismissed = false;
+
+  function renderBackupNotice() {
+    var el0 = $('#backupNotice');
+    if (noticeDismissed) { el0.hidden = true; return; }
+
+    var temConteudo = state.projects.some(function (p) {
+      return p.ncrs.length || p.devs.length;
+    });
+    if (!temConteudo) { el0.hidden = true; return; }
+
+    var last = Store.getLastBackupAt();
+    var dias = last ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000) : null;
+    if (dias !== null && dias < DIAS_SEM_BACKUP) { el0.hidden = true; return; }
+
+    $('#backupNoticeText').textContent = last
+      ? 'Seu último backup foi há ' + dias + ' dias. Os relatórios ficam só neste navegador — um backup evita perder tudo se os dados do site forem limpos.'
+      : 'Você ainda não fez backup. Os relatórios ficam só neste navegador; se os dados do site forem limpos, tudo se perde.';
+    el0.hidden = false;
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* sugestões de preenchimento                                              */
+  /* ---------------------------------------------------------------------- */
+
+  var SUGGEST = ['systems', 'func', 'requestExpiry', 'archStatus', 'approvedExpiry'];
+
+  /* Junta os valores já usados em todos os relatórios, para oferecer como
+     sugestão nos campos que se repetem muito (PÓS TRAP, WAIVER ACCEPTED…). */
+  function refreshSuggestions() {
+    var buckets = {};
+    SUGGEST.forEach(function (k) { buckets[k] = {}; });
+    buckets.certificates = {};
+
+    state.projects.forEach(function (p) {
+      ['ncrs', 'devs'].forEach(function (key) {
+        p[key].forEach(function (n) {
+          SUGGEST.forEach(function (k) {
+            var v = (n[k] || '').trim();
+            if (v) buckets[k][v] = (buckets[k][v] || 0) + 1;
+          });
+          (n.certificates || []).forEach(function (c) {
+            var v = (c || '').trim();
+            if (v) buckets.certificates[v] = (buckets.certificates[v] || 0) + 1;
+          });
+        });
+      });
+    });
+
+    Object.keys(buckets).forEach(function (k) {
+      var dl = $('#dl-' + k);
+      if (!dl) return;
+      dl.innerHTML = '';
+      Object.keys(buckets[k])
+        .sort(function (a, b) { return buckets[k][b] - buckets[k][a] || a.localeCompare(b); })
+        .slice(0, 40)
+        .forEach(function (v) {
+          var o = document.createElement('option');
+          o.value = v;
+          dl.appendChild(o);
+        });
     });
   }
 
@@ -1213,6 +1356,12 @@
   /* ---------------------------------------------------------------------- */
 
   function exportBackup(all) {
+    /* Sem nome não dá para saber depois quem gerou o arquivo. */
+    if (!Store.getUser()) {
+      openUserDialog();
+      toast('Informe seu nome — ele fica registrado no backup.');
+      return;
+    }
     var projects = all ? state.projects : [state.project];
     var data = Store.toBackup(projects);
     var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1220,6 +1369,11 @@
       ? 'WaiverRequest_TODOS_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.json'
       : Report.suggestedFileName(state.project, 'json');   /* leva as duas abas */
     download(blob, name);
+    Store.setLastBackupAt(data.exportedAt);
+    noticeDismissed = false;
+    renderBackupNotice();
+    /* grava a autoria do backup nos projetos exportados */
+    Promise.all(projects.map(function (p) { return Store.save(p); })).then(renderUser);
     toast(all
       ? 'Backup completo salvo: ' + projects.length + ' relatório(s), NCR e DEV.'
       : 'Backup apenas deste relatório salvo.');
@@ -1228,17 +1382,22 @@
   function importBackupFile(file) {
     var reader = new FileReader();
     reader.onload = function () {
-      var incoming;
+      var raw, incoming;
       try {
-        incoming = Store.fromBackup(JSON.parse(String(reader.result)));
+        raw = JSON.parse(String(reader.result));
+        incoming = Store.fromBackup(raw);
       } catch (e) {
         alert('Não foi possível ler o backup: ' + e.message);
         return;
       }
+      var origem = raw && raw.exportedBy
+        ? '\n\nArquivo gerado por ' + raw.exportedBy +
+          (raw.exportedAt ? ' em ' + shortDate(raw.exportedAt) : '') + '.'
+        : '';
       var replace = state.projects.some(function (p) {
         return incoming.some(function (q) { return q.id === p.id; });
       }) && confirm(
-        'Este backup contém relatórios que já existem neste navegador.\n\n' +
+        'Este backup contém relatórios que já existem neste navegador.' + origem + '\n\n' +
         'OK = substituir as versões existentes\n' +
         'Cancelar = importar como cópias novas'
       );
@@ -1257,7 +1416,8 @@
           state.projects = list;
           var target = list.filter(function (p) { return p.id === incoming[0].id; })[0] || list[0];
           loadProject(target);
-          toast(incoming.length + ' relatório(s) importado(s).');
+          toast(incoming.length + ' relatório(s) importado(s)' +
+            (raw && raw.exportedBy ? ' — backup de ' + raw.exportedBy : '') + '.');
         })
         .catch(function (e) { markError(e); alert('Falha ao gravar os relatórios importados.'); });
     };
@@ -1313,9 +1473,47 @@
     });
 
     $('#addNcrBtn').addEventListener('click', addNcr);
-    $('#dupNcrBtn').addEventListener('click', duplicateNcr);
     $('#delNcrBtn').addEventListener('click', deleteNcr);
     $('#ncrFilter').addEventListener('input', renderNcrList);
+
+    /* menu ⋯ */
+    var menuPop = $('#menuPop');
+    function closeMenu() {
+      menuPop.hidden = true;
+      $('#menuBtn').setAttribute('aria-expanded', 'false');
+    }
+    $('#menuBtn').addEventListener('click', function (e) {
+      e.stopPropagation();
+      menuPop.hidden = !menuPop.hidden;
+      $('#menuBtn').setAttribute('aria-expanded', menuPop.hidden ? 'false' : 'true');
+    });
+    document.addEventListener('click', function (e) {
+      if (!menuPop.hidden && !menuPop.contains(e.target) && e.target !== $('#menuBtn')) closeMenu();
+    });
+    $$('.menu-item').forEach(function (b) { b.addEventListener('click', closeMenu); });
+
+    /* nome de quem usa */
+    $('#userBtn').addEventListener('click', openUserDialog);
+    $('#userCancelBtn').addEventListener('click', function () { $('#userDialog').close(); });
+    $('#userSaveBtn').addEventListener('click', function () {
+      Store.setUser($('#userNameInput').value);
+      $('#userDialog').close();
+      renderUser();
+      flushSave();
+      toast(Store.getUser() ? 'Nome registrado: ' + Store.getUser() : 'Nome removido.');
+    });
+    $('#userNameInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); $('#userSaveBtn').click(); }
+    });
+
+    /* lembrete de backup */
+    $('#backupNoticeBtn').addEventListener('click', function () { exportBackup(true); });
+    $('#backupNoticeDismiss').addEventListener('click', function () {
+      noticeDismissed = true;
+      renderBackupNotice();
+    });
+
+    $('#pendingOnly').addEventListener('change', renderNcrList);
 
     $('#settingsBtn').addEventListener('click', openSettings);
     $('#settingsCloseBtn').addEventListener('click', function () { $('#settingsDialog').close(); });

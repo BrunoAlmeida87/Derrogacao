@@ -62,7 +62,12 @@ login e nenhum dado sai do computador.
    - **Gráficos de plano de fundo**: marcado
    - **Cabeçalhos e rodapés**: desmarcado
 
-A ordem da lista é a ordem no PDF — arraste os itens para reordenar.
+A lista lateral mostra **quantos itens já foram concluídos** e tem um filtro
+**só pendentes**, para achar rápido o que ainda falta. A ordem da lista é a
+ordem no PDF — arraste os itens para reordenar. Os cinco blocos de texto são
+recolhíveis (**Recolher preenchidos**), e campos que se repetem muito
+(`PÓS TRAP`, `WAIVER ACCEPTED`, sistemas, certificados) sugerem valores já
+usados nos outros relatórios.
 
 Os títulos de capa, o rodapé e o marco alternativo da capa da DEV ficam em
 **Ajustes**, ao lado do campo Marco — são textos fixos que quase nunca mudam.
@@ -76,6 +81,8 @@ pede ao navegador para marcar o armazenamento como persistente, o que reduz o
 risco, porém não elimina.
 
 Por isso:
+
+Ambos ficam no menu **⋯**, no canto direito da barra superior.
 
 - **★ Backup total** é a opção recomendada: salva **todos** os relatórios deste
   navegador — todos os marcos, NCRs e DEVs — num arquivo só. Use este no dia a
@@ -95,6 +102,18 @@ Imagens são reduzidas para no máximo 1600 px e recomprimidas em JPEG ao serem
 inseridas, para manter os arquivos de backup e o armazenamento em tamanho
 razoável. O indicador **salvo no navegador** mostra, ao passar o mouse, quanto
 espaço os dados ocupam.
+
+## Quem editou por último
+
+Não há login. Na primeira vez que você gera um backup, o sistema pede o seu
+nome e o guarda neste navegador (menu **⋯ → Você**). A partir daí, cada
+relatório registra **quem editou por último** e **quem gerou o último backup**,
+com data e hora — informação que aparece no canto direito da barra superior e
+viaja dentro do arquivo `.json`. Ao restaurar o backup de um colega, o sistema
+diz de quem veio o arquivo. Nada disso sai nos PDFs.
+
+Se passar mais de uma semana sem backup, aparece um aviso no topo com um botão
+para fazê-lo na hora.
 
 ## Atalhos
 

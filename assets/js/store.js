@@ -7,6 +7,8 @@
 (function (global) {
   'use strict';
 
+  var USER_KEY = 'derrogacao:user';
+  var BACKUP_KEY = 'derrogacao:lastBackupAt';
   var DB_NAME = 'derrogacao';
   var DB_VERSION = 1;
   var STORE = 'projects';
@@ -65,6 +67,10 @@
       name: marco || 'Novo relatório',
       marco: marco || '',
       marcoDev: '',
+      lastEditedBy: '',
+      lastEditedAt: '',
+      lastBackupBy: '',
+      lastBackupAt: '',
       coverTitle: 'Waiver Request For',
       coverTitleDev: 'DEV: Waiver Request For',
       coverSubtitle: 'List of Waiver Requested :',
@@ -136,6 +142,10 @@
       name: str(raw.name) || str(raw.marco) || 'Relatório sem nome',
       marco: str(raw.marco),
       marcoDev: str(raw.marcoDev),
+      lastEditedBy: str(raw.lastEditedBy),
+      lastEditedAt: str(raw.lastEditedAt),
+      lastBackupBy: str(raw.lastBackupBy),
+      lastBackupAt: str(raw.lastBackupAt),
       coverTitle: str(raw.coverTitle) || base.coverTitle,
       coverTitleDev: str(raw.coverTitleDev) || base.coverTitleDev,
       coverSubtitle: str(raw.coverSubtitle) || base.coverSubtitle,
@@ -228,6 +238,26 @@
     return Promise.resolve();
   }
 
+  /* --- quem está usando este navegador ---------------------------------- */
+
+  /* Não há login: o nome é digitado uma vez e fica guardado no navegador,
+     só para registrar quem editou e quem gerou cada backup. */
+  function getUser() {
+    try { return global.localStorage.getItem(USER_KEY) || ''; } catch (e) { return ''; }
+  }
+
+  function setUser(name) {
+    try { global.localStorage.setItem(USER_KEY, str(name).trim()); } catch (e) { /* ignora */ }
+  }
+
+  function getLastBackupAt() {
+    try { return global.localStorage.getItem(BACKUP_KEY) || ''; } catch (e) { return ''; }
+  }
+
+  function setLastBackupAt(iso) {
+    try { global.localStorage.setItem(BACKUP_KEY, iso); } catch (e) { /* ignora */ }
+  }
+
   /* --- API pública ------------------------------------------------------ */
 
   var useIdb = true;
@@ -257,8 +287,16 @@
       });
     },
 
+    getUser: getUser,
+    setUser: setUser,
+    getLastBackupAt: getLastBackupAt,
+    setLastBackupAt: setLastBackupAt,
+
     save: function (project) {
       project.updatedAt = nowIso();
+      var who = getUser();
+      if (who) { project.lastEditedBy = who; }
+      project.lastEditedAt = project.updatedAt;
       var copy = JSON.parse(JSON.stringify(project));
       if (!useIdb) return lsPut(copy);
       return idbPut(copy).catch(function (e) { fallback(e); return lsPut(copy); });
@@ -271,11 +309,18 @@
 
     /* Backup: um arquivo .json com um ou vários relatórios. */
     toBackup: function (projects) {
+      var who = getUser();
+      var when = nowIso();
       return {
         format: 'derrogacao-waiver-backup',
         schema: SCHEMA,
-        exportedAt: nowIso(),
-        projects: projects.map(function (p) { return JSON.parse(JSON.stringify(p)); })
+        exportedAt: when,
+        exportedBy: who,
+        projects: projects.map(function (p) {
+          p.lastBackupBy = who;
+          p.lastBackupAt = when;
+          return JSON.parse(JSON.stringify(p));
+        })
       };
     },
 
