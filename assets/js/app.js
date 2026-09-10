@@ -1177,7 +1177,13 @@
     return head + '\n' + linhas.join('\n');
   }
 
-  function openUserDialog() {
+  /* Ação que estava a caminho quando faltou o nome: guardada aqui para
+     seguir sozinha assim que o nome for informado, sem obrigar a repetir
+     o clique. */
+  var aposNome = null;
+
+  function openUserDialog(depois) {
+    aposNome = typeof depois === 'function' ? depois : null;
     $('#userNameInput').value = Store.getUser();
     $('#userDialog').showModal();
     $('#userNameInput').focus();
@@ -1683,8 +1689,8 @@
   function exportBackup(all) {
     /* Sem nome não dá para saber depois quem gerou o arquivo. */
     if (!Store.getUser()) {
-      openUserDialog();
-      toast('Informe seu nome — ele fica registrado no backup.');
+      openUserDialog(function () { exportBackup(all); });
+      toast('Informe seu nome — ele fica registrado no backup. O arquivo sai em seguida.');
       return;
     }
     var projects = all ? state.projects : [state.project];
@@ -2056,12 +2062,19 @@
     /* nome de quem usa */
     $('#userBtn').addEventListener('click', openUserDialog);
     $('#userCancelBtn').addEventListener('click', function () { $('#userDialog').close(); });
+    /* fechar pelo Esc ou pelo "Agora não" desiste também do que estava a caminho */
+    $('#userDialog').addEventListener('close', function () { aposNome = null; });
     $('#userSaveBtn').addEventListener('click', function () {
+      var seguir = aposNome;
+      aposNome = null;
       Store.setUser($('#userNameInput').value);
       $('#userDialog').close();
       renderUser();
       flushSave();
       toast(Store.getUser() ? 'Nome registrado: ' + Store.getUser() : 'Nome removido.');
+      /* segue de onde parou — o clique original já vale como gesto do usuário,
+         então o download não é bloqueado pelo navegador */
+      if (seguir && Store.getUser()) seguir();
     });
     $('#userNameInput').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { e.preventDefault(); $('#userSaveBtn').click(); }
