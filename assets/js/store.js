@@ -10,6 +10,7 @@
   var MAX_SESSIONS = 30;      // histórico guardado por relatório
   var USER_KEY = 'derrogacao:user';
   var BACKUP_KEY = 'derrogacao:lastBackupAt';
+  var FOLDER_KEY = 'derrogacao:pastaBackup';
   var DB_NAME = 'derrogacao';
   var DB_VERSION = 2;
   var STORE = 'projects';
@@ -482,6 +483,16 @@
     try { global.localStorage.setItem(USER_KEY, str(name).trim()); } catch (e) { /* ignora */ }
   }
 
+  /* Caminho da pasta onde os backups devem ser guardados. Fica no navegador,
+     como o nome: serve só para o lembrete depois de cada backup. */
+  function getFolder() {
+    try { return global.localStorage.getItem(FOLDER_KEY) || ''; } catch (e) { return ''; }
+  }
+
+  function setFolder(caminho) {
+    try { global.localStorage.setItem(FOLDER_KEY, str(caminho).trim()); } catch (e) { /* ignora */ }
+  }
+
   function getLastBackupAt() {
     try { return global.localStorage.getItem(BACKUP_KEY) || ''; } catch (e) { return ''; }
   }
@@ -524,6 +535,8 @@
     },
 
     getUser: getUser,
+    getFolder: getFolder,
+    setFolder: setFolder,
     setUser: setUser,
     MAX_SESSIONS: MAX_SESSIONS,
     signature: signature,

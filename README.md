@@ -220,6 +220,18 @@ Dentro do relatório, os itens são pareados **pelo identificador interno e, na
 falta dele, pelo número da NCR/DEV** — sem isso, a mesma `NCR-001` escrita
 pelos dois entraria duplicada.
 
+**O pareamento por número acontece sempre dentro de um mesmo marco.** A
+`NCR-001` do `RANAE J06` e a `NCR-001` do `RANAE J07` são itens distintos, com
+textos próprios, e nunca são comparadas entre si: cada marco é comparado com o
+seu par e só com ele.
+
+Um relatório **sem marco preenchido** não é identificado por marco — entra como
+relatório à parte. Dois relatórios ainda em branco não são o mesmo trabalho.
+
+Um **backup de tudo** costuma trazer vários marcos repetidos. Cada um tem a sua
+tela, em fila: você resolve um, o próximo aparece, e a tela diz quantos ainda
+faltam. Cancelar encerra a fila inteira — abrir o arquivo de novo recomeça.
+
 ### Os grupos da tela de mesclagem
 
 | Grupo | O que é | Padrão |
@@ -256,6 +268,11 @@ Antes de aplicar, a aplicação guarda um retrato do estado anterior:
 1. Ao começar o dia, **Abrir arquivo…** com a versão que está na pasta.
 2. Trabalhe normalmente.
 3. Ao terminar, **★ Salvar backup de tudo** e grave na pasta por cima.
+
+O navegador salva o arquivo na **pasta de downloads**, não na pasta
+compartilhada — por isso, a cada backup, aparece um lembrete com o nome do
+arquivo e o caminho da pasta de backup, com um botão para copiar o caminho.
+O caminho é digitado uma vez e fica guardado neste navegador.
 
 Combinar quem cuida de quais NCRs reduz ainda mais o atrito — mas, se dois
 mexerem na mesma, a tela de mesclagem mostra o conflito em vez de perder

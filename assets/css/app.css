@@ -815,6 +815,16 @@ a.menu-item { text-decoration: none; }
   flex: 0 0 auto;
 }
 
+.mg-fila {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-sf);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  margin: 0 0 10px;
+}
+
 .mg-box { max-height: 330px; overflow-y: auto; }
 .mg-group { margin-bottom: 14px; }
 .mg-group-head { display: flex; flex-direction: column; gap: 1px; margin-bottom: 6px; }
@@ -1084,6 +1094,17 @@ dialog.dlg--wide { max-width: 620px; }
 .pick-here { font-size: 11px; color: var(--muted); font-style: italic; flex: 0 0 auto; }
 
 .pick-summary { font-size: 13px; color: var(--muted); margin: 0 0 12px !important; }
+
+.bk-file {
+  font-size: 13px !important;
+  font-weight: 600;
+  color: var(--ok) !important;
+  background: var(--ok-sf);
+  border-left: 3px solid var(--ok);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 9px 12px;
+  word-break: break-all;
+}
 
 .dlg-tips { font-size: 13px; margin-top: 6px; }
 .dlg-tips summary { cursor: pointer; color: var(--accent); font-weight: 600; }

@@ -1729,9 +1729,19 @@
     renderBackupNotice();
     /* grava a autoria do backup nos projetos exportados */
     Promise.all(projects.map(function (p) { return Store.save(p); })).then(renderUser);
-    toast(all
-      ? 'Backup completo salvo: ' + projects.length + ' relatório(s), NCR e DEV.'
-      : 'Backup apenas deste relatório salvo.');
+    lembrarPasta(name, all
+      ? 'Backup de tudo: ' + projects.length + ' relatório(s), NCR e DEV.'
+      : 'Backup apenas do relatório aberto.');
+  }
+
+  /* O arquivo cai na pasta de downloads e para por aí: sem alguém movê-lo
+     para a pasta combinada, o backup não protege nem chega a ninguém. */
+  function lembrarPasta(nomeArquivo, oQueSaiu) {
+    var dlg = $('#backupDoneDialog');
+    $('#backupDoneFile').textContent = '📄 ' + nomeArquivo + ' — ' + oQueSaiu;
+    $('#backupFolderInput').value = Store.getFolder();
+    $('#backupCopyPathBtn').disabled = !Store.getFolder();
+    dlg.showModal();
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1739,6 +1749,23 @@
   /* ---------------------------------------------------------------------- */
 
   var pendingMerge = null;
+
+  /* Marcos ainda por comparar nesta importação. Cada um abre a sua tela; o
+     usuário resolve um, o próximo aparece. */
+  var filaMerge = [];
+  var filaOrigem = '';
+
+  function abrirProximaMesclagem() {
+    var prox = filaMerge.shift();
+    if (!prox) return false;
+    var localAlvo = state.projects.filter(function (p) { return p.id === prox.par.local.id; })[0];
+    if (!localAlvo) return abrirProximaMesclagem();
+    loadProject(localAlvo);
+    var plan = diffBoth(localAlvo, prox.incoming, prox.par.porMarco);
+    plan.restantes = filaMerge.length;
+    openMergeDialog(plan, filaOrigem);
+    return true;
+  }
 
   /** Junta o diff das duas abas de um relatório. */
   function diffBoth(local, incoming, porMarco) {
@@ -1757,9 +1784,14 @@
     };
   }
 
-  /** Marco normalizado: "RANAE  j06" e "ranae j06" são o mesmo marco. */
+  /**
+   * Marco normalizado: "RANAE  j06" e "ranae j06" são o mesmo marco.
+   * Só o campo marco vale — o "name" de um relatório novo é "Novo relatório"
+   * para todos, e dois relatórios ainda sem marco não são o mesmo trabalho.
+   * Sem marco, devolve vazio e o arquivo entra como relatório à parte.
+   */
   function marcoChave(p) {
-    return String((p && (p.marco || p.name)) || '').trim().toUpperCase().replace(/\s+/g, ' ');
+    return String((p && p.marco) || '').trim().toUpperCase().replace(/\s+/g, ' ');
   }
 
   function kindTag(k) { return k === 'dev' ? 'DEV' : 'NCR'; }
@@ -1874,6 +1906,13 @@
         return row;
       });
 
+    if (plan.restantes) {
+      body.appendChild(el('p', 'mg-fila',
+        'Este é o marco "' + (plan.local.marco || plan.local.name) + '". ' +
+        'Depois dele ainda ' + (plan.restantes === 1 ? 'falta 1 marco' : 'faltam ' + plan.restantes + ' marcos') +
+        ' do mesmo arquivo para comparar.'));
+    }
+
     if (!total) {
       body.appendChild(el('p', 'mg-none',
         '✓ Nenhuma diferença: o arquivo está igual ao que você já tem' +
@@ -1954,6 +1993,7 @@
           (plan.localOrigem
             ? ' Confira e, se estiver tudo aqui, exclua o relatório repetido.'
             : ''));
+        abrirProximaMesclagem();
       })
       .catch(function (e) { markError(e); alert('Falha ao mesclar.'); });
   }
@@ -2043,16 +2083,14 @@
             return;
           }
 
-          /* Já existe aqui: em vez de substituir, comparar item a item. */
-          var alvo = repetidos[0];
-          var par = correspondente(alvo);
-          var localAlvo = state.projects.filter(function (p) { return p.id === par.local.id; })[0];
-          loadProject(localAlvo);
-
-          if (repetidos.length > 1) {
-            toast('Mesclando "' + (alvo.marco || alvo.name) + '". Os demais relatórios repetidos ficam para uma próxima importação.');
-          }
-          openMergeDialog(diffBoth(localAlvo, alvo, par.porMarco), origem);
+          /* Já existem aqui: comparar um marco de cada vez, item a item.
+             Um "backup de tudo" traz vários marcos, e cada um tem a sua
+             tela — daí a fila. */
+          filaMerge = repetidos.map(function (q) {
+            return { incoming: q, par: correspondente(q) };
+          });
+          filaOrigem = origem;
+          abrirProximaMesclagem();
         })
         .catch(function (e) { markError(e); alert('Falha ao ler os relatórios do arquivo.'); });
     };
@@ -2159,8 +2197,14 @@
 
     /* histórico de alterações */
     $('#mergeCancelBtn').addEventListener('click', function () {
+      var faltavam = (pendingMerge ? 1 : 0) + filaMerge.length;
       $('#mergeDialog').close();
       pendingMerge = null;
+      filaMerge = [];
+      if (faltavam > 1) {
+        toast('Mesclagem cancelada. ' + faltavam + ' marcos do arquivo ficaram sem comparar — ' +
+          'abra o arquivo de novo quando quiser retomar.');
+      }
     });
     $('#mergeApplyBtn').addEventListener('click', applyMerge);
     $('#undoMergeBtn').addEventListener('click', undoMerge);
@@ -2188,6 +2232,24 @@
         toast('Cópia indisponível neste navegador.');
       }
     });
+
+    /* lembrete da pasta de backup */
+    $('#backupFolderInput').addEventListener('input', function () {
+      Store.setFolder(this.value);
+      $('#backupCopyPathBtn').disabled = !this.value.trim();
+    });
+    $('#backupCopyPathBtn').addEventListener('click', function () {
+      var caminho = Store.getFolder();
+      if (!caminho) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(caminho)
+          .then(function () { toast('Caminho copiado — cole na barra do explorador de arquivos.'); })
+          .catch(function () { toast('Não foi possível copiar.'); });
+      } else {
+        toast('Cópia indisponível neste navegador.');
+      }
+    });
+    $('#backupDoneBtn').addEventListener('click', function () { $('#backupDoneDialog').close(); });
 
     $('#settingsBtn').addEventListener('click', openSettings);
     $('#settingsCloseBtn').addEventListener('click', function () { $('#settingsDialog').close(); });

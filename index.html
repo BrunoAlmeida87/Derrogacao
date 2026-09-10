@@ -252,6 +252,26 @@
 <!-- sugestões de preenchimento, separadas por categoria (NCR e DEV) -->
 <div id="datalists" hidden></div>
 
+<dialog id="backupDoneDialog">
+  <div class="dlg-body">
+    <h3>Backup salvo — falta guardar</h3>
+    <p class="bk-file" id="backupDoneFile"></p>
+    <p>O navegador salvou o arquivo na <strong>pasta de downloads deste
+       computador</strong>. Ele só serve a alguém depois de ir para a
+       <strong>pasta de backup</strong> — enquanto ficar em Downloads, ninguém
+       mais enxerga o seu trabalho, e você mesmo o perde se trocar de máquina.</p>
+    <div class="field">
+      <label for="backupFolderInput">Onde fica a pasta de backup</label>
+      <input type="text" id="backupFolderInput" placeholder="ex.: \\servidor\Projetos\SBR3\Derrogacao\Backups">
+      <div class="hint">Guardado neste navegador. Aparece aqui a cada backup, para não precisar lembrar de cabeça.</div>
+    </div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="backupCopyPathBtn">Copiar o caminho</button>
+    <button class="btn btn--primary" id="backupDoneBtn">Já guardei</button>
+  </div>
+</dialog>
+
 <dialog id="settingsDialog">
   <div class="dlg-body">
     <h3>Ajustes do relatório</h3>
