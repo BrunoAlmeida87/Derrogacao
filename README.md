@@ -50,16 +50,22 @@ login e nenhum dado sai do computador.
    Para um marco que repete NCRs de outro relatório, use **Copiar de…**.
 4. Em **Evidências**, use **+ Novo anexo** e adicione as imagens necessárias.
 5. **Pré-visualizar** mostra as folhas exatamente como sairão no PDF.
-6. **Exportar PDF (NCR)** ou **Exportar PDF (DEV)** exporta *apenas* a aba
-   aberta. Para gerar os dois relatórios, troque de aba e exporte de novo.
-   A janela de impressão do navegador se abre; escolha:
+6. Ao terminar um item, clique em **✓ Concluir** (ou **✓ Concluir e criar
+   outra**). O salvamento já é automático a cada tecla — o botão serve para
+   confirmar que acabou e marcar o item como pronto, com um ✓ na lista.
+7. **Exportar PDF…** abre a lista de todos os relatórios disponíveis, separados
+   por marco e por NCR/DEV. Marque um para gerar o arquivo isolado, ou vários
+   para gerar um arquivo único com todos em sequência, cada um começando na
+   sua capa. A janela de impressão do navegador se abre; escolha:
    - Destino: **Salvar como PDF**
    - Margens: **Nenhuma**
    - **Gráficos de plano de fundo**: marcado
    - **Cabeçalhos e rodapés**: desmarcado
 
 A ordem da lista é a ordem no PDF — arraste os itens para reordenar.
-**Backup** e **Restaurar** levam sempre as duas abas juntas, num arquivo só.
+
+Os títulos de capa, o rodapé e o marco alternativo da capa da DEV ficam em
+**Ajustes**, ao lado do campo Marco — são textos fixos que quase nunca mudam.
 
 ## Backup, cache e trabalho compartilhado
 
@@ -71,10 +77,12 @@ risco, porém não elimina.
 
 Por isso:
 
-- **Backup** salva o relatório aberto — NCRs e DEVs juntas — em um `.json`
-  (as imagens vão embutidas).
-- **Backup total** salva todos os relatórios deste navegador em um único
-  arquivo.
+- **★ Backup total** é a opção recomendada: salva **todos** os relatórios deste
+  navegador — todos os marcos, NCRs e DEVs — num arquivo só. Use este no dia a
+  dia; assim não há como restaurar mais tarde e descobrir que faltou alguma
+  coisa.
+- **Backup só deste** salva apenas o relatório aberto (as duas abas dele). Serve
+  para mandar um marco específico a um colega.
 - **Restaurar** lê um `.json` — também funciona arrastando o arquivo para
   qualquer ponto da janela.
 
@@ -93,7 +101,7 @@ espaço os dados ocupam.
 | Atalho | Ação |
 | --- | --- |
 | `Ctrl` + `S` | Gravar imediatamente |
-| `Ctrl` + `P` | Exportar PDF da aba aberta |
+| `Ctrl` + `P` | Abrir a janela de exportação |
 | `Esc` | Fechar a pré-visualização |
 | `Ctrl` + `V` | Colar imagem no último anexo da NCR aberta |
 

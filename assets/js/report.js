@@ -66,8 +66,12 @@
     return clean(project[c.marcoField]) || clean(project.marco);
   }
 
-  function anchorNcr(ncr)  { return 'ncr-' + ncr.id; }
-  function anchorEvid(ev)  { return 'evid-' + ev.id; }
+  /* Os âncoras levam um prefixo por relatório, para que vários possam ser
+     montados no mesmo documento sem colidir os links internos. */
+  function scopeOf(project, kind) { return conf(kind).label.toLowerCase() + '-' + project.id; }
+  function anchorCover(scope) { return scope + '-cover'; }
+  function anchorNcr(scope, ncr) { return scope + '-item-' + ncr.id; }
+  function anchorEvid(scope, ev) { return scope + '-evid-' + ev.id; }
 
   function page(landscape) {
     var p = el('section', 'rep-page' + (landscape ? ' rep-page--landscape' : ''));
@@ -76,10 +80,10 @@
 
   /* --- capa / índice ---------------------------------------------------- */
 
-  function buildCover(project, kind) {
+  function buildCover(project, kind, scope) {
     var c = conf(kind);
     var p = page(false);
-    p.id = 'rep-cover';
+    p.id = anchorCover(scope);
 
     var title = clean(project[c.coverTitleField]) || 'Waiver Request For';
     p.appendChild(el('div', 'rep-cover-title', (title + ' ' + marcoOf(project, kind)).trim()));
@@ -90,7 +94,7 @@
     rows.forEach(function (ncr) {
       var item = el('p', 'rep-index-item');
       var a = el('a', null, (ncr.ncrId || '(sem número)'));
-      a.href = '#' + anchorNcr(ncr);
+      a.href = '#' + anchorNcr(scope, ncr);
       item.appendChild(a);
       var rest = (kind === 'dev' ? [ncr.func] : [ncr.systems, ncr.func])
         .map(clean).filter(Boolean).join('|');
@@ -106,23 +110,23 @@
 
   /* --- página de uma NCR ------------------------------------------------ */
 
-  function buildNcrPage(project, ncr, kind) {
+  function buildNcrPage(project, ncr, kind, scope) {
     var c = conf(kind);
     var p = page(false);
-    p.id = anchorNcr(ncr);
+    p.id = anchorNcr(scope, ncr);
 
     /* linha de navegação: "Go to Evidence" (esq.) e "Go Back" (dir.) */
     var nav = el('div', 'rep-nav');
     var firstEvid = ncr.evidence.filter(function (e) { return e.images.length || e.note; })[0];
     if (firstEvid) {
       var goEv = el('a', null, 'Go to Evidence');
-      goEv.href = '#' + anchorEvid(firstEvid);
+      goEv.href = '#' + anchorEvid(scope, firstEvid);
       nav.appendChild(goEv);
     } else {
       nav.appendChild(el('span', 'rep-nav-spacer', '.'));
     }
     var back = el('a', null, 'Go Back');
-    back.href = '#rep-cover';
+    back.href = '#' + anchorCover(scope);
     nav.appendChild(back);
     p.appendChild(nav);
 
@@ -165,14 +169,14 @@
 
   /* --- páginas de evidência (paisagem) ---------------------------------- */
 
-  function buildEvidencePage(project, ncr, ev) {
+  function buildEvidencePage(project, ncr, ev, scope) {
     var p = page(ev.orientation !== 'portrait');
     p.classList.add('rep-page--evidence');
-    p.id = anchorEvid(ev);
+    p.id = anchorEvid(scope, ev);
 
     var head = el('div', 'rep-evidence-head');
     var back = el('a', null, 'Back to ' + (ncr.ncrId || 'NCR'));
-    back.href = '#' + anchorNcr(ncr);
+    back.href = '#' + anchorNcr(scope, ncr);
     head.appendChild(back);
     head.appendChild(el('br'));
     head.appendChild(el('span', 'rep-evidence-ref', 'Reference: ' + (ev.ref || '')));
@@ -199,15 +203,33 @@
 
   /* --- montagem completa ------------------------------------------------ */
 
-  function build(project, target, kind) {
+  /**
+   * Monta um relatório dentro de `target`.
+   * `opts.append` acrescenta em vez de substituir, para juntar vários
+   * relatórios num único PDF.
+   */
+  function build(project, target, kind, opts) {
+    var root = target || document.createElement('div');
+    if (!opts || !opts.append) root.innerHTML = '';
+    var scope = scopeOf(project, kind);
+    root.appendChild(buildCover(project, kind, scope));
+    items(project, kind).forEach(function (ncr) {
+      root.appendChild(buildNcrPage(project, ncr, kind, scope));
+      ncr.evidence.forEach(function (ev) {
+        if (ev.images.length || ev.note) {
+          root.appendChild(buildEvidencePage(project, ncr, ev, scope));
+        }
+      });
+    });
+    return root;
+  }
+
+  /** Monta vários relatórios em sequência, cada um começando na sua capa. */
+  function buildMany(selection, target) {
     var root = target || document.createElement('div');
     root.innerHTML = '';
-    root.appendChild(buildCover(project, kind));
-    items(project, kind).forEach(function (ncr) {
-      root.appendChild(buildNcrPage(project, ncr, kind));
-      ncr.evidence.forEach(function (ev) {
-        if (ev.images.length || ev.note) root.appendChild(buildEvidencePage(project, ncr, ev));
-      });
+    selection.forEach(function (sel) {
+      build(sel.project, root, sel.kind, { append: true });
     });
     return root;
   }
@@ -228,6 +250,7 @@
 
   global.Report = {
     build: build,
+    buildMany: buildMany,
     ncrLabel: ncrLabel,
     suggestedFileName: suggestedFileName,
     items: items,

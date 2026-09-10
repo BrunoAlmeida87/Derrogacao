@@ -50,7 +50,8 @@
       approvedExpiry: '',
       historic: '',
       certificates: [],
-      evidence: []
+      evidence: [],
+      done: false            // marcado pelo botão "Concluir" — só organiza o trabalho
     };
   }
 
@@ -119,7 +120,8 @@
       approvedExpiry: str(raw.approvedExpiry),
       historic: str(raw.historic),
       certificates: certs,
-      evidence: Array.isArray(raw.evidence) ? raw.evidence.map(normalizeEvidence) : []
+      evidence: Array.isArray(raw.evidence) ? raw.evidence.map(normalizeEvidence) : [],
+      done: raw.done === true
     };
   }
 

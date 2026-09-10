@@ -142,7 +142,7 @@
     if (idx >= 0) state.projects[idx] = project; else state.projects.unshift(project);
     state.ncrId = project.ncrs.length ? project.ncrs[0].id : null;
     state.devId = project.devs.length ? project.devs[0].id : null;
-    $('#footerInput').value = project.footer;
+    $('#marcoInput').value = project.marco;
     refreshProjectSelect();
     renderTabs();
     renderNcrList();
@@ -161,19 +161,12 @@
       $('.tab-count', t).textContent = n;
     });
 
-    /* o marco é próprio de cada aba; o da DEV herda o da NCR quando vazio */
-    var input = $('#marcoInput');
-    input.value = isDev() ? state.project.marcoDev : state.project.marco;
-    input.placeholder = isDev() ? (state.project.marco || 'J05 DQR') : 'RANAE J06';
-    $('#marcoLabel').textContent = isDev() ? 'Marco (DEV)' : 'Marco (NCR)';
-
     var t = kindName();
     $('#addNcrBtn').textContent = '+ Nova ' + t;
     $('#addNcrBtn').title = 'Adicionar ' + t + ' a este relatório';
     $('#sidebarTitle').textContent = t + 's';
     $('#ncrFilter').placeholder = 'Filtrar ' + t + 's…';
     $('#previewBtn').textContent = 'Pré-visualizar ' + t;
-    $('#pdfBtn').textContent = 'Exportar PDF (' + t + ')';
   }
 
   function switchKind(kind) {
@@ -224,8 +217,14 @@
       main.appendChild(el('div', 'ncr-item-sub', sub || 'sem descrição'));
       li.appendChild(main);
 
+      var badges = el('div', 'ncr-item-badge');
       var imgCount = ncr.evidence.reduce(function (s, e) { return s + e.images.length; }, 0);
-      if (imgCount) li.appendChild(el('span', 'ncr-item-badge', '🖼 ' + imgCount));
+      if (imgCount) badges.appendChild(el('span', null, '🖼 ' + imgCount));
+      if (ncr.done) {
+        li.classList.add('is-done');
+        badges.appendChild(el('span', 'done-tick', '✓'));
+      }
+      if (badges.childNodes.length) li.appendChild(badges);
 
       li.addEventListener('click', function () { selectNcr(ncr.id); });
       li.addEventListener('keydown', function (e) {
@@ -473,6 +472,53 @@
 
     /* --- evidências --- */
     host.appendChild(renderEvidenceCard());
+
+    /* --- concluir --- */
+    host.appendChild(renderDoneBar());
+  }
+
+  /* O salvamento já é automático a cada tecla; este botão existe para dar o
+     retorno visível de "terminei este item" e marcar a NCR/DEV como pronta. */
+  function renderDoneBar() {
+    var ncr = currentNcr();
+    var bar = el('div', 'done-bar');
+
+    var info = el('div', 'done-bar-info');
+    info.appendChild(el('strong', null, ncr.done ? '✓ Item concluído' : 'Item em edição'));
+    info.appendChild(el('span', null, ncr.done
+      ? 'Marcado como pronto. Você pode reabrir para editar a qualquer momento.'
+      : 'As alterações são gravadas sozinhas enquanto você digita. Ao terminar, confirme aqui.'));
+    bar.appendChild(info);
+
+    var btn = el('button', 'btn ' + (ncr.done ? '' : 'btn--primary'),
+      ncr.done ? 'Reabrir item' : '✓ Concluir ' + kindName());
+    btn.type = 'button';
+    btn.addEventListener('click', function () {
+      var n = currentNcr();
+      n.done = !n.done;
+      flushSave().then(function () {
+        renderNcrList();
+        renderEditor();
+        toast(n.done
+          ? kindName() + ' "' + (n.ncrId || 'sem número') + '" concluída e salva.'
+          : 'Item reaberto para edição.');
+      });
+    });
+    bar.appendChild(btn);
+
+    var next = el('button', 'btn', '✓ Concluir e criar outra');
+    next.type = 'button';
+    next.hidden = ncr.done;
+    next.addEventListener('click', function () {
+      currentNcr().done = true;
+      flushSave().then(function () {
+        addNcr();
+        toast('Item salvo. Comece o próximo.');
+      });
+    });
+    bar.appendChild(next);
+
+    return bar;
   }
 
   /* --- certificados ------------------------------------------------------ */
@@ -774,6 +820,45 @@
   }
 
   /* ---------------------------------------------------------------------- */
+  /* ajustes do relatório                                                    */
+  /* ---------------------------------------------------------------------- */
+
+  /* Textos fixos da capa e do rodapé, e o marco alternativo da DEV — coisas
+     que quase nunca mudam e por isso ficam fora da barra principal. */
+  var SETTINGS = [
+    ['coverTitle',    'Título da capa — NCR',  'Waiver Request For',
+     'Sai como "Waiver Request For <marco>".'],
+    ['coverTitleDev', 'Título da capa — DEV',  'DEV: Waiver Request For',
+     'Sai como "DEV: Waiver Request For <marco>".'],
+    ['marcoDev',      'Marco só da capa da DEV', '',
+     'Deixe em branco para a DEV usar o mesmo marco do relatório. Preencha apenas se a capa da DEV precisar de um marco diferente (ex.: NCR em RANAE J06 e DEV em J05 DQR).'],
+    ['coverSubtitle', 'Subtítulo da capa',     'List of Waiver Requested :', ''],
+    ['footer',        'Rodapé das páginas',    'Gerência técnica operacional', '']
+  ];
+
+  function openSettings() {
+    var body = $('#settingsBody');
+    body.innerHTML = '';
+    SETTINGS.forEach(function (def) {
+      var f = el('div', 'field');
+      f.style.marginBottom = '12px';
+      f.appendChild(el('label', null, def[1]));
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.value = state.project[def[0]] || '';
+      input.placeholder = def[2];
+      input.addEventListener('input', function () {
+        state.project[def[0]] = input.value;
+        scheduleSave();
+      });
+      f.appendChild(input);
+      if (def[3]) f.appendChild(el('div', 'hint', def[3]));
+      body.appendChild(f);
+    });
+    $('#settingsDialog').showModal();
+  }
+
+  /* ---------------------------------------------------------------------- */
   /* copiar NCRs de outro relatório                                          */
   /* ---------------------------------------------------------------------- */
 
@@ -902,13 +987,13 @@
   ];
 
   /** Lista o que está faltando, para avisar antes de exportar. */
-  function findGaps() {
+  function findGaps(project, kind) {
     var gaps = [];
-    var t = kindName();
-    if (!Report.marcoOf(state.project, state.kind)) {
+    var t = kind === 'dev' ? 'DEV' : 'NCR';
+    if (!Report.marcoOf(project, kind)) {
       gaps.push({ ncr: null, what: 'O marco do relatório de ' + t + ' está vazio.' });
     }
-    items().forEach(function (n, i) {
+    Report.items(project, kind).forEach(function (n, i) {
       var missing = REQUIRED
         .filter(function (r) { return !(n[r[0]] || '').trim(); })
         .map(function (r) { return r[1]; });
@@ -919,14 +1004,27 @@
         });
       }
     });
-    if (!items().length) gaps.push({ ncr: null, what: 'O relatório de ' + t + ' não tem nenhum item.' });
+    if (!Report.items(project, kind).length) {
+      gaps.push({ ncr: null, what: 'O relatório de ' + t + ' não tem nenhum item.' });
+    }
     return gaps;
   }
 
-  function renderGaps() {
+  function renderGaps(picked) {
     var host = $('#pdfGaps');
     host.innerHTML = '';
-    var gaps = findGaps();
+    if (!picked || !picked.length) { host.hidden = true; return; }
+    host.hidden = false;
+
+    var gaps = [];
+    picked.forEach(function (r) {
+      findGaps(r.project, r.kind).forEach(function (g) {
+        g.project = r.project;
+        g.kind = r.kind;
+        gaps.push(g);
+      });
+    });
+
     if (!gaps.length) {
       host.appendChild(el('p', null, '✓ Todos os campos essenciais estão preenchidos.'));
       return;
@@ -943,6 +1041,9 @@
         a.addEventListener('click', function (e) {
           e.preventDefault();
           $('#pdfDialog').close();
+          if (g.project.id !== state.project.id) loadProject(g.project);
+          state.kind = g.kind;
+          renderTabs();
           selectNcr(g.ncr.id);
         });
         li.appendChild(a);
@@ -958,9 +1059,9 @@
   /* pré-visualização e exportação em PDF                                   */
   /* ---------------------------------------------------------------------- */
 
-  function buildPrintRoot() {
+  function buildPrintRoot(picked) {
     var root = $('#printRoot');
-    Report.build(state.project, root, state.kind);
+    Report.buildMany(picked, root);
     return root;
   }
 
@@ -994,18 +1095,113 @@
     document.body.style.overflow = '';
   }
 
+  /* Todos os relatórios disponíveis: cada projeto (marco) rende uma linha de
+     NCR e uma de DEV. Marcar mais de uma gera um PDF único, na ordem da
+     lista; marcar uma só gera o relatório isolado. */
+  function availableReports() {
+    var out = [];
+    state.projects.forEach(function (p) {
+      ['ncr', 'dev'].forEach(function (kind) {
+        out.push({
+          project: p,
+          kind: kind,
+          count: p[Store.itemsKey(kind)].length,
+          marco: Report.marcoOf(p, kind) || p.name || 'sem marco',
+          current: p.id === state.project.id && kind === state.kind
+        });
+      });
+    });
+    return out;
+  }
+
   function exportPdf() {
     if (!state.project) return;
-    buildPrintRoot();
-    renderGaps();
-    $('#pdfKind').textContent = kindName();
+    var list = availableReports();
+    var body = $('#pdfPick');
+    body.innerHTML = '';
+
+    var byProject = {};
+    list.forEach(function (r) {
+      (byProject[r.project.id] = byProject[r.project.id] || []).push(r);
+    });
+
+    Object.keys(byProject).forEach(function (pid) {
+      var rows = byProject[pid];
+      var group = el('div', 'pick-group');
+      group.appendChild(el('div', 'pick-group-title', rows[0].project.marco || rows[0].project.name || 'Sem marco'));
+
+      rows.forEach(function (r) {
+        var row = el('label', 'pick-row' + (r.count ? '' : ' is-empty'));
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'pick-cb';
+        cb.disabled = !r.count;
+        /* já vem marcado o relatório da aba em que você está */
+        cb.checked = r.current && r.count > 0;
+        cb.dataset.pid = r.project.id;
+        cb.dataset.kind = r.kind;
+        row.appendChild(cb);
+
+        var main = el('div', 'pick-row-main');
+        main.appendChild(el('div', 'pick-row-name',
+          (r.kind === 'dev' ? 'DEV' : 'NCR') + ' — ' + r.marco));
+        main.appendChild(el('div', 'pick-row-sub', r.count
+          ? r.count + (r.count === 1 ? ' item' : ' itens') + ' · ' + (r.count + 1) + ' páginas ou mais'
+          : 'sem itens'));
+        row.appendChild(main);
+
+        if (r.current) row.appendChild(el('span', 'pick-tag', 'aba aberta'));
+        group.appendChild(row);
+      });
+      body.appendChild(group);
+    });
+
+    updatePickSummary();
+    $$('.pick-cb', body).forEach(function (cb) {
+      cb.addEventListener('change', updatePickSummary);
+    });
     $('#pdfDialog').showModal();
   }
 
+  /** Relatórios marcados no diálogo, na ordem em que aparecem. */
+  function pickedReports() {
+    return $$('.pick-cb')
+      .filter(function (cb) { return cb.checked && !cb.disabled; })
+      .map(function (cb) {
+        return {
+          project: state.projects.filter(function (p) { return p.id === cb.dataset.pid; })[0],
+          kind: cb.dataset.kind
+        };
+      })
+      .filter(function (r) { return r.project; });
+  }
+
+  function updatePickSummary() {
+    var picked = pickedReports();
+    var n = picked.length;
+    $('#pdfGoBtn').disabled = n === 0;
+    $('#pdfSummary').textContent = n === 0
+      ? 'Marque pelo menos um relatório.'
+      : (n === 1
+        ? 'Um arquivo com o relatório escolhido.'
+        : 'Um único arquivo com os ' + n + ' relatórios, em sequência.');
+    renderGaps(picked);
+  }
+
   function doPrint() {
+    var picked = pickedReports();
+    if (!picked.length) return;
+    buildPrintRoot(picked);
     $('#pdfDialog').close();
+
+    /* O nome do arquivo vem do título da página, que o Chrome usa como
+       sugestão em "Salvar como PDF". */
     var title = document.title;
-    document.title = Report.suggestedFileName(state.project, 'pdf', state.kind).replace(/\.pdf$/, '');
+    document.title = picked.length === 1
+      ? Report.suggestedFileName(picked[0].project, 'pdf', picked[0].kind).replace(/\.pdf$/, '')
+      : 'WaiverRequest_' + picked.length + '_relatorios_' +
+        new Date().toISOString().slice(0, 10).replace(/-/g, '');
+
     setTimeout(function () {
       window.print();
       setTimeout(function () { document.title = title; }, 500);
@@ -1021,10 +1217,12 @@
     var data = Store.toBackup(projects);
     var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     var name = all
-      ? 'WaiverRequest_backup_completo_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.json'
+      ? 'WaiverRequest_TODOS_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.json'
       : Report.suggestedFileName(state.project, 'json');   /* leva as duas abas */
     download(blob, name);
-    toast(all ? 'Backup de todos os relatórios salvo.' : 'Backup do relatório salvo.');
+    toast(all
+      ? 'Backup completo salvo: ' + projects.length + ' relatório(s), NCR e DEV.'
+      : 'Backup apenas deste relatório salvo.');
   }
 
   function importBackupFile(file) {
@@ -1072,24 +1270,14 @@
 
   function wire() {
     $('#marcoInput').addEventListener('input', function () {
-      if (isDev()) {
-        state.project.marcoDev = this.value;
-      } else {
-        state.project.marco = this.value;
-        state.project.name = this.value || 'Relatório sem nome';
-        $('#marcoInput').placeholder = 'RANAE J06';
-      }
+      state.project.marco = this.value;
+      state.project.name = this.value || 'Relatório sem nome';
       scheduleSave();
     });
 
     $$('.tab').forEach(function (t) {
       t.addEventListener('click', function () { switchKind(t.dataset.kind); });
     });
-    $('#footerInput').addEventListener('input', function () {
-      state.project.footer = this.value;
-      scheduleSave();
-    });
-
     $('#projectSelect').addEventListener('change', function () {
       var sel = this.value;
       flushSave().then(function () {
@@ -1104,6 +1292,7 @@
       var p = Store.newProject(marco.trim());
       flushSave().then(function () { return Store.save(p); }).then(function () {
         state.projects.unshift(p);
+        state.kind = 'ncr';   /* relatório novo começa pela aba NCR */
         loadProject(p);
         toast('Relatório criado.');
       }).catch(markError);
@@ -1128,6 +1317,8 @@
     $('#delNcrBtn').addEventListener('click', deleteNcr);
     $('#ncrFilter').addEventListener('input', renderNcrList);
 
+    $('#settingsBtn').addEventListener('click', openSettings);
+    $('#settingsCloseBtn').addEventListener('click', function () { $('#settingsDialog').close(); });
     $('#copyNcrBtn').addEventListener('click', openCopyDialog);
     $('#copyCancelBtn').addEventListener('click', function () { $('#copyDialog').close(); });
     $('#zoomRange').addEventListener('input', applyZoom);

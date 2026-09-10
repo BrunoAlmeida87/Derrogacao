@@ -23,23 +23,25 @@
   </div>
 
   <div class="topbar-field" style="flex:1 1 220px">
-    <label for="marcoInput" id="marcoLabel">Marco (NCR)</label>
+    <label for="marcoInput">Marco</label>
     <input type="text" id="marcoInput" placeholder="RANAE J06">
-  </div>
-
-  <div class="topbar-field" style="flex:0 1 210px">
-    <label for="footerInput">Rodapé</label>
-    <input type="text" id="footerInput" placeholder="Gerência técnica operacional">
+    <button class="btn btn--sm" id="settingsBtn" title="Títulos de capa, rodapé e marco alternativo da DEV">Ajustes</button>
   </div>
 
   <div class="topbar-spacer"></div>
 
   <div class="topbar-actions">
     <button class="btn" id="previewBtn">Pré-visualizar NCR</button>
-    <button class="btn btn--primary" id="pdfBtn">Exportar PDF (NCR)</button>
-    <button class="btn" id="backupBtn" title="Salvar este relatório em um arquivo .json">Backup</button>
-    <button class="btn" id="backupAllBtn" title="Salvar todos os relatórios deste navegador">Backup total</button>
+    <button class="btn btn--primary" id="pdfBtn">Exportar PDF…</button>
+    <button class="btn btn--accent" id="backupAllBtn"
+            title="Salva TODOS os relatórios deste navegador (NCR e DEV) em um arquivo só. É a opção recomendada.">
+      ★ Backup total
+    </button>
     <button class="btn" id="restoreBtn" title="Carregar um arquivo .json de backup">Restaurar</button>
+    <button class="btn btn--quiet" id="backupBtn"
+            title="Salva apenas o relatório aberto. Prefira o Backup total para não perder os outros.">
+      Backup só deste
+    </button>
     <input type="file" id="restoreInput" accept="application/json,.json" hidden>
   </div>
 
@@ -103,23 +105,41 @@
 </div>
 
 <!-- ====================== diálogo de exportação ====================== -->
-<dialog id="pdfDialog">
+<dialog id="pdfDialog" class="dlg--wide">
   <div class="dlg-body">
-    <h3>Exportar para PDF — relatório de <span id="pdfKind">NCR</span></h3>
-    <div id="pdfGaps" class="dlg-gaps"></div>
-    <p>A janela de impressão do navegador será aberta. Para obter o PDF idêntico ao padrão, ajuste:</p>
-    <ol>
-      <li><strong>Destino</strong>: “Salvar como PDF”</li>
-      <li><strong>Margens</strong>: “Nenhuma” (o layout já traz as margens corretas)</li>
-      <li><strong>Gráficos de plano de fundo</strong>: marcado (mantém as cores das faixas)</li>
-      <li><strong>Cabeçalhos e rodapés</strong>: desmarcado</li>
-    </ol>
-    <p>Sai apenas o relatório da aba aberta. Para gerar o outro, troque de aba
-       (NCR / DEV) e exporte de novo — são dois PDFs independentes.</p>
+    <h3>Exportar para PDF</h3>
+    <p>Marque os relatórios que quer gerar. Um só gera o arquivo isolado;
+       vários geram um arquivo único com todos em sequência.</p>
+
+    <div id="pdfPick" class="pick-list"></div>
+    <p class="pick-summary" id="pdfSummary"></p>
+    <div id="pdfGaps" class="dlg-gaps" hidden></div>
+
+    <details class="dlg-tips">
+      <summary>Ajustes na janela de impressão</summary>
+      <ol>
+        <li><strong>Destino</strong>: “Salvar como PDF”</li>
+        <li><strong>Margens</strong>: “Nenhuma” (o layout já traz as margens corretas)</li>
+        <li><strong>Gráficos de plano de fundo</strong>: marcado (mantém as cores das faixas)</li>
+        <li><strong>Cabeçalhos e rodapés</strong>: desmarcado</li>
+      </ol>
+    </details>
   </div>
   <div class="dlg-actions">
     <button class="btn" id="pdfCancelBtn">Cancelar</button>
-    <button class="btn btn--primary" id="pdfGoBtn">Abrir impressão</button>
+    <button class="btn btn--primary" id="pdfGoBtn">Gerar PDF</button>
+  </div>
+</dialog>
+
+<dialog id="settingsDialog">
+  <div class="dlg-body">
+    <h3>Ajustes do relatório</h3>
+    <p>Textos fixos que aparecem nas páginas. Valem para este relatório
+       (as duas abas) e quase nunca precisam ser mudados.</p>
+    <div id="settingsBody"></div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn btn--primary" id="settingsCloseBtn">Fechar</button>
   </div>
 </dialog>
 
