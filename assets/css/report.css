@@ -93,6 +93,14 @@
   text-decoration: underline;
 }
 
+/* data de emissão, no pé da capa */
+.rep-cover-date {
+  margin-top: auto;
+  text-align: right;
+  font-size: 8pt;
+  color: #555;
+}
+
 /* --- barra de título da NCR -------------------------------------------- */
 
 .rep-title {

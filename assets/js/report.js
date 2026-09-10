@@ -105,6 +105,10 @@
       list.appendChild(el('p', 'rep-index-item', 'Nenhum item cadastrado.'));
     }
     p.appendChild(list);
+
+    /* data de emissão, discreta no rodapé da capa */
+    p.appendChild(el('div', 'rep-cover-date',
+      'Gerado em ' + new Date().toLocaleDateString('pt-BR')));
     return p;
   }
 

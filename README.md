@@ -18,6 +18,8 @@ login e nenhum dado sai do computador.
   na aba DEV) fica no topo e entra no título da capa. Vários relatórios podem
   conviver no mesmo navegador — o seletor **Relatório** alterna entre eles, e
   cada um carrega as suas duas abas.
+- **Data de emissão.** A capa do PDF traz, discreta no canto inferior direito,
+  a data em que o relatório foi gerado.
 - **Uma página por item.** Cada NCR ou DEV inserida vira um item na lista
   lateral e uma página no PDF, com todos os campos de derrogação:
   *Description*, *Current Situation*, *Why is not possible to treat the
