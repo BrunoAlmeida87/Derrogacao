@@ -37,6 +37,35 @@
     };
   }
 
+  /* Situação de acompanhamento do item. É controle interno: não sai em
+     nenhuma página do PDF — quem vai para o relatório é o campo
+     "Arch Status Waiver", que segue independente deste. O item só conta como
+     concluído quando chega em "Waiver accepted". */
+  var STATUS = [
+    { id: 'preenchendo', nome: 'Em preenchimento',     cor: '#9aa1ae',
+      ajuda: 'Ainda sendo escrito.' },
+    { id: 'solicitado',  nome: 'Waiver requested',     cor: '#2a78d6',
+      ajuda: 'Enviado, aguardando resposta.' },
+    { id: 'justificar',  nome: 'Improve justification', cor: '#eb6834',
+      ajuda: 'Voltou pedindo justificativa melhor.' },
+    { id: 'aceito',      nome: 'Waiver accepted',      cor: '#1baf7a',
+      ajuda: 'Aceito — o item conta como concluído.' }
+  ];
+  var STATUS_PADRAO = 'preenchendo';
+  var STATUS_CONCLUIDO = 'aceito';
+
+  function statusInfo(id) {
+    for (var i = 0; i < STATUS.length; i++) if (STATUS[i].id === id) return STATUS[i];
+    return STATUS[0];
+  }
+
+  /** Único ponto que mexe na situação: "done" nunca se descola dela. */
+  function setStatus(item, id) {
+    item.status = statusInfo(id).id;
+    item.done = item.status === STATUS_CONCLUIDO;
+    return item.status;
+  }
+
   function newNcr() {
     return {
       id: uid(),
@@ -54,7 +83,8 @@
       historic: '',
       certificates: [],
       evidence: [],
-      done: false,           // marcado pelo botão "Concluir" — só organiza o trabalho
+      status: STATUS_PADRAO, // acompanhamento interno; não sai no PDF
+      done: false,           // espelho de status === 'aceito', para filtros e contagens
       editedBy: '',          // quem mexeu nele por último
       editedAt: '',
       syncBase: ''           // editedAt na última troca de arquivo — base da mesclagem
@@ -117,6 +147,11 @@
     if (!raw || typeof raw !== 'object') return base;
     var certs = Array.isArray(raw.certificates) ? raw.certificates.map(str)
               : (str(raw.certificates) ? [str(raw.certificates)] : []);
+    /* Arquivos gravados antes de existir a situação só tinham "done": o que
+       estava concluído vira "Waiver accepted", o resto começa em branco. */
+    var status = str(raw.status);
+    var conhecido = STATUS.some(function (o) { return o.id === status; });
+    if (!conhecido) status = raw.done === true ? STATUS_CONCLUIDO : STATUS_PADRAO;
     return {
       id: str(raw.id) || base.id,
       ncrId: str(raw.ncrId),
@@ -133,7 +168,8 @@
       historic: str(raw.historic),
       certificates: certs,
       evidence: Array.isArray(raw.evidence) ? raw.evidence.map(normalizeEvidence) : [],
-      done: raw.done === true,
+      status: status,
+      done: status === STATUS_CONCLUIDO,
       editedBy: str(raw.editedBy),
       editedAt: str(raw.editedAt),
       syncBase: str(raw.syncBase)
@@ -207,7 +243,7 @@
       item['arguments'], item.archAnswer,
       item.requestExpiry, item.archStatus, item.approvedExpiry, item.historic,
       item.certificates,
-      item.done === true,
+      statusInfo(item.status).id,
       (item.evidence || []).map(function (ev) {
         return [ev.id, ev.ref, ev.note, ev.orientation,
           (ev.images || []).map(function (im) { return [im.id, im.caption]; })];
@@ -415,6 +451,10 @@
     nowIso: nowIso,
     newProject: newProject,
     newNcr: newNcr,
+    STATUS: STATUS,
+    STATUS_CONCLUIDO: STATUS_CONCLUIDO,
+    statusInfo: statusInfo,
+    setStatus: setStatus,
     itemsKey: itemsKey,
     newEvidence: newEvidence,
     normalizeProject: normalizeProject,

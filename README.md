@@ -53,9 +53,9 @@ login e nenhum dado sai do computador.
    Para um marco que repete NCRs de outro relatório, use **Copiar de…**.
 4. Em **Evidências**, use **+ Novo anexo** e adicione as imagens necessárias.
 5. **Pré-visualizar** mostra as folhas exatamente como sairão no PDF.
-6. Ao terminar um item, clique em **✓ Concluir** (ou **✓ Concluir e criar
-   outra**). O salvamento já é automático a cada tecla — o botão serve para
-   confirmar que acabou e marcar o item como pronto, com um ✓ na lista.
+6. Marque a **situação do item** ao pé do formulário. O salvamento já é
+   automático a cada tecla; a situação serve para acompanhar em que pé está
+   cada derrogação.
 7. **Exportar PDF…** abre a lista de todos os relatórios disponíveis, separados
    por marco e por NCR/DEV. Marque um para gerar o arquivo isolado, ou vários
    para gerar um arquivo único com todos em sequência, cada um começando na
@@ -65,8 +65,8 @@ login e nenhum dado sai do computador.
    - **Gráficos de plano de fundo**: marcado
    - **Cabeçalhos e rodapés**: desmarcado
 
-A lista lateral mostra **quantos itens já foram concluídos** e tem um filtro
-**só pendentes**, para achar rápido o que ainda falta. A ordem da lista é a
+A lista lateral mostra **quantos itens já estão em waiver accepted** e tem um
+filtro **esconder aceitos**, para achar rápido o que ainda falta. A ordem da lista é a
 ordem no PDF — arraste os itens para reordenar. Os cinco blocos de texto são
 recolhíveis (**Recolher preenchidos**), e campos que se repetem muito
 (`PÓS TRAP`, `WAIVER ACCEPTED`, sistemas, funções, certificados) sugerem
@@ -80,6 +80,35 @@ leva a cor da faixa correspondente no PDF.
 Os títulos de capa, o rodapé, a data de emissão e o marco alternativo da capa
 da DEV ficam em **⋯ Mais → Ajustes de capa e rodapé** — textos fixos que quase
 nunca mudam.
+
+## Situação do item (controle interno)
+
+Cada NCR e cada DEV tem uma **situação de acompanhamento**, escolhida ao pé do
+formulário:
+
+| Situação | O que quer dizer |
+| --- | --- |
+| **Em preenchimento** | ainda sendo escrito (é como todo item nasce) |
+| **Waiver requested** | enviado, aguardando resposta |
+| **Improve justification** | voltou pedindo justificativa melhor |
+| **Waiver accepted** | aceito |
+
+Ela é **só para controle interno e não sai em nenhuma página do PDF do
+relatório** — aparece na lista lateral (a cor da barra à esquerda de cada item),
+na aba **Resumo** e na planilha CSV. O campo **Arch Status Waiver**, que é o que
+vai impresso no relatório, continua existindo e é independente desta situação:
+um serve para o documento, o outro para você saber onde o trabalho está.
+
+**Um item só conta como concluído quando chega em "Waiver accepted".** É isso
+que acende o ✓ verde na lista, alimenta o contador de progresso e o filtro
+*esconder aceitos*.
+
+Ao **copiar NCRs de outro relatório**, a cópia recomeça em *Em preenchimento*:
+o waiver é concedido por marco, não viaja junto com o texto.
+
+Backups gravados antes desta versão continuam abrindo normalmente — o que
+estava marcado como concluído entra como *Waiver accepted*, e o resto como
+*Em preenchimento*.
 
 ## Backup, cache e trabalho compartilhado
 
@@ -141,14 +170,14 @@ acompanha sempre a versão do site.
 A terceira aba reúne **todos os marcos deste navegador**, não só o relatório
 aberto:
 
-- **Números do escopo**: itens em derrogação (com a divisão NCR/DEV), concluídos,
-  pendentes e páginas de evidência.
-- **Progresso por marco** — barras empilhadas de concluídos sobre o total.
-- **Situação do waiver** — Aceito / Solicitado / Sem resposta, lido do campo
-  *Arch Status Waiver*.
+- **Números do escopo**: itens em derrogação (com a divisão NCR/DEV), em
+  *waiver accepted*, em andamento e páginas de evidência.
+- **Progresso por marco** — barras empilhadas de *waiver accepted* sobre o total.
+- **Situação dos itens** — as quatro situações de acompanhamento, na ordem do
+  fluxo, com a cor de cada uma.
 - **Itens por sistema** — um item que cita vários sistemas (`BX,BQ,BD`) conta em
   cada um; acima de dez sistemas o excedente vira "Outros".
-- **Tabela de marcos**, com percentual concluído e quem editou por último.
+- **Tabela de marcos**, com percentual aceito e quem editou por último.
 
 Escolhendo um marco no seletor (ou clicando no nome dele na tabela), a aba passa
 ao detalhe daquele marco: os mesmos gráficos, a lista completa de NCRs e DEVs e a

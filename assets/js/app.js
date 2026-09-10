@@ -286,7 +286,7 @@
     g1.appendChild(SummaryView.graficoProgresso(dados.porMarco));
     pg.appendChild(g1);
 
-    var g2 = SummaryView.bloco('Situação do waiver');
+    var g2 = SummaryView.bloco('Situação dos itens (controle interno)');
     g2.appendChild(SummaryView.graficoSituacao(dados.porMarco));
     pg.appendChild(g2);
 
@@ -303,7 +303,7 @@
         { titulo: 'Sistemas', valor: function (r) { return r.item.systems || '—'; } },
         { titulo: 'Função / descrição', valor: function (r) { return r.item.func || '—'; } },
         { titulo: 'Situação', valor: function (r) { return Summary.situacao(r.item); } },
-        { titulo: 'Concluído', valor: function (r) { return r.item.done ? 'Sim' : '—'; } }
+        { titulo: 'Arch Status', valor: function (r) { return r.item.archStatus || '—'; } }
       ], dados.porMarco[0].linhas));
       pg.appendChild(t);
     }
@@ -358,12 +358,22 @@
       main.appendChild(el('div', 'ncr-item-sub', sub || 'sem descrição'));
       li.appendChild(main);
 
+      /* o trilho colorido à esquerda e o ponto na direita mostram em que pé
+         está o item sem precisar abri-lo */
+      var st = Store.statusInfo(ncr.status);
+      li.style.setProperty('--st', st.cor);
+      li.title = 'Situação: ' + st.nome;
+
       var badges = el('div', 'ncr-item-badge');
       var imgCount = ncr.evidence.reduce(function (s, e) { return s + e.images.length; }, 0);
       if (imgCount) badges.appendChild(el('span', null, '🖼 ' + imgCount));
       if (ncr.done) {
         li.classList.add('is-done');
         badges.appendChild(el('span', 'done-tick', '✓'));
+      } else {
+        var sd = el('span', 'status-dot');
+        sd.title = 'Situação: ' + st.nome;
+        badges.appendChild(sd);
       }
       if (touched[ncr.id]) {
         li.classList.add('is-touched');
@@ -411,7 +421,7 @@
     var box = $('.progress-row');
     box.hidden = total === 0;
     $('#progressText').textContent = total
-      ? done + ' de ' + total + ' concluída' + (total > 1 ? 's' : '')
+      ? done + ' de ' + total + ' com waiver accepted'
       : '';
     box.classList.toggle('is-complete', total > 0 && done === total);
   }
@@ -665,55 +675,70 @@
     /* --- evidências --- */
     host.appendChild(renderEvidenceCard());
 
-    /* --- concluir --- */
-    host.appendChild(renderDoneBar());
+    /* --- situação de acompanhamento --- */
+    host.appendChild(renderStatusBar());
   }
 
-  /* O salvamento já é automático a cada tecla; este botão existe para dar o
-     retorno visível de "terminei este item" e marcar a NCR/DEV como pronta. */
-  function renderDoneBar() {
+  /* Situação de acompanhamento: controle interno, não sai no PDF. Substitui o
+     antigo botão "Concluir" — o item passa a contar como concluído quando, e
+     só quando, chega em "Waiver accepted". */
+  function renderStatusBar() {
     var ncr = currentNcr();
-    var bar = el('div', 'done-bar' + (ncr.done ? ' done-bar--done' : ''));
+    var atual = Store.statusInfo(ncr.status);
+    var bar = el('div', 'done-bar status-bar' + (ncr.done ? ' done-bar--done' : ''));
+    bar.style.setProperty('--st', atual.cor);
 
     var info = el('div', 'done-bar-info');
-    info.appendChild(el('strong', null, ncr.done ? '✓ Item concluído' : 'Item em edição'));
-    info.appendChild(el('span', null, ncr.done
-      ? 'Marcado como pronto. Você pode reabrir para editar a qualquer momento.'
-      : 'As alterações são gravadas sozinhas enquanto você digita. Ao terminar, confirme aqui.'));
+    info.appendChild(el('strong', null, 'Situação deste item'));
+    info.appendChild(el('span', null,
+      'Controle interno: não sai no PDF do relatório. O item conta como ' +
+      'concluído ao chegar em “Waiver accepted”.'));
     var who = el('span', 'done-bar-who');
     who.id = 'doneBarWho';
     info.appendChild(who);
     renderItemAuthor();
     bar.appendChild(info);
 
-    var btn = el('button', 'btn ' + (ncr.done ? '' : 'btn--primary'),
-      ncr.done ? 'Reabrir item' : '✓ Concluir ' + kindName());
-    btn.type = 'button';
-    btn.addEventListener('click', function () {
-      var n = currentNcr();
-      n.done = !n.done;
-      touch(n);
-      flushSave().then(function () {
-        renderNcrList();
-        renderEditor();
-        toast(n.done
-          ? kindName() + ' "' + (n.ncrId || 'sem número') + '" concluída e salva.'
-          : 'Item reaberto para edição.');
+    var grupo = el('div', 'status-pick');
+    grupo.setAttribute('role', 'radiogroup');
+    grupo.setAttribute('aria-label', 'Situação do item');
+    Store.STATUS.forEach(function (op) {
+      var b = el('button', 'status-op' + (op.id === atual.id ? ' is-on' : ''));
+      b.type = 'button';
+      b.style.setProperty('--st', op.cor);
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', op.id === atual.id ? 'true' : 'false');
+      b.title = op.ajuda;
+      b.appendChild(el('span', 'status-dot'));
+      b.appendChild(el('span', 'status-op-name', op.nome));
+      b.addEventListener('click', function () {
+        var n = currentNcr();
+        if (n.status === op.id) return;
+        Store.setStatus(n, op.id);
+        touch(n);
+        flushSave().then(function () {
+          renderNcrList();
+          renderEditor();
+          toast('Situação: ' + op.nome +
+            (op.id === Store.STATUS_CONCLUIDO ? ' — item concluído.' : '.'));
+        });
       });
+      grupo.appendChild(b);
     });
-    bar.appendChild(btn);
-
-    var next = el('button', 'btn', '✓ Concluir e criar outra');
+    var next = el('button', 'btn', '+ Criar outra ' + kindName());
     next.type = 'button';
-    next.hidden = ncr.done;
+    next.title = 'Grava o que está aberto e começa um item novo';
     next.addEventListener('click', function () {
-      currentNcr().done = true;
       flushSave().then(function () {
         addNcr();
         toast('Item salvo. Comece o próximo.');
       });
     });
-    bar.appendChild(next);
+
+    var linha = el('div', 'status-row');
+    linha.appendChild(grupo);
+    linha.appendChild(next);
+    bar.appendChild(linha);
 
     return bar;
   }
@@ -1389,6 +1414,8 @@
         var origin = src[key].filter(function (n) { return n.id === id; })[0];
         var copy = Store.normalizeNcr(JSON.parse(JSON.stringify(origin)));
         copy.id = Store.uid();
+        /* o waiver é de cada marco: a cópia recomeça o acompanhamento */
+        Store.setStatus(copy, Store.STATUS[0].id);
         if (!withImages.checked) copy.evidence = [];
         copy.evidence.forEach(function (evd) {
           evd.id = Store.uid();

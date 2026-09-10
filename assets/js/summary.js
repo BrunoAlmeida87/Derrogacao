@@ -37,15 +37,10 @@
   /* apuração                                                                */
   /* ---------------------------------------------------------------------- */
 
-  /** "WAIVER ACCEPTED" e variações viram três situações comparáveis. */
-  function situacao(item) {
-    var v = clean(item.archStatus).toUpperCase();
-    if (!v) return 'Sem resposta';
-    if (v.indexOf('ACCEPT') >= 0 || v.indexOf('ACEIT') >= 0) return 'Aceito';
-    if (v.indexOf('REQUEST') >= 0 || v.indexOf('SOLICIT') >= 0) return 'Solicitado';
-    return 'Outro';
-  }
-  var SITUACOES = ['Aceito', 'Solicitado', 'Sem resposta', 'Outro'];
+  /* A situação vem do campo de acompanhamento escolhido no editor — não do
+     texto do "Arch Status Waiver", que é livre e vai para o PDF. */
+  function situacao(item) { return Store.statusInfo(item.status).nome; }
+  var SITUACOES = Store.STATUS.map(function (o) { return o.nome; });
 
   /** Um item pode citar vários sistemas ("BX,BQ,BD"). */
   function sistemas(item) {
@@ -297,8 +292,8 @@
     var row = el('div', 'sm-kpis');
     [
       ['Itens em derrogação', st.total, st.ncr + ' NCR · ' + st.dev + ' DEV'],
-      ['Concluídos', st.concluidos, pct(st.concluidos, st.total) + ' do total'],
-      ['Pendentes', st.pendentes, pct(st.pendentes, st.total) + ' do total'],
+      ['Waiver accepted', st.concluidos, pct(st.concluidos, st.total) + ' do total'],
+      ['Em andamento', st.pendentes, pct(st.pendentes, st.total) + ' do total'],
       ['Páginas de evidência', st.evidencias, st.imagens + ' imagens']
     ].forEach(function (k) {
       var t = el('div', 'sm-kpi');
@@ -308,6 +303,14 @@
       row.appendChild(t);
     });
     return row;
+  }
+
+  /** Etiqueta colorida da situação, para as tabelas. */
+  function pilulaSituacao(item) {
+    var st = Store.statusInfo(item.status);
+    var p = el('span', 'sm-pill', st.nome);
+    p.style.setProperty('--st', st.cor);
+    return p;
   }
 
   function tabela(colunas, linhas, opts) {
@@ -347,26 +350,29 @@
       marcos.map(function (m) {
         return { rotulo: m.marco, valores: [m.concluidos, m.pendentes] };
       }),
-      [{ nome: 'Concluídos', cor: S.C1 },
-       { nome: 'Pendentes', cor: S.NEUTRO, claro: true }],
+      [{ nome: 'Waiver accepted', cor: S.C3 },
+       { nome: 'Em andamento', cor: S.NEUTRO, claro: true }],
       { vazio: 'Nenhum item cadastrado ainda.' }
     );
   }
 
+  /* As barras vão do fim para o começo do fluxo: o verde à esquerda mostra
+     de imediato quanto de cada marco já está aceito. */
+  var ORDEM_SITUACAO = ['aceito', 'justificar', 'solicitado', 'preenchendo'];
+
   function graficoSituacao(marcos) {
+    var faixas = ORDEM_SITUACAO.map(function (id) { return Store.statusInfo(id); });
     return S.barrasEmpilhadas(
       marcos.map(function (m) {
         return {
           rotulo: m.marco,
-          valores: [m.porSituacao['Aceito'],
-                    m.porSituacao['Solicitado'],
-                    m.porSituacao['Sem resposta'] + m.porSituacao['Outro']]
+          valores: faixas.map(function (f) { return m.porSituacao[f.nome] || 0; })
         };
       }),
-      [{ nome: 'Aceito', cor: S.C3 },
-       { nome: 'Solicitado', cor: S.C2 },
-       { nome: 'Sem resposta', cor: S.NEUTRO, claro: true }],
-      { vazio: 'Nenhuma situação registrada.' }
+      faixas.map(function (f) {
+        return { nome: f.nome, cor: f.cor, claro: f.id === 'preenchendo' };
+      }),
+      { vazio: 'Nenhum item para situar.' }
     );
   }
 
@@ -394,7 +400,8 @@
   /** Planilha com uma linha por NCR/DEV, para abrir no Excel. */
   function toCsv(project) {
     var st = S.statsDe(project);
-    var cab = ['Marco', 'Tipo', 'Numero', 'Sistemas', 'Funcao/Descricao', 'Situacao',
+    var cab = ['Marco', 'Tipo', 'Numero', 'Sistemas', 'Funcao/Descricao',
+               'Situacao (controle interno)',
                'Arch Status', 'Request Expiry', 'Approved Expiry', 'Concluido',
                'Certificados', 'Anexos', 'Imagens', 'Alterado por', 'Alterado em'];
     var linhas = st.linhas.map(function (r) {
@@ -480,12 +487,12 @@
 
     /* progresso por marco (ou do marco escolhido) */
     var b1 = bloco(alvo ? 'Progresso de ' + alvo.marco : 'Progresso por marco',
-      'Itens marcados como concluídos, sobre o total de NCRs e DEVs.');
+      'Itens em “Waiver accepted”, sobre o total de NCRs e DEVs.');
     b1.appendChild(graficoProgresso(escopo));
     host.appendChild(b1);
 
-    var b2 = bloco('Situação do waiver',
-      'Conforme o campo Arch Status Waiver de cada item.');
+    var b2 = bloco('Situação dos itens',
+      'Acompanhamento interno, escolhido item a item no editor. Não sai no PDF do relatório.');
     b2.appendChild(graficoSituacao(escopo));
     host.appendChild(b2);
 
@@ -507,7 +514,7 @@
         { titulo: 'NCR', num: true, valor: function (m) { return num(m.ncr); } },
         { titulo: 'DEV', num: true, valor: function (m) { return num(m.dev); } },
         { titulo: 'Total', num: true, valor: function (m) { return num(m.total); } },
-        { titulo: 'Concluídos', num: true, valor: function (m) { return num(m.concluidos); } },
+        { titulo: 'Aceitos', num: true, valor: function (m) { return num(m.concluidos); } },
         { titulo: '%', num: true, valor: function (m) { return pct(m.concluidos, m.total); } },
         { titulo: 'Evidências', num: true, valor: function (m) { return num(m.evidencias); } },
         { titulo: 'Última edição', valor: function (m) {
@@ -522,10 +529,10 @@
         { titulo: 'Número', valor: function (r) { return r.item.ncrId || '(sem número)'; } },
         { titulo: 'Sistemas', valor: function (r) { return r.item.systems || '—'; } },
         { titulo: 'Função / descrição', valor: function (r) { return r.item.func || '—'; } },
-        { titulo: 'Situação', valor: function (r) { return S.situacao(r.item); } },
+        { titulo: 'Situação', valor: function (r) { return pilulaSituacao(r.item); } },
         { titulo: 'Expiry', valor: function (r) { return r.item.requestExpiry || '—'; } },
         { titulo: 'Anexos', num: true, valor: function (r) { return num((r.item.evidence || []).length); } },
-        { titulo: 'Concluído', valor: function (r) { return r.item.done ? 'Sim' : '—'; } }
+        { titulo: 'Arch Status', valor: function (r) { return r.item.archStatus || '—'; } }
       ], alvo.linhas, { vazio: 'Este marco ainda não tem itens.' }));
       host.appendChild(b5);
 
