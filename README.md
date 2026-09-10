@@ -103,6 +103,35 @@ inseridas, para manter os arquivos de backup e o armazenamento em tamanho
 razoável. O indicador **salvo no navegador** mostra, ao passar o mouse, quanto
 espaço os dados ocupam.
 
+## Aba Resumo
+
+A terceira aba reúne **todos os marcos deste navegador**, não só o relatório
+aberto:
+
+- **Números do escopo**: itens em derrogação (com a divisão NCR/DEV), concluídos,
+  pendentes e páginas de evidência.
+- **Progresso por marco** — barras empilhadas de concluídos sobre o total.
+- **Situação do waiver** — Aceito / Solicitado / Sem resposta, lido do campo
+  *Arch Status Waiver*.
+- **Itens por sistema** — um item que cita vários sistemas (`BX,BQ,BD`) conta em
+  cada um; acima de dez sistemas o excedente vira "Outros".
+- **Tabela de marcos**, com percentual concluído e quem editou por último.
+
+Escolhendo um marco no seletor (ou clicando no nome dele na tabela), a aba passa
+ao detalhe daquele marco: os mesmos gráficos, a lista completa de NCRs e DEVs e a
+contagem por certificado impactado. Nesse modo aparecem três exportações:
+
+| Botão | O que sai |
+| --- | --- |
+| **Resumo em PDF** | Uma folha A4 com os números, os gráficos e a tabela de itens |
+| **Planilha (CSV)** | Uma linha por NCR/DEV, com todos os campos — abre no Excel |
+| **Backup deste marco** | O `.json` só desse marco, para enviar a alguém |
+
+Os gráficos são SVG escrito à mão — sem biblioteca externa, imprimem em vetor e
+funcionam com o arquivo aberto direto do disco. A paleta foi validada para
+daltonismo (separação CVD ΔE ≥ 8 em todos os pares adjacentes), e cada segmento
+leva o número escrito dentro, de modo que a leitura nunca depende só da cor.
+
 ## Duas ou mais pessoas ao mesmo tempo
 
 Não há servidor: cada pessoa trabalha na sua cópia, no próprio navegador, e os
@@ -187,6 +216,7 @@ assets/css/app.css       estilos do editor
 assets/css/report.css    layout do relatório (tela e impressão A4)
 assets/js/store.js       modelo de dados e persistência (IndexedDB)
 assets/js/report.js      montagem das páginas no padrão do PDF
+assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
 assets/js/app.js         lógica do editor
 ```
 

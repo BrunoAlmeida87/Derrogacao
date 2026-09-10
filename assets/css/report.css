@@ -298,6 +298,8 @@
   .print-root .rep-page--landscape { page: rep-landscape; }
 
   .rep-page { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .rep-page--summary,
+  .rep-page--summary *,
   .rep-section-head,
   .rep-title,
   .rep-cert-head,

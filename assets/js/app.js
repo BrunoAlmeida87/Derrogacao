@@ -22,9 +22,11 @@
     : 's-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
 
   var isDev = function () { return state.kind === 'dev'; };
+  var isResumo = function () { return state.kind === 'resumo'; };
   /** Lista de itens da aba ativa. */
   var items = function () {
-    return state.project ? state.project[Store.itemsKey(state.kind)] : [];
+    if (!state.project || isResumo()) return [];
+    return state.project[Store.itemsKey(state.kind)];
   };
   /** Nome da aba, para textos da interface. */
   var kindName = function () { return isDev() ? 'DEV' : 'NCR'; };
@@ -107,6 +109,7 @@
       renderTabs();
       renderUser();
       renderBackupNotice();
+      if (isResumo()) renderSummary();
     }).catch(markError);
   }
 
@@ -171,6 +174,7 @@
     renderUser();
     renderSessionInfo();
     renderBackupNotice();
+    if (isResumo()) renderSummary();
     markSaved();
   }
 
@@ -181,9 +185,20 @@
     $$('.tab').forEach(function (t) {
       var on = t.dataset.kind === state.kind;
       t.setAttribute('aria-selected', on ? 'true' : 'false');
-      var n = state.project[Store.itemsKey(t.dataset.kind)].length;
-      $('.tab-count', t).textContent = n;
+      var cnt = $('.tab-count', t);
+      if (cnt) cnt.textContent = state.project[Store.itemsKey(t.dataset.kind)].length;
     });
+
+    /* a aba de resumo troca a tela inteira: não há lista nem formulário */
+    $('#sidebarBody').hidden = isResumo();
+    $('#sidebarResumo').hidden = !isResumo();
+    $('#editorScroll').hidden = isResumo();
+    $('#summaryScroll').hidden = !isResumo();
+    $('#previewBtn').hidden = isResumo();
+    if (isResumo()) {
+      $('#pdfBtn').textContent = 'Exportar PDF…';
+      return;
+    }
 
     var t = kindName();
     $('#addNcrBtn').textContent = '+ Nova ' + t;
@@ -197,9 +212,102 @@
     if (state.kind === kind) return;
     state.kind = kind;
     renderTabs();
+    if (isResumo()) { renderSummary(); return; }
     renderNcrList();
     renderEditor();
     $('#editorScroll').scrollTop = 0;
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* aba de resumo                                                           */
+  /* ---------------------------------------------------------------------- */
+
+  var summaryFilter = '';
+
+  function renderSummary() {
+    SummaryView.render($('#summaryScroll'), state.projects, summaryFilter, {
+      onFiltro: function (id) { summaryFilter = id; renderSummary(); },
+      onCsv: exportarCsv,
+      onPdf: exportarResumoPdf,
+      onBackup: function (project) {
+        var antes = state.project;
+        state.project = project;
+        exportBackup(false);
+        state.project = antes;
+      }
+    });
+    $('#summaryScroll').scrollTop = 0;
+  }
+
+  function exportarCsv(project) {
+    var csv = SummaryView.toCsv(project);
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    download(blob, Report.suggestedFileName(project, 'csv').replace('WaiverRequest_', 'Resumo_'));
+    toast('Planilha do marco salva.');
+  }
+
+  /** Monta as páginas A4 do resumo e manda para a impressão. */
+  function exportarResumoPdf(project) {
+    var root = $('#printRoot');
+    root.innerHTML = '';
+    root.appendChild(buildSummaryPage(project));
+    var titulo = document.title;
+    document.title = project
+      ? Report.suggestedFileName(project, 'pdf', 'ncr').replace('WaiverRequest_', 'Resumo_').replace(/\.pdf$/, '')
+      : 'Resumo_geral_' + new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.title = titulo; }, 500);
+    }, 60);
+  }
+
+  /** Uma folha A4 com os números, os gráficos e a tabela do escopo. */
+  function buildSummaryPage(project) {
+    var pg = el('section', 'rep-page rep-page--summary');
+    var alvos = project ? [project] : state.projects;
+    var dados = Summary.compute(alvos);
+    var st = project ? dados.porMarco[0] : dados.geral;
+
+    var titulo = project
+      ? 'Resumo de derrogações — ' + (Report.marcoOf(project, 'ncr') || project.name)
+      : 'Resumo de derrogações — todos os marcos';
+    pg.appendChild(el('div', 'rep-cover-title', titulo));
+    pg.appendChild(el('div', 'sm-print-date',
+      'Gerado em ' + new Date().toLocaleDateString('pt-BR') +
+      (Store.getUser() ? ' por ' + Store.getUser() : '')));
+
+    pg.appendChild(SummaryView.kpiRow(st));
+
+    var g1 = SummaryView.bloco('Progresso');
+    g1.appendChild(SummaryView.graficoProgresso(dados.porMarco));
+    pg.appendChild(g1);
+
+    var g2 = SummaryView.bloco('Situação do waiver');
+    g2.appendChild(SummaryView.graficoSituacao(dados.porMarco));
+    pg.appendChild(g2);
+
+    var g3 = SummaryView.bloco('Itens por sistema');
+    g3.appendChild(SummaryView.graficoSistemas(
+      project ? dados.porMarco[0].porSistema : dados.geral.porSistema));
+    pg.appendChild(g3);
+
+    if (project) {
+      var t = SummaryView.bloco('Itens');
+      t.appendChild(SummaryView.tabela([
+        { titulo: 'Tipo', valor: function (r) { return r.kind === 'dev' ? 'DEV' : 'NCR'; } },
+        { titulo: 'Número', valor: function (r) { return r.item.ncrId || '(sem número)'; } },
+        { titulo: 'Sistemas', valor: function (r) { return r.item.systems || '—'; } },
+        { titulo: 'Função / descrição', valor: function (r) { return r.item.func || '—'; } },
+        { titulo: 'Situação', valor: function (r) { return Summary.situacao(r.item); } },
+        { titulo: 'Concluído', valor: function (r) { return r.item.done ? 'Sim' : '—'; } }
+      ], dados.porMarco[0].linhas));
+      pg.appendChild(t);
+    }
+
+    if (state.project && state.project.footer) {
+      pg.appendChild(el('div', 'rep-footer', state.project.footer));
+    }
+    return pg;
   }
 
   /* ---------------------------------------------------------------------- */
