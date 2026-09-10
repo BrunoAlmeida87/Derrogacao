@@ -22,12 +22,48 @@
     return n;
   }
 
-  /** Rótulo completo da NCR: "NCR-...|RM|FV 01 - Sea water circuit integrity" */
-  function ncrLabel(ncr) {
-    return [ncr.ncrId, ncr.systems, ncr.func]
-      .map(function (s) { return (s || '').trim(); })
-      .filter(Boolean)
-      .join('|');
+  function clean(v) { return (v || '').trim(); }
+
+  /**
+   * Rótulo do item, na barra de título.
+   *   NCR: "NCR-ICN-ESC-13-1098-2023|RM|FV 01 - Sea water circuit integrity"
+   *   DEV: "DEV-78154|BQ - Modification des compensateurs"
+   * A DEV junta sistema e descrição num campo só, como no relatório original.
+   */
+  function ncrLabel(ncr, kind) {
+    var parts = kind === 'dev' ? [ncr.ncrId, ncr.func] : [ncr.ncrId, ncr.systems, ncr.func];
+    return parts.map(clean).filter(Boolean).join('|');
+  }
+
+  /* Configuração de cada aba. */
+  var KINDS = {
+    ncr: {
+      key: 'ncrs',
+      coverTitleField: 'coverTitle',
+      marcoField: 'marco',
+      indexSeparator: '|',
+      showHistoric: true,
+      label: 'NCR'
+    },
+    dev: {
+      key: 'devs',
+      coverTitleField: 'coverTitleDev',
+      marcoField: 'marcoDev',
+      indexSeparator: ' ',   /* na capa da DEV o número é seguido de espaço */
+      showHistoric: false,
+      label: 'DEV'
+    }
+  };
+
+  function conf(kind) { return KINDS[kind === 'dev' ? 'dev' : 'ncr']; }
+
+  /** Itens da aba. */
+  function items(project, kind) { return project[conf(kind).key] || []; }
+
+  /** Marco da aba — a DEV cai no marco geral quando não tem um próprio. */
+  function marcoOf(project, kind) {
+    var c = conf(kind);
+    return clean(project[c.marcoField]) || clean(project.marco);
   }
 
   function anchorNcr(ncr)  { return 'ncr-' + ncr.id; }
@@ -40,30 +76,29 @@
 
   /* --- capa / índice ---------------------------------------------------- */
 
-  function buildCover(project) {
+  function buildCover(project, kind) {
+    var c = conf(kind);
     var p = page(false);
     p.id = 'rep-cover';
 
-    var title = (project.coverTitle || 'Waiver Request For').trim();
-    var marco = (project.marco || '').trim();
-    p.appendChild(el('div', 'rep-cover-title', (title + ' ' + marco).trim()));
+    var title = clean(project[c.coverTitleField]) || 'Waiver Request For';
+    p.appendChild(el('div', 'rep-cover-title', (title + ' ' + marcoOf(project, kind)).trim()));
     p.appendChild(el('div', 'rep-cover-subtitle', project.coverSubtitle || 'List of Waiver Requested :'));
 
     var list = el('div', 'rep-index');
-    project.ncrs.forEach(function (ncr) {
+    var rows = items(project, kind);
+    rows.forEach(function (ncr) {
       var item = el('p', 'rep-index-item');
       var a = el('a', null, (ncr.ncrId || '(sem número)'));
       a.href = '#' + anchorNcr(ncr);
       item.appendChild(a);
-      var rest = [ncr.systems, ncr.func]
-        .map(function (s) { return (s || '').trim(); })
-        .filter(Boolean)
-        .join('|');
-      if (rest) item.appendChild(document.createTextNode('|' + rest));
+      var rest = (kind === 'dev' ? [ncr.func] : [ncr.systems, ncr.func])
+        .map(clean).filter(Boolean).join('|');
+      if (rest) item.appendChild(document.createTextNode(c.indexSeparator + rest));
       list.appendChild(item);
     });
-    if (!project.ncrs.length) {
-      list.appendChild(el('p', 'rep-index-item', 'Nenhuma NCR cadastrada.'));
+    if (!rows.length) {
+      list.appendChild(el('p', 'rep-index-item', 'Nenhum item cadastrado.'));
     }
     p.appendChild(list);
     return p;
@@ -71,7 +106,8 @@
 
   /* --- página de uma NCR ------------------------------------------------ */
 
-  function buildNcrPage(project, ncr) {
+  function buildNcrPage(project, ncr, kind) {
+    var c = conf(kind);
     var p = page(false);
     p.id = anchorNcr(ncr);
 
@@ -90,7 +126,7 @@
     nav.appendChild(back);
     p.appendChild(nav);
 
-    p.appendChild(el('div', 'rep-title', 'Waiver Request for ' + ncrLabel(ncr)));
+    p.appendChild(el('div', 'rep-title', 'Waiver Request for ' + ncrLabel(ncr, kind)));
 
     SECTIONS.forEach(function (sec) {
       var wrap = el('div', 'rep-section rep-section--' + sec.cls);
@@ -104,9 +140,11 @@
     var rows = [
       ['Waiver Request Expiry (before):', ncr.requestExpiry],
       ['Arch Status Waiver:', ncr.archStatus],
-      ['Waiver Approved Expiry (before):', ncr.approvedExpiry],
-      ['Waiver Historic: ', ncr.historic]
+      ['Waiver Approved Expiry (before):', ncr.approvedExpiry]
     ];
+    /* O relatório de DEV não traz a linha de histórico; a de NCR traz sempre,
+       mesmo vazia, como no original. */
+    if (c.showHistoric || clean(ncr.historic)) rows.push(['Waiver Historic: ', ncr.historic]);
     rows.forEach(function (r) {
       status.appendChild(el('div', 'rep-status-row', r[0] + (r[1] || '')));
     });
@@ -161,12 +199,12 @@
 
   /* --- montagem completa ------------------------------------------------ */
 
-  function build(project, target) {
+  function build(project, target, kind) {
     var root = target || document.createElement('div');
     root.innerHTML = '';
-    root.appendChild(buildCover(project));
-    project.ncrs.forEach(function (ncr) {
-      root.appendChild(buildNcrPage(project, ncr));
+    root.appendChild(buildCover(project, kind));
+    items(project, kind).forEach(function (ncr) {
+      root.appendChild(buildNcrPage(project, ncr, kind));
       ncr.evidence.forEach(function (ev) {
         if (ev.images.length || ev.note) root.appendChild(buildEvidencePage(project, ncr, ev));
       });
@@ -175,22 +213,26 @@
   }
 
   /** Nome de arquivo sugerido, no estilo SBR3_WaiverRequest_RANAE_J06_20251001 */
-  function suggestedFileName(project, ext) {
+  function suggestedFileName(project, ext, kind) {
     var d = new Date();
     var stamp = d.getFullYear() +
       String(d.getMonth() + 1).padStart(2, '0') +
       String(d.getDate()).padStart(2, '0');
-    var marco = (project.marco || project.name || 'Relatorio')
+    var marco = (marcoOf(project, kind) || project.name || 'Relatorio')
       .replace(/[^\w\s-]/g, '')
       .trim()
       .replace(/\s+/g, '_');
-    return 'WaiverRequest_' + (marco || 'Relatorio') + '_' + stamp + '.' + ext;
+    var prefix = kind === 'dev' ? 'DEV_WaiverRequest_' : 'WaiverRequest_';
+    return prefix + (marco || 'Relatorio') + '_' + stamp + '.' + ext;
   }
 
   global.Report = {
     build: build,
     ncrLabel: ncrLabel,
     suggestedFileName: suggestedFileName,
+    items: items,
+    marcoOf: marcoOf,
+    conf: conf,
     SECTIONS: SECTIONS
   };
 })(window);

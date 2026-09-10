@@ -23,7 +23,7 @@
   </div>
 
   <div class="topbar-field" style="flex:1 1 220px">
-    <label for="marcoInput">Marco</label>
+    <label for="marcoInput" id="marcoLabel">Marco (NCR)</label>
     <input type="text" id="marcoInput" placeholder="RANAE J06">
   </div>
 
@@ -35,8 +35,8 @@
   <div class="topbar-spacer"></div>
 
   <div class="topbar-actions">
-    <button class="btn" id="previewBtn">Pré-visualizar</button>
-    <button class="btn btn--primary" id="pdfBtn">Exportar PDF</button>
+    <button class="btn" id="previewBtn">Pré-visualizar NCR</button>
+    <button class="btn btn--primary" id="pdfBtn">Exportar PDF (NCR)</button>
     <button class="btn" id="backupBtn" title="Salvar este relatório em um arquivo .json">Backup</button>
     <button class="btn" id="backupAllBtn" title="Salvar todos os relatórios deste navegador">Backup total</button>
     <button class="btn" id="restoreBtn" title="Carregar um arquivo .json de backup">Restaurar</button>
@@ -50,9 +50,18 @@
 <div class="layout">
 
   <aside class="sidebar">
+    <div class="tabs" role="tablist" aria-label="Tipo de derrogação">
+      <button class="tab" role="tab" data-kind="ncr" aria-selected="true">
+        NCR <span class="tab-count">0</span>
+      </button>
+      <button class="tab" role="tab" data-kind="dev" aria-selected="false">
+        DEV <span class="tab-count">0</span>
+      </button>
+    </div>
+
     <div class="sidebar-head">
       <div class="sidebar-head-row">
-        <h2>NCRs</h2>
+        <h2 id="sidebarTitle">NCRs</h2>
         <div style="display:flex;gap:4px">
           <button class="btn btn--sm btn--primary" id="addNcrBtn">+ Nova NCR</button>
           <button class="btn btn--sm" id="dupNcrBtn" title="Duplicar a NCR selecionada">Duplicar</button>
@@ -65,7 +74,8 @@
 
     <ul class="ncr-list" id="ncrList" hidden></ul>
     <div class="sidebar-empty" id="sidebarEmpty">
-      Nenhuma NCR ainda.<br>Clique em <strong>+ Nova NCR</strong> para adicionar a primeira.
+      Nenhuma <span id="sidebarEmptyKind">NCR</span> ainda.<br>
+      Use o botão acima para adicionar a primeira.
       <br><br>A ordem da lista é a ordem no PDF — arraste para reordenar.
     </div>
   </aside>
@@ -80,6 +90,7 @@
 <div class="preview" id="preview" hidden>
   <div class="preview-bar">
     <strong>Pré-visualização</strong>
+    <span class="badge" id="previewKind">Relatório de NCR</span>
     <span class="note">Cada folha abaixo corresponde a uma página do PDF.</span>
     <div class="topbar-spacer"></div>
     <label class="note" for="zoomRange">Zoom</label>
@@ -94,7 +105,7 @@
 <!-- ====================== diálogo de exportação ====================== -->
 <dialog id="pdfDialog">
   <div class="dlg-body">
-    <h3>Exportar para PDF</h3>
+    <h3>Exportar para PDF — relatório de <span id="pdfKind">NCR</span></h3>
     <div id="pdfGaps" class="dlg-gaps"></div>
     <p>A janela de impressão do navegador será aberta. Para obter o PDF idêntico ao padrão, ajuste:</p>
     <ol>
@@ -103,7 +114,8 @@
       <li><strong>Gráficos de plano de fundo</strong>: marcado (mantém as cores das faixas)</li>
       <li><strong>Cabeçalhos e rodapés</strong>: desmarcado</li>
     </ol>
-    <p>As páginas de evidência saem automaticamente em paisagem.</p>
+    <p>Sai apenas o relatório da aba aberta. Para gerar o outro, troque de aba
+       (NCR / DEV) e exporte de novo — são dois PDFs independentes.</p>
   </div>
   <div class="dlg-actions">
     <button class="btn" id="pdfCancelBtn">Cancelar</button>

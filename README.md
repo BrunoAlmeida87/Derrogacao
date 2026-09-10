@@ -8,11 +8,18 @@ login e nenhum dado sai do computador.
 
 ## O que faz
 
-- **Um relatório por marco.** O marco (ex.: `RANAE J06`) fica no topo e entra no
-  título da capa: *Waiver Request For RANAE J06*. Vários relatórios podem
-  conviver no mesmo navegador — o seletor **Relatório** alterna entre eles.
-- **Uma página por NCR.** Cada NCR inserida vira um item na lista lateral (a
-  "aba") e uma página no PDF, com todos os campos de derrogação:
+- **Duas abas: NCR e DEV.** As duas categorias seguem o mesmo layout e são
+  preenchidas ao mesmo tempo, cada uma com o seu marco, e **exportadas como
+  dois PDFs independentes**. As diferenças da DEV, conforme o relatório
+  original: capa com prefixo `DEV:`, número e descrição num campo só
+  (`DEV-78154|BQ - Modification des compensateurs`) e sem a linha
+  *Waiver Historic*.
+- **Um relatório por marco.** O marco (ex.: `RANAE J06` na aba NCR, `J05 DQR`
+  na aba DEV) fica no topo e entra no título da capa. Vários relatórios podem
+  conviver no mesmo navegador — o seletor **Relatório** alterna entre eles, e
+  cada um carrega as suas duas abas.
+- **Uma página por item.** Cada NCR ou DEV inserida vira um item na lista
+  lateral e uma página no PDF, com todos os campos de derrogação:
   *Description*, *Current Situation*, *Why is not possible to treat the
   deviation*, *What are the arguments for the derrogation* e *Arch Answer*,
   além de *Waiver Request Expiry*, *Arch Status Waiver*, *Waiver Approved
@@ -34,20 +41,25 @@ login e nenhum dado sai do computador.
 
 ## Como usar
 
-1. Preencha o **Marco** no topo.
-2. **+ Nova NCR** na lateral esquerda e preencha número, sistema(s) e função.
-   O título da página é montado como `NCR-...|RM|FV 01 - ...`, igual ao original.
+1. Escolha a aba **NCR** ou **DEV** e preencha o **Marco** no topo (cada aba
+   tem o seu; a DEV usa o marco da NCR se ficar em branco).
+2. **+ Nova NCR** / **+ Nova DEV** na lateral esquerda e preencha os campos de
+   identificação. O título da página é montado como `NCR-...|RM|FV 01 - ...`
+   ou `DEV-78154|BQ - ...`, igual ao original.
 3. Preencha os textos da derrogação. O salvamento é automático.
    Para um marco que repete NCRs de outro relatório, use **Copiar de…**.
 4. Em **Evidências**, use **+ Novo anexo** e adicione as imagens necessárias.
 5. **Pré-visualizar** mostra as folhas exatamente como sairão no PDF.
-6. **Exportar PDF** abre a janela de impressão. Escolha:
+6. **Exportar PDF (NCR)** ou **Exportar PDF (DEV)** exporta *apenas* a aba
+   aberta. Para gerar os dois relatórios, troque de aba e exporte de novo.
+   A janela de impressão do navegador se abre; escolha:
    - Destino: **Salvar como PDF**
    - Margens: **Nenhuma**
    - **Gráficos de plano de fundo**: marcado
    - **Cabeçalhos e rodapés**: desmarcado
 
-A ordem das NCRs na lista é a ordem no PDF — arraste os itens para reordenar.
+A ordem da lista é a ordem no PDF — arraste os itens para reordenar.
+**Backup** e **Restaurar** levam sempre as duas abas juntas, num arquivo só.
 
 ## Backup, cache e trabalho compartilhado
 
@@ -59,7 +71,8 @@ risco, porém não elimina.
 
 Por isso:
 
-- **Backup** salva o relatório aberto em um `.json` (as imagens vão embutidas).
+- **Backup** salva o relatório aberto — NCRs e DEVs juntas — em um `.json`
+  (as imagens vão embutidas).
 - **Backup total** salva todos os relatórios deste navegador em um único
   arquivo.
 - **Restaurar** lê um `.json` — também funciona arrastando o arquivo para
@@ -80,7 +93,7 @@ espaço os dados ocupam.
 | Atalho | Ação |
 | --- | --- |
 | `Ctrl` + `S` | Gravar imediatamente |
-| `Ctrl` + `P` | Exportar PDF |
+| `Ctrl` + `P` | Exportar PDF da aba aberta |
 | `Esc` | Fechar a pré-visualização |
 | `Ctrl` + `V` | Colar imagem no último anexo da NCR aberta |
 
@@ -104,3 +117,6 @@ assets/js/app.js         lógica do editor
 
 Não há dependências externas nem etapa de build: abrir o `index.html` já
 funciona, inclusive a partir do disco local.
+
+Backups gerados antes da aba DEV existir continuam abrindo normalmente — a
+lista de DEVs nasce vazia.

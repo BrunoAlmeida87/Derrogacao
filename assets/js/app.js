@@ -11,7 +11,21 @@
   var state = {
     projects: [],
     project: null,
-    ncrId: null      // id da NCR selecionada
+    kind: 'ncr',     // aba ativa: 'ncr' ou 'dev'
+    ncrId: null,     // id do item selecionado na aba NCR
+    devId: null      // id do item selecionado na aba DEV
+  };
+
+  var isDev = function () { return state.kind === 'dev'; };
+  /** Lista de itens da aba ativa. */
+  var items = function () {
+    return state.project ? state.project[Store.itemsKey(state.kind)] : [];
+  };
+  /** Nome da aba, para textos da interface. */
+  var kindName = function () { return isDev() ? 'DEV' : 'NCR'; };
+  var selectedId = function () { return isDev() ? state.devId : state.ncrId; };
+  var setSelectedId = function (id) {
+    if (isDev()) state.devId = id; else state.ncrId = id;
   };
 
   var $ = function (sel, root) { return (root || document).querySelector(sel); };
@@ -84,12 +98,14 @@
     return Store.save(state.project).then(function () {
       markSaved();
       refreshProjectSelect();
+      renderTabs();
     }).catch(markError);
   }
 
   function currentNcr() {
-    if (!state.project || !state.ncrId) return null;
-    return state.project.ncrs.filter(function (n) { return n.id === state.ncrId; })[0] || null;
+    var id = selectedId();
+    if (!state.project || !id) return null;
+    return items().filter(function (n) { return n.id === id; })[0] || null;
   }
 
   function download(blob, filename) {
@@ -113,7 +129,8 @@
     state.projects.forEach(function (p) {
       var o = document.createElement('option');
       o.value = p.id;
-      o.textContent = (p.marco || p.name || 'sem nome') + ' (' + p.ncrs.length + ' NCR)';
+      o.textContent = (p.marco || p.name || 'sem nome') +
+        ' (' + p.ncrs.length + ' NCR · ' + p.devs.length + ' DEV)';
       sel.appendChild(o);
     });
     if (state.project) sel.value = state.project.id;
@@ -124,12 +141,48 @@
     var idx = state.projects.findIndex(function (p) { return p.id === project.id; });
     if (idx >= 0) state.projects[idx] = project; else state.projects.unshift(project);
     state.ncrId = project.ncrs.length ? project.ncrs[0].id : null;
-    $('#marcoInput').value = project.marco;
+    state.devId = project.devs.length ? project.devs[0].id : null;
     $('#footerInput').value = project.footer;
     refreshProjectSelect();
+    renderTabs();
     renderNcrList();
     renderEditor();
     markSaved();
+  }
+
+  /* --- abas NCR / DEV --------------------------------------------------- */
+
+  function renderTabs() {
+    if (!state.project) return;
+    $$('.tab').forEach(function (t) {
+      var on = t.dataset.kind === state.kind;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      var n = state.project[Store.itemsKey(t.dataset.kind)].length;
+      $('.tab-count', t).textContent = n;
+    });
+
+    /* o marco é próprio de cada aba; o da DEV herda o da NCR quando vazio */
+    var input = $('#marcoInput');
+    input.value = isDev() ? state.project.marcoDev : state.project.marco;
+    input.placeholder = isDev() ? (state.project.marco || 'J05 DQR') : 'RANAE J06';
+    $('#marcoLabel').textContent = isDev() ? 'Marco (DEV)' : 'Marco (NCR)';
+
+    var t = kindName();
+    $('#addNcrBtn').textContent = '+ Nova ' + t;
+    $('#addNcrBtn').title = 'Adicionar ' + t + ' a este relatório';
+    $('#sidebarTitle').textContent = t + 's';
+    $('#ncrFilter').placeholder = 'Filtrar ' + t + 's…';
+    $('#previewBtn').textContent = 'Pré-visualizar ' + t;
+    $('#pdfBtn').textContent = 'Exportar PDF (' + t + ')';
+  }
+
+  function switchKind(kind) {
+    if (state.kind === kind) return;
+    state.kind = kind;
+    renderTabs();
+    renderNcrList();
+    renderEditor();
+    $('#editorScroll').scrollTop = 0;
   }
 
   /* ---------------------------------------------------------------------- */
@@ -141,18 +194,19 @@
   function renderNcrList() {
     var ul = $('#ncrList');
     ul.innerHTML = '';
-    var p = state.project;
+    var rows = items();
     var term = $('#ncrFilter').value.trim().toLowerCase();
 
-    if (!p || !p.ncrs.length) {
+    if (!state.project || !rows.length) {
       $('#sidebarEmpty').hidden = false;
+      $('#sidebarEmptyKind').textContent = kindName();
       ul.hidden = true;
       return;
     }
     $('#sidebarEmpty').hidden = true;
     ul.hidden = false;
 
-    p.ncrs.forEach(function (ncr, i) {
+    rows.forEach(function (ncr, i) {
       var hay = (ncr.ncrId + ' ' + ncr.systems + ' ' + ncr.func).toLowerCase();
       if (term && hay.indexOf(term) === -1) return;
 
@@ -160,14 +214,14 @@
       li.tabIndex = 0;
       li.draggable = true;
       li.dataset.id = ncr.id;
-      if (ncr.id === state.ncrId) li.setAttribute('aria-current', 'true');
+      if (ncr.id === selectedId()) li.setAttribute('aria-current', 'true');
 
       li.appendChild(el('span', 'ncr-item-num', String(i + 1)));
 
       var main = el('div', 'ncr-item-main');
       main.appendChild(el('div', 'ncr-item-id', ncr.ncrId || '(sem número)'));
-      var sub = [ncr.systems, ncr.func].filter(Boolean).join(' | ');
-      main.appendChild(el('div', 'ncr-item-sub', sub || 'sem sistema/função'));
+      var sub = (isDev() ? [ncr.func] : [ncr.systems, ncr.func]).filter(Boolean).join(' | ');
+      main.appendChild(el('div', 'ncr-item-sub', sub || 'sem descrição'));
       li.appendChild(main);
 
       var imgCount = ncr.evidence.reduce(function (s, e) { return s + e.images.length; }, 0);
@@ -205,7 +259,7 @@
   }
 
   function moveNcr(fromId, toId) {
-    var list = state.project.ncrs;
+    var list = items();
     var from = list.findIndex(function (n) { return n.id === fromId; });
     var to = list.findIndex(function (n) { return n.id === toId; });
     if (from < 0 || to < 0 || from === to) return;
@@ -215,7 +269,7 @@
   }
 
   function selectNcr(id) {
-    state.ncrId = id;
+    setSelectedId(id);
     renderNcrList();
     renderEditor();
     $('#editorScroll').scrollTop = 0;
@@ -223,8 +277,9 @@
 
   function addNcr() {
     var ncr = Store.newNcr();
-    state.project.ncrs.push(ncr);
-    state.ncrId = ncr.id;
+    items().push(ncr);
+    setSelectedId(ncr.id);
+    renderTabs();
     renderNcrList();
     renderEditor();
     scheduleSave();
@@ -242,9 +297,11 @@
       ev.id = Store.uid();
       ev.images.forEach(function (im) { im.id = Store.uid(); });
     });
-    var at = state.project.ncrs.findIndex(function (n) { return n.id === ncr.id; });
-    state.project.ncrs.splice(at + 1, 0, copy);
-    state.ncrId = copy.id;
+    var list = items();
+    var at = list.findIndex(function (n) { return n.id === ncr.id; });
+    list.splice(at + 1, 0, copy);
+    setSelectedId(copy.id);
+    renderTabs();
     renderNcrList();
     renderEditor();
     scheduleSave();
@@ -253,11 +310,12 @@
   function deleteNcr() {
     var ncr = currentNcr();
     if (!ncr) return;
-    if (!confirm('Excluir a NCR "' + (ncr.ncrId || 'sem número') + '" e todas as suas evidências?')) return;
-    var list = state.project.ncrs;
+    if (!confirm('Excluir a ' + kindName() + ' "' + (ncr.ncrId || 'sem número') + '" e todas as suas evidências?')) return;
+    var list = items();
     var at = list.findIndex(function (n) { return n.id === ncr.id; });
     list.splice(at, 1);
-    state.ncrId = list.length ? list[Math.min(at, list.length - 1)].id : null;
+    setSelectedId(list.length ? list[Math.min(at, list.length - 1)].id : null);
+    renderTabs();
     renderNcrList();
     renderEditor();
     scheduleSave();
@@ -335,26 +393,42 @@
     }
 
     /* --- identificação --- */
-    var idCard = card('Identificação da NCR', '#4B0082');
-    var g = el('div', 'grid grid--3');
-    g.appendChild(field('Número da NCR', 'ncrId', {
-      placeholder: 'NCR-ICN-ESC-13-1098-2023', refreshList: true
-    }));
-    g.appendChild(field('Sistema(s)', 'systems', {
-      placeholder: 'RM   ou   BX,BQ,BD', refreshList: true
-    }));
-    g.appendChild(field('Função', 'func', {
-      placeholder: 'FV 01 - Sea water circuit integrity', refreshList: true
-    }));
-    idCard.appendChild(g);
+    var idCard = card('Identificação da ' + kindName(), '#4B0082');
+    var watched;
+    if (isDev()) {
+      /* A DEV junta sistema e descrição num campo só, como no original. */
+      var gd = el('div', 'grid grid--2');
+      gd.appendChild(field('Número da DEV', 'ncrId', {
+        placeholder: 'DEV-78154', refreshList: true
+      }));
+      gd.appendChild(field('Sistema e descrição', 'func', {
+        placeholder: 'BQ - Modification des compensateurs', refreshList: true,
+        hint: 'Sai no título como DEV-78154|BQ - Modification des compensateurs.'
+      }));
+      idCard.appendChild(gd);
+      watched = ['f-ncrId', 'f-func'];
+    } else {
+      var g = el('div', 'grid grid--3');
+      g.appendChild(field('Número da NCR', 'ncrId', {
+        placeholder: 'NCR-ICN-ESC-13-1098-2023', refreshList: true
+      }));
+      g.appendChild(field('Sistema(s)', 'systems', {
+        placeholder: 'RM   ou   BX,BQ,BD', refreshList: true
+      }));
+      g.appendChild(field('Função', 'func', {
+        placeholder: 'FV 01 - Sea water circuit integrity', refreshList: true
+      }));
+      idCard.appendChild(g);
+      watched = ['f-ncrId', 'f-systems', 'f-func'];
+    }
     var prev = el('div', 'hint');
     prev.style.marginTop = '10px';
-    prev.textContent = 'Título gerado: Waiver Request for ' + Report.ncrLabel(ncr);
+    prev.textContent = 'Título gerado: Waiver Request for ' + Report.ncrLabel(ncr, state.kind);
     idCard.appendChild(prev);
-    ['f-ncrId', 'f-systems', 'f-func'].forEach(function (fid) {
+    watched.forEach(function (fid) {
       var input = $('#' + fid, idCard);
       if (input) input.addEventListener('input', function () {
-        prev.textContent = 'Título gerado: Waiver Request for ' + Report.ncrLabel(currentNcr());
+        prev.textContent = 'Título gerado: Waiver Request for ' + Report.ncrLabel(currentNcr(), state.kind);
       });
     });
     host.appendChild(idCard);
@@ -381,13 +455,17 @@
     host.appendChild(textCard);
 
     /* --- status --- */
-    var stCard = card('Status do waiver');
+    var stCard = card('Status do waiver — ' + kindName());
     var g2 = el('div', 'grid grid--2');
     g2.appendChild(field('Waiver Request Expiry (before)', 'requestExpiry', { placeholder: 'PÓS TRAP' }));
     g2.appendChild(field('Arch Status Waiver', 'archStatus', { placeholder: 'WAIVER ACCEPTED' }));
     g2.appendChild(field('Waiver Approved Expiry (before)', 'approvedExpiry', { placeholder: 'PÓS TRAP' }));
     g2.appendChild(field('Waiver Historic', 'historic', {
-      rows: 3, placeholder: 'J06 To: RANAE J06\nJ06Cer To: RANAE', hint: 'Uma entrada por linha.'
+      rows: 3,
+      placeholder: 'J06 To: RANAE J06\nJ06Cer To: RANAE',
+      hint: isDev()
+        ? 'Opcional na DEV: a linha só aparece no PDF se for preenchida.'
+        : 'Uma entrada por linha.'
     }));
     stCard.appendChild(g2);
     stCard.appendChild(renderCertificates());
@@ -702,8 +780,9 @@
   /* Um marco novo costuma repetir NCRs do marco anterior; isto evita
      redigitar tudo. As NCRs entram como cópias independentes. */
   function openCopyDialog() {
+    var key = Store.itemsKey(state.kind);
     var others = state.projects.filter(function (p) {
-      return p.id !== state.project.id && p.ncrs.length;
+      return p.id !== state.project.id && p[key].length;
     });
     var dlg = $('#copyDialog');
     var body = $('#copyBody');
@@ -711,7 +790,7 @@
 
     if (!others.length) {
       body.appendChild(el('p', null,
-        'Não há outro relatório com NCRs neste navegador. Crie outro relatório ou restaure um backup primeiro.'));
+        'Não há outro relatório com ' + kindName() + 's neste navegador. Crie outro relatório ou restaure um backup primeiro.'));
       $('#copyGoBtn').disabled = true;
       dlg.showModal();
       return;
@@ -719,12 +798,12 @@
     $('#copyGoBtn').disabled = false;
 
     var pick = el('div', 'field');
-    pick.appendChild(el('label', null, 'Copiar de'));
+    pick.appendChild(el('label', null, 'Copiar ' + kindName() + 's de'));
     var sel = document.createElement('select');
     others.forEach(function (p) {
       var o = document.createElement('option');
       o.value = p.id;
-      o.textContent = (p.marco || p.name) + ' — ' + p.ncrs.length + ' NCR';
+      o.textContent = (p.marco || p.name) + ' — ' + p[key].length + ' ' + kindName();
       sel.appendChild(o);
     });
     pick.appendChild(sel);
@@ -755,7 +834,7 @@
       all.appendChild(document.createTextNode('Selecionar todas'));
       listBox.appendChild(all);
 
-      src.ncrs.forEach(function (n) {
+      src[key].forEach(function (n) {
         var row = el('label');
         row.style.cssText = 'display:flex;gap:6px;align-items:flex-start;font-size:13px;padding:3px 0';
         var cb = document.createElement('input');
@@ -764,8 +843,9 @@
         cb.value = n.id;
         cb.className = 'copy-ncr';
         row.appendChild(cb);
+        var extra = isDev() ? n.func : n.systems;
         row.appendChild(document.createTextNode((n.ncrId || '(sem número)') +
-          (n.systems ? ' | ' + n.systems : '')));
+          (extra ? ' | ' + extra : '')));
         listBox.appendChild(row);
       });
 
@@ -787,7 +867,7 @@
       if (!wanted.length) { dlg.close(); return; }
 
       wanted.forEach(function (id) {
-        var origin = src.ncrs.filter(function (n) { return n.id === id; })[0];
+        var origin = src[key].filter(function (n) { return n.id === id; })[0];
         var copy = Store.normalizeNcr(JSON.parse(JSON.stringify(origin)));
         copy.id = Store.uid();
         if (!withImages.checked) copy.evidence = [];
@@ -795,15 +875,16 @@
           evd.id = Store.uid();
           evd.images.forEach(function (im) { im.id = Store.uid(); });
         });
-        state.project.ncrs.push(copy);
+        items().push(copy);
       });
 
       dlg.close();
-      state.ncrId = state.project.ncrs[state.project.ncrs.length - 1].id;
+      setSelectedId(items()[items().length - 1].id);
+      renderTabs();
       renderNcrList();
       renderEditor();
       scheduleSave();
-      toast(wanted.length + ' NCR(s) copiada(s) de "' + (src.marco || src.name) + '".');
+      toast(wanted.length + ' ' + kindName() + '(s) copiada(s) de "' + (src.marco || src.name) + '".');
     };
   }
 
@@ -812,8 +893,8 @@
   /* ---------------------------------------------------------------------- */
 
   var REQUIRED = [
-    ['ncrId', 'número da NCR'],
-    ['func', 'função'],
+    ['ncrId', 'número'],
+    ['func', 'função / descrição'],
     ['description', 'Description'],
     ['currentSituation', 'Current Situation'],
     ['whyNotPossible', 'Why is not possible to treat the deviation'],
@@ -823,19 +904,22 @@
   /** Lista o que está faltando, para avisar antes de exportar. */
   function findGaps() {
     var gaps = [];
-    if (!(state.project.marco || '').trim()) gaps.push({ ncr: null, what: 'O marco do relatório está vazio.' });
-    state.project.ncrs.forEach(function (n, i) {
+    var t = kindName();
+    if (!Report.marcoOf(state.project, state.kind)) {
+      gaps.push({ ncr: null, what: 'O marco do relatório de ' + t + ' está vazio.' });
+    }
+    items().forEach(function (n, i) {
       var missing = REQUIRED
         .filter(function (r) { return !(n[r[0]] || '').trim(); })
         .map(function (r) { return r[1]; });
       if (missing.length) {
         gaps.push({
           ncr: n,
-          what: 'NCR ' + (i + 1) + ' (' + (n.ncrId || 'sem número') + '): ' + missing.join(', ') + '.'
+          what: t + ' ' + (i + 1) + ' (' + (n.ncrId || 'sem número') + '): ' + missing.join(', ') + '.'
         });
       }
     });
-    if (!state.project.ncrs.length) gaps.push({ ncr: null, what: 'O relatório não tem nenhuma NCR.' });
+    if (!items().length) gaps.push({ ncr: null, what: 'O relatório de ' + t + ' não tem nenhum item.' });
     return gaps;
   }
 
@@ -876,14 +960,15 @@
 
   function buildPrintRoot() {
     var root = $('#printRoot');
-    Report.build(state.project, root);
+    Report.build(state.project, root, state.kind);
     return root;
   }
 
   function openPreview() {
     if (!state.project) return;
     var stage = $('#previewStage');
-    Report.build(state.project, stage);
+    Report.build(state.project, stage, state.kind);
+    $('#previewKind').textContent = 'Relatório de ' + kindName();
     $('#preview').hidden = false;
     document.body.style.overflow = 'hidden';
     applyZoom();
@@ -913,13 +998,14 @@
     if (!state.project) return;
     buildPrintRoot();
     renderGaps();
+    $('#pdfKind').textContent = kindName();
     $('#pdfDialog').showModal();
   }
 
   function doPrint() {
     $('#pdfDialog').close();
     var title = document.title;
-    document.title = Report.suggestedFileName(state.project, 'pdf').replace(/\.pdf$/, '');
+    document.title = Report.suggestedFileName(state.project, 'pdf', state.kind).replace(/\.pdf$/, '');
     setTimeout(function () {
       window.print();
       setTimeout(function () { document.title = title; }, 500);
@@ -936,7 +1022,7 @@
     var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     var name = all
       ? 'WaiverRequest_backup_completo_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.json'
-      : Report.suggestedFileName(state.project, 'json');
+      : Report.suggestedFileName(state.project, 'json');   /* leva as duas abas */
     download(blob, name);
     toast(all ? 'Backup de todos os relatórios salvo.' : 'Backup do relatório salvo.');
   }
@@ -986,9 +1072,18 @@
 
   function wire() {
     $('#marcoInput').addEventListener('input', function () {
-      state.project.marco = this.value;
-      state.project.name = this.value || 'Relatório sem nome';
+      if (isDev()) {
+        state.project.marcoDev = this.value;
+      } else {
+        state.project.marco = this.value;
+        state.project.name = this.value || 'Relatório sem nome';
+        $('#marcoInput').placeholder = 'RANAE J06';
+      }
       scheduleSave();
+    });
+
+    $$('.tab').forEach(function (t) {
+      t.addEventListener('click', function () { switchKind(t.dataset.kind); });
     });
     $('#footerInput').addEventListener('input', function () {
       state.project.footer = this.value;

@@ -54,16 +54,22 @@
     };
   }
 
+  /* Um projeto guarda dois relatórios irmãos, de mesmo layout: as NCRs e as
+     DEVs. Cada um tem o seu marco e o seu título de capa, e é exportado
+     separadamente. */
   function newProject(marco) {
     return {
       id: uid(),
       schema: SCHEMA,
       name: marco || 'Novo relatório',
       marco: marco || '',
+      marcoDev: '',
       coverTitle: 'Waiver Request For',
+      coverTitleDev: 'DEV: Waiver Request For',
       coverSubtitle: 'List of Waiver Requested :',
       footer: 'Gerência técnica operacional',
       ncrs: [],
+      devs: [],
       createdAt: nowIso(),
       updatedAt: nowIso()
     };
@@ -117,6 +123,8 @@
     };
   }
 
+  /* Aceita backups gravados antes da aba DEV existir: nesses arquivos há
+     apenas "ncrs", e a lista de DEVs simplesmente nasce vazia. */
   function normalizeProject(raw) {
     var base = newProject('');
     if (!raw || typeof raw !== 'object') return base;
@@ -125,14 +133,20 @@
       schema: SCHEMA,
       name: str(raw.name) || str(raw.marco) || 'Relatório sem nome',
       marco: str(raw.marco),
+      marcoDev: str(raw.marcoDev),
       coverTitle: str(raw.coverTitle) || base.coverTitle,
+      coverTitleDev: str(raw.coverTitleDev) || base.coverTitleDev,
       coverSubtitle: str(raw.coverSubtitle) || base.coverSubtitle,
       footer: raw.footer === '' ? '' : (str(raw.footer) || base.footer),
       ncrs: Array.isArray(raw.ncrs) ? raw.ncrs.map(normalizeNcr) : [],
+      devs: Array.isArray(raw.devs) ? raw.devs.map(normalizeNcr) : [],
       createdAt: str(raw.createdAt) || base.createdAt,
       updatedAt: str(raw.updatedAt) || base.updatedAt
     };
   }
+
+  /* Nome da lista de itens de cada aba, dentro do projeto. */
+  function itemsKey(kind) { return kind === 'dev' ? 'devs' : 'ncrs'; }
 
   /* --- IndexedDB -------------------------------------------------------- */
 
@@ -227,6 +241,7 @@
     nowIso: nowIso,
     newProject: newProject,
     newNcr: newNcr,
+    itemsKey: itemsKey,
     newEvidence: newEvidence,
     normalizeProject: normalizeProject,
     normalizeNcr: normalizeNcr,
