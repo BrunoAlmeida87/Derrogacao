@@ -48,6 +48,9 @@
         <button class="menu-item" id="newProjectBtn">
           + Novo relatório <small>para outro marco</small>
         </button>
+        <button class="menu-item" id="sessionsBtn">
+          Histórico de alterações <small>o que cada pessoa mexeu, por sessão</small>
+        </button>
         <button class="menu-item" id="settingsBtn">
           Ajustes <small>títulos de capa, rodapé, marco da DEV</small>
         </button>
@@ -106,6 +109,10 @@
           <input type="checkbox" id="pendingOnly"> só pendentes
         </label>
       </div>
+      <div class="session-info" id="sessionInfo" hidden>
+        <span id="sessionCount"></span>
+        <button class="btn btn--sm" id="sessionInfoBtn">ver</button>
+      </div>
     </div>
 
     <ul class="ncr-list" id="ncrList" hidden></ul>
@@ -162,6 +169,20 @@
   <div class="dlg-actions">
     <button class="btn" id="pdfCancelBtn">Cancelar</button>
     <button class="btn btn--primary" id="pdfGoBtn">Gerar PDF</button>
+  </div>
+</dialog>
+
+<dialog id="sessionsDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>Histórico de alterações</h3>
+    <p>Cada sessão é um período de trabalho num navegador, da abertura da
+       página até fechá-la. O histórico viaja dentro do backup — ao restaurar o
+       arquivo de um colega, você vê o que ele mexeu.</p>
+    <div id="sessionsBody" class="sess-list-box"></div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="sessionsCopyBtn">Copiar resumo desta sessão</button>
+    <button class="btn btn--primary" id="sessionsCloseBtn">Fechar</button>
   </div>
 </dialog>
 

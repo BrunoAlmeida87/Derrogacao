@@ -16,6 +16,11 @@
     devId: null      // id do item selecionado na aba DEV
   };
 
+  /* Uma sessão por abertura da página. */
+  var SESSION_ID = (window.crypto && window.crypto.randomUUID)
+    ? window.crypto.randomUUID()
+    : 's-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+
   var isDev = function () { return state.kind === 'dev'; };
   /** Lista de itens da aba ativa. */
   var items = function () {
@@ -105,6 +110,18 @@
     }).catch(markError);
   }
 
+  /**
+   * Marca que o item foi mexido nesta sessão. Chamado nos pontos que alteram
+   * conteúdo — não em reordenação, que não muda nenhum item.
+   */
+  function touch(item, action) {
+    var n = item || currentNcr();
+    if (!n || !state.project) return;
+    Store.logChange(state.project, SESSION_ID, state.kind, n, action || 'editou');
+    renderSessionInfo();
+    renderItemAuthor();
+  }
+
   function currentNcr() {
     var id = selectedId();
     if (!state.project || !id) return null;
@@ -152,6 +169,7 @@
     renderNcrList();
     renderEditor();
     renderUser();
+    renderSessionInfo();
     renderBackupNotice();
     markSaved();
   }
@@ -208,6 +226,7 @@
     renderProgress(rows);
 
     var pendingOnly = $('#pendingOnly').checked;
+    var touched = touchedIds();
     rows.forEach(function (ncr, i) {
       var hay = (ncr.ncrId + ' ' + ncr.systems + ' ' + ncr.func).toLowerCase();
       if (term && hay.indexOf(term) === -1) return;
@@ -233,6 +252,12 @@
       if (ncr.done) {
         li.classList.add('is-done');
         badges.appendChild(el('span', 'done-tick', '✓'));
+      }
+      if (touched[ncr.id]) {
+        li.classList.add('is-touched');
+        var dot = el('span', 'touch-dot', '●');
+        dot.title = 'Você ' + actionLabel(touched[ncr.id]) + ' este item nesta sessão';
+        badges.appendChild(dot);
       }
       if (badges.childNodes.length) li.appendChild(badges);
 
@@ -299,6 +324,7 @@
   function addNcr() {
     var ncr = Store.newNcr();
     items().push(ncr);
+    touch(ncr, 'criou');
     setSelectedId(ncr.id);
     renderTabs();
     renderNcrList();
@@ -312,6 +338,7 @@
     var ncr = currentNcr();
     if (!ncr) return;
     if (!confirm('Excluir a ' + kindName() + ' "' + (ncr.ncrId || 'sem número') + '" e todas as suas evidências?')) return;
+    touch(ncr, 'excluiu');
     var list = items();
     var at = list.findIndex(function (n) { return n.id === ncr.id; });
     list.splice(at, 1);
@@ -359,6 +386,7 @@
       var n = currentNcr();
       if (!n) return;
       n[key] = input.value;
+      touch(n);
       if (opts.refreshList) renderNcrList();
       scheduleSave();
     });
@@ -528,6 +556,10 @@
     info.appendChild(el('span', null, ncr.done
       ? 'Marcado como pronto. Você pode reabrir para editar a qualquer momento.'
       : 'As alterações são gravadas sozinhas enquanto você digita. Ao terminar, confirme aqui.'));
+    var who = el('span', 'done-bar-who');
+    who.id = 'doneBarWho';
+    info.appendChild(who);
+    renderItemAuthor();
     bar.appendChild(info);
 
     var btn = el('button', 'btn ' + (ncr.done ? '' : 'btn--primary'),
@@ -536,6 +568,7 @@
     btn.addEventListener('click', function () {
       var n = currentNcr();
       n.done = !n.done;
+      touch(n);
       flushSave().then(function () {
         renderNcrList();
         renderEditor();
@@ -581,6 +614,7 @@
         inp.setAttribute('list', 'dl-certificates');
         inp.addEventListener('input', function () {
           currentNcr().certificates[i] = inp.value;
+          touch();
           scheduleSave();
         });
         var del = el('button', 'btn btn--sm btn--danger', '✕');
@@ -588,6 +622,7 @@
         del.title = 'Remover certificado';
         del.addEventListener('click', function () {
           currentNcr().certificates.splice(i, 1);
+          touch();
           redraw();
           scheduleSave();
         });
@@ -608,6 +643,7 @@
     add.style.marginTop = '6px';
     add.addEventListener('click', function () {
       currentNcr().certificates.push('');
+      touch();
       redraw();
       scheduleSave();
     });
@@ -638,6 +674,7 @@
       add.style.marginTop = '8px';
       add.addEventListener('click', function () {
         currentNcr().evidence.push(Store.newEvidence(currentNcr().evidence.length + 1));
+        touch();
         redraw();
         renderNcrList();
         scheduleSave();
@@ -659,7 +696,7 @@
     refInput.type = 'text';
     refInput.value = ev.ref;
     refInput.placeholder = 'Attachment ' + (index + 1);
-    refInput.addEventListener('input', function () { ev.ref = refInput.value; scheduleSave(); });
+    refInput.addEventListener('input', function () { ev.ref = refInput.value; touch(); scheduleSave(); });
     refField.appendChild(refInput);
     head.appendChild(refField);
 
@@ -698,6 +735,7 @@
     orientSel.value = ev.orientation || 'landscape';
     orientSel.addEventListener('change', function () {
       ev.orientation = orientSel.value;
+      touch();
       scheduleSave();
     });
     orient.appendChild(orientSel);
@@ -709,6 +747,7 @@
       if (!confirm('Excluir este anexo e suas imagens?')) return;
       var l = currentNcr().evidence;
       l.splice(l.indexOf(ev), 1);
+      touch();
       redrawAll();
       renderNcrList();
       scheduleSave();
@@ -726,7 +765,7 @@
     note.rows = 2;
     note.value = ev.note;
     note.placeholder = 'Comentário exibido acima das imagens.';
-    note.addEventListener('input', function () { ev.note = note.value; scheduleSave(); });
+    note.addEventListener('input', function () { ev.note = note.value; touch(); scheduleSave(); });
     noteField.appendChild(note);
     box.appendChild(noteField);
 
@@ -745,7 +784,7 @@
         cap.type = 'text';
         cap.value = img.caption;
         cap.placeholder = 'Legenda (opcional)';
-        cap.addEventListener('input', function () { img.caption = cap.value; scheduleSave(); });
+        cap.addEventListener('input', function () { img.caption = cap.value; touch(); scheduleSave(); });
         t.appendChild(cap);
 
         var acts = el('div', 'evid-thumb-actions');
@@ -767,6 +806,7 @@
         rm.type = 'button'; rm.title = 'Remover imagem';
         rm.addEventListener('click', function () {
           ev.images.splice(i, 1);
+          touch();
           redrawThumbs(); renderNcrList(); scheduleSave();
         });
         acts.appendChild(left); acts.appendChild(right); acts.appendChild(rm);
@@ -795,6 +835,7 @@
           ev.images.push({ id: Store.uid(), src: src, caption: '' });
         });
         drop.textContent = 'Clique para escolher imagens, cole (Ctrl+V) ou arraste os arquivos aqui.';
+        touch();
         redrawThumbs();
         renderNcrList();
         scheduleSave();
@@ -885,6 +926,101 @@
     if (isNaN(d)) return '—';
     return d.toLocaleDateString('pt-BR') + ' ' +
       d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  /* --- o que mudou nesta sessão ---------------------------------------- */
+
+  /** A sessão corrente dentro do relatório aberto (ou null, se nada mudou). */
+  function currentSession() {
+    if (!state.project || !state.project.sessions) return null;
+    return state.project.sessions.filter(function (x) { return x.id === SESSION_ID; })[0] || null;
+  }
+
+  /** Ids dos itens mexidos nesta sessão, para marcar na lista lateral. */
+  function touchedIds() {
+    var sess = currentSession();
+    var set = {};
+    if (sess) sess.changes.forEach(function (c) { set[c.itemId] = c.action; });
+    return set;
+  }
+
+  /* Atualiza só a linha de autoria, para não redesenhar o formulário (e
+     perder o cursor) a cada tecla. */
+  function renderItemAuthor() {
+    var box = $('#doneBarWho');
+    if (!box) return;
+    var n = currentNcr();
+    if (!n || (!n.editedBy && !n.editedAt)) { box.textContent = ''; box.hidden = true; return; }
+    box.hidden = false;
+    box.textContent = 'Última alteração: ' + (n.editedBy || 'sem nome') + ' · ' + shortDate(n.editedAt);
+  }
+
+  function renderSessionInfo() {
+    var sess = currentSession();
+    var n = sess ? sess.changes.length : 0;
+    var box = $('#sessionInfo');
+    box.hidden = n === 0;
+    $('#sessionCount').textContent = n === 1
+      ? '1 item alterado nesta sessão'
+      : n + ' itens alterados nesta sessão';
+  }
+
+  function actionLabel(a) {
+    return a === 'criou' ? 'criou' : (a === 'excluiu' ? 'excluiu' : 'editou');
+  }
+
+  /* Histórico completo: as sessões viajam dentro do backup, então dá para ver
+     o que cada pessoa mexeu depois de restaurar o arquivo dela. */
+  function openSessions() {
+    var body = $('#sessionsBody');
+    body.innerHTML = '';
+    var all = (state.project.sessions || []).slice().reverse();
+
+    if (!all.length) {
+      body.appendChild(el('p', null, 'Nenhuma alteração registrada neste relatório ainda.'));
+      $('#sessionsDialog').showModal();
+      return;
+    }
+
+    all.forEach(function (sess) {
+      var box = el('div', 'sess' + (sess.id === SESSION_ID ? ' sess--current' : ''));
+      var head = el('div', 'sess-head');
+      head.appendChild(el('strong', null, sess.user || '(sem nome)'));
+      head.appendChild(el('span', 'sess-when', shortDate(sess.startedAt) +
+        (sess.endedAt && sess.endedAt !== sess.startedAt ? ' → ' + shortDate(sess.endedAt) : '')));
+      if (sess.id === SESSION_ID) head.appendChild(el('span', 'pick-tag', 'esta sessão'));
+      box.appendChild(head);
+
+      if (!sess.changes.length) {
+        box.appendChild(el('div', 'sess-empty', 'nenhum item alterado'));
+      } else {
+        var ul = document.createElement('ul');
+        ul.className = 'sess-list';
+        sess.changes.forEach(function (c) {
+          var li = document.createElement('li');
+          li.appendChild(el('span', 'sess-kind', c.kind === 'dev' ? 'DEV' : 'NCR'));
+          li.appendChild(el('span', 'sess-label', c.label));
+          li.appendChild(el('span', 'sess-action sess-action--' + c.action, actionLabel(c.action)));
+          ul.appendChild(li);
+        });
+        box.appendChild(ul);
+      }
+      body.appendChild(box);
+    });
+    $('#sessionsDialog').showModal();
+  }
+
+  /** Texto simples do que mudou nesta sessão, para colar num e-mail. */
+  function sessionSummaryText() {
+    var sess = currentSession();
+    if (!sess || !sess.changes.length) return '';
+    var head = (sess.user || 'Sem nome') + ' — ' +
+      (Report.marcoOf(state.project, 'ncr') || state.project.name) + ' — ' +
+      shortDate(sess.startedAt);
+    var linhas = sess.changes.map(function (c) {
+      return '- ' + (c.kind === 'dev' ? 'DEV' : 'NCR') + ' ' + c.label + ' (' + actionLabel(c.action) + ')';
+    });
+    return head + '\n' + linhas.join('\n');
   }
 
   function openUserDialog() {
@@ -1104,6 +1240,7 @@
           evd.images.forEach(function (im) { im.id = Store.uid(); });
         });
         items().push(copy);
+        touch(copy, 'criou');
       });
 
       dlg.close();
@@ -1514,6 +1651,22 @@
     });
 
     $('#pendingOnly').addEventListener('change', renderNcrList);
+
+    /* histórico de alterações */
+    $('#sessionsBtn').addEventListener('click', openSessions);
+    $('#sessionInfoBtn').addEventListener('click', openSessions);
+    $('#sessionsCloseBtn').addEventListener('click', function () { $('#sessionsDialog').close(); });
+    $('#sessionsCopyBtn').addEventListener('click', function () {
+      var txt = sessionSummaryText();
+      if (!txt) { toast('Nada alterado nesta sessão.'); return; }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt)
+          .then(function () { toast('Resumo da sessão copiado.'); })
+          .catch(function () { toast('Não foi possível copiar.'); });
+      } else {
+        toast('Cópia indisponível neste navegador.');
+      }
+    });
 
     $('#settingsBtn').addEventListener('click', openSettings);
     $('#settingsCloseBtn').addEventListener('click', function () { $('#settingsDialog').close(); });

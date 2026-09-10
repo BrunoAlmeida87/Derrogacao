@@ -7,6 +7,7 @@
 (function (global) {
   'use strict';
 
+  var MAX_SESSIONS = 30;      // histórico guardado por relatório
   var USER_KEY = 'derrogacao:user';
   var BACKUP_KEY = 'derrogacao:lastBackupAt';
   var DB_NAME = 'derrogacao';
@@ -53,7 +54,9 @@
       historic: '',
       certificates: [],
       evidence: [],
-      done: false            // marcado pelo botão "Concluir" — só organiza o trabalho
+      done: false,           // marcado pelo botão "Concluir" — só organiza o trabalho
+      editedBy: '',          // quem mexeu nele por último
+      editedAt: ''
     };
   }
 
@@ -77,6 +80,7 @@
       footer: 'Gerência técnica operacional',
       ncrs: [],
       devs: [],
+      sessions: [],
       createdAt: nowIso(),
       updatedAt: nowIso()
     };
@@ -127,7 +131,9 @@
       historic: str(raw.historic),
       certificates: certs,
       evidence: Array.isArray(raw.evidence) ? raw.evidence.map(normalizeEvidence) : [],
-      done: raw.done === true
+      done: raw.done === true,
+      editedBy: str(raw.editedBy),
+      editedAt: str(raw.editedAt)
     };
   }
 
@@ -152,8 +158,29 @@
       footer: raw.footer === '' ? '' : (str(raw.footer) || base.footer),
       ncrs: Array.isArray(raw.ncrs) ? raw.ncrs.map(normalizeNcr) : [],
       devs: Array.isArray(raw.devs) ? raw.devs.map(normalizeNcr) : [],
+      sessions: Array.isArray(raw.sessions) ? raw.sessions.map(normalizeSession).slice(-MAX_SESSIONS) : [],
       createdAt: str(raw.createdAt) || base.createdAt,
       updatedAt: str(raw.updatedAt) || base.updatedAt
+    };
+  }
+
+  /* Uma sessão é um período de trabalho num navegador: começa quando a
+     página é aberta e guarda quais itens foram mexidos nela. */
+  function normalizeSession(sess) {
+    var changes = Array.isArray(sess && sess.changes) ? sess.changes : [];
+    return {
+      id: str(sess && sess.id) || uid(),
+      user: str(sess && sess.user),
+      startedAt: str(sess && sess.startedAt),
+      endedAt: str(sess && sess.endedAt),
+      changes: changes.map(function (c) {
+        return {
+          itemId: str(c && c.itemId),
+          kind: str(c && c.kind) === 'dev' ? 'dev' : 'ncr',
+          label: str(c && c.label),
+          action: ['criou', 'excluiu'].indexOf(str(c && c.action)) >= 0 ? str(c.action) : 'editou'
+        };
+      }).filter(function (c) { return c.itemId; })
     };
   }
 
@@ -289,6 +316,42 @@
 
     getUser: getUser,
     setUser: setUser,
+    MAX_SESSIONS: MAX_SESSIONS,
+
+    /**
+     * Anota, na sessão corrente do projeto, que um item foi criado, editado
+     * ou excluído. Uma anotação por item: repetir só atualiza o rótulo.
+     */
+    logChange: function (project, sessionId, kind, item, action) {
+      if (!project.sessions) project.sessions = [];
+      var sess = project.sessions.filter(function (x) { return x.id === sessionId; })[0];
+      if (!sess) {
+        sess = { id: sessionId, user: getUser(), startedAt: nowIso(), endedAt: '', changes: [] };
+        project.sessions.push(sess);
+        if (project.sessions.length > MAX_SESSIONS) {
+          project.sessions = project.sessions.slice(-MAX_SESSIONS);
+        }
+      }
+      sess.user = getUser() || sess.user;
+      sess.endedAt = nowIso();
+
+      var label = (item.ncrId || '').trim() || '(sem número)';
+      var found = sess.changes.filter(function (c) { return c.itemId === item.id; })[0];
+      if (found) {
+        found.label = label;
+        /* criar e depois editar continua sendo "criou"; excluir vence tudo */
+        if (action === 'excluiu') found.action = 'excluiu';
+      } else {
+        sess.changes.push({ itemId: item.id, kind: kind, label: label, action: action });
+      }
+
+      if (action !== 'excluiu') {
+        item.editedBy = getUser();
+        item.editedAt = sess.endedAt;
+      }
+      return sess;
+    },
+
     getLastBackupAt: getLastBackupAt,
     setLastBackupAt: setLastBackupAt,
 

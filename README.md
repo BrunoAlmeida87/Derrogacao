@@ -115,6 +115,20 @@ diz de quem veio o arquivo. Nada disso sai nos PDFs.
 Se passar mais de uma semana sem backup, aparece um aviso no topo com um botão
 para fazê-lo na hora.
 
+### O que cada um alterou
+
+Cada abertura da página é uma **sessão**. Enquanto você trabalha, a lista
+lateral marca com um ponto os itens mexidos e mostra *"3 itens alterados nesta
+sessão"*. Em **⋯ → Histórico de alterações** ficam todas as sessões do
+relatório, da mais recente para a mais antiga, com quem trabalhou, quando, e
+quais NCRs/DEVs foram **criadas, editadas ou excluídas**. O botão **Copiar
+resumo desta sessão** gera um texto pronto para colar num e-mail.
+
+Cada item guarda também quem o alterou por último, exibido no rodapé do
+formulário. Como esse histórico viaja dentro do `.json`, ao restaurar o backup
+de um colega você vê exatamente o que ele mexeu na sessão dele. São guardadas as
+30 sessões mais recentes de cada relatório.
+
 ## Atalhos
 
 | Atalho | Ação |
