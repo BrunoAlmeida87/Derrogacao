@@ -182,6 +182,9 @@
 
   function renderTabs() {
     if (!state.project) return;
+    /* tinge a interface inteira com a cor da aba: à primeira vista já se sabe
+       se o que está na tela é NCR, DEV ou resumo */
+    document.body.dataset.kind = state.kind;
     $$('.tab').forEach(function (t) {
       var on = t.dataset.kind === state.kind;
       t.setAttribute('aria-selected', on ? 'true' : 'false');
@@ -205,7 +208,8 @@
     $('#addNcrBtn').title = 'Adicionar ' + t + ' a este relatório';
     $('#sidebarTitle').textContent = t + 's';
     $('#ncrFilter').placeholder = 'Filtrar ' + t + 's…';
-    $('#previewBtn').textContent = 'Pré-visualizar ' + t;
+    $('#previewBtn').textContent = 'Pré-visualizar';
+    $('#previewBtn').title = 'Ver as folhas do relatório de ' + t + ' como sairão no PDF';
   }
 
   function switchKind(kind) {
@@ -485,7 +489,7 @@
     } else {
       input = document.createElement('input');
       input.type = 'text';
-      if (SUGGEST.indexOf(key) >= 0) input.setAttribute('list', 'dl-' + key);
+      if (SUGGEST.indexOf(key) >= 0) input.setAttribute('list', listId(key));
     }
     input.id = id;
     input.value = ncr[key] || '';
@@ -503,6 +507,13 @@
     return wrap;
   }
 
+  /** Clareia uma cor do relatório para servir de fundo (k = quanto de branco). */
+  function tint(hex, k) {
+    var n = parseInt(hex.slice(1), 16);
+    var mix = function (c) { return Math.round(c + (255 - c) * k); };
+    return 'rgb(' + mix(n >> 16) + ',' + mix((n >> 8) & 255) + ',' + mix(n & 255) + ')';
+  }
+
   function card(title, swatchColor) {
     var c = el('div', 'card');
     var h = el('h3');
@@ -510,6 +521,8 @@
       var sw = el('span', 'swatch');
       sw.style.background = swatchColor;
       h.appendChild(sw);
+      c.style.setProperty('--card-color', swatchColor);
+      c.style.setProperty('--card-tint', tint(swatchColor, .88));
     }
     h.appendChild(document.createTextNode(title));
     c.appendChild(h);
@@ -524,8 +537,9 @@
     if (!state.project) return;
     if (!ncr) {
       var empty = el('div', 'editor-empty');
-      empty.appendChild(el('p', null, 'Nenhuma NCR selecionada.'));
-      empty.appendChild(el('p', null, 'Use “+ Nova NCR” no painel à esquerda para começar, ou carregue um backup existente.'));
+      empty.appendChild(el('p', null, 'Nenhuma ' + kindName() + ' selecionada.'));
+      empty.appendChild(el('p', null, 'Use “+ Nova ' + kindName() + '” no painel à esquerda para começar, ' +
+        'ou abra um arquivo de backup pelo menu “⋯ Mais”.'));
       host.appendChild(empty);
       return;
     }
@@ -593,9 +607,11 @@
       var det = document.createElement('details');
       det.className = 'sec';
       det.open = true;
+      det.style.setProperty('--sec-color', d[2]);
+      det.style.setProperty('--sec-tint', tint(d[2], .84));
       var sum = document.createElement('summary');
       var sw = el('span', 'swatch');
-      sw.style.cssText = 'display:inline-block;width:11px;height:11px;border:1px solid #999;border-radius:2px;margin-right:7px;vertical-align:middle;background:' + d[2];
+      sw.style.cssText = 'display:inline-block;width:11px;height:11px;border:1px solid rgba(0,0,0,.25);border-radius:2px;margin-right:7px;vertical-align:middle;background:' + d[2];
       sum.appendChild(sw);
       sum.appendChild(el('span', 'sec-name', d[1]));
       var peek = el('span', 'sec-peek');
@@ -657,7 +673,7 @@
      retorno visível de "terminei este item" e marcar a NCR/DEV como pronta. */
   function renderDoneBar() {
     var ncr = currentNcr();
-    var bar = el('div', 'done-bar');
+    var bar = el('div', 'done-bar' + (ncr.done ? ' done-bar--done' : ''));
 
     var info = el('div', 'done-bar-info');
     info.appendChild(el('strong', null, ncr.done ? '✓ Item concluído' : 'Item em edição'));
@@ -719,7 +735,7 @@
         inp.type = 'text';
         inp.value = c;
         inp.placeholder = 'Shipyard Certificate';
-        inp.setAttribute('list', 'dl-certificates');
+        inp.setAttribute('list', listId('certificates'));
         inp.addEventListener('input', function () {
           currentNcr().certificates[i] = inp.value;
           touch();
@@ -1172,16 +1188,27 @@
 
   var SUGGEST = ['systems', 'func', 'requestExpiry', 'archStatus', 'approvedExpiry'];
 
+  /* NCR e DEV usam vocabulários diferentes (função, sistema, certificado): uma
+     lista só misturaria os dois e atrapalharia mais do que ajudaria. Por isso
+     cada aba tem o seu conjunto de <datalist>. */
+  function listId(key) {
+    return 'dl-' + (state.kind === 'dev' ? 'dev' : 'ncr') + '-' + key;
+  }
+
   /* Junta os valores já usados em todos os relatórios, para oferecer como
      sugestão nos campos que se repetem muito (PÓS TRAP, WAIVER ACCEPTED…). */
   function refreshSuggestions() {
-    var buckets = {};
-    SUGGEST.forEach(function (k) { buckets[k] = {}; });
-    buckets.certificates = {};
+    var host = $('#datalists');
+    host.innerHTML = '';
 
-    state.projects.forEach(function (p) {
-      ['ncrs', 'devs'].forEach(function (key) {
-        p[key].forEach(function (n) {
+    ['ncr', 'dev'].forEach(function (kind) {
+      var campo = Store.itemsKey(kind);
+      var buckets = {};
+      SUGGEST.forEach(function (k) { buckets[k] = {}; });
+      buckets.certificates = {};
+
+      state.projects.forEach(function (p) {
+        (p[campo] || []).forEach(function (n) {
           SUGGEST.forEach(function (k) {
             var v = (n[k] || '').trim();
             if (v) buckets[k][v] = (buckets[k][v] || 0) + 1;
@@ -1192,20 +1219,20 @@
           });
         });
       });
-    });
 
-    Object.keys(buckets).forEach(function (k) {
-      var dl = $('#dl-' + k);
-      if (!dl) return;
-      dl.innerHTML = '';
-      Object.keys(buckets[k])
-        .sort(function (a, b) { return buckets[k][b] - buckets[k][a] || a.localeCompare(b); })
-        .slice(0, 40)
-        .forEach(function (v) {
-          var o = document.createElement('option');
-          o.value = v;
-          dl.appendChild(o);
-        });
+      Object.keys(buckets).forEach(function (k) {
+        var dl = document.createElement('datalist');
+        dl.id = 'dl-' + kind + '-' + k;
+        Object.keys(buckets[k])
+          .sort(function (a, b) { return buckets[k][b] - buckets[k][a] || a.localeCompare(b); })
+          .slice(0, 40)
+          .forEach(function (v) {
+            var o = document.createElement('option');
+            o.value = v;
+            dl.appendChild(o);
+          });
+        host.appendChild(dl);
+      });
     });
   }
 
@@ -1433,6 +1460,8 @@
       });
     });
 
+    /* verde quando não há o que corrigir, âmbar quando há */
+    host.className = 'dlg-gaps' + (gaps.length ? '' : ' dlg-gaps--ok');
     if (!gaps.length) {
       host.appendChild(el('p', null, '✓ Todos os campos essenciais estão preenchidos.'));
       return;
@@ -1550,15 +1579,17 @@
         cb.dataset.kind = r.kind;
         row.appendChild(cb);
 
+        row.appendChild(el('span', 'pick-tag' + (r.kind === 'dev' ? ' pick-tag--dev' : ''),
+          r.kind === 'dev' ? 'DEV' : 'NCR'));
+
         var main = el('div', 'pick-row-main');
-        main.appendChild(el('div', 'pick-row-name',
-          (r.kind === 'dev' ? 'DEV' : 'NCR') + ' — ' + r.marco));
+        main.appendChild(el('div', 'pick-row-name', r.marco));
         main.appendChild(el('div', 'pick-row-sub', r.count
           ? r.count + (r.count === 1 ? ' item' : ' itens') + ' · ' + (r.count + 1) + ' páginas ou mais'
           : 'sem itens'));
         row.appendChild(main);
 
-        if (r.current) row.appendChild(el('span', 'pick-tag', 'aba aberta'));
+        if (r.current) row.appendChild(el('span', 'pick-here', 'aba aberta'));
         group.appendChild(row);
       });
       body.appendChild(group);
@@ -1631,7 +1662,7 @@
     var data = Store.toBackup(projects);
     var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     var name = all
-      ? 'WaiverRequest_TODOS_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.json'
+      ? 'WaiverRequest_TODOS_' + Report.timeStamp(true) + '.json'
       : Report.suggestedFileName(state.project, 'json');   /* leva as duas abas */
     download(blob, name);
     Store.setLastBackupAt(data.exportedAt);
@@ -1947,7 +1978,7 @@
       });
     });
 
-    $('#newProjectBtn').addEventListener('click', function () {
+    $('#newProjectTopBtn').addEventListener('click', function () {
       var marco = prompt('Marco do novo relatório (ex.: RANAE J06):', '');
       if (marco === null) return;
       var p = Store.newProject(marco.trim());

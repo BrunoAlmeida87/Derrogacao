@@ -13,25 +13,33 @@
 
 <!-- ====================== barra superior ====================== -->
 <header class="topbar">
-  <div class="brand">Waiver Request <small>gerador de relatórios de derrogação</small></div>
-
-  <div class="topbar-field">
-    <label for="projectSelect">Relatório</label>
-    <select id="projectSelect" style="width:auto;min-width:190px"></select>
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">W</span>
+    <span class="brand-text">
+      <b>Waiver Request</b>
+      <small>gerador de relatórios de derrogação</small>
+    </span>
   </div>
 
-  <div class="topbar-field" style="flex:1 1 200px">
+  <div class="topbar-group">
+    <div class="topbar-field">
+      <label for="projectSelect">Relatório</label>
+      <select id="projectSelect"></select>
+    </div>
+    <button class="btn btn--onDark" id="newProjectTopBtn" title="Criar um relatório para outro marco">+ Novo relatório</button>
+  </div>
+
+  <div class="topbar-field topbar-field--grow">
     <label for="marcoInput">Marco</label>
     <input type="text" id="marcoInput" placeholder="RANAE J06">
   </div>
 
-  <div class="topbar-spacer"></div>
-
+  <div class="topbar-right">
   <div class="topbar-actions">
-    <button class="btn" id="previewBtn">Pré-visualizar NCR</button>
-    <button class="btn btn--primary" id="pdfBtn">Exportar PDF…</button>
+    <button class="btn btn--onDark" id="previewBtn">Pré-visualizar</button>
+    <button class="btn btn--go" id="pdfBtn">Exportar PDF…</button>
     <div class="menu">
-      <button class="btn" id="menuBtn" aria-haspopup="true" aria-expanded="false" title="Mais ações">⋯</button>
+      <button class="btn btn--onDark btn--menu" id="menuBtn" aria-haspopup="true" aria-expanded="false" title="Mais ações: backup, abrir arquivo, ajustes">⋯ Mais</button>
       <div class="menu-pop" id="menuPop" hidden>
 
         <div class="menu-title">Arquivos <small>trocar trabalho com outras pessoas</small></div>
@@ -63,10 +71,6 @@
           Excluir este relatório
         </button>
 
-        <div class="menu-title">Todos os relatórios</div>
-        <button class="menu-item" id="newProjectBtn">
-          + Criar outro relatório <small>para um marco diferente</small>
-        </button>
 
         <button class="menu-foot" id="userBtn">
           <span class="menu-foot-who" id="userBtnLabel">Definir meu nome</span>
@@ -80,6 +84,7 @@
   <div class="topbar-status">
     <span id="saveState" data-state="saved">salvo no navegador</span>
     <span id="editedBy" class="edited-by"></span>
+  </div>
   </div>
 </header>
 
@@ -109,7 +114,7 @@
     <div class="sidebar-head">
       <div class="sidebar-head-row">
         <h2 id="sidebarTitle">NCRs</h2>
-        <div style="display:flex;gap:4px">
+        <div class="sidebar-head-actions">
           <button class="btn btn--sm btn--primary" id="addNcrBtn">+ Nova NCR</button>
           <button class="btn btn--sm" id="copyNcrBtn" title="Copiar NCRs de outro relatório">Copiar de…</button>
           <button class="btn btn--sm btn--danger" id="delNcrBtn" title="Excluir a NCR selecionada">Excluir</button>
@@ -239,12 +244,8 @@
   </div>
 </dialog>
 
-<datalist id="dl-systems"></datalist>
-<datalist id="dl-func"></datalist>
-<datalist id="dl-requestExpiry"></datalist>
-<datalist id="dl-archStatus"></datalist>
-<datalist id="dl-approvedExpiry"></datalist>
-<datalist id="dl-certificates"></datalist>
+<!-- sugestões de preenchimento, separadas por categoria (NCR e DEV) -->
+<div id="datalists" hidden></div>
 
 <dialog id="settingsDialog">
   <div class="dlg-body">

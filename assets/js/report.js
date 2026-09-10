@@ -240,12 +240,19 @@
     return root;
   }
 
-  /** Nome de arquivo sugerido, no estilo SBR3_WaiverRequest_RANAE_J06_20251001 */
-  function suggestedFileName(project, ext, kind) {
+  /* Os backups circulam várias vezes ao dia pela pasta de rede: só a data
+     deixaria dois arquivos do mesmo dia indistinguíveis na hora de escolher. */
+  function timeStamp(withTime) {
     var d = new Date();
-    var stamp = d.getFullYear() +
-      String(d.getMonth() + 1).padStart(2, '0') +
-      String(d.getDate()).padStart(2, '0');
+    var pad = function (n) { return String(n).padStart(2, '0'); };
+    var s = d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate());
+    if (withTime) s += '_' + pad(d.getHours()) + 'h' + pad(d.getMinutes());
+    return s;
+  }
+
+  /** Nome de arquivo sugerido, no estilo WaiverRequest_RANAE_J06_20251001 */
+  function suggestedFileName(project, ext, kind) {
+    var stamp = timeStamp(ext === 'json');
     var marco = (marcoOf(project, kind) || project.name || 'Relatorio')
       .replace(/[^\w\s-]/g, '')
       .trim()
@@ -259,6 +266,7 @@
     buildMany: buildMany,
     ncrLabel: ncrLabel,
     suggestedFileName: suggestedFileName,
+    timeStamp: timeStamp,
     items: items,
     marcoOf: marcoOf,
     conf: conf,

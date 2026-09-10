@@ -20,7 +20,7 @@ login e nenhum dado sai do computador.
   cada um carrega as suas duas abas.
 - **Data de emissão.** A capa do PDF traz, discreta no canto inferior direito,
   a data em que o relatório foi gerado. Pode ser desligada em
-  **⋯ → Ajustes de capa e rodapé**.
+  **⋯ Mais → Ajustes de capa e rodapé**.
 - **Uma página por item.** Cada NCR ou DEV inserida vira um item na lista
   lateral e uma página no PDF, com todos os campos de derrogação:
   *Description*, *Current Situation*, *Why is not possible to treat the
@@ -69,11 +69,17 @@ A lista lateral mostra **quantos itens já foram concluídos** e tem um filtro
 **só pendentes**, para achar rápido o que ainda falta. A ordem da lista é a
 ordem no PDF — arraste os itens para reordenar. Os cinco blocos de texto são
 recolhíveis (**Recolher preenchidos**), e campos que se repetem muito
-(`PÓS TRAP`, `WAIVER ACCEPTED`, sistemas, certificados) sugerem valores já
-usados nos outros relatórios.
+(`PÓS TRAP`, `WAIVER ACCEPTED`, sistemas, funções, certificados) sugerem
+valores já usados nos outros relatórios — **cada aba com o seu vocabulário**:
+na NCR só aparecem valores de NCRs, na DEV só valores de DEVs.
 
-Os títulos de capa, o rodapé e o marco alternativo da capa da DEV ficam em
-**Ajustes**, ao lado do campo Marco — são textos fixos que quase nunca mudam.
+Cada aba tem a sua cor (NCR em roxo, DEV em azul-petróleo, Resumo em âmbar),
+que tinge a lateral e os realces da tela; e cada bloco de texto do formulário
+leva a cor da faixa correspondente no PDF.
+
+Os títulos de capa, o rodapé, a data de emissão e o marco alternativo da capa
+da DEV ficam em **⋯ Mais → Ajustes de capa e rodapé** — textos fixos que quase
+nunca mudam.
 
 ## Backup, cache e trabalho compartilhado
 
@@ -83,9 +89,7 @@ navegador, mas **são apagados se você limpar os dados do site**. A aplicação
 pede ao navegador para marcar o armazenamento como persistente, o que reduz o
 risco, porém não elimina.
 
-Por isso:
-
-Ambos ficam no menu **⋯**, no canto direito da barra superior.
+Por isso, no menu **⋯ Mais** (canto direito da barra superior):
 
 - **★ Backup total** é a opção recomendada: salva **todos** os relatórios deste
   navegador — todos os marcos, NCRs e DEVs — num arquivo só. Use este no dia a
@@ -93,8 +97,12 @@ Ambos ficam no menu **⋯**, no canto direito da barra superior.
   coisa.
 - **Backup só deste** salva apenas o relatório aberto (as duas abas dele). Serve
   para mandar um marco específico a um colega.
-- **Restaurar** lê um `.json` — também funciona arrastando o arquivo para
+- **Abrir arquivo…** lê um `.json` — também funciona arrastando o arquivo para
   qualquer ponto da janela.
+
+Os arquivos saem com **data e hora** no nome
+(`WaiverRequest_TODOS_20251001_14h32.json`), para que dois backups do mesmo dia
+não se confundam na pasta de rede.
 
 Para trabalhar em outro computador ou passar o trabalho adiante: gere o backup,
 envie o arquivo, e a outra pessoa abre a mesma URL e usa **Restaurar**. Se o
@@ -113,7 +121,7 @@ Para uso local existe uma versão de **arquivo único**, com todo o CSS e o
 JavaScript embutidos:
 
 **https://brunoalmeida87.github.io/Derrogacao/derrogacao.html**
-(ou pelo menu **⋯ → ⤓ Baixar para usar sem internet**)
+(ou pelo menu **⋯ Mais → ⤓ Baixar para usar sem internet**)
 
 Salve o arquivo e abra com dois cliques. Não precisa de servidor, instalação
 nem conexão — funciona inclusive numa pasta de rede, onde cada pessoa abre a
@@ -179,7 +187,7 @@ hora — é isso que permite distinguir "o colega atualizou" de "os dois
 mexeram".
 
 Antes de aplicar, a aplicação guarda um retrato do estado anterior:
-**⋯ → ↩ Desfazer a última mesclagem** volta tudo, se a escolha foi errada.
+**⋯ Mais → ↩ Desfazer a última mesclagem** volta tudo, se a escolha foi errada.
 
 ### Rotina sugerida para a pasta compartilhada
 
@@ -194,7 +202,7 @@ trabalho em silêncio.
 ## Quem editou por último
 
 Não há login. Na primeira vez que você gera um backup, o sistema pede o seu
-nome e o guarda neste navegador (menu **⋯ → Você**). A partir daí, cada
+nome e o guarda neste navegador (rodapé do menu **⋯ Mais**). A partir daí, cada
 relatório registra **quem editou por último** e **quem gerou o último backup**,
 com data e hora — informação que aparece no canto direito da barra superior e
 viaja dentro do arquivo `.json`. Ao restaurar o backup de um colega, o sistema
@@ -207,7 +215,7 @@ para fazê-lo na hora.
 
 Cada abertura da página é uma **sessão**. Enquanto você trabalha, a lista
 lateral marca com um ponto os itens mexidos e mostra *"3 itens alterados nesta
-sessão"*. Em **⋯ → Histórico de alterações** ficam todas as sessões do
+sessão"*. Em **⋯ Mais → Histórico de alterações** ficam todas as sessões do
 relatório, da mais recente para a mais antiga, com quem trabalhou, quando, e
 quais NCRs/DEVs foram **criadas, editadas ou excluídas**. O botão **Copiar
 resumo desta sessão** gera um texto pronto para colar num e-mail.
@@ -232,7 +240,7 @@ Cada `css` e `js` carregado pelo `index.html` é carimbado, na publicação, com
 SHA do commit (`app.js?v=abc1234`). Sem isso o navegador pode servir um
 `index.html` novo junto de um `app.js` antigo guardado em cache — a página abre
 com a marcação nova e o código velho, e quebra de formas difíceis de
-diagnosticar. A versão em uso aparece no rodapé do menu **⋯**; se ela não bater
+diagnosticar. A versão em uso aparece no rodapé do menu **⋯ Mais**; se ela não bater
 com o último commit, é cache do navegador (Ctrl+F5 resolve).
 
 O site é servido pela branch `gh-pages`, publicada pelo workflow
