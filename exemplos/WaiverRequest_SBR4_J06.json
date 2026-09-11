@@ -949,7 +949,8 @@
    "deleted": [],
    "sessions": [],
    "createdAt": "2026-09-11T16:47:54.937Z",
-   "updatedAt": "2026-09-11T16:47:54.937Z"
+   "updatedAt": "2026-09-11T16:47:54.937Z",
+   "ordem": "manual"
   }
  ]
 }

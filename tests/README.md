@@ -19,12 +19,9 @@ Duas variáveis, ambas opcionais:
 | `DERROG_TMP` | onde os testes gravam downloads, capturas e PDFs | `/tmp/derrogacao-testes` |
 | `DERROG_CHROME` | caminho do Chromium | o do Playwright nesta máquina |
 
-Alguns testes leem `solo.html` (a versão de arquivo único) dentro de
-`DERROG_TMP`. Gere antes:
-
-```bash
-python3 tools/build-standalone.py teste && cp derrogacao.html "$DERROG_TMP/solo.html"
-```
+Cada suíte é autossuficiente: as imagens de apoio, o backup em formato antigo
+e a versão de arquivo único são gerados na hora, se faltarem. Dá para rodar
+qualquer uma sozinha, em qualquer ordem, num diretório vazio.
 
 > **`ERRORS: none` no fim não quer dizer que passou.** Essa linha só reporta o
 > console do navegador. O que vale são as asserções e os valores impressos —

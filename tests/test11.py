@@ -8,7 +8,23 @@ SP.mkdir(parents=True, exist_ok=True)
 CHROME = os.environ.get("DERROG_CHROME", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
 
 DL=SP/"dl6"; DL.mkdir(exist_ok=True)
+
+# A versão de arquivo único é gerada na publicação; aqui geramos sob demanda.
+import subprocess
+_RAIZ = pathlib.Path(__file__).resolve().parent.parent
+if not (SP/"solo.html").exists():
+    subprocess.run(["python3", str(_RAIZ/"tools"/"build-standalone.py"), "teste"],
+                   cwd=str(_RAIZ), check=True, stdout=subprocess.DEVNULL)
+    (SP/"solo.html").write_bytes((_RAIZ/"derrogacao.html").read_bytes())
+
 URL="file://"+str(SP/"solo.html")
+
+# Imagens de apoio para as evidências, criadas aqui para o teste rodar sozinho.
+from PIL import Image
+for _nome, _cor in (("ev1.jpg", (60, 140, 70)), ("ev2.jpg", (40, 90, 160))):
+    if not (SP/_nome).exists():
+        Image.new("RGB", (900, 700), _cor).save(SP/_nome, quality=85)
+
 errs=[]
 with sync_playwright() as pw:
     b=pw.chromium.launch(executable_path=CHROME)

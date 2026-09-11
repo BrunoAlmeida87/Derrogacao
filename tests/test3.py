@@ -7,6 +7,13 @@ SP.mkdir(parents=True, exist_ok=True)
 # Chromium do Playwright. Ajuste se estiver noutro lugar.
 CHROME = os.environ.get("DERROG_CHROME", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
 
+
+# Imagens de apoio para as evidências, criadas aqui para o teste rodar sozinho.
+from PIL import Image
+for _nome, _cor in (("ev1.jpg", (60, 140, 70)), ("ev2.jpg", (40, 90, 160))):
+    if not (SP/_nome).exists():
+        Image.new("RGB", (900, 700), _cor).save(SP/_nome, quality=85)
+
 errs=[]; answers=iter(["RANAE J07","RANAE J08"])
 with sync_playwright() as pw:
     b = pw.chromium.launch(executable_path=CHROME)
