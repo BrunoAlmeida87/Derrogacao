@@ -99,10 +99,18 @@
     saveTimer = setTimeout(flushSave, 500);
   }
 
+  /* A pasta é rede: escrever a cada tecla seria lento e inútil. */
+  function agendarGravacaoPasta() {
+    if (!Pasta.ligada() || pastaEstado !== 'on') return;
+    clearTimeout(gravaTimer);
+    gravaTimer = setTimeout(function () { sincronizar({ silencioso: true, semRedesenhar: true }); }, 2500);
+  }
+
   function flushSave() {
     clearTimeout(saveTimer);
     if (!state.project) return Promise.resolve();
     return Store.save(state.project).then(function () {
+      agendarGravacaoPasta();
       markSaved();
       refreshProjectSelect();
       refreshSuggestions();
@@ -461,6 +469,9 @@
     if (!ncr) return;
     if (!confirm('Excluir a ' + kindName() + ' "' + (ncr.ncrId || 'sem número') + '" e todas as suas evidências?')) return;
     touch(ncr, 'excluiu');
+    /* sem a lápide o item voltaria na próxima sincronização, vindo do
+       computador de quem ainda não soube da exclusão */
+    Store.tombstone(state.project, state.kind, ncr);
     var list = items();
     var at = list.findIndex(function (n) { return n.id === ncr.id; });
     list.splice(at, 1);
@@ -1233,9 +1244,17 @@
     var dias = last ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000) : null;
     if (dias !== null && dias < DIAS_SEM_BACKUP) { el0.hidden = true; return; }
 
-    $('#backupNoticeText').textContent = last
-      ? 'Seu último backup foi há ' + dias + ' dias. Os relatórios ficam só neste navegador — um backup evita perder tudo se os dados do site forem limpos.'
-      : 'Você ainda não fez backup. Os relatórios ficam só neste navegador; se os dados do site forem limpos, tudo se perde.';
+    /* Com a pasta ligada o risco é outro: os dados não estão presos a este
+       navegador, mas ainda estão num lugar só. O backup passa a servir para
+       tirar uma cópia de fora da pasta. */
+    var naPasta = Pasta.ligada() && pastaEstado === 'on';
+    $('#backupNoticeText').textContent = naPasta
+      ? (last
+        ? 'Seu último backup foi há ' + dias + ' dias. O trabalho está na pasta da rede, com histórico — mas uma cópia fora dela protege se a pasta se perder.'
+        : 'Você ainda não guardou uma cópia fora da pasta da rede. Se a pasta se perder, o histórico vai junto.')
+      : (last
+        ? 'Seu último backup foi há ' + dias + ' dias. Os relatórios ficam só neste navegador — um backup evita perder tudo se os dados do site forem limpos.'
+        : 'Você ainda não fez backup. Os relatórios ficam só neste navegador; se os dados do site forem limpos, tudo se perde.');
     el0.hidden = false;
   }
 
@@ -2098,6 +2117,308 @@
   }
 
   /* ---------------------------------------------------------------------- */
+  /* pasta compartilhada como banco de dados                                 */
+  /* ---------------------------------------------------------------------- */
+
+  /* Estado da conexão, só para a interface:
+     'off' sem pasta · 'permissao' precisa de um clique · 'on' ligada ·
+     'erro' a pasta sumiu ou negou acesso. */
+  var pastaEstado = 'off';
+  var pastaCaminho = '';        // texto informativo; o programa não abre por ele
+  var sincronizando = false;
+  var gravarPendente = false;
+  var ultimaTecla = 0;
+  var ultimaVersao = 0;
+  var gravaTimer = null;
+  var pollTimer = null;
+  var POLL_MS = 20000;
+
+  function montaPayload() {
+    return {
+      format: 'derrogacao-banco',
+      schema: 1,
+      caminho: pastaCaminho,
+      updatedAt: new Date().toISOString(),
+      updatedBy: Store.getUser(),
+      projects: JSON.parse(JSON.stringify(state.projects))
+    };
+  }
+
+  /**
+   * Uma rodada completa: lê a pasta, junta com o que está aqui, grava de
+   * volta o resultado e guarda uma versão no histórico.
+   *
+   * Ler-juntar-gravar em vez de só gravar é o que evita apagar o trabalho de
+   * quem salvou no meio do caminho. Não há trava de arquivo — a regra de
+   * mesclagem converge sozinha, e o histórico cobre o resto.
+   */
+  function sincronizar(opts) {
+    opts = opts || {};
+    if (!Pasta.ligada() || sincronizando) {
+      if (sincronizando) gravarPendente = true;
+      return Promise.resolve(null);
+    }
+    sincronizando = true;
+    marcarPasta('sincronizando');
+
+    /* Para saber se o item que está na tela mudou por fora — nesse caso a
+       tela precisa ser redesenhada e a pessoa avisada, em vez de continuar
+       mostrando um texto que já não é o que está gravado. */
+    var abertoAntes = currentNcr();
+    var assinaturaAntes = abertoAntes ? Store.signature(abertoAntes) : null;
+    var idAberto = abertoAntes ? abertoAntes.id : null;
+
+    /* grava o resultado da junção, não só o que era meu */
+    function gravarJuncao(resumo) {
+      return Pasta.gravar(montaPayload()).then(function () {
+        /* além do retrato feito antes de cada junção, uma linha do tempo a
+           cada dez minutos — sem transformar a pasta num depósito */
+        if (Date.now() - ultimaVersao < 10 * 60 * 1000) return null;
+        ultimaVersao = Date.now();
+        return Pasta.versionar(montaPayload(), Store.getUser());
+      }).then(function () { return resumo; });
+    }
+
+    return Pasta.ler()
+      .then(function (r) {
+        var resumo = { entraram: 0, atualizados: 0, removidos: 0, novosRelatorios: 0 };
+        if (!r.dados) return Promise.resolve(resumo).then(gravarJuncao);
+
+        if (typeof r.dados.caminho === 'string' && r.dados.caminho) pastaCaminho = r.dados.caminho;
+
+        /* Alguém gravou depois de mim: guarda o MEU estado antes de juntar.
+           É o que garante poder recuperar um texto que a regra "vale quem
+           editou por último" vá substituir daqui a um instante. */
+        var antes = r.externo
+          ? Pasta.versionar(montaPayload(), (Store.getUser() || 'sem-nome') + '-antes')
+          : Promise.resolve();
+
+        return antes.then(function () {
+          resumo = Store.mergeListas(state.projects, r.dados.projects || []);
+          return gravarJuncao(resumo);
+        });
+      })
+      .then(function (resumo) {
+        sincronizando = false;
+        pastaEstado = 'on';
+        /* salva localmente o que veio, para funcionar mesmo sem a pasta */
+        return Promise.all(state.projects.map(function (p) { return Store.save(p); }))
+          .then(function () {
+            opts.aberto = { id: idAberto, assinatura: assinaturaAntes };
+            aplicarMudancasNaTela(resumo, opts);
+            marcarPasta('on');
+            return resumo;
+          });
+      })
+      .catch(function (e) {
+        sincronizando = false;
+        pastaEstado = (e && e.name === 'NotAllowedError') ? 'permissao' : 'erro';
+        marcarPasta(pastaEstado);
+        console.warn('Sincronização com a pasta falhou:', e);
+        if (!opts.silencioso) {
+          toast(pastaEstado === 'permissao'
+            ? 'A pasta precisa da sua permissão — clique em “Pasta” na barra de cima.'
+            : 'Não foi possível ler a pasta de dados. O trabalho segue salvo neste navegador.');
+        }
+        return null;
+      })
+      .then(function (r) {
+        if (gravarPendente) { gravarPendente = false; setTimeout(sincronizar, 50); }
+        return r;
+      });
+  }
+
+  /** Redesenha só o necessário, para não estragar o que está sendo digitado. */
+  function aplicarMudancasNaTela(resumo, opts) {
+    var mudou = resumo && (resumo.entraram || resumo.atualizados || resumo.removidos || resumo.novosRelatorios);
+    /* o relatório aberto pode ter sido substituído pela cópia mesclada */
+    if (state.project) {
+      var atual = state.projects.filter(function (p) { return p.id === state.project.id; })[0];
+      if (!atual) atual = state.projects[0];
+      state.project = atual;
+    }
+    if (!mudou) return;
+    var avisoDoItem = '';
+
+    refreshProjectSelect();
+    refreshSuggestions();
+    renderTabs();
+    renderNcrList();
+    renderUser();
+    if (isResumo()) renderSummary();
+
+    if (!isResumo()) {
+      var agora = currentNcr();
+      if (!agora) {
+        /* o item aberto foi excluído por outra pessoa */
+        var lista = items();
+        setSelectedId(lista.length ? lista[0].id : null);
+        renderEditor();
+        if (opts.aberto && opts.aberto.id) {
+          toast('O item que estava aberto foi excluído por outra pessoa.');
+        }
+      } else if (opts.aberto && opts.aberto.id === agora.id &&
+                 opts.aberto.assinatura !== null &&
+                 opts.aberto.assinatura !== Store.signature(agora)) {
+        /* Chegou uma versão mais nova do que está na tela. Redesenhar é
+           obrigatório: deixar o texto antigo à vista faria a próxima tecla
+           sobrescrever, em silêncio, o que a outra pessoa escreveu. */
+        renderEditor();
+        avisoDoItem = '“' + (agora.ncrId || 'este item') + '” foi atualizado por ' +
+          (agora.editedBy || 'outra pessoa') + '. A tela já mostra a versão nova.';
+      } else if (!opts.semRedesenhar) {
+        renderEditor();
+      }
+    }
+
+    if (avisoDoItem) { toast(avisoDoItem); return; }
+    if (!opts.silencioso) {
+      var partes = [];
+      if (resumo.novosRelatorios) partes.push(resumo.novosRelatorios + ' relatório(s)');
+      if (resumo.entraram) partes.push(resumo.entraram + ' item(ns) novo(s)');
+      if (resumo.atualizados) partes.push(resumo.atualizados + ' atualizado(s)');
+      if (resumo.removidos) partes.push(resumo.removidos + ' excluído(s) por outra pessoa');
+      if (partes.length) toast('Da pasta: ' + partes.join(', ') + '.');
+    }
+  }
+
+  /** Verificação barata, de tempos em tempos: alguém gravou lá fora? */
+  function pollPasta() {
+    if (!Pasta.ligada() || pastaEstado !== 'on' || sincronizando) return;
+    if (Date.now() - ultimaTecla < 4000) return;   /* não mexe enquanto digita */
+    if (document.querySelector('dialog[open]')) return;
+    if (!$('#preview').hidden) return;
+    Pasta.mudouLaFora().then(function (mudou) {
+      if (mudou) sincronizar({ semRedesenhar: true });
+    });
+  }
+
+  function agendarPoll() {
+    clearInterval(pollTimer);
+    if (Pasta.ligada()) pollTimer = setInterval(pollPasta, POLL_MS);
+  }
+
+  /* --- interface ---------------------------------------------------------- */
+
+  function marcarPasta(estado) {
+    var chip = $('#pastaChip');
+    var item = $('#pastaBtn');
+    if (item) item.hidden = !Pasta.suportado();
+    if (!chip) return;
+    /* a etiqueta só existe quando há pasta: sem ela não há nada a mostrar */
+    chip.hidden = !Pasta.suportado() || !Pasta.ligada();
+    if (chip.hidden) return;
+    chip.dataset.estado = estado;
+    var rotulos = {
+      on: '📁 ' + Pasta.nome(),
+      sincronizando: '📁 sincronizando…',
+      permissao: '📁 permitir acesso',
+      erro: '📁 sem acesso'
+    };
+    $('#pastaChipLabel').textContent = rotulos[estado] || ('📁 ' + Pasta.nome());
+    chip.title = estado === 'on'
+      ? 'Banco de dados na pasta "' + Pasta.nome() + '"' + (pastaCaminho ? ' (' + pastaCaminho + ')' : '') +
+        '\nTudo o que você edita vai para lá e chega aos outros.'
+      : estado === 'permissao'
+        ? 'O navegador precisa da sua permissão para abrir a pasta. Clique aqui.'
+        : 'Clique para ver a pasta de dados.';
+    $('#pastaBtnSub').textContent = estado === 'permissao'
+      ? 'precisa de permissão — clique'
+      : 'ligado a "' + Pasta.nome() + '"';
+  }
+
+  /** Liga (ou reata) a pasta e faz a primeira rodada. Vem sempre de um clique. */
+  function conectarPasta(handleNovo) {
+    var passo = handleNovo ? Promise.resolve('granted') : Pasta.pedirPermissao();
+    return passo.then(function (perm) {
+      if (perm !== 'granted') {
+        pastaEstado = 'permissao';
+        marcarPasta('permissao');
+        toast('Sem permissão para abrir a pasta.');
+        return null;
+      }
+      pastaEstado = 'on';
+      agendarPoll();
+      return sincronizar({});
+    });
+  }
+
+  function abrirPastaDialog() {
+    var dlg = $('#pastaDialog');
+    $('#pastaNomeAtual').textContent = Pasta.ligada() ? Pasta.nome() : '—';
+    $('#pastaCaminhoInput').value = pastaCaminho;
+    $('#pastaDesligarBtn').hidden = !Pasta.ligada();
+    $('#pastaPermitirBtn').hidden = !(Pasta.ligada() && pastaEstado !== 'on');
+    $('#pastaEstadoLinha').textContent = !Pasta.suportado()
+      ? 'Este navegador não abre pastas. Use o Microsoft Edge ou o Google Chrome.'
+      : !Pasta.ligada()
+        ? 'Nenhuma pasta escolhida — os relatórios estão só neste navegador.'
+        : pastaEstado === 'on'
+          ? 'Ligado. O que você edita vai para a pasta e chega aos outros.'
+          : 'A pasta está escolhida, mas o navegador ainda não liberou o acesso nesta sessão.';
+    $('#pastaEstadoLinha').dataset.estado = Pasta.ligada() ? pastaEstado : 'off';
+    $('#pastaEscolherBtn').textContent = Pasta.ligada() ? 'Trocar de pasta…' : 'Escolher a pasta…';
+    $('#pastaEscolherBtn').disabled = !Pasta.suportado();
+    renderHistoricoPasta();
+    dlg.showModal();
+  }
+
+  function renderHistoricoPasta() {
+    var box = $('#pastaHistorico');
+    box.innerHTML = '';
+    if (!Pasta.ligada() || pastaEstado !== 'on') { box.hidden = true; return; }
+    box.hidden = false;
+    box.appendChild(el('div', 'hist-carregando', 'Lendo o histórico…'));
+    Pasta.listarHistorico().then(function (lista) {
+      box.innerHTML = '';
+      if (!lista.length) {
+        box.appendChild(el('p', 'hint', 'Ainda não há versões guardadas.'));
+        return;
+      }
+      box.appendChild(el('div', 'hist-titulo',
+        lista.length + ' versão(ões) guardada(s) em ' + Pasta.HISTORICO + '\\'));
+      lista.slice(0, 12).forEach(function (v) {
+        var linha = el('div', 'hist-linha');
+        linha.appendChild(el('span', 'hist-quando', v.quando));
+        linha.appendChild(el('span', 'hist-quem', v.quem || '—'));
+        var b = el('button', 'btn btn--sm', 'Restaurar');
+        b.type = 'button';
+        b.addEventListener('click', function () { restaurarVersao(v); });
+        linha.appendChild(b);
+        box.appendChild(linha);
+      });
+    });
+  }
+
+  /* Restaurar não apaga nada: traz a versão antiga e deixa a mesclagem
+     decidir, do mesmo jeito que um arquivo de colega. */
+  function restaurarVersao(v) {
+    if (!confirm('Trazer de volta os itens da versão de ' + v.quando + '?\n\n' +
+      'Só volta o que não existe mais aqui. Nada do que está em uso agora é ' +
+      'apagado nem substituído.')) return;
+    Pasta.lerHistorico(v.arquivo).then(function (dados) {
+      return Store.saveSnapshot(state.projects, 'antes de restaurar ' + v.quando)
+        .then(function () {
+          var resumo = Store.reviver(state.projects, dados.projects || []);
+          return Promise.all(state.projects.map(function (p) { return Store.save(p); }))
+            .then(function () { return resumo; });
+        });
+    }).then(function (resumo) {
+      $('#pastaDialog').close();
+      refreshUndo();
+      aplicarMudancasNaTela({ entraram: resumo.voltaram, novosRelatorios: resumo.relatorios },
+        { silencioso: true });
+      toast(resumo.voltaram
+        ? resumo.voltaram + ' item(ns) de volta, da versão de ' + v.quando + '.'
+        : 'Nada a restaurar: essa versão não tem nenhum item que falte aqui.');
+      return sincronizar({ silencioso: true });
+    }).catch(function (e) {
+      markError(e);
+      alert('Não foi possível ler essa versão.');
+    });
+  }
+
+  /* ---------------------------------------------------------------------- */
   /* inicialização                                                          */
   /* ---------------------------------------------------------------------- */
 
@@ -2251,6 +2572,54 @@
     });
     $('#backupDoneBtn').addEventListener('click', function () { $('#backupDoneDialog').close(); });
 
+    /* pasta compartilhada */
+    document.addEventListener('input', function () { ultimaTecla = Date.now(); }, true);
+    document.addEventListener('keydown', function () { ultimaTecla = Date.now(); }, true);
+
+    $('#pastaBtn').addEventListener('click', abrirPastaDialog);
+    $('#pastaChip').addEventListener('click', function () {
+      if (pastaEstado !== 'on') { conectarPasta(); return; }
+      abrirPastaDialog();
+    });
+    $('#pastaFecharBtn').addEventListener('click', function () { $('#pastaDialog').close(); });
+    $('#pastaPermitirBtn').addEventListener('click', function () {
+      conectarPasta().then(function () {
+        $('#pastaDialog').close();
+      });
+    });
+    $('#pastaCaminhoInput').addEventListener('input', function () {
+      pastaCaminho = this.value.trim();
+      Store.setFolder(pastaCaminho);
+      agendarGravacaoPasta();
+    });
+    $('#pastaEscolherBtn').addEventListener('click', function () {
+      Pasta.escolher().then(function () {
+        pastaEstado = 'on';
+        marcarPasta('on');
+        agendarPoll();
+        return sincronizar({});
+      }).then(function (r) {
+        if (r === null) return;
+        $('#pastaDialog').close();
+        toast('Pasta ligada: "' + Pasta.nome() + '". A partir de agora tudo vai e vem de lá.');
+      }).catch(function (e) {
+        if (e && e.name === 'AbortError') return;      /* desistiu na janela */
+        markError(e);
+        toast(e.message || 'Não foi possível abrir a pasta.');
+      });
+    });
+    $('#pastaDesligarBtn').addEventListener('click', function () {
+      if (!confirm('Parar de usar a pasta como banco de dados?\n\n' +
+        'Os relatórios continuam neste navegador. A pasta não é apagada.')) return;
+      Pasta.esquecer().then(function () {
+        pastaEstado = 'off';
+        clearInterval(pollTimer);
+        marcarPasta('off');
+        $('#pastaDialog').close();
+        toast('Pasta desligada. O trabalho segue salvo neste navegador.');
+      });
+    });
+
     $('#settingsBtn').addEventListener('click', openSettings);
     $('#settingsCloseBtn').addEventListener('click', function () { $('#settingsDialog').close(); });
     $('#copyNcrBtn').addEventListener('click', openCopyDialog);
@@ -2357,12 +2726,42 @@
         });
       }
       loadProject(list[0]);
+    }).then(function () {
+      return iniciarPasta();
     }).catch(function (e) {
       markError(e);
       var p = Store.newProject('');
       state.projects = [p];
       loadProject(p);
       toast('Não foi possível ler o armazenamento local; começando do zero.');
+    });
+  }
+
+  /**
+   * Reata a pasta guardada. Nunca pede permissão sozinho: o navegador só
+   * atende dentro de um clique, então aqui só descobrimos em que pé está e
+   * deixamos o aviso na barra.
+   */
+  function iniciarPasta() {
+    pastaCaminho = Store.getFolder();
+    marcarPasta('off');
+    if (!Pasta.suportado()) return Promise.resolve();
+    return Pasta.retomar().then(function (h) {
+      if (!h) { pastaEstado = 'off'; marcarPasta('off'); return; }
+      return Pasta.estadoPermissao().then(function (perm) {
+        if (perm === 'granted') {
+          pastaEstado = 'on';
+          agendarPoll();
+          return sincronizar({}).then(function () { agendarPoll(); });
+        }
+        pastaEstado = 'permissao';
+        marcarPasta('permissao');
+        toast('Clique em “📁 permitir acesso”, na barra de cima, para abrir a pasta de dados.');
+      });
+    }).catch(function (e) {
+      console.warn('Pasta não pôde ser retomada:', e);
+      pastaEstado = 'erro';
+      marcarPasta('erro');
     });
   }
 

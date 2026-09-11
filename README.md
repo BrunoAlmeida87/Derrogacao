@@ -41,6 +41,9 @@ login e nenhum dado sai do computador.
   evidências, mesmas cores de faixa e mesmo rodapé.
 - **Backup e restauração** em arquivo `.json`, para levar o trabalho a outro
   computador ou passar para outra pessoa.
+- **Uma pasta da rede como banco de dados**: o programa lê e grava direto nela,
+  e quem abrir apontando para a mesma pasta vê o trabalho de todos, sem importar
+  nada. Com histórico automático de versões.
 
 ## Como usar
 
@@ -199,7 +202,123 @@ funcionam com o arquivo aberto direto do disco. A paleta foi validada para
 daltonismo (separação CVD ΔE ≥ 8 em todos os pares adjacentes), e cada segmento
 leva o número escrito dentro, de modo que a leitura nunca depende só da cor.
 
+## A pasta da rede como banco de dados
+
+O caminho recomendado para trabalhar em grupo. Em vez de cada pessoa guardar a
+sua cópia e trocar arquivos, o programa **lê e grava direto numa pasta
+combinada**: quem abre apontando para a mesma pasta vê o trabalho de todos, sem
+importar nada.
+
+Em **⋯ Mais → 🗄 Pasta da rede como banco de dados**.
+
+### Como funciona
+
+A pasta guarda:
+
+```
+Derrogacao\
+  derrogacao-dados.json     <- o banco: todos os marcos, NCRs e DEVs
+  historico\
+    2026-09-11_14h32_bruno.json     <- versões datadas, automáticas
+    ...
+```
+
+- **Ao abrir**, o programa lê a pasta e junta com o que está aqui.
+- **Ao salvar** (poucos segundos depois de parar de digitar), ele relê a pasta,
+  junta as suas alterações às dos outros e grava o resultado. Reler antes de
+  gravar é o que impede apagar o trabalho de quem salvou no meio do caminho.
+- **De vinte em vinte segundos**, verifica se alguém gravou lá fora; se gravou,
+  traz. Duas pessoas com o programa aberto se enxergam sem recarregar nada.
+- Tudo continua salvo **também neste navegador**, então a pasta cair não
+  interrompe o trabalho de ninguém.
+
+### A regra de quem vence
+
+Item a item, **vale a edição mais recente**. Não há tela de conflito aqui, ao
+contrário da importação manual de arquivo: a gravação acontece sozinha, e
+ninguém pode ficar parado esperando outra pessoa decidir.
+
+A regra **converge**: mesmo que duas gravações se atropelem, a sincronização
+seguinte de cada lado traz de volta o que faltou, porque cada um ainda tem os
+seus itens com a sua hora de edição. Não há trava de arquivo — o que torna isso
+seguro não é uma trava, é a mesclagem convergir.
+
+Na prática:
+
+| Situação | O que acontece |
+| --- | --- |
+| Duas pessoas em **itens diferentes** (o caso comum) | nada se perde: as duas edições sobrevivem |
+| Duas pessoas no **mesmo item** | fica a edição mais recente; a outra versão está no histórico |
+| O item aberto na sua tela muda por fora | a tela é redesenhada e um aviso diz quem alterou |
+| O item aberto é excluído por outra pessoa | a lista volta para o primeiro item, com aviso |
+
+O caso que realmente custa trabalho é o segundo, e ele é raro quando as NCRs
+estão divididas entre as pessoas. Mesmo assim: **antes de juntar qualquer
+mudança vinda de fora, o programa guarda o seu estado no histórico** — o texto
+substituído nunca desaparece sem deixar cópia.
+
+**Exclusões deixam lápide.** Sem isso, o item apagado por uma pessoa voltaria na
+próxima sincronização, vindo do computador de quem ainda não soube. A lápide é
+sempre carimbada depois da versão que apagou, mesmo que o relógio da máquina
+esteja adiantado.
+
+### O histórico é a rede de proteção
+
+Fica **dentro da própria pasta**, numa subpasta `historico\` criada sozinha — não
+é uma segunda pasta a configurar. O motivo é o mesmo de sempre: o navegador só
+libera a pasta que a pessoa escolheu, então uma segunda pasta significaria uma
+segunda permissão e uma segunda escolha, por pessoa.
+
+São guardadas as últimas 40 versões, em dois momentos:
+
+- **Sempre que chega mudança de fora**, o seu estado atual é gravado *antes* de
+  ser juntado (o arquivo sai marcado como *antes de juntar*). É isso que garante
+  poder recuperar um texto que a regra "vale quem editou por último" vá
+  substituir no instante seguinte.
+- **A cada dez minutos** de trabalho, uma versão comum, para haver uma linha do
+  tempo e não só os momentos de encontro.
+
+Em **🗄 Pasta da rede…** as versões aparecem listadas, com **Restaurar**.
+Restaurar **só traz de volta o que sumiu** — o que está em uso agora não é
+tocado nem substituído. A volta é registrada como uma edição sua, que é o que
+faz o item sobreviver também no computador dos outros.
+
+### O que cada pessoa precisa fazer
+
+**Uma vez, em cada computador:** abrir **⋯ Mais → 🗄 Pasta da rede…**, clicar em
+*Escolher a pasta…* e apontar a pasta combinada. Depois disso é só abrir o
+programa.
+
+Isso **não dá para configurar de forma central**, e não é limitação da
+aplicação: o navegador não deixa nenhuma página abrir uma pasta por caminho —
+quem escolhe é sempre uma pessoa, na janela do Windows. O que o programa recebe
+é um "crachá" preso àquele navegador, que não viaja no HTML nem no arquivo de
+dados. Por isso o diálogo tem um campo de **caminho da pasta**: é texto, viaja
+junto com os dados e serve para a próxima pessoa saber *onde* apontar.
+
+Três detalhes:
+
+- **Precisa do Edge ou do Chrome.** Firefox e Safari não têm essa API. Sem ela,
+  o programa funciona como sempre funcionou, com o armazenamento local.
+- **Ao reabrir, o navegador pode pedir permissão** uma vez por sessão — um
+  clique no `📁` da barra de cima. Instalando o programa como aplicativo (menu
+  do navegador → *Instalar*), a permissão fica guardada e nem isso aparece.
+- Uma **unidade de rede mapeada** (`Z:`) facilita: todo mundo escolhe a mesma
+  coisa visível, sem digitar `\\servidor\...`.
+
+### E o backup?
+
+Continua, e fica mais importante — não menos. Com banco compartilhado um erro
+alcança todo mundo no mesmo instante; e o histórico, por morar dentro da própria
+pasta, não protege contra a pasta se perder. **★ Salvar backup de tudo** é o que
+tira uma cópia *para fora* dela. O aviso do topo passa a dizer isso quando a
+pasta está ligada.
+
 ## Duas ou mais pessoas ao mesmo tempo
+
+Esta seção descreve a **troca manual de arquivos**, que continua existindo para
+quem não usa a pasta compartilhada (por estar noutro navegador, noutra rede, ou
+recebendo o trabalho de alguém de fora).
 
 Não há servidor: cada pessoa trabalha na sua cópia, no próprio navegador, e os
 arquivos `.json` circulam por uma pasta compartilhada. Por isso **abrir um
@@ -333,7 +452,8 @@ O site é servido pela branch `gh-pages`, publicada pelo workflow
 index.html               interface
 assets/css/app.css       estilos do editor
 assets/css/report.css    layout do relatório (tela e impressão A4)
-assets/js/store.js       modelo de dados e persistência (IndexedDB)
+assets/js/store.js       modelo de dados, persistência (IndexedDB) e mesclagem
+assets/js/pasta.js       a pasta da rede como banco de dados
 assets/js/report.js      montagem das páginas no padrão do PDF
 assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
 tools/build-standalone.py  gera a versão de arquivo único

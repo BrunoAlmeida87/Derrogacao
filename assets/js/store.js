@@ -12,7 +12,7 @@
   var BACKUP_KEY = 'derrogacao:lastBackupAt';
   var FOLDER_KEY = 'derrogacao:pastaBackup';
   var DB_NAME = 'derrogacao';
-  var DB_VERSION = 2;
+  var DB_VERSION = 3;
   var STORE = 'projects';
   var LS_KEY = 'derrogacao:projects';
   var SCHEMA = 1;
@@ -113,6 +113,7 @@
       showCoverDate: true,   // data de emissão no pé da capa
       ncrs: [],
       devs: [],
+      deleted: [],           // lápides: sem elas, o item excluído por um volta pelo outro
       sessions: [],
       createdAt: nowIso(),
       updatedAt: nowIso()
@@ -179,6 +180,16 @@
 
   /* Aceita backups gravados antes da aba DEV existir: nesses arquivos há
      apenas "ncrs", e a lista de DEVs simplesmente nasce vazia. */
+  function normalizeLapide(t) {
+    return {
+      id: str(t && t.id),
+      kind: str(t && t.kind) === 'dev' ? 'dev' : 'ncr',
+      ncrId: str(t && t.ncrId),
+      at: str(t && t.at),
+      by: str(t && t.by)
+    };
+  }
+
   function normalizeProject(raw) {
     var base = newProject('');
     if (!raw || typeof raw !== 'object') return base;
@@ -199,6 +210,7 @@
       showCoverDate: raw.showCoverDate !== false,
       ncrs: Array.isArray(raw.ncrs) ? raw.ncrs.map(normalizeNcr) : [],
       devs: Array.isArray(raw.devs) ? raw.devs.map(normalizeNcr) : [],
+      deleted: Array.isArray(raw.deleted) ? raw.deleted.map(normalizeLapide).filter(function (t) { return t.id; }) : [],
       sessions: Array.isArray(raw.sessions) ? raw.sessions.map(normalizeSession).slice(-MAX_SESSIONS) : [],
       createdAt: str(raw.createdAt) || base.createdAt,
       updatedAt: str(raw.updatedAt) || base.updatedAt
@@ -349,6 +361,235 @@
     return out;
   }
 
+  /* --- banco compartilhado numa pasta ------------------------------------ */
+
+  /**
+   * Marco normalizado. Só o campo marco vale: "name" nasce "Novo relatório"
+   * para todos, e dois relatórios ainda sem marco não são o mesmo trabalho.
+   */
+  function marcoChave(p) {
+    return str(p && p.marco).trim().toUpperCase().replace(/\s+/g, ' ');
+  }
+
+  var MAX_LAPIDES = 500;
+
+  /**
+   * Registra que um item foi excluído, para a exclusão alcançar os outros.
+   *
+   * A lápide precisa ser mais recente do que a versão que se está excluindo —
+   * senão o item ressuscita na próxima sincronização. Como o relógio de cada
+   * máquina pode estar adiantado, não basta usar a hora daqui: tomamos o
+   * maior entre agora e a hora da versão excluída, mais um instante.
+   */
+  /** Um instante garantidamente posterior a `quando`, mesmo com relógio adiantado. */
+  function depoisDe(quando) {
+    var agora = nowIso();
+    var outro = str(quando);
+    if (outro && outro >= agora) {
+      var t = new Date(outro).getTime();
+      if (!isNaN(t)) return new Date(t + 1000).toISOString();
+    }
+    return agora;
+  }
+
+  function tombstone(project, kind, item) {
+    var agora = depoisDe(item.editedAt);
+    project.deleted = (project.deleted || []).filter(function (t) { return t.id !== item.id; });
+    project.deleted.push({
+      id: item.id,
+      kind: kind === 'dev' ? 'dev' : 'ncr',
+      ncrId: str(item.ncrId),
+      at: agora,
+      by: getUser()
+    });
+    if (project.deleted.length > MAX_LAPIDES) {
+      project.deleted = project.deleted
+        .sort(function (a, b) { return String(a.at).localeCompare(String(b.at)); })
+        .slice(-MAX_LAPIDES);
+    }
+  }
+
+  function maisRecente(a, b) { return String(a || '') >= String(b || '') ? String(a || '') : String(b || ''); }
+
+  /**
+   * Junta dois retratos do MESMO relatório pela regra "vale quem editou por
+   * último", item a item, respeitando as lápides.
+   *
+   * Por que aqui não há tela de conflito, ao contrário da importação manual
+   * de arquivo: num banco compartilhado a gravação acontece sozinha, e
+   * ninguém pode ficar parado esperando outra pessoa decidir. A rede de
+   * proteção é o histórico automático da pasta, que guarda cada versão.
+   *
+   * A regra converge: mesmo que duas gravações simultâneas se atropelem, a
+   * próxima sincronização de cada lado traz de volta o que faltava, porque
+   * cada um ainda tem os seus itens com a sua hora de edição.
+   *
+   * Altera `local` no lugar e devolve o que mudou aqui.
+   */
+  function mergeLWW(local, remoto) {
+    var res = { entraram: 0, atualizados: 0, removidos: 0 };
+
+    /* a lápide mais recente de cada item, vinda de qualquer um dos lados */
+    var lapides = {};
+    [local, remoto].forEach(function (p) {
+      (p.deleted || []).forEach(function (t) {
+        var atual = lapides[t.id];
+        if (!atual || String(t.at) > String(atual.at)) lapides[t.id] = t;
+      });
+    });
+
+    ['ncrs', 'devs'].forEach(function (key) {
+      var meus = {}, deles = {}, ordem = [], vistos = {};
+      (local[key] || []).forEach(function (n) { meus[n.id] = n; });
+      (remoto[key] || []).forEach(function (n) { deles[n.id] = n; });
+      /* a ordem das páginas do PDF é a daqui; o que só existe lá entra no fim */
+      (local[key] || []).forEach(function (n) { if (!vistos[n.id]) { vistos[n.id] = 1; ordem.push(n.id); } });
+      (remoto[key] || []).forEach(function (n) { if (!vistos[n.id]) { vistos[n.id] = 1; ordem.push(n.id); } });
+
+      var saida = [];
+      ordem.forEach(function (id) {
+        var meu = meus[id], dele = deles[id];
+        var lapide = lapides[id];
+        var editado = maisRecente(meu && meu.editedAt, dele && dele.editedAt);
+
+        /* excluído, e ninguém o editou depois disso */
+        if (lapide && String(lapide.at) >= editado) {
+          if (meu) res.removidos++;
+          return;
+        }
+        if (meu && dele) {
+          var novo = String(dele.editedAt || '') > String(meu.editedAt || '');
+          if (novo && signature(meu) !== signature(dele)) res.atualizados++;
+          saida.push(novo ? normalizeNcr(dele) : meu);
+        } else if (dele) {
+          res.entraram++;
+          saida.push(normalizeNcr(dele));
+        } else {
+          saida.push(meu);
+        }
+      });
+      local[key] = saida;
+    });
+
+    /* Textos de capa e rodapé não têm hora própria: segue o retrato do
+       relatório que foi gravado por último. */
+    if (String(remoto.updatedAt || '') > String(local.updatedAt || '')) {
+      ['marco', 'marcoDev', 'coverTitle', 'coverTitleDev', 'coverSubtitle'].forEach(function (k) {
+        if (str(remoto[k])) local[k] = str(remoto[k]);
+      });
+      if (typeof remoto.footer === 'string') local.footer = remoto.footer;
+      if (typeof remoto.showCoverDate === 'boolean') local.showCoverDate = remoto.showCoverDate;
+      if (str(remoto.lastBackupBy)) {
+        local.lastBackupBy = str(remoto.lastBackupBy);
+        local.lastBackupAt = str(remoto.lastBackupAt);
+      }
+    }
+    if (!str(local.marco) && str(remoto.marco)) local.marco = str(remoto.marco);
+    if (!str(local.name) || local.name === 'Novo relatório') local.name = str(local.marco) || local.name;
+
+    local.deleted = Object.keys(lapides).map(function (k) { return lapides[k]; });
+
+    /* o histórico de sessões é união: cada um viu uma parte do trabalho */
+    var minhas = {};
+    (local.sessions || []).forEach(function (x) { minhas[x.id] = x; });
+    (remoto.sessions || []).forEach(function (x) {
+      if (!minhas[x.id]) local.sessions.push(normalizeSession(x));
+      else if (String(x.endedAt) > String(minhas[x.id].endedAt)) {
+        minhas[x.id].endedAt = str(x.endedAt);
+        minhas[x.id].changes = normalizeSession(x).changes;
+      }
+    });
+    local.sessions.sort(function (a, b) { return String(a.startedAt).localeCompare(String(b.startedAt)); });
+    if (local.sessions.length > MAX_SESSIONS) local.sessions = local.sessions.slice(-MAX_SESSIONS);
+
+    return res;
+  }
+
+  /**
+   * Traz de volta os itens de um retrato antigo que não existem mais aqui.
+   *
+   * Não é o mesmo que mesclar: uma versão do histórico é sempre mais velha do
+   * que a lápide que apagou o item, então pela regra normal ela seria
+   * descartada — e "restaurar" nunca restauraria nada. Aqui a volta é
+   * registrada como uma edição de quem restaurou, o que é verdade e é o que
+   * faz o item sobreviver também no computador dos outros.
+   *
+   * Só ressuscita o que sumiu. O que existe hoje não é tocado: restaurar
+   * nunca desfaz o trabalho de ninguém.
+   */
+  function reviver(locais, retrato) {
+    var res = { voltaram: 0, relatorios: 0 };
+    var quem = getUser();
+    var porId = {}, porMarco = {};
+    locais.forEach(function (p) {
+      porId[p.id] = p;
+      var k = marcoChave(p);
+      if (k && !porMarco[k]) porMarco[k] = p;
+    });
+
+    (retrato || []).forEach(function (r) {
+      var k = marcoChave(r);
+      var alvo = porId[r.id] || (k ? porMarco[k] : null);
+      if (!alvo) {
+        var novo = normalizeProject(r);
+        locais.push(novo);
+        res.relatorios++;
+        res.voltaram += novo.ncrs.length + novo.devs.length;
+        return;
+      }
+      ['ncrs', 'devs'].forEach(function (key) {
+        var tem = {};
+        (alvo[key] || []).forEach(function (n) { tem[n.id] = true; });
+        (r[key] || []).forEach(function (n) {
+          if (!n || !n.id || tem[n.id]) return;
+          var copia = normalizeNcr(n);
+          var lapide = (alvo.deleted || []).filter(function (t) { return t.id === copia.id; })[0];
+          copia.editedAt = depoisDe(lapide && lapide.at);
+          copia.editedBy = quem || copia.editedBy;
+          copia.syncBase = '';
+          alvo[key].push(copia);
+          alvo.deleted = (alvo.deleted || []).filter(function (t) { return t.id !== copia.id; });
+          res.voltaram++;
+        });
+      });
+    });
+    return res;
+  }
+
+  /**
+   * Junta a lista inteira: cada relatório recebido é casado com o daqui pelo
+   * identificador e, na falta, pelo marco. Devolve a lista resultante e um
+   * resumo do que mudou deste lado.
+   */
+  function mergeListas(locais, recebidos) {
+    var res = { entraram: 0, atualizados: 0, removidos: 0, novosRelatorios: 0 };
+    var porId = {}, porMarco = {};
+    locais.forEach(function (p) {
+      porId[p.id] = p;
+      var k = marcoChave(p);
+      if (k && !porMarco[k]) porMarco[k] = p;
+    });
+
+    (recebidos || []).forEach(function (r) {
+      var k = marcoChave(r);
+      var alvo = porId[r.id] || (k ? porMarco[k] : null);
+      if (!alvo) {
+        var novo = normalizeProject(r);
+        locais.push(novo);
+        porId[novo.id] = novo;
+        if (marcoChave(novo)) porMarco[marcoChave(novo)] = novo;
+        res.novosRelatorios++;
+        res.entraram += novo.ncrs.length + novo.devs.length;
+        return;
+      }
+      var um = mergeLWW(alvo, normalizeProject(r));
+      res.entraram += um.entraram;
+      res.atualizados += um.atualizados;
+      res.removidos += um.removidos;
+    });
+    return res;
+  }
+
   /* --- IndexedDB -------------------------------------------------------- */
 
   var dbPromise = null;
@@ -362,6 +603,9 @@
         var db = req.result;
         if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
         if (!db.objectStoreNames.contains('snapshots')) db.createObjectStore('snapshots', { keyPath: 'id' });
+        /* guarda o "crachá" da pasta compartilhada, que não é um caminho de
+           texto e sim um objeto que só o navegador sabe interpretar */
+        if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles');
       };
       req.onsuccess = function () { resolve(req.result); };
       req.onerror = function () { reject(req.error || new Error('Falha ao abrir o banco local')); };
@@ -401,6 +645,44 @@
         tx.onerror = function () { reject(tx.error); };
       });
     });
+  }
+
+  /* --- crachá da pasta compartilhada -------------------------------------- */
+
+  /* O handle não é um caminho: é um objeto que o navegador serializa e só ele
+     sabe reabrir. Por isso vive no IndexedDB e não no localStorage. */
+  var HANDLE_STORE = 'handles';
+
+  function putHandle(handle) {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(HANDLE_STORE, 'readwrite');
+        tx.objectStore(HANDLE_STORE).put(handle, 'pasta');
+        tx.oncomplete = function () { resolve(handle); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+
+  function getHandle() {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var req = db.transaction(HANDLE_STORE).objectStore(HANDLE_STORE).get('pasta');
+        req.onsuccess = function () { resolve(req.result || null); };
+        req.onerror = function () { reject(req.error); };
+      });
+    }).catch(function () { return null; });
+  }
+
+  function clearHandle() {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(HANDLE_STORE, 'readwrite');
+        tx.objectStore(HANDLE_STORE).delete('pasta');
+        tx.oncomplete = resolve;
+        tx.onerror = function () { reject(tx.error); };
+      });
+    }).catch(function () { /* sem pasta guardada */ });
   }
 
   /* --- retrato antes da mesclagem ---------------------------------------- */
@@ -542,6 +824,14 @@
     signature: signature,
     diffProject: diffProject,
     numeroChave: numeroChave,
+    reviver: reviver,
+    marcoChave: marcoChave,
+    tombstone: tombstone,
+    mergeLWW: mergeLWW,
+    mergeListas: mergeListas,
+    putHandle: putHandle,
+    getHandle: getHandle,
+    clearHandle: clearHandle,
     saveSnapshot: saveSnapshot,
     getSnapshot: getSnapshot,
     clearSnapshot: clearSnapshot,

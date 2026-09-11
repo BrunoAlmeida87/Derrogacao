@@ -35,6 +35,9 @@
   </div>
 
   <div class="topbar-right">
+  <button class="pasta-chip" id="pastaChip" hidden data-estado="off">
+    <span id="pastaChipLabel">📁</span>
+  </button>
   <div class="topbar-actions">
     <button class="btn btn--onDark" id="previewBtn">Pré-visualizar</button>
     <button class="btn btn--go" id="pdfBtn">Exportar PDF…</button>
@@ -45,6 +48,9 @@
         <div class="menu-title">Arquivos <small>trocar trabalho com outras pessoas</small></div>
         <button class="menu-item menu-item--accent" id="backupAllBtn">
           ★ Salvar backup de tudo <small>todos os relatórios · use este no dia a dia</small>
+        </button>
+        <button class="menu-item" id="pastaBtn" hidden>
+          🗄 Pasta da rede como banco de dados <small id="pastaBtnSub">ler e gravar direto numa pasta da rede</small>
         </button>
         <button class="menu-item" id="restoreBtn">
           Abrir arquivo… <small>recebe e mescla o trabalho de um colega</small>
@@ -252,6 +258,52 @@
 <!-- sugestões de preenchimento, separadas por categoria (NCR e DEV) -->
 <div id="datalists" hidden></div>
 
+<dialog id="pastaDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>Pasta da rede como banco de dados</h3>
+    <p>Em vez de cada pessoa guardar a sua cópia e trocar arquivos, o programa
+       lê e grava direto numa pasta combinada. Quem abrir apontando para a
+       mesma pasta vê o trabalho de todos, sem importar nada.</p>
+
+    <p class="pasta-estado" id="pastaEstadoLinha" data-estado="off"></p>
+
+    <div class="pasta-linha">
+      <span class="pasta-linha-rot">Pasta escolhida</span>
+      <strong id="pastaNomeAtual">—</strong>
+      <button class="btn btn--sm btn--primary" id="pastaEscolherBtn">Escolher a pasta…</button>
+      <button class="btn btn--sm btn--accent" id="pastaPermitirBtn" hidden>Permitir acesso</button>
+      <button class="btn btn--sm btn--danger" id="pastaDesligarBtn" hidden>Desligar</button>
+    </div>
+
+    <div class="field">
+      <label for="pastaCaminhoInput">Caminho da pasta (para os outros saberem onde é)</label>
+      <input type="text" id="pastaCaminhoInput" placeholder="ex.: Z:\Projetos\SBR3\Derrogacao">
+      <div class="hint">O navegador não deixa nenhum programa abrir uma pasta por
+        caminho — quem escolhe é sempre a pessoa, na janela do Windows. Este texto
+        viaja junto com os dados só para dizer ao próximo <em>onde</em> apontar.</div>
+    </div>
+
+    <details class="dlg-tips">
+      <summary>Como fica para cada pessoa</summary>
+      <ol>
+        <li><strong>Uma vez:</strong> abrir esta janela, clicar em <em>Escolher a
+            pasta…</em> e apontar a pasta combinada.</li>
+        <li><strong>Depois:</strong> abrir o programa e pronto — o trabalho de
+            todos já está lá.</li>
+        <li>Ao reabrir, o navegador pode pedir permissão uma vez por sessão.
+            Instalando o programa como aplicativo (no menu do navegador,
+            <em>Instalar</em>), ele guarda a permissão e nem isso aparece.</li>
+        <li>Precisa do <strong>Edge</strong> ou do <strong>Chrome</strong>.</li>
+      </ol>
+    </details>
+
+    <div id="pastaHistorico" class="hist-box" hidden></div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn btn--primary" id="pastaFecharBtn">Fechar</button>
+  </div>
+</dialog>
+
 <dialog id="backupDoneDialog">
   <div class="dlg-body">
     <h3>Backup salvo — falta guardar</h3>
@@ -302,6 +354,7 @@
 <div class="print-root" id="printRoot"></div>
 
 <script src="assets/js/store.js"></script>
+<script src="assets/js/pasta.js"></script>
 <script src="assets/js/report.js"></script>
 <script src="assets/js/summary.js"></script>
 <script src="assets/js/app.js"></script>
