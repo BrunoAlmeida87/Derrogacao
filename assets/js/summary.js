@@ -47,19 +47,74 @@
     return clean(item.systems).split(/[,;/]+/).map(clean).filter(Boolean);
   }
 
-  function statsDe(project) {
-    var linhas = [];
+  /* --- filtros ------------------------------------------------------------ */
+
+  /** Nenhum filtro = tudo passa. Cada campo em branco simplesmente não filtra. */
+  var VAZIO = { tipo: '', situacao: '', sistema: '', archStatus: '', busca: '', evidencia: '' };
+
+  function algumFiltro(f) {
+    if (!f) return false;
+    return Object.keys(VAZIO).some(function (k) { return clean(f[k]); });
+  }
+
+  function passa(r, f) {
+    if (!f) return true;
+    var n = r.item;
+    if (clean(f.tipo) && r.kind !== f.tipo) return false;
+    if (clean(f.situacao) && situacao(n) !== f.situacao) return false;
+    if (clean(f.sistema) && sistemas(n).indexOf(f.sistema) < 0) return false;
+    if (clean(f.archStatus)) {
+      var a = clean(n.archStatus) || '(em branco)';
+      if (a !== f.archStatus) return false;
+    }
+    if (f.evidencia === 'com' && !(n.evidence || []).length) return false;
+    if (f.evidencia === 'sem' && (n.evidence || []).length) return false;
+    var t = clean(f.busca).toLowerCase();
+    if (t) {
+      var palheiro = [n.ncrId, n.systems, n.func, n.description, n.currentSituation,
+                      n.archAnswer, (n.certificates || []).join(' ')].join(' ').toLowerCase();
+      if (palheiro.indexOf(t) < 0) return false;
+    }
+    return true;
+  }
+
+  /** Valores que existem hoje, para montar as listas dos filtros. */
+  function opcoesDe(projects) {
+    var sist = {}, arch = {};
+    (projects || []).forEach(function (p) {
+      ['ncrs', 'devs'].forEach(function (k) {
+        (p[k] || []).forEach(function (n) {
+          sistemas(n).forEach(function (x) { sist[x] = (sist[x] || 0) + 1; });
+          var a = clean(n.archStatus) || '(em branco)';
+          arch[a] = (arch[a] || 0) + 1;
+        });
+      });
+    });
+    var ordena = function (o) {
+      return Object.keys(o).sort(function (a, b) { return Store.cmpTexto(a, b); })
+        .map(function (v) { return { valor: v, n: o[v] }; });
+    };
+    return { sistemas: ordena(sist), archStatus: ordena(arch) };
+  }
+
+  function statsDe(project, filtro) {
+    var linhas = [], totalSemFiltro = 0;
     ['ncr', 'dev'].forEach(function (kind) {
-      (project[kind === 'dev' ? 'devs' : 'ncrs'] || []).forEach(function (n) {
-        linhas.push({ kind: kind, item: n });
+      /* a ordem é a mesma do PDF: o resumo não inventa uma ordenação própria */
+      Store.ordenar(project, kind).forEach(function (n) {
+        totalSemFiltro++;
+        var r = { kind: kind, item: n };
+        if (passa(r, filtro)) linhas.push(r);
       });
     });
 
     var st = {
       project: project,
+      filtro: filtro || null,
+      totalSemFiltro: totalSemFiltro,
       marco: clean(project.marco) || clean(project.name) || 'sem marco',
-      ncr: (project.ncrs || []).length,
-      dev: (project.devs || []).length,
+      ncr: linhas.filter(function (r) { return r.kind === 'ncr'; }).length,
+      dev: linhas.filter(function (r) { return r.kind === 'dev'; }).length,
       total: linhas.length,
       concluidos: 0,
       pendentes: 0,
@@ -88,16 +143,17 @@
     return st;
   }
 
-  function compute(projects) {
-    var porMarco = projects.map(statsDe);
+  function compute(projects, filtro) {
+    var porMarco = projects.map(function (p) { return statsDe(p, filtro); });
     var geral = {
       marcos: porMarco.length,
+      totalSemFiltro: 0,
       ncr: 0, dev: 0, total: 0, concluidos: 0, pendentes: 0, evidencias: 0, imagens: 0,
       porSistema: {}, porSituacao: {}
     };
     SITUACOES.forEach(function (s) { geral.porSituacao[s] = 0; });
     porMarco.forEach(function (m) {
-      ['ncr', 'dev', 'total', 'concluidos', 'pendentes', 'evidencias', 'imagens'].forEach(function (k) {
+      ['ncr', 'dev', 'total', 'concluidos', 'pendentes', 'evidencias', 'imagens', 'totalSemFiltro'].forEach(function (k) {
         geral[k] += m[k];
       });
       Object.keys(m.porSistema).forEach(function (s) {
@@ -254,6 +310,10 @@
     C1: C1, C2: C2, C3: C3, NEUTRO: NEUTRO,
     SITUACOES: SITUACOES,
     situacao: situacao,
+    VAZIO: VAZIO,
+    algumFiltro: algumFiltro,
+    passa: passa,
+    opcoesDe: opcoesDe,
     sistemas: sistemas,
     compute: compute,
     statsDe: statsDe,
@@ -398,8 +458,8 @@
   }
 
   /** Planilha com uma linha por NCR/DEV, para abrir no Excel. */
-  function toCsv(project) {
-    var st = S.statsDe(project);
+  function toCsv(project, filtros) {
+    var st = S.statsDe(project, filtros);
     var cab = ['Marco', 'Tipo', 'Numero', 'Sistemas', 'Funcao/Descricao',
                'Situacao (controle interno)',
                'Arch Status', 'Request Expiry', 'Approved Expiry', 'Concluido',
@@ -430,30 +490,46 @@
    * @param filtro  id do relatório a detalhar, ou '' para o panorama geral
    * @param acoes   { onFiltro, onCsv, onPdf, onBackup }
    */
-  function render(host, projects, filtro, acoes) {
+  /** Um campo de seleção da barra de filtros. */
+  function campoSelect(rotulo, valor, opcoes, aoMudar, largo) {
+    var campo = el('div', 'sm-bar-field' + (largo ? '' : ' sm-bar-field--curto'));
+    campo.appendChild(el('label', null, rotulo));
+    var sel = document.createElement('select');
+    opcoes.forEach(function (o) {
+      var op = document.createElement('option');
+      op.value = o.valor; op.textContent = o.nome;
+      sel.appendChild(op);
+    });
+    sel.value = valor || '';
+    sel.addEventListener('change', function () { aoMudar(sel.value); });
+    campo.appendChild(sel);
+    return campo;
+  }
+
+  function render(host, projects, filtro, acoes, filtros) {
     host.innerHTML = '';
-    var dados = S.compute(projects);
+    filtros = filtros || {};
+    var dados = S.compute(projects, filtros);
     var alvo = filtro ? dados.porMarco.filter(function (m) { return m.project.id === filtro; })[0] : null;
     var escopo = alvo ? [alvo] : dados.porMarco;
+    var opc = S.opcoesDe(projects);
+    var mudar = function (campo) {
+      return function (v) {
+        var novo = {};
+        Object.keys(S.VAZIO).forEach(function (k) { novo[k] = filtros[k] || ''; });
+        novo[campo] = v;
+        acoes.onFiltros(novo);
+      };
+    };
 
-    /* barra de escolha do marco + exportações */
+    /* --- barra 1: escolha do marco + exportações --- */
     var barra = el('div', 'sm-bar');
-    var campo = el('div', 'sm-bar-field');
-    campo.appendChild(el('label', null, 'Marco'));
-    var sel = document.createElement('select');
-    var todos = document.createElement('option');
-    todos.value = ''; todos.textContent = 'Todos os marcos (' + dados.porMarco.length + ')';
-    sel.appendChild(todos);
-    dados.porMarco.forEach(function (m) {
-      var o = document.createElement('option');
-      o.value = m.project.id;
-      o.textContent = m.marco + ' — ' + m.total + ' itens';
-      sel.appendChild(o);
-    });
-    sel.value = filtro || '';
-    sel.addEventListener('change', function () { acoes.onFiltro(sel.value); });
-    campo.appendChild(sel);
-    barra.appendChild(campo);
+    var todosMarcos = [{ valor: '', nome: 'Todos os marcos (' + dados.porMarco.length + ')' }]
+      .concat(dados.porMarco.map(function (m) {
+        return { valor: m.project.id, nome: m.marco + ' — ' + m.total + ' itens' };
+      }));
+    barra.appendChild(campoSelect('Marco', filtro || '', todosMarcos,
+      function (v) { acoes.onFiltro(v); }, true));
 
     var acoesBox = el('div', 'sm-bar-actions');
     if (alvo) {
@@ -476,6 +552,67 @@
     }
     barra.appendChild(acoesBox);
     host.appendChild(barra);
+
+    /* --- barra 2: filtros --- */
+    var fb = el('div', 'sm-filtros');
+    fb.appendChild(campoSelect('Tipo', filtros.tipo, [
+      { valor: '', nome: 'NCR e DEV' },
+      { valor: 'ncr', nome: 'Só NCR' },
+      { valor: 'dev', nome: 'Só DEV' }
+    ], mudar('tipo')));
+
+    fb.appendChild(campoSelect('Situação', filtros.situacao,
+      [{ valor: '', nome: 'Todas' }].concat(S.SITUACOES.map(function (x) {
+        return { valor: x, nome: x };
+      })), mudar('situacao')));
+
+    fb.appendChild(campoSelect('Sistema', filtros.sistema,
+      [{ valor: '', nome: 'Todos' }].concat(opc.sistemas.map(function (x) {
+        return { valor: x.valor, nome: x.valor + ' (' + x.n + ')' };
+      })), mudar('sistema')));
+
+    fb.appendChild(campoSelect('Arch Status', filtros.archStatus,
+      [{ valor: '', nome: 'Todos' }].concat(opc.archStatus.map(function (x) {
+        return { valor: x.valor, nome: x.valor + ' (' + x.n + ')' };
+      })), mudar('archStatus'), true));
+
+    fb.appendChild(campoSelect('Evidência', filtros.evidencia, [
+      { valor: '', nome: 'Tanto faz' },
+      { valor: 'com', nome: 'Só com anexo' },
+      { valor: 'sem', nome: 'Só sem anexo' }
+    ], mudar('evidencia')));
+
+    var busca = el('div', 'sm-bar-field');
+    busca.appendChild(el('label', null, 'Buscar no texto'));
+    var inp = document.createElement('input');
+    inp.type = 'search';
+    inp.value = filtros.busca || '';
+    inp.placeholder = 'ex.: número, sistema, certificado, palavra do texto…';
+    inp.addEventListener('input', function () { mudar('busca')(inp.value); });
+    busca.appendChild(inp);
+    fb.appendChild(busca);
+
+    var resumoF = el('div', 'sm-filtros-fim');
+    var ligado = S.algumFiltro(filtros);
+    resumoF.appendChild(el('span', 'sm-filtros-conta' + (ligado ? ' is-on' : ''),
+      ligado
+        ? (alvo ? alvo.total : dados.geral.total) + ' de ' +
+          (alvo ? alvo.totalSemFiltro : dados.geral.totalSemFiltro) + ' itens'
+        : (alvo ? alvo.total : dados.geral.total) + ' itens'));
+    if (ligado) {
+      var limpar = el('button', 'btn btn--sm', 'Limpar filtros');
+      limpar.type = 'button';
+      limpar.addEventListener('click', function () { acoes.onFiltros({}); });
+      resumoF.appendChild(limpar);
+    }
+    fb.appendChild(resumoF);
+    host.appendChild(fb);
+
+    if (ligado) {
+      host.appendChild(el('p', 'sm-aviso-filtro',
+        'Os números, os gráficos e as tabelas abaixo contam só os itens filtrados — ' +
+        'e é isso que sai no resumo em PDF e na planilha. O backup do marco continua saindo inteiro.'));
+    }
 
     /* números do escopo */
     var st = alvo || dados.geral;

@@ -23,10 +23,15 @@
 
   var isDev = function () { return state.kind === 'dev'; };
   var isResumo = function () { return state.kind === 'resumo'; };
-  /** Lista de itens da aba ativa. */
+  /** Lista de itens da aba ativa — o vetor de verdade, para alterar. */
   var items = function () {
     if (!state.project || isResumo()) return [];
     return state.project[Store.itemsKey(state.kind)];
+  };
+  /** A mesma lista na ordem escolhida — para mostrar e para exportar. */
+  var itemsNaOrdem = function () {
+    if (!state.project || isResumo()) return [];
+    return Store.ordenar(state.project, state.kind);
   };
   /** Nome da aba, para textos da interface. */
   var kindName = function () { return isDev() ? 'DEV' : 'NCR'; };
@@ -177,6 +182,7 @@
     refreshProjectSelect();
     refreshSuggestions();
     renderTabs();
+    renderOrdem();
     renderNcrList();
     renderEditor();
     renderUser();
@@ -235,10 +241,22 @@
   /* ---------------------------------------------------------------------- */
 
   var summaryFilter = '';
+  var summaryFiltros = {};
 
-  function renderSummary() {
+  function renderSummary(semRolar) {
     SummaryView.render($('#summaryScroll'), state.projects, summaryFilter, {
       onFiltro: function (id) { summaryFilter = id; renderSummary(); },
+      onFiltros: function (f) {
+        var focado = document.activeElement;
+        var eraBusca = focado && focado.type === 'search';
+        summaryFiltros = f;
+        renderSummary(true);
+        /* a busca redesenha a cada tecla: devolve o cursor para o campo */
+        if (eraBusca) {
+          var novo = $('.sm-filtros input[type="search"]');
+          if (novo) { novo.focus(); novo.setSelectionRange(novo.value.length, novo.value.length); }
+        }
+      },
       onCsv: exportarCsv,
       onPdf: exportarResumoPdf,
       onBackup: function (project) {
@@ -247,12 +265,12 @@
         exportBackup(false);
         state.project = antes;
       }
-    });
-    $('#summaryScroll').scrollTop = 0;
+    }, summaryFiltros);
+    if (!semRolar) $('#summaryScroll').scrollTop = 0;
   }
 
   function exportarCsv(project) {
-    var csv = SummaryView.toCsv(project);
+    var csv = SummaryView.toCsv(project, summaryFiltros);
     var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     download(blob, Report.suggestedFileName(project, 'csv').replace('WaiverRequest_', 'Resumo_'));
     toast('Planilha do marco salva.');
@@ -277,7 +295,7 @@
   function buildSummaryPage(project) {
     var pg = el('section', 'rep-page rep-page--summary');
     var alvos = project ? [project] : state.projects;
-    var dados = Summary.compute(alvos);
+    var dados = Summary.compute(alvos, summaryFiltros);
     var st = project ? dados.porMarco[0] : dados.geral;
 
     var titulo = project
@@ -287,6 +305,19 @@
     pg.appendChild(el('div', 'sm-print-date',
       'Gerado em ' + new Date().toLocaleDateString('pt-BR') +
       (Store.getUser() ? ' por ' + Store.getUser() : '')));
+
+    /* Um resumo filtrado que não diga que está filtrado engana quem o lê. */
+    if (Summary.algumFiltro(summaryFiltros)) {
+      var ditos = [];
+      if (summaryFiltros.tipo) ditos.push('tipo: ' + (summaryFiltros.tipo === 'dev' ? 'DEV' : 'NCR'));
+      if (summaryFiltros.situacao) ditos.push('situação: ' + summaryFiltros.situacao);
+      if (summaryFiltros.sistema) ditos.push('sistema: ' + summaryFiltros.sistema);
+      if (summaryFiltros.archStatus) ditos.push('arch status: ' + summaryFiltros.archStatus);
+      if (summaryFiltros.evidencia) ditos.push(summaryFiltros.evidencia === 'com' ? 'só com anexo' : 'só sem anexo');
+      if (summaryFiltros.busca) ditos.push('texto: “' + summaryFiltros.busca + '”');
+      pg.appendChild(el('div', 'sm-print-filtro',
+        'Recorte: ' + ditos.join(' · ') + ' — ' + st.total + ' de ' + st.totalSemFiltro + ' itens.'));
+    }
 
     pg.appendChild(SummaryView.kpiRow(st));
 
@@ -331,7 +362,7 @@
   function renderNcrList() {
     var ul = $('#ncrList');
     ul.innerHTML = '';
-    var rows = items();
+    var rows = itemsNaOrdem();
     var term = $('#ncrFilter').value.trim().toLowerCase();
 
     if (!state.project || !rows.length) {
@@ -435,13 +466,48 @@
   }
 
   function moveNcr(fromId, toId) {
+    /* Arrastar é um gesto manual: se havia uma ordenação automática, ela vira
+       o ponto de partida da ordem manual, em vez de a arrastada ser desfeita
+       no próximo desenho da tela. */
+    if (state.project.ordem !== 'manual') fixarOrdem(true);
     var list = items();
     var from = list.findIndex(function (n) { return n.id === fromId; });
     var to = list.findIndex(function (n) { return n.id === toId; });
     if (from < 0 || to < 0 || from === to) return;
     list.splice(to, 0, list.splice(from, 1)[0]);
     renderNcrList();
+    renderOrdem();
     scheduleSave();
+  }
+
+  /** Grava a ordem que está à vista como a ordem manual do relatório. */
+  function fixarOrdem(silencioso) {
+    var chave = Store.itemsKey(state.kind);
+    state.project[chave] = itemsNaOrdem();
+    state.project.ordem = 'manual';
+    if (!silencioso) {
+      renderNcrList();
+      renderOrdem();
+      scheduleSave();
+      toast('Ordem fixada. Agora dá para ajustar arrastando os itens.');
+    }
+  }
+
+  function renderOrdem() {
+    var sel = $('#ordemSelect');
+    if (!sel || !state.project) return;
+    if (!sel.options.length) {
+      Store.ORDENS.forEach(function (o) {
+        var op = document.createElement('option');
+        op.value = o.id; op.textContent = o.nome; op.title = o.ajuda;
+        sel.appendChild(op);
+      });
+    }
+    var atual = Store.ordemInfo(state.project.ordem);
+    sel.value = atual.id;
+    sel.title = atual.ajuda + '\nVale também para a ordem das páginas no PDF.';
+    $('#ordemFixarBtn').hidden = atual.id === 'manual';
+    $('#sidebarEmptyDrag').hidden = atual.id !== 'manual';
   }
 
   function selectNcr(id) {
@@ -2515,6 +2581,15 @@
     });
 
     $('#pendingOnly').addEventListener('change', renderNcrList);
+
+    $('#ordemSelect').addEventListener('change', function () {
+      state.project.ordem = Store.ordemInfo(this.value).id;
+      renderOrdem();
+      renderNcrList();
+      scheduleSave();
+      toast('Ordem: ' + Store.ordemInfo(this.value).nome + '. Vale também no PDF.');
+    });
+    $('#ordemFixarBtn').addEventListener('click', function () { fixarOrdem(false); });
 
     /* histórico de alterações */
     $('#mergeCancelBtn').addEventListener('click', function () {

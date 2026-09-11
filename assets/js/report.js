@@ -58,7 +58,9 @@
   function conf(kind) { return KINDS[kind === 'dev' ? 'dev' : 'ncr']; }
 
   /** Itens da aba. */
-  function items(project, kind) { return project[conf(kind).key] || []; }
+  /* A ordem escolhida no editor é a ordem das páginas: índice da capa,
+     páginas das NCRs e páginas de evidência, tudo na mesma sequência. */
+  function items(project, kind) { return Store.ordenar(project, kind); }
 
   /** Marco da aba — a DEV cai no marco geral quando não tem um próprio. */
   function marcoOf(project, kind) {
@@ -96,9 +98,16 @@
       var a = el('a', null, (ncr.ncrId || '(sem número)'));
       a.href = '#' + anchorNcr(scope, ncr);
       item.appendChild(a);
+      /* O índice fecha com o Arch Status, como no relatório de origem:
+         NCR-…|HP|FV 09 - …|WAIVER ACCEPTED. Sem status, a linha só termina
+         antes — nada de um separador solto no fim. */
       var rest = (kind === 'dev' ? [ncr.func] : [ncr.systems, ncr.func])
         .map(clean).filter(Boolean).join('|');
       if (rest) item.appendChild(document.createTextNode(c.indexSeparator + rest));
+      if (clean(ncr.archStatus)) {
+        item.appendChild(el('span', 'rep-index-status',
+          (rest ? '|' : c.indexSeparator) + clean(ncr.archStatus)));
+      }
       list.appendChild(item);
     });
     if (!rows.length) {

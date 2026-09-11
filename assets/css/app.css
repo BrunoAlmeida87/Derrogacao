@@ -844,6 +844,18 @@ a.menu-item { text-decoration: none; }
 }
 .notice span { flex: 1; min-width: 240px; }
 
+/* --- ordem das páginas ---------------------------------------------------- */
+
+.ordem-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ordem-row label { flex: 0 0 auto; font-weight: 600; }
+.ordem-row select { flex: 1; min-width: 0; padding: 4px 6px; font-size: 12px; }
+
 /* --- progresso na lista -------------------------------------------------- */
 
 .progress-row {
@@ -1327,6 +1339,56 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .sm-bar-field label { font-size: 12px; font-weight: 600; color: #3f4550; }
 .sm-bar-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .sm-hint { font-size: 12px; color: var(--muted); }
+
+/* --- filtros do resumo ---------------------------------------------------- */
+
+.sm-filtros {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: 980px;
+  margin: 0 auto 12px;
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--sh-1);
+}
+.sm-bar-field--curto { flex: 0 1 auto; min-width: 120px; }
+.sm-filtros .sm-bar-field { flex: 1 1 150px; }
+.sm-filtros select, .sm-filtros input { font-size: 13px; padding: 5px 7px; }
+
+.sm-filtros-fim {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-left: auto;
+  padding-bottom: 2px;
+}
+.sm-filtros-conta { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.sm-filtros-conta.is-on { color: var(--kind); font-weight: 700; }
+
+.sm-aviso-filtro {
+  max-width: 980px;
+  margin: 0 auto 14px;
+  padding: 9px 13px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #6b4400;
+  background: var(--warn-sf);
+  border-left: 3px solid #d9a441;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.sm-print-filtro {
+  font-size: 10pt;
+  color: #6b4400;
+  background: #fdf4e3;
+  border-left: 2px solid #d9a441;
+  padding: 2mm 3mm;
+  margin: 0 0 4mm;
+}
 
 /* --- números em destaque -------------------------------------------------- */
 

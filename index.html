@@ -130,6 +130,12 @@
         </div>
       </div>
       <input type="search" id="ncrFilter" placeholder="Filtrar por número, sistema ou função…">
+      <div class="ordem-row">
+        <label for="ordemSelect">Ordem</label>
+        <select id="ordemSelect"></select>
+        <button class="btn btn--sm" id="ordemFixarBtn" hidden
+                title="Grava esta ordem como a ordem manual, para poder ajustar arrastando">fixar</button>
+      </div>
       <div class="progress-row">
         <span id="progressText"></span>
         <label class="progress-toggle">
@@ -146,7 +152,7 @@
     <div class="sidebar-empty" id="sidebarEmpty">
       Nenhuma <span id="sidebarEmptyKind">NCR</span> ainda.<br>
       Use o botão acima para adicionar a primeira.
-      <br><br>A ordem da lista é a ordem no PDF — arraste para reordenar.
+      <br><br>A ordem da lista é a ordem no PDF.<span id="sidebarEmptyDrag"> Arraste para reordenar.</span>
     </div>
     </div>
 

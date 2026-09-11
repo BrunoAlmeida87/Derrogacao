@@ -37,8 +37,9 @@ login e nenhum dado sai do computador.
 - **Conferência antes de exportar.** A janela de exportação lista as NCRs com
   campos essenciais em branco, com link direto para corrigir.
 - **Exportação em PDF** no mesmo padrão do relatório original: capa com o índice
-  de NCRs, páginas A4 retrato para as NCRs, páginas A4 paisagem para as
-  evidências, mesmas cores de faixa e mesmo rodapé.
+  de NCRs (`NCR-…|HP|FV09 - …|WAIVER ACCEPTED`), páginas A4 retrato para as
+  NCRs, páginas A4 paisagem para as evidências, mesmas cores de faixa e mesmo
+  rodapé.
 - **Backup e restauração** em arquivo `.json`, para levar o trabalho a outro
   computador ou passar para outra pessoa.
 - **Uma pasta da rede como banco de dados**: o programa lê e grava direto nela,
@@ -69,8 +70,25 @@ login e nenhum dado sai do computador.
    - **Cabeçalhos e rodapés**: desmarcado
 
 A lista lateral mostra **quantos itens já estão em waiver accepted** e tem um
-filtro **esconder aceitos**, para achar rápido o que ainda falta. A ordem da lista é a
-ordem no PDF — arraste os itens para reordenar. Os cinco blocos de texto são
+filtro **esconder aceitos**, para achar rápido o que ainda falta.
+
+### A ordem da lista é a ordem do PDF
+
+O seletor **Ordem**, na lateral, vale para os dois ao mesmo tempo — a lista na
+tela e as páginas no relatório, incluindo o índice da capa:
+
+| Ordem | Como fica |
+| --- | --- |
+| **Manual (arrastando)** | a ordem que você montou; é a de fábrica |
+| **Número** | alfanumérica pelo número — `NCR-9` vem antes de `NCR-10`, não depois |
+| **Sistema** | pelas letras do sistema (`BB`, `BC`, `BF`, `HP`…), depois pelo número |
+| **Função** | pelo texto da função (`FV01`, `FV09`, `FV20`…), depois pelo número |
+| **Situação** | de *em preenchimento* até *waiver accepted* |
+
+Escolher uma ordem automática **não reescreve nada**: a ordem manual continua
+guardada por baixo, e basta voltar a *Manual* para recuperá-la. Se quiser
+partir de uma ordenação automática e ajustar na mão, use **fixar** — ou
+simplesmente arraste um item, que a ordem à vista vira a nova ordem manual. Os cinco blocos de texto são
 recolhíveis (**Recolher preenchidos**), e campos que se repetem muito
 (`PÓS TRAP`, `WAIVER ACCEPTED`, sistemas, funções, certificados) sugerem
 valores já usados nos outros relatórios — **cada aba com o seu vocabulário**:
@@ -186,6 +204,24 @@ aberto:
 - **Itens por sistema** — um item que cita vários sistemas (`BX,BQ,BD`) conta em
   cada um; acima de dez sistemas o excedente vira "Outros".
 - **Tabela de marcos**, com percentual aceito e quem editou por último.
+
+### Filtros
+
+Abaixo do seletor de marco há uma linha de filtros, que se somam:
+
+| Filtro | Serve para |
+| --- | --- |
+| **Tipo** | separar NCR de DEV |
+| **Situação** | ver só o que está em preenchimento, solicitado, a rever ou aceito |
+| **Sistema** | um sistema específico (`HP`, `EX`, `BF`…), com a contagem de cada um |
+| **Arch Status** | o texto que vai impresso no relatório, inclusive `(em branco)` |
+| **Evidência** | só itens com anexo, ou só os sem |
+| **Buscar no texto** | procura no número, sistema, função, nos blocos de texto e nos certificados |
+
+Os números, os gráficos e as tabelas passam a contar **só o que está
+filtrado** — e é isso que sai no **Resumo em PDF** (que traz uma linha dizendo
+qual foi o recorte) e na **planilha CSV**. O **Backup deste marco** é a exceção
+proposital: sai sempre inteiro, porque backup pela metade não é backup.
 
 Escolhendo um marco no seletor (ou clicando no nome dele na tabela), a aba passa
 ao detalhe daquele marco: os mesmos gráficos, a lista completa de NCRs e DEVs e a
@@ -458,6 +494,9 @@ assets/js/report.js      montagem das páginas no padrão do PDF
 assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
 tools/build-standalone.py  gera a versão de arquivo único
 assets/js/app.js         lógica do editor
+tests/                   24 suítes de ponta a ponta (Playwright)
+exemplos/                relatórios .json prontos para importar
+CLAUDE.md                notas de manutenção: decisões, armadilhas, porquês
 ```
 
 Não há dependências externas nem etapa de build: abrir o `index.html` já

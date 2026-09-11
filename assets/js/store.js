@@ -111,6 +111,7 @@
       coverSubtitle: 'List of Waiver Requested :',
       footer: 'Gerência técnica operacional',
       showCoverDate: true,   // data de emissão no pé da capa
+      ordem: 'manual',       // ordem das páginas: vale para a tela e para o PDF
       ncrs: [],
       devs: [],
       deleted: [],           // lápides: sem elas, o item excluído por um volta pelo outro
@@ -208,6 +209,7 @@
       coverSubtitle: str(raw.coverSubtitle) || base.coverSubtitle,
       footer: raw.footer === '' ? '' : (str(raw.footer) || base.footer),
       showCoverDate: raw.showCoverDate !== false,
+      ordem: ordemInfo(raw.ordem).id,
       ncrs: Array.isArray(raw.ncrs) ? raw.ncrs.map(normalizeNcr) : [],
       devs: Array.isArray(raw.devs) ? raw.devs.map(normalizeNcr) : [],
       deleted: Array.isArray(raw.deleted) ? raw.deleted.map(normalizeLapide).filter(function (t) { return t.id; }) : [],
@@ -361,6 +363,58 @@
     return out;
   }
 
+  /* --- ordem das páginas do relatório ------------------------------------- */
+
+  /* A ordem escolhida vale para a lista lateral E para o PDF — é a mesma
+     coisa. Guardar o modo (e não reescrever o vetor) deixa voltar atrás: a
+     ordem manual continua intacta por baixo. */
+  var ORDENS = [
+    { id: 'manual',   nome: 'Manual (arrastando)',   ajuda: 'A ordem que você montou arrastando os itens.' },
+    { id: 'numero',   nome: 'Número',                ajuda: 'Pelo número da NCR/DEV, em ordem alfanumérica.' },
+    { id: 'sistema',  nome: 'Sistema',               ajuda: 'Pelas letras do sistema (HP, EX, BF…); depois pelo número.' },
+    { id: 'funcao',   nome: 'Função',                ajuda: 'Pelo texto da função (FV01, FV09…); depois pelo número.' },
+    { id: 'situacao', nome: 'Situação',              ajuda: 'Do que está em preenchimento até o waiver aceito.' }
+  ];
+
+  function ordemInfo(id) {
+    for (var i = 0; i < ORDENS.length; i++) if (ORDENS[i].id === id) return ORDENS[i];
+    return ORDENS[0];
+  }
+
+  /* localeCompare com numeric trata "NCR-10" depois de "NCR-9", que é o que
+     se espera de "ordem alfanumérica" — e não a ordem crua de caracteres. */
+  function cmpTexto(a, b) {
+    a = str(a).trim(); b = str(b).trim();
+    if (!a && !b) return 0;
+    if (!a) return 1;            /* sem valor vai para o fim */
+    if (!b) return -1;
+    return a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' });
+  }
+
+  function indiceStatus(n) {
+    var id = statusInfo(n.status).id;
+    for (var i = 0; i < STATUS.length; i++) if (STATUS[i].id === id) return i;
+    return 0;
+  }
+
+  /** Itens da aba na ordem escolhida. Devolve um vetor novo; não mexe no projeto. */
+  function ordenar(project, kind) {
+    var lista = (project && project[itemsKey(kind)]) || [];
+    var modo = ordemInfo(project && project.ordem).id;
+    if (modo === 'manual') return lista.slice();
+
+    var pos = {};
+    lista.forEach(function (n, i) { pos[n.id] = i; });   /* desempate estável */
+    return lista.slice().sort(function (a, b) {
+      var r = 0;
+      if (modo === 'numero')       r = cmpTexto(a.ncrId, b.ncrId);
+      else if (modo === 'sistema') r = cmpTexto(a.systems, b.systems) || cmpTexto(a.ncrId, b.ncrId);
+      else if (modo === 'funcao')  r = cmpTexto(a.func, b.func) || cmpTexto(a.ncrId, b.ncrId);
+      else if (modo === 'situacao') r = (indiceStatus(a) - indiceStatus(b)) || cmpTexto(a.ncrId, b.ncrId);
+      return r || (pos[a.id] - pos[b.id]);
+    });
+  }
+
   /* --- banco compartilhado numa pasta ------------------------------------ */
 
   /**
@@ -479,6 +533,7 @@
       });
       if (typeof remoto.footer === 'string') local.footer = remoto.footer;
       if (typeof remoto.showCoverDate === 'boolean') local.showCoverDate = remoto.showCoverDate;
+      if (str(remoto.ordem)) local.ordem = ordemInfo(remoto.ordem).id;
       if (str(remoto.lastBackupBy)) {
         local.lastBackupBy = str(remoto.lastBackupBy);
         local.lastBackupAt = str(remoto.lastBackupAt);
@@ -801,6 +856,10 @@
     STATUS: STATUS,
     STATUS_CONCLUIDO: STATUS_CONCLUIDO,
     statusInfo: statusInfo,
+    ORDENS: ORDENS,
+    ordemInfo: ordemInfo,
+    ordenar: ordenar,
+    cmpTexto: cmpTexto,
     setStatus: setStatus,
     itemsKey: itemsKey,
     newEvidence: newEvidence,
