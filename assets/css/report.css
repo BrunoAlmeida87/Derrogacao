@@ -43,6 +43,12 @@
   min-height: 210mm;
 }
 
+/* Enquanto a paginação faz as contas, a área útil encolhe um pouco: é a
+   margem de segurança contra o arredondamento da impressão, sem a qual um
+   texto que fecha exatamente no fim da folha pode escorregar para a
+   seguinte na hora de imprimir. A classe só existe durante a medição. */
+.rep-page.rep-medindo { padding-bottom: calc(var(--rep-pad-bottom) + 1.5mm); }
+
 /* páginas de anexo têm margens menores, para caber mais imagem */
 .rep-page--evidence {
   --rep-pad-x: 12mm;
