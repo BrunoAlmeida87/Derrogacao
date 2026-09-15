@@ -49,6 +49,7 @@
 body[data-kind="dev"]    { --kind: #0e7490; --kind-sf: #e4f3f8; --kind-br: #b9dce8; }
 body[data-kind="resumo"] { --kind: #a15c07; --kind-sf: #fdf4e3; --kind-br: #f0d8a8; }
 body[data-kind="fluxos"] { --kind: #0f7a52; --kind-sf: #e8f6f0; --kind-br: #b6e0cf; }
+body[data-kind="conversa"] { --kind: #7a4b0f; --kind-sf: #f7efe6; --kind-br: #e2c9ad; }
 
 * { box-sizing: border-box; }
 
@@ -279,13 +280,19 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   min-height: 0;
 }
 
+/* Com cinco abas, largura igual para todas cortava o rótulo mais comprido
+   ("Conversa"). Cada uma leva a largura do seu texto e divide a sobra; se um
+   dia não couber, a fila quebra em duas linhas em vez de esconder alguma. */
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
 .tab {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
   font: inherit;
   font-weight: 700;
   font-size: 13px;
@@ -294,18 +301,19 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   background: none;
   border: none;
   border-bottom: 3px solid transparent;
-  padding: 11px 8px 9px;
+  padding: 11px 5px 9px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 5px;
   transition: background .12s, color .12s;
 }
 .tab[data-kind="ncr"]    { --tab: #4B0082; --tab-sf: #f3ecfb; }
 .tab[data-kind="dev"]    { --tab: #0e7490; --tab-sf: #e4f3f8; }
 .tab[data-kind="resumo"] { --tab: #a15c07; --tab-sf: #fdf4e3; }
 .tab[data-kind="fluxos"] { --tab: #0f7a52; --tab-sf: #e8f6f0; }
+.tab[data-kind="conversa"] { --tab: #7a4b0f; --tab-sf: #f7efe6; }
 .tab:hover { background: var(--tab-sf); color: var(--tab); }
 .tab[aria-selected="true"] {
   color: var(--tab);
@@ -318,10 +326,23 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   background: #e3e6ee;
   color: #575e6e;
   border-radius: 9px;
-  padding: 1px 7px;
-  min-width: 22px;
+  padding: 1px 5px;
+  min-width: 19px;
 }
 .tab[aria-selected="true"] .tab-count { background: var(--tab); color: #fff; }
+/* Recado não lido: um ponto no canto, fora da fila. Um número ali dentro
+   aumentaria a aba e faria a fila inteira quebrar de linha quando chegasse
+   mensagem — a contagem exata fica na dica e na lista de canais. */
+.tab { position: relative; }
+.tab-ponto {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tab);
+}
 
 .badge {
   font-size: 11px;
@@ -1734,3 +1755,144 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 /* a lista usa a largura toda da folha — cada milímetro a mais é uma palavra
    que deixa de ser partida ao meio numa coluna estreita */
 .rep-page--summary .sm-grade { padding-left: 4px; padding-right: 4px; }
+
+
+/* ==========================================================================
+   aba Conversa — recados da equipe, pela pasta da rede
+   Nada aqui alcança .rep-page: a conversa não entra em nenhuma folha do PDF.
+   ========================================================================== */
+
+.sidebar-conversa { display: flex; flex-direction: column; min-height: 0; overflow: auto; }
+.conv-canais { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 14px; }
+.conv-canais-tit {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  margin: 14px 2px 4px;
+}
+.conv-canal {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 7px 9px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+}
+.conv-canal:hover { background: var(--kind-sf); }
+.conv-canal.is-on {
+  background: var(--kind-sf);
+  border-color: var(--kind-br);
+  font-weight: 600;
+}
+.conv-canal-topo { display: flex; align-items: center; gap: 8px; }
+.conv-canal-nome { flex: 1 1 auto; font-size: 13.5px; }
+.conv-canal-sub { font-size: 11.5px; color: var(--muted); font-weight: 400; }
+.conv-canal-n {
+  flex: 0 0 auto;
+  min-width: 19px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--kind);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.conversa-scroll { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; }
+.conv-cab { display: flex; flex-direction: column; gap: 2px; }
+.conv-cab strong { font-size: 16px; color: var(--kind); }
+.conv-cab-sub { font-size: 12.5px; color: var(--muted); }
+
+/* O aviso fica sempre à vista, e não escondido num "saiba mais": tratar a
+   conversa direta como reservada seria um engano caro num programa de
+   defesa. */
+.conv-aviso {
+  border: 1px solid #e2c9ad;
+  background: #fdf6ee;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #6b4a1f;
+}
+.conv-sem-pasta {
+  border: 1px solid var(--line);
+  background: var(--panel-2, #f6f7f9);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.conv-lista {
+  flex: 1 1 auto;
+  min-height: 160px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 4px;
+}
+/* com poucos recados a conversa fica encostada no campo de escrever, e não
+   solta no alto de uma tela vazia; quando enche, o espaço some sozinho */
+.conv-lista::before { content: ''; margin-top: auto; }
+.conv-dia {
+  align-self: center;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--kind-sf);
+  border-radius: 10px;
+  padding: 2px 10px;
+  margin: 6px 0 2px;
+}
+.conv-msg {
+  max-width: 78%;
+  align-self: flex-start;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 11px 9px;
+}
+.conv-msg.is-minha {
+  align-self: flex-end;
+  background: var(--kind-sf);
+  border-color: var(--kind-br);
+}
+.conv-msg-cab { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.conv-msg-quem { font-size: 12px; font-weight: 700; color: var(--kind); }
+.conv-msg-quando { font-size: 11px; color: var(--muted); }
+.conv-msg-apagar {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+.conv-msg-apagar:hover { color: var(--danger, #b91c1c); }
+/* o recado sai como foi escrito, com as quebras de linha que a pessoa fez */
+.conv-msg-txt { font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: break-word; }
+
+.conv-form { display: flex; gap: 8px; align-items: flex-end; }
+.conv-form textarea {
+  flex: 1 1 auto;
+  resize: vertical;
+  min-height: 46px;
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.conv-form .btn { flex: 0 0 auto; }
+
+/* uma seção à parte dentro de um diálogo */
+.dlg-sec { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 12px; }
+.dlg-sec-tit { font-size: 13px; font-weight: 700; margin-bottom: 8px; }

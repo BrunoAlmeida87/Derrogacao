@@ -61,6 +61,7 @@
 body[data-kind="dev"]    { --kind: #0e7490; --kind-sf: #e4f3f8; --kind-br: #b9dce8; }
 body[data-kind="resumo"] { --kind: #a15c07; --kind-sf: #fdf4e3; --kind-br: #f0d8a8; }
 body[data-kind="fluxos"] { --kind: #0f7a52; --kind-sf: #e8f6f0; --kind-br: #b6e0cf; }
+body[data-kind="conversa"] { --kind: #7a4b0f; --kind-sf: #f7efe6; --kind-br: #e2c9ad; }
 
 * { box-sizing: border-box; }
 
@@ -291,13 +292,19 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   min-height: 0;
 }
 
+/* Com cinco abas, largura igual para todas cortava o rótulo mais comprido
+   ("Conversa"). Cada uma leva a largura do seu texto e divide a sobra; se um
+   dia não couber, a fila quebra em duas linhas em vez de esconder alguma. */
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
 .tab {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
   font: inherit;
   font-weight: 700;
   font-size: 13px;
@@ -306,18 +313,19 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   background: none;
   border: none;
   border-bottom: 3px solid transparent;
-  padding: 11px 8px 9px;
+  padding: 11px 5px 9px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 5px;
   transition: background .12s, color .12s;
 }
 .tab[data-kind="ncr"]    { --tab: #4B0082; --tab-sf: #f3ecfb; }
 .tab[data-kind="dev"]    { --tab: #0e7490; --tab-sf: #e4f3f8; }
 .tab[data-kind="resumo"] { --tab: #a15c07; --tab-sf: #fdf4e3; }
 .tab[data-kind="fluxos"] { --tab: #0f7a52; --tab-sf: #e8f6f0; }
+.tab[data-kind="conversa"] { --tab: #7a4b0f; --tab-sf: #f7efe6; }
 .tab:hover { background: var(--tab-sf); color: var(--tab); }
 .tab[aria-selected="true"] {
   color: var(--tab);
@@ -330,10 +338,23 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   background: #e3e6ee;
   color: #575e6e;
   border-radius: 9px;
-  padding: 1px 7px;
-  min-width: 22px;
+  padding: 1px 5px;
+  min-width: 19px;
 }
 .tab[aria-selected="true"] .tab-count { background: var(--tab); color: #fff; }
+/* Recado não lido: um ponto no canto, fora da fila. Um número ali dentro
+   aumentaria a aba e faria a fila inteira quebrar de linha quando chegasse
+   mensagem — a contagem exata fica na dica e na lista de canais. */
+.tab { position: relative; }
+.tab-ponto {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tab);
+}
 
 .badge {
   font-size: 11px;
@@ -1747,6 +1768,147 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
    que deixa de ser partida ao meio numa coluna estreita */
 .rep-page--summary .sm-grade { padding-left: 4px; padding-right: 4px; }
 
+
+/* ==========================================================================
+   aba Conversa — recados da equipe, pela pasta da rede
+   Nada aqui alcança .rep-page: a conversa não entra em nenhuma folha do PDF.
+   ========================================================================== */
+
+.sidebar-conversa { display: flex; flex-direction: column; min-height: 0; overflow: auto; }
+.conv-canais { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 14px; }
+.conv-canais-tit {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  margin: 14px 2px 4px;
+}
+.conv-canal {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 7px 9px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+}
+.conv-canal:hover { background: var(--kind-sf); }
+.conv-canal.is-on {
+  background: var(--kind-sf);
+  border-color: var(--kind-br);
+  font-weight: 600;
+}
+.conv-canal-topo { display: flex; align-items: center; gap: 8px; }
+.conv-canal-nome { flex: 1 1 auto; font-size: 13.5px; }
+.conv-canal-sub { font-size: 11.5px; color: var(--muted); font-weight: 400; }
+.conv-canal-n {
+  flex: 0 0 auto;
+  min-width: 19px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--kind);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.conversa-scroll { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; }
+.conv-cab { display: flex; flex-direction: column; gap: 2px; }
+.conv-cab strong { font-size: 16px; color: var(--kind); }
+.conv-cab-sub { font-size: 12.5px; color: var(--muted); }
+
+/* O aviso fica sempre à vista, e não escondido num "saiba mais": tratar a
+   conversa direta como reservada seria um engano caro num programa de
+   defesa. */
+.conv-aviso {
+  border: 1px solid #e2c9ad;
+  background: #fdf6ee;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #6b4a1f;
+}
+.conv-sem-pasta {
+  border: 1px solid var(--line);
+  background: var(--panel-2, #f6f7f9);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.conv-lista {
+  flex: 1 1 auto;
+  min-height: 160px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 4px;
+}
+/* com poucos recados a conversa fica encostada no campo de escrever, e não
+   solta no alto de uma tela vazia; quando enche, o espaço some sozinho */
+.conv-lista::before { content: ''; margin-top: auto; }
+.conv-dia {
+  align-self: center;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--kind-sf);
+  border-radius: 10px;
+  padding: 2px 10px;
+  margin: 6px 0 2px;
+}
+.conv-msg {
+  max-width: 78%;
+  align-self: flex-start;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 11px 9px;
+}
+.conv-msg.is-minha {
+  align-self: flex-end;
+  background: var(--kind-sf);
+  border-color: var(--kind-br);
+}
+.conv-msg-cab { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.conv-msg-quem { font-size: 12px; font-weight: 700; color: var(--kind); }
+.conv-msg-quando { font-size: 11px; color: var(--muted); }
+.conv-msg-apagar {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+.conv-msg-apagar:hover { color: var(--danger, #b91c1c); }
+/* o recado sai como foi escrito, com as quebras de linha que a pessoa fez */
+.conv-msg-txt { font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: break-word; }
+
+.conv-form { display: flex; gap: 8px; align-items: flex-end; }
+.conv-form textarea {
+  flex: 1 1 auto;
+  resize: vertical;
+  min-height: 46px;
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.conv-form .btn { flex: 0 0 auto; }
+
+/* uma seção à parte dentro de um diálogo */
+.dlg-sec { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 12px; }
+.dlg-sec-tit { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+
 </style>
 <style>
 /* assets/css/report.css */
@@ -2187,6 +2349,10 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
               title="O caminho dos waivers de cada item, lido do Waiver Historic">
         Fluxos
       </button>
+      <button class="tab" role="tab" data-kind="conversa" aria-selected="false" hidden
+              title="Recados da equipe, pela pasta da rede">
+        Conversa <span class="tab-ponto" id="conversaCount" hidden></span>
+      </button>
     </div>
 
     <div class="sidebar-body" id="sidebarBody">
@@ -2233,6 +2399,14 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       do <strong>relatório aberto</strong>, NCR e DEV.
     </div>
 
+    <div class="sidebar-conversa" id="sidebarConversa" hidden>
+      <div class="sidebar-note">
+        Recados da equipe, guardados <strong>na pasta da rede</strong> — não há
+        servidor nem nuvem. Chega a cada sincronização, junto com os dados.
+      </div>
+      <div class="conv-canais" id="convCanais"></div>
+    </div>
+
     <div class="sidebar-note" id="sidebarResumo" hidden>
       O resumo reúne <strong>todos os marcos</strong> deste navegador — não só o
       relatório aberto. Escolha um marco na tela ao lado para ver o detalhe e
@@ -2244,6 +2418,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     <div class="editor-scroll" id="editorScroll"></div>
     <div class="editor-scroll summary-scroll" id="summaryScroll" hidden></div>
     <div class="editor-scroll summary-scroll" id="fluxosScroll" hidden></div>
+    <div class="editor-scroll conversa-scroll" id="conversaScroll" hidden></div>
   </main>
 
 </div>
@@ -3659,6 +3834,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   'use strict';
 
   var ARQUIVO = 'derrogacao-dados.json';
+  var CONVERSAS = 'conversas.json';
   var HISTORICO = 'historico';
   var IMAGENS = 'imagens';
   var MAX_HISTORICO = 40;
@@ -3929,6 +4105,30 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     });
   }
 
+  /* --- conversa da equipe --------------------------------------------------
+     Arquivo próprio, ao lado dos dados. Fora do derrogacao-dados.json de
+     propósito: aquele é reescrito a cada gravação e copiado inteiro em cada
+     versão do histórico, e o papo do dia não tem por que engordar isso. */
+
+  function lerConversas() {
+    if (!handle) return Promise.resolve(null);
+    return handle.getFileHandle(CONVERSAS, { create: false })
+      .then(function (fh) { return fh.getFile(); })
+      .then(function (f) { return f.text(); })
+      .then(function (t) { return t ? JSON.parse(t) : null; })
+      .catch(function () { return null; });   /* ainda não existe: primeira conversa */
+  }
+
+  function gravarConversas(payload) {
+    if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
+    return handle.getFileHandle(CONVERSAS, { create: true })
+      .then(function (fh) { return fh.createWritable(); })
+      .then(function (w) {
+        return w.write(JSON.stringify(payload, null, 1)).then(function () { return w.close(); });
+      })
+      .then(function () { return true; });
+  }
+
   /* --- histórico automático ------------------------------------------------ */
 
   function carimbo(d) {
@@ -4036,6 +4236,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     versionar: versionar,
     listarHistorico: listarHistorico,
     lerHistorico: lerHistorico,
+    lerConversas: lerConversas,
+    gravarConversas: gravarConversas,
+    CONVERSAS: CONVERSAS,
     gravarImagem: gravarImagem,
     lerImagem: lerImagem,
     podarImagens: podarImagens,
@@ -5747,6 +5950,298 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 
 </script>
 <script>
+/* assets/js/chat.js */
+/* ==========================================================================
+   chat.js — a conversa da equipe, dentro da pasta que já é o banco
+   --------------------------------------------------------------------------
+   Não há servidor aqui, e não vai haver: a conversa é um arquivo
+   (conversas.json) ao lado do derrogacao-dados.json, na mesma pasta da rede.
+   Cada pessoa escreve no seu navegador, a mensagem vai para o arquivo na
+   sincronização seguinte, e a de todo mundo volta na mesma leitura. Vale
+   para o recado da equipe, não para conversa ao vivo: o intervalo é o mesmo
+   dos dados, 20 segundos.
+
+   Três coisas que precisam ficar ditas, porque mudam o que se pode esperar:
+
+   - **Sem a pasta não há conversa.** Sem ela, o que você escrever fica só
+     neste navegador e ninguém vê.
+   - **A conversa direta não é secreta.** Ela é um canal entre dois nomes
+     dentro do mesmo arquivo: quem abre a pasta lê tudo, inclusive o que não
+     é endereçado a ele. Serve para organizar o assunto, não para esconder.
+   - **O nome é o que a pessoa digitou**, como no resto do programa. Não há
+     senha nem login, então não há como provar que quem assinou foi quem
+     escreveu.
+
+   O arquivo da conversa fica fora do arquivo de dados de propósito: os dados
+   são reescritos a cada gravação e copiados inteiros em cada versão do
+   histórico, e o papo do dia não tem por que engordar isso. Pelo mesmo
+   motivo a conversa não entra no backup nem em nenhuma página do PDF.
+   ========================================================================== */
+
+(function (global) {
+  'use strict';
+
+  var CHAVE_LIGADO = 'derrogacao:conversa';
+  var CHAVE_MSGS = 'derrogacao:conversas';
+  var CHAVE_LIDAS = 'derrogacao:conversas-lidas';
+
+  var GERAL = 'geral';
+  var MAX_MSGS = 1000;        // o arquivo não cresce para sempre
+  var DIAS_GUARDA = 90;       // e o que é muito velho sai
+  var MAX_TEXTO = 2000;       // por mensagem
+
+  function str(v) { return (v == null ? '' : String(v)); }
+  function agora() { return new Date().toISOString(); }
+
+  function uid() {
+    if (global.Store && Store.uid) return Store.uid();
+    return 'm-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+
+  /* --- ligado ou desligado ----------------------------------------------
+     Vale para este navegador, como o nome de quem usa: cada pessoa liga a
+     sua conversa. Ligar aqui não liga a dos outros. */
+
+  function ligado() {
+    try { return global.localStorage.getItem(CHAVE_LIGADO) === '1'; } catch (e) { return false; }
+  }
+
+  function ligar(valor) {
+    try { global.localStorage.setItem(CHAVE_LIGADO, valor ? '1' : '0'); } catch (e) { /* ignora */ }
+  }
+
+  /* --- canais ------------------------------------------------------------ */
+
+  /** "Bruno  ALMEIDA" e "bruno almeida" são a mesma pessoa. */
+  function chaveNome(nome) {
+    return str(nome).trim().toLowerCase().replace(/\s+/g, ' ');
+  }
+
+  /* O canal de duas pessoas não depende de quem abriu: os dois nomes entram
+     em ordem, então os dois lados escrevem no mesmo lugar. */
+  function canalDireto(a, b) {
+    var x = chaveNome(a), y = chaveNome(b);
+    return 'd:' + (x < y ? x + '|' + y : y + '|' + x);
+  }
+
+  function ehDireto(canal) { return str(canal).slice(0, 2) === 'd:'; }
+
+  /** Com quem eu falo neste canal — vazio quando é o geral. */
+  function outroLado(canal, eu) {
+    if (!ehDireto(canal)) return '';
+    var lados = str(canal).slice(2).split('|');
+    var meu = chaveNome(eu);
+    return lados[0] === meu ? lados[1] : lados[0];
+  }
+
+  /* --- mensagens --------------------------------------------------------- */
+
+  function nova(canal, texto, de) {
+    return {
+      id: uid(),
+      canal: str(canal) || GERAL,
+      de: str(de),
+      texto: str(texto).slice(0, MAX_TEXTO),
+      em: agora()
+    };
+  }
+
+  function normalizar(m) {
+    if (!m || typeof m !== 'object' || !m.id) return null;
+    var out = {
+      id: str(m.id),
+      canal: str(m.canal) || GERAL,
+      de: str(m.de),
+      texto: str(m.texto).slice(0, MAX_TEXTO),
+      em: str(m.em) || agora()
+    };
+    if (m.apagada) { out.apagada = true; out.texto = ''; }
+    return out;
+  }
+
+  function porTempo(a, b) {
+    return String(a.em).localeCompare(String(b.em)) || String(a.id).localeCompare(String(b.id));
+  }
+
+  /**
+   * Junta dois conjuntos de mensagens: união pelo id.
+   *
+   * Aqui não existe "vale a mais recente" — mensagem não se edita. O que
+   * viaja é o apagar: uma vez apagada, fica apagada nos dois lados, senão
+   * ela voltaria pela sincronização de quem ainda não soube (é a mesma
+   * lápide que o resto do programa usa para os itens excluídos).
+   */
+  function juntar(a, b) {
+    var porId = {};
+    var ordem = [];
+    [a || [], b || []].forEach(function (lista) {
+      lista.forEach(function (bruta) {
+        var m = normalizar(bruta);
+        if (!m) return;
+        var tem = porId[m.id];
+        if (!tem) { porId[m.id] = m; ordem.push(m.id); return; }
+        if (m.apagada) { tem.apagada = true; tem.texto = ''; }
+      });
+    });
+    return podar(ordem.map(function (id) { return porId[id]; }).sort(porTempo));
+  }
+
+  /* O arquivo é lido e reescrito inteiro a cada sincronização: sem um teto
+     ele viraria o maior arquivo da pasta em poucos meses. */
+  function podar(lista) {
+    var corte = new Date(Date.now() - DIAS_GUARDA * 86400000).toISOString();
+    var viva = lista.filter(function (m) { return String(m.em) >= corte; });
+    /* nunca esvazia a tela: se tudo for velho, ficam as últimas mesmo assim */
+    if (!viva.length) viva = lista.slice(-50);
+    return viva.length > MAX_MSGS ? viva.slice(-MAX_MSGS) : viva;
+  }
+
+  /** Tem aqui alguma coisa que o arquivo da pasta ainda não tem? */
+  function faltamLa(minhas, remotas) {
+    var la = {};
+    (remotas || []).forEach(function (m) { if (m && m.id) la[m.id] = m; });
+    return (minhas || []).some(function (m) {
+      var outra = la[m.id];
+      if (!outra) return true;
+      return !!m.apagada !== !!outra.apagada;
+    });
+  }
+
+  function doCanal(lista, canal) {
+    return (lista || []).filter(function (m) { return m.canal === canal; });
+  }
+
+  /* --- lidas e não lidas -------------------------------------------------- */
+
+  function lidas() {
+    try { return JSON.parse(global.localStorage.getItem(CHAVE_LIDAS) || '{}') || {}; }
+    catch (e) { return {}; }
+  }
+
+  /**
+   * Marca o canal como lido até `quando` (o carimbo da mensagem mais nova
+   * que está à vista) — ou até agora, o que for maior.
+   *
+   * O maior dos dois, e não simplesmente agora, porque o carimbo é do relógio
+   * de quem escreveu: um computador adiantado produziria mensagens com data
+   * no futuro, que nunca sairiam de "não lidas".
+   */
+  function marcarLido(canal, quando) {
+    var l = lidas();
+    var q = str(quando);
+    var n = agora();
+    l[canal] = q > n ? q : n;
+    try { global.localStorage.setItem(CHAVE_LIDAS, JSON.stringify(l)); } catch (e) { /* ignora */ }
+  }
+
+  /** Quantas mensagens de outra pessoa chegaram depois da última leitura. */
+  function naoLidas(lista, eu) {
+    var l = lidas();
+    var meu = chaveNome(eu);
+    var conta = { total: 0, canais: {} };
+    (lista || []).forEach(function (m) {
+      if (m.apagada) return;
+      if (chaveNome(m.de) === meu) return;          /* o que eu escrevi, eu li */
+      if (String(m.em) <= String(l[m.canal] || '')) return;
+      conta.canais[m.canal] = (conta.canais[m.canal] || 0) + 1;
+      conta.total++;
+    });
+    return conta;
+  }
+
+  /* --- quem está por aí --------------------------------------------------- */
+
+  /**
+   * As pessoas com quem dá para falar: quem já escreveu na conversa e quem
+   * assinou alguma coisa nos relatórios. Não há cadastro de usuários no
+   * programa — esta lista é o mais perto disso que existe.
+   */
+  function pessoas(projects, mensagens, eu) {
+    var vistos = {};
+    var meu = chaveNome(eu);
+
+    function anota(nome) {
+      var k = chaveNome(nome);
+      if (!k || k === meu) return;
+      if (!vistos[k]) vistos[k] = str(nome).trim();
+    }
+
+    (projects || []).forEach(function (p) {
+      anota(p.lastEditedBy);
+      (p.sessions || []).forEach(function (s) { anota(s.user); });
+      ['ncrs', 'devs'].forEach(function (key) {
+        (p[key] || []).forEach(function (n) { anota(n.editedBy); });
+      });
+      (p.deleted || []).forEach(function (t) { anota(t.by); });
+    });
+    (mensagens || []).forEach(function (m) {
+      anota(m.de);
+      if (ehDireto(m.canal)) {
+        /* o outro lado de uma conversa direta também é alguém conhecido */
+        var lados = String(m.canal).slice(2).split('|');
+        lados.forEach(function (x) { if (x !== meu) anota(x); });
+      }
+    });
+
+    return Object.keys(vistos).sort().map(function (k) {
+      return { chave: k, nome: vistos[k] };
+    });
+  }
+
+  /* --- cópia local -------------------------------------------------------- */
+
+  /* Guardada aqui para a conversa abrir antes de a pasta responder — e para
+     o que você escreveu não se perder se a pasta estiver fora do ar. */
+
+  function locais() {
+    try {
+      var cru = global.localStorage.getItem(CHAVE_MSGS);
+      var lista = cru ? JSON.parse(cru) : [];
+      return Array.isArray(lista) ? juntar(lista, []) : [];
+    } catch (e) { return []; }
+  }
+
+  function gravarLocais(lista) {
+    try { global.localStorage.setItem(CHAVE_MSGS, JSON.stringify(lista || [])); }
+    catch (e) { /* cheio: a pasta continua sendo a cópia que vale */ }
+  }
+
+  /** O que vai para o arquivo da pasta. */
+  function envelope(lista) {
+    return {
+      format: 'derrogacao-conversas',
+      schema: 1,
+      atualizadoEm: agora(),
+      mensagens: lista || []
+    };
+  }
+
+  global.Chat = {
+    GERAL: GERAL,
+    MAX_TEXTO: MAX_TEXTO,
+    DIAS_GUARDA: DIAS_GUARDA,
+    ligado: ligado,
+    ligar: ligar,
+    chaveNome: chaveNome,
+    canalDireto: canalDireto,
+    ehDireto: ehDireto,
+    outroLado: outroLado,
+    nova: nova,
+    juntar: juntar,
+    faltamLa: faltamLa,
+    doCanal: doCanal,
+    naoLidas: naoLidas,
+    marcarLido: marcarLido,
+    lidas: lidas,
+    pessoas: pessoas,
+    locais: locais,
+    gravarLocais: gravarLocais,
+    envelope: envelope
+  };
+})(window);
+
+</script>
+<script>
 /* assets/js/app.js */
 /* ==========================================================================
    app.js — interface do editor de relatórios de derrogação
@@ -5774,8 +6269,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   var isDev = function () { return state.kind === 'dev'; };
   var isResumo = function () { return state.kind === 'resumo'; };
   var isFluxos = function () { return state.kind === 'fluxos'; };
+  var isConversa = function () { return state.kind === 'conversa'; };
   /* Abas que tomam a tela inteira: não têm lista lateral nem formulário. */
-  var telaCheia = function () { return isResumo() || isFluxos(); };
+  var telaCheia = function () { return isResumo() || isFluxos() || isConversa(); };
   /** Lista de itens da aba ativa — o vetor de verdade, para alterar. */
   var items = function () {
     if (!state.project || telaCheia()) return [];
@@ -5962,6 +6458,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     renderBackupNotice();
     if (isResumo()) renderSummary();
     if (isFluxos()) renderFluxos();
+    if (isConversa()) renderCanais();
     markSaved();
   }
 
@@ -5975,17 +6472,24 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     $$('.tab').forEach(function (t) {
       var on = t.dataset.kind === state.kind;
       t.setAttribute('aria-selected', on ? 'true' : 'false');
+      /* a contagem é de itens: as abas que não têm itens usam a etiqueta
+         para outra coisa (a Conversa mostra ali os recados não lidos) */
       var cnt = $('.tab-count', t);
-      if (cnt) cnt.textContent = state.project[Store.itemsKey(t.dataset.kind)].length;
+      if (cnt && (t.dataset.kind === 'ncr' || t.dataset.kind === 'dev')) {
+        cnt.textContent = state.project[Store.itemsKey(t.dataset.kind)].length;
+      }
     });
+    renderConversaBadge();
 
-    /* resumo e fluxos trocam a tela inteira: não há lista nem formulário */
+    /* resumo, fluxos e conversa trocam a tela inteira: não há lista nem formulário */
     $('#sidebarBody').hidden = telaCheia();
     $('#sidebarResumo').hidden = !isResumo();
     $('#sidebarFluxos').hidden = !isFluxos();
+    $('#sidebarConversa').hidden = !isConversa();
     $('#editorScroll').hidden = telaCheia();
     $('#summaryScroll').hidden = !isResumo();
     $('#fluxosScroll').hidden = !isFluxos();
+    $('#conversaScroll').hidden = !isConversa();
     $('#previewBtn').hidden = telaCheia();
     if (telaCheia()) {
       $('#pdfBtn').textContent = 'Exportar PDF…';
@@ -6009,6 +6513,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     renderTabs();
     if (isResumo()) { renderSummary(); return; }
     if (isFluxos()) { renderFluxos(); return; }
+    if (isConversa()) { abrirCanal(canalAberto); return; }
     renderNcrList();
     renderEditor();
     $('#editorScroll').scrollTop = 0;
@@ -6349,6 +6854,331 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       window.print();
       setTimeout(function () { document.title = titulo; }, 500);
     }, 60);
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* aba Conversa — recados da equipe, pela pasta da rede                    */
+  /* ---------------------------------------------------------------------- */
+
+  /* Tudo o que este navegador conhece da conversa. A cópia que vale é a da
+     pasta; esta existe para a aba abrir antes de a pasta responder, e para o
+     que você escreveu não se perder se a rede estiver fora do ar. */
+  var conversas = [];
+  var canalAberto = Chat.GERAL;
+  var pessoasConhecidas = [];
+  var conversaTimer = null;
+  var sincronizandoConversa = false;
+  /* arquivo de conversa gravado por uma versão mais nova: só leitura, pela
+     mesma razão dos dados — o que esta página não conhece sumiria */
+  var conversaSoLeitura = false;
+  var caixaDeTexto = null;
+
+  function podeConversar() {
+    return Chat.ligado() && Pasta.ligada() && pastaEstado === 'on';
+  }
+
+  function atualizarPessoas() {
+    pessoasConhecidas = Chat.pessoas(state.projects, conversas, Store.getUser());
+    return pessoasConhecidas;
+  }
+
+  function nomeDaChave(chave) {
+    var achado = pessoasConhecidas.filter(function (p) { return p.chave === chave; })[0];
+    return achado ? achado.nome : chave;
+  }
+
+  function rotuloCanal(canal) {
+    return canal === Chat.GERAL ? 'Geral' : nomeDaChave(Chat.outroLado(canal, Store.getUser()));
+  }
+
+  /** Recados não lidos, na etiqueta da aba. */
+  function renderConversaBadge() {
+    var tab = $('.tab[data-kind="conversa"]');
+    if (!tab) return;
+    tab.hidden = !Chat.ligado();
+    var box = $('#conversaCount');
+    var n = Chat.ligado() ? Chat.naoLidas(conversas, Store.getUser()).total : 0;
+    box.hidden = !n;
+    tab.title = n
+      ? n + (n === 1 ? ' recado não lido' : ' recados não lidos')
+      : 'Recados da equipe, pela pasta da rede';
+  }
+
+  /** A lista de canais, na lateral: o geral e uma linha por pessoa. */
+  function renderCanais() {
+    var host = $('#convCanais');
+    if (!host) return;
+    host.innerHTML = '';
+    atualizarPessoas();
+    var contas = Chat.naoLidas(conversas, Store.getUser()).canais;
+
+    function linha(canal, rotulo, sub) {
+      var b = el('button', 'conv-canal' + (canal === canalAberto ? ' is-on' : ''));
+      b.type = 'button';
+      var topo = el('div', 'conv-canal-topo');
+      topo.appendChild(el('span', 'conv-canal-nome', rotulo));
+      var n = contas[canal] || 0;
+      if (n) topo.appendChild(el('span', 'conv-canal-n', String(n)));
+      b.appendChild(topo);
+      if (sub) b.appendChild(el('span', 'conv-canal-sub', sub));
+      b.addEventListener('click', function () { abrirCanal(canal); });
+      host.appendChild(b);
+    }
+
+    linha(Chat.GERAL, 'Geral', 'todo mundo que abre esta pasta');
+    host.appendChild(el('div', 'conv-canais-tit', 'Conversa direta'));
+
+    if (!Store.getUser()) {
+      host.appendChild(el('p', 'hint',
+        'Informe o seu nome (no menu “⋯ Mais”) para falar com alguém em separado.'));
+      return;
+    }
+    if (!pessoasConhecidas.length) {
+      host.appendChild(el('p', 'hint',
+        'Ninguém mais assinou nada nesta pasta ainda. Quem editar um item ou ' +
+        'escrever no geral aparece aqui.'));
+      return;
+    }
+    pessoasConhecidas.forEach(function (p) {
+      linha(Chat.canalDireto(Store.getUser(), p.nome), p.nome, '');
+    });
+  }
+
+  /** Lido até a mensagem mais nova que está à vista neste canal. */
+  function marcarCanalLido(canal) {
+    var msgs = Chat.doCanal(conversas, canal);
+    Chat.marcarLido(canal, msgs.length ? msgs[msgs.length - 1].em : '');
+  }
+
+  function abrirCanal(canal) {
+    canalAberto = canal;
+    marcarCanalLido(canal);
+    renderCanais();
+    renderConversa();
+    renderConversaBadge();
+  }
+
+  /**
+   * Monta a aba. O campo de escrever é montado aqui e só aqui: a lista de
+   * mensagens se redesenha sozinha a cada sincronização, e refazer o campo
+   * junto apagaria o que está sendo digitado.
+   */
+  function renderConversa() {
+    var host = $('#conversaScroll');
+    if (!host) return;
+    var rascunho = caixaDeTexto ? caixaDeTexto.value : '';
+    host.innerHTML = '';
+    caixaDeTexto = null;
+
+    var cab = el('div', 'conv-cab');
+    cab.appendChild(el('strong', null, rotuloCanal(canalAberto)));
+    cab.appendChild(el('span', 'conv-cab-sub', canalAberto === Chat.GERAL
+      ? 'Recado para quem abrir esta pasta.'
+      : 'Conversa entre você e ' + rotuloCanal(canalAberto) + '.'));
+    host.appendChild(cab);
+
+    /* O aviso não é enfeite: sem ele alguém trataria a conversa direta como
+       canal reservado, que ela não é. */
+    var aviso = el('div', 'conv-aviso');
+    aviso.appendChild(el('strong', null, 'Isto não é canal seguro. '));
+    aviso.appendChild(document.createTextNode(
+      'Tudo fica num arquivo dentro da pasta da rede (' + Pasta.CONVERSAS + '), ' +
+      'inclusive as conversas diretas: quem abre a pasta pode ler. E o nome é o ' +
+      'que cada um digitou — não há senha que prove quem escreveu.'));
+    host.appendChild(aviso);
+
+    if (!Pasta.ligada() || pastaEstado !== 'on') {
+      var sem = el('div', 'conv-sem-pasta');
+      sem.appendChild(el('strong', null, 'A pasta da rede não está ligada. '));
+      sem.appendChild(document.createTextNode(
+        'O que você escrever fica só neste navegador até a pasta voltar — ' +
+        'e ninguém mais vê. Ligue em “⋯ Mais → Pasta da rede como banco de dados”.'));
+      host.appendChild(sem);
+    } else if (conversaSoLeitura) {
+      host.appendChild(el('div', 'conv-sem-pasta',
+        'A conversa desta pasta foi gravada por uma versão mais nova do programa. ' +
+        'Só leitura até você recarregar a página (Ctrl+F5).'));
+    }
+
+    var lista = el('div', 'conv-lista');
+    lista.id = 'convLista';
+    host.appendChild(lista);
+
+    var form = el('div', 'conv-form');
+    var caixa = document.createElement('textarea');
+    caixa.rows = 2;
+    caixa.id = 'convTexto';
+    caixa.maxLength = Chat.MAX_TEXTO;
+    caixa.placeholder = 'Escreva o recado… (Enter envia, Shift+Enter quebra a linha)';
+    caixa.value = rascunho;
+    caixa.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarConversa(); }
+    });
+    form.appendChild(caixa);
+    caixaDeTexto = caixa;
+
+    var enviar = el('button', 'btn btn--primary', 'Enviar');
+    enviar.type = 'button';
+    enviar.id = 'convEnviarBtn';
+    enviar.addEventListener('click', enviarConversa);
+    form.appendChild(enviar);
+    host.appendChild(form);
+
+    renderMensagens(true);
+  }
+
+  /** Só a lista de mensagens — é o que a sincronização redesenha. */
+  function renderMensagens(irParaOFim) {
+    var lista = $('#convLista');
+    if (!lista) return;
+    /* quem estava lendo mais acima não é jogado para o fim a cada recado */
+    var colado = irParaOFim ||
+      (lista.scrollTop + lista.clientHeight >= lista.scrollHeight - 30);
+    lista.innerHTML = '';
+
+    var msgs = Chat.doCanal(conversas, canalAberto).filter(function (m) { return !m.apagada; });
+    if (!msgs.length) {
+      lista.appendChild(el('p', 'hint', canalAberto === Chat.GERAL
+        ? 'Nenhum recado ainda. O primeiro é seu.'
+        : 'Vocês ainda não trocaram nenhum recado.'));
+      return;
+    }
+
+    var meu = Chat.chaveNome(Store.getUser());
+    var diaAnterior = '';
+    msgs.forEach(function (m) {
+      var dia = String(m.em).slice(0, 10);
+      if (dia !== diaAnterior) {
+        diaAnterior = dia;
+        var d = new Date(m.em);
+        lista.appendChild(el('div', 'conv-dia',
+          isNaN(d) ? dia : d.toLocaleDateString('pt-BR')));
+      }
+
+      var ehMinha = Chat.chaveNome(m.de) === meu && !!meu;
+      var linha = el('div', 'conv-msg' + (ehMinha ? ' is-minha' : ''));
+      var cabMsg = el('div', 'conv-msg-cab');
+      cabMsg.appendChild(el('span', 'conv-msg-quem', m.de || 'sem nome'));
+      cabMsg.appendChild(el('span', 'conv-msg-quando', horaDe(m.em)));
+      if (ehMinha) {
+        var x = el('button', 'conv-msg-apagar', '✕');
+        x.type = 'button';
+        x.title = 'Apagar este recado para todo mundo';
+        x.addEventListener('click', function () { apagarMensagem(m); });
+        cabMsg.appendChild(x);
+      }
+      linha.appendChild(cabMsg);
+      linha.appendChild(el('div', 'conv-msg-txt', m.texto));
+      lista.appendChild(linha);
+    });
+
+    if (colado) lista.scrollTop = lista.scrollHeight;
+  }
+
+  function horaDe(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return '';
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function enviarConversa() {
+    var texto = (caixaDeTexto ? caixaDeTexto.value : '').trim();
+    if (!texto) return;
+    /* o recado é assinado: sem nome não dá para saber de quem veio */
+    if (!Store.getUser()) {
+      openUserDialog(function () { enviarConversa(); });
+      toast('Informe o seu nome — é ele que assina o recado.');
+      return;
+    }
+    conversas = Chat.juntar(conversas, [Chat.nova(canalAberto, texto, Store.getUser())]);
+    Chat.gravarLocais(conversas);
+    marcarCanalLido(canalAberto);
+    caixaDeTexto.value = '';
+    caixaDeTexto.focus();
+    renderMensagens(true);
+    renderCanais();
+    renderConversaBadge();
+    sincronizarConversas({ forcar: true }).then(function (r) {
+      if (r === 'sem-pasta') {
+        toast('Sem a pasta da rede, o recado fica só neste navegador.', 4500);
+      }
+    });
+  }
+
+  /* Apagar vale para todo mundo: a marca viaja junto, senão o recado voltaria
+     pela sincronização de quem ainda não soube — a mesma lápide dos itens. */
+  function apagarMensagem(m) {
+    if (!confirm('Apagar este recado para todo mundo?')) return;
+    m.apagada = true;
+    m.texto = '';
+    Chat.gravarLocais(conversas);
+    renderMensagens();
+    sincronizarConversas({ forcar: true });
+  }
+
+  /**
+   * Lê a conversa da pasta, junta com a daqui e grava de volta o resultado.
+   *
+   * Ler-juntar-gravar, e não só gravar: dois navegadores escrevendo ao mesmo
+   * tempo apagariam o recado um do outro. Como mensagem não se edita, a
+   * junção é união por identificador — e sempre converge.
+   */
+  function sincronizarConversas(opts) {
+    opts = opts || {};
+    if (!Chat.ligado()) return Promise.resolve(null);
+    if (!Pasta.ligada() || pastaEstado !== 'on') return Promise.resolve('sem-pasta');
+    if (sincronizandoConversa) return Promise.resolve(null);
+    sincronizandoConversa = true;
+
+    var antes = Chat.naoLidas(conversas, Store.getUser()).total;
+    return Pasta.lerConversas()
+      .then(function (dados) {
+        if (dados && Number(dados.schema) > 1) conversaSoLeitura = true;
+        var remotas = (dados && Array.isArray(dados.mensagens)) ? dados.mensagens : [];
+        conversas = Chat.juntar(conversas, remotas);
+        Chat.gravarLocais(conversas);
+        if (conversaSoLeitura) return false;
+        if (!opts.forcar && !Chat.faltamLa(conversas, remotas)) return false;
+        return Pasta.gravarConversas(Chat.envelope(conversas));
+      })
+      .then(function () {
+        sincronizandoConversa = false;
+        var depois = Chat.naoLidas(conversas, Store.getUser()).total;
+        if (isConversa()) {
+          /* o canal aberto está à vista: o que chega nele já está lido */
+          marcarCanalLido(canalAberto);
+          renderMensagens();
+          renderCanais();
+        } else if (depois > antes) {
+          toast('Recado novo na aba Conversa.', 4000);
+        }
+        renderConversaBadge();
+        return depois;
+      })
+      .catch(function (e) {
+        sincronizandoConversa = false;
+        console.warn('Conversa: não foi possível sincronizar com a pasta.', e);
+        return null;
+      });
+  }
+
+  /* De tempos em tempos, como os dados. Não é conversa ao vivo, e o programa
+     não promete que seja: o recado chega na próxima leitura da pasta. */
+  function agendarConversa() {
+    clearInterval(conversaTimer);
+    if (!Chat.ligado()) return;
+    conversaTimer = setInterval(function () {
+      if (!podeConversar() || sincronizandoConversa) return;
+      if (document.hidden) return;
+      sincronizarConversas({});
+    }, POLL_MS);
+  }
+
+  function iniciarConversa() {
+    conversas = Chat.juntar(Chat.locais(), []);
+    renderConversaBadge();
+    agendarConversa();
+    if (podeConversar()) sincronizarConversas({});
   }
 
   function renderNcrList() {
@@ -7692,7 +8522,64 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       if (def[3]) f.appendChild(el('div', 'hint', def[3]));
       body.appendChild(f);
     });
+    /* Fora do #settingsBody de propósito: aquilo são ajustes do relatório, e
+       a conversa é deste navegador. Fica como seção à parte, no fim. */
+    var caixa = body.parentNode;
+    var velho = $('#conversaAjuste');
+    if (velho && velho.parentNode) velho.parentNode.removeChild(velho);
+    caixa.appendChild(ajusteDaConversa());
     $('#settingsDialog').showModal();
+  }
+
+  /**
+   * Ligar e desligar a aba Conversa.
+   *
+   * Fica guardado neste navegador, e não no relatório: quem decide ver
+   * recados é cada pessoa, e a escolha não tem nada a ver com o marco aberto.
+   * Por isso também: ligar aqui não liga a conversa dos outros.
+   */
+  function ajusteDaConversa() {
+    var box = el('div', 'dlg-sec');
+    box.id = 'conversaAjuste';
+    box.appendChild(el('div', 'dlg-sec-tit', 'Conversa da equipe'));
+
+    var f = el('div', 'field');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = 'conversaLigada';
+    cb.checked = Chat.ligado();
+    cb.style.width = 'auto';
+    var lab = el('label', 'field-check');
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode('Mostrar a aba Conversa'));
+    f.appendChild(lab);
+    f.appendChild(el('div', 'hint',
+      'Recados da equipe guardados na pasta da rede, no arquivo ' + Pasta.CONVERSAS +
+      ' — sem servidor e sem nuvem, como o resto do programa. Chegam a cada ' +
+      'sincronização (20 s), não na hora. Vale só para este navegador, e só ' +
+      'funciona entre quem aponta para a mesma pasta. Não é canal seguro: quem ' +
+      'abre a pasta lê tudo, inclusive as conversas diretas.'));
+    box.appendChild(f);
+
+    cb.addEventListener('change', function () {
+      Chat.ligar(cb.checked);
+      if (!cb.checked && isConversa()) {
+        state.kind = 'ncr';
+        renderNcrList();
+        renderEditor();
+      }
+      renderTabs();
+      agendarConversa();
+      if (cb.checked) {
+        iniciarConversa();
+        toast(Pasta.ligada()
+          ? 'Conversa ligada. A aba está na fila das outras, no alto da lista.'
+          : 'Conversa ligada — mas sem a pasta da rede ninguém recebe o que você escrever.', 5000);
+      } else {
+        toast('Conversa desligada. Nada foi apagado da pasta.');
+      }
+    });
+    return box;
   }
 
   /* ---------------------------------------------------------------------- */
@@ -8849,6 +9736,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       }
       pastaEstado = 'on';
       agendarPoll();
+      sincronizarConversas({});
       return sincronizar({}).then(function (r) {
         /* a janela costuma continuar aberta depois de escolher a pasta:
            o histórico e o tamanho só aparecem se forem redesenhados aqui */
@@ -9046,6 +9934,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       renderUser();
       flushSave();
       toast(Store.getUser() ? 'Nome registrado: ' + Store.getUser() : 'Nome removido.');
+      /* o canal direto é a dupla de nomes: trocar o meu troca as chaves */
+      renderConversaBadge();
+      if (isConversa()) abrirCanal(Chat.GERAL);
       /* segue de onde parou — o clique original já vale como gesto do usuário,
          então o download não é bloqueado pelo navegador */
       if (seguir && Store.getUser()) seguir();
@@ -9170,6 +10061,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       Pasta.esquecer().then(function () {
         pastaEstado = 'off';
         clearInterval(pollTimer);
+        clearInterval(conversaTimer);
         marcarPasta('off');
         $('#pastaDialog').close();
         toast('Pasta desligada. O trabalho segue salvo neste navegador.');
@@ -9307,6 +10199,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       }
       loadProject(list[0]);
     }).then(function () {
+      iniciarConversa();
       return iniciarPasta();
     }).catch(function (e) {
       markError(e);
@@ -9332,7 +10225,10 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         if (perm === 'granted') {
           pastaEstado = 'on';
           agendarPoll();
-          return sincronizar({}).then(function () { agendarPoll(); });
+          return sincronizar({}).then(function () {
+            agendarPoll();
+            return sincronizarConversas({});
+          });
         }
         pastaEstado = 'permissao';
         marcarPasta('permissao');

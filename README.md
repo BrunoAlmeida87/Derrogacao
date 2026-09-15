@@ -255,6 +255,39 @@ e DEV separados, com busca (que alcança também os marcos do fluxo), a opção 
 esconder quem não tem nada escrito e **Fluxos em PDF** — que pagina sozinho
 quando a lista passa de uma folha.
 
+## Conversa da equipe (aba opcional)
+
+Recados entre quem trabalha no mesmo marco, **sem servidor e sem nuvem**: a
+conversa é um arquivo (`conversas.json`) dentro da mesma pasta da rede que já
+guarda os dados. Cada um escreve no seu navegador, o recado vai para o arquivo
+e volta para os outros na sincronização seguinte.
+
+**Vem desligada.** Para ligar: **⋯ Mais → Ajustes de capa e rodapé →
+Conversa da equipe → Mostrar a aba Conversa**. Ligar vale só para o seu
+navegador: cada pessoa liga o seu.
+
+Na aba há dois tipos de conversa:
+
+- **Geral** — todo mundo que abre a pasta.
+- **Conversa direta** — você e mais uma pessoa. A lista de pessoas sai de quem
+  já assinou alguma coisa na pasta (editou um item, escreveu no geral).
+
+Três coisas que precisam ficar claras antes de usar:
+
+- **Sem a pasta da rede não há conversa.** O que você escrever fica só neste
+  navegador, e ninguém recebe.
+- **Não é canal seguro.** Tudo fica no mesmo arquivo, inclusive as conversas
+  diretas: quem abre a pasta pode ler o que não é endereçado a ele. Serve para
+  organizar o assunto, não para esconder. Assunto que não pode ser lido por
+  quem tem acesso à pasta não vai aqui.
+- **O nome é o que cada um digitou**, como no resto do programa. Não há senha,
+  então não há como provar quem escreveu.
+
+Detalhes de uso: **Enter** envia e **Shift+Enter** quebra a linha; o ✕ no seu
+próprio recado apaga para todo mundo; um ponto no alto da aba avisa que chegou
+coisa nova. Os recados ficam **90 dias** (ou os 1.000 últimos) e não entram no
+backup nem em nenhuma página do PDF — relatório é relatório.
+
 ## Aba Resumo
 
 A terceira aba reúne **todos os marcos deste navegador**, não só o relatório
@@ -587,10 +620,11 @@ assets/js/pasta.js       a pasta da rede como banco de dados
 assets/js/report.js      montagem das páginas no padrão do PDF, com paginação
 assets/js/fluxo.js       leitura do Waiver Historic e desenho do fluxo
 assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
+assets/js/chat.js        a conversa da equipe, dentro da pasta da rede
 assets/js/app.js         lógica do editor
 derrogacao.html          o programa inteiro num arquivo só (gerado)
 tools/build-standalone.py  gera a versão de arquivo único
-tests/                   31 suítes de ponta a ponta (Playwright)
+tests/                   32 suítes de ponta a ponta (Playwright)
 exemplos/                relatórios .json prontos para importar
 CLAUDE.md                notas de manutenção: decisões, armadilhas, porquês
 ```

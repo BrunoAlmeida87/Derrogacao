@@ -52,16 +52,17 @@ assets/js/pasta.js         a pasta da rede como banco de dados (e as imagens)
 assets/js/report.js        monta as páginas no padrão do PDF, e as pagina
 assets/js/fluxo.js         lê o Waiver Historic e desenha o caminho do waiver
 assets/js/summary.js       apuração, filtros, gráficos SVG, aba Resumo
+assets/js/chat.js          a conversa da equipe (aba opcional), pela pasta
 assets/js/app.js           o editor (o maior; ~3000 linhas)
 derrogacao.html            o programa inteiro num arquivo só — gerado, e versionado
 tools/build-standalone.py  gera (e confere) o derrogacao.html
-tests/                     31 suítes Playwright — leia tests/README.md
+tests/                     32 suítes Playwright — leia tests/README.md
 exemplos/                  .json prontos para importar
 .github/workflows/pages.yml  publicação
 ```
 
 Ordem de carga dos scripts (importa: cada um usa o anterior):
-`store.js → pasta.js → report.js → fluxo.js → summary.js → app.js`.
+`store.js → pasta.js → report.js → fluxo.js → summary.js → chat.js → app.js`.
 
 ## 4. Modelo de dados
 
@@ -235,6 +236,29 @@ colunas; `Fluxo.svg` desenha. O texto nunca é alterado — o desenho é leitura
 - A aba **Fluxos** (`renderFluxos` em `app.js`) é o compilado do relatório
   aberto, e o PDF dela usa `Report.paginar` — a mesma paginação do relatório.
 
+### A conversa da equipe (`chat.js`)
+Aba opcional, desligada de saída, ligada em **Ajustes** (a escolha vive no
+`localStorage`, não no projeto: quem decide ver recado é cada pessoa).
+
+- **Arquivo próprio na pasta**: `conversas.json`, ao lado dos dados. Fora do
+  `derrogacao-dados.json` de propósito — aquele é reescrito a cada gravação e
+  copiado inteiro em cada uma das 40 versões do histórico, e o papo do dia não
+  tem por que engordar isso. Pela mesma razão não entra no backup nem no PDF.
+- **União por id, não "vale a mais recente"**: mensagem não se edita. O que
+  viaja é o apagar, como lápide — sem isso o recado apagado voltaria pela
+  sincronização de quem ainda não soube.
+- Ler-juntar-gravar, como os dados: duas pessoas escrevendo ao mesmo tempo não
+  apagam o recado uma da outra.
+- **Canal direto = a dupla de nomes em ordem** (`d:bruno|maria`), então os dois
+  lados escrevem no mesmo lugar sem combinar nada.
+- **Não é canal seguro, e a tela diz isso** — o arquivo é legível por quem
+  abre a pasta, e o nome é autodeclarado. O aviso fica sempre à vista, não
+  escondido num "saiba mais": tratar a conversa direta como reservada seria um
+  engano caro num programa de defesa.
+- "Lido" guarda o maior entre agora e o carimbo da mensagem mais nova do
+  canal: com o relógio de um colega adiantado, só "agora" nunca zeraria.
+- Poda em 90 dias / 1.000 mensagens, senão o arquivo vira o maior da pasta.
+
 ### Aba Resumo (`summary.js`)
 Gráficos em **SVG escrito à mão** — sem biblioteca, imprimem em vetor e
 funcionam de `file://`. Paleta validada para daltonismo. Filtros (tipo,
@@ -278,6 +302,11 @@ permissão da pasta entre sessões.
 - **Botão novo na barra lateral pode empurrar os outros para fora.**
   `.sidebar-head-actions` tem 332 px; sem `flex-wrap` a fila escorre por baixo
   do editor e o botão deixa de ser clicável (dois testes caíram assim).
+- **A fila de abas tem os mesmos 332 px.** Com `flex: 1` (largura igual para
+  todas), a quinta aba cortou o próprio rótulo; e um número dentro dela faria
+  a fila quebrar de linha justamente quando chegasse recado. Hoje cada aba
+  leva a largura do seu texto, a fila pode quebrar se precisar, e o aviso de
+  não lido é um ponto no canto — que não ocupa espaço na fila.
 - **SVG sem `width`/`height` sai em branco na impressão.** Com só o `viewBox`
   ele ocupa espaço na tela e nada no papel: o layout de impressão do Chrome não
   deduz o tamanho como o da tela. Os desenhos do fluxo levam os dois atributos.
@@ -292,7 +321,7 @@ permissão da pasta entre sessões.
 
 ## 7. Como testar
 
-`tests/README.md` tem o passo a passo. Em resumo: 31 suítes Playwright que
+`tests/README.md` tem o passo a passo. Em resumo: 32 suítes Playwright que
 abrem a aplicação de verdade, fazem o caminho do usuário e conferem o
 resultado, **inclusive o PDF gerado**. Rode a suíte inteira antes de publicar —
 já houve mais de uma vez em que uma mudança de interface quebrou um teste de
@@ -348,5 +377,8 @@ desta máquina às vezes bloqueia `github.io`.
 | Fluxo lido do `historic`, sem campo novo | o texto do relatório é a verdade; um campo paralelo sairia do ar na primeira vez que alguém editasse só o texto |
 | Ordem dos marcos fixa em `Fluxo.ORDEM` | as setas mandam; a lista só decide quando o texto não diz (confirmada com o Bruno, com J06 e J10 onde a mensagem dele tinha typo) |
 | Cópia nasce com o número marcado `(cópia)` | a mesclagem pareia itens pelo número: dois com o mesmo número viram um só no computador do colega |
+| Conversa em arquivo próprio na pasta, fora do backup e do PDF | os dados são reescritos e versionados a cada gravação; o papo não tem por que viajar junto |
+| Conversa desligada de saída, ligada por navegador | é a única aba que não serve ao relatório: quem quer, liga |
+| A tela diz que a conversa direta não é secreta | ela não é, e deixar isso subentendido seria pior do que não ter a conversa |
 | `derrogacao.html` versionado na `main`, com conferência no CI | quem baixa o repositório leva o programa pronto; a conferência é o preço de guardar conteúdo derivado |
 | Lista do resumo impresso em `div`, não em `<table>` | a paginação move filhos diretos do bloco; linha de tabela mora no `<tbody>` e não migraria sem partir a tabela |

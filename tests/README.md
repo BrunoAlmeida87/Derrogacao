@@ -4,7 +4,7 @@ Suítes de ponta a ponta em Playwright (Chromium). Cada arquivo abre a
 aplicação de verdade, faz o caminho de um usuário e confere o resultado —
 inclusive gerando PDFs e conferindo o que saiu neles.
 
-As suítes 25 a 31 **falham com `AssertionError`** quando algo sai do lugar; as
+As suítes 25 a 32 **falham com `AssertionError`** quando algo sai do lugar; as
 mais antigas conferem imprimindo valores, que precisam ser lidos.
 
 ## Rodar
@@ -68,8 +68,9 @@ para não mexer no `derrogacao.html` versionado.
 | `test29.py` | manifesto, service worker e a aplicação abrindo sem rede |
 | `test30.py` | fluxo dos waivers: leitura do campo, item, pop-up, aba e PDF |
 | `test31.py` | paginação do resumo e do compilado de fluxos: margens de cada folha, cabeçalho repetido, nada perdido |
+| `test32.py` | conversa da equipe: ligar nos ajustes, geral e conversa direta, recado do colega sem perder o daqui, apagar, desligar |
 
-Nos testes da pasta compartilhada (19, 20, 21, 27) o seletor de pastas do Windows
+Nos testes da pasta compartilhada (19, 20, 21, 27, 32) o seletor de pastas do Windows
 é substituído por um diretório OPFS — mesma interface
 `FileSystemDirectoryHandle` que a pasta de rede entrega, então o caminho
 exercitado é o de verdade.

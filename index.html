@@ -123,6 +123,10 @@
               title="O caminho dos waivers de cada item, lido do Waiver Historic">
         Fluxos
       </button>
+      <button class="tab" role="tab" data-kind="conversa" aria-selected="false" hidden
+              title="Recados da equipe, pela pasta da rede">
+        Conversa <span class="tab-ponto" id="conversaCount" hidden></span>
+      </button>
     </div>
 
     <div class="sidebar-body" id="sidebarBody">
@@ -169,6 +173,14 @@
       do <strong>relatório aberto</strong>, NCR e DEV.
     </div>
 
+    <div class="sidebar-conversa" id="sidebarConversa" hidden>
+      <div class="sidebar-note">
+        Recados da equipe, guardados <strong>na pasta da rede</strong> — não há
+        servidor nem nuvem. Chega a cada sincronização, junto com os dados.
+      </div>
+      <div class="conv-canais" id="convCanais"></div>
+    </div>
+
     <div class="sidebar-note" id="sidebarResumo" hidden>
       O resumo reúne <strong>todos os marcos</strong> deste navegador — não só o
       relatório aberto. Escolha um marco na tela ao lado para ver o detalhe e
@@ -180,6 +192,7 @@
     <div class="editor-scroll" id="editorScroll"></div>
     <div class="editor-scroll summary-scroll" id="summaryScroll" hidden></div>
     <div class="editor-scroll summary-scroll" id="fluxosScroll" hidden></div>
+    <div class="editor-scroll conversa-scroll" id="conversaScroll" hidden></div>
   </main>
 
 </div>
@@ -412,6 +425,7 @@
 <script src="assets/js/report.js"></script>
 <script src="assets/js/fluxo.js"></script>
 <script src="assets/js/summary.js"></script>
+<script src="assets/js/chat.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
 </html>

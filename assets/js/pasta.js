@@ -20,6 +20,7 @@
   'use strict';
 
   var ARQUIVO = 'derrogacao-dados.json';
+  var CONVERSAS = 'conversas.json';
   var HISTORICO = 'historico';
   var IMAGENS = 'imagens';
   var MAX_HISTORICO = 40;
@@ -290,6 +291,30 @@
     });
   }
 
+  /* --- conversa da equipe --------------------------------------------------
+     Arquivo próprio, ao lado dos dados. Fora do derrogacao-dados.json de
+     propósito: aquele é reescrito a cada gravação e copiado inteiro em cada
+     versão do histórico, e o papo do dia não tem por que engordar isso. */
+
+  function lerConversas() {
+    if (!handle) return Promise.resolve(null);
+    return handle.getFileHandle(CONVERSAS, { create: false })
+      .then(function (fh) { return fh.getFile(); })
+      .then(function (f) { return f.text(); })
+      .then(function (t) { return t ? JSON.parse(t) : null; })
+      .catch(function () { return null; });   /* ainda não existe: primeira conversa */
+  }
+
+  function gravarConversas(payload) {
+    if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
+    return handle.getFileHandle(CONVERSAS, { create: true })
+      .then(function (fh) { return fh.createWritable(); })
+      .then(function (w) {
+        return w.write(JSON.stringify(payload, null, 1)).then(function () { return w.close(); });
+      })
+      .then(function () { return true; });
+  }
+
   /* --- histórico automático ------------------------------------------------ */
 
   function carimbo(d) {
@@ -397,6 +422,9 @@
     versionar: versionar,
     listarHistorico: listarHistorico,
     lerHistorico: lerHistorico,
+    lerConversas: lerConversas,
+    gravarConversas: gravarConversas,
+    CONVERSAS: CONVERSAS,
     gravarImagem: gravarImagem,
     lerImagem: lerImagem,
     podarImagens: podarImagens,
