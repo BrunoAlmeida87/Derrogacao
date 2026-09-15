@@ -349,6 +349,7 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  flex-wrap: wrap;
 }
 .sidebar-head-row h2 {
   margin: 0;
@@ -368,7 +369,11 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   border-radius: 3px;
   background: var(--kind);
 }
-.sidebar-head-actions { display: flex; gap: 5px; }
+/* Quatro botões nos 332px da barra: o respiro lateral encolhe para caberem
+   na mesma linha, e mesmo assim a fila pode quebrar — o que não pode é
+   escorrer por cima do editor e deixar o botão inalcançável. */
+.sidebar-head-actions { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.sidebar-head-actions .btn { padding-left: 8px; padding-right: 8px; }
 
 .ncr-list {
   list-style: none;
@@ -1287,11 +1292,115 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   box-shadow: 0 8px 26px rgba(0, 0, 0, .35);
 }
 .toast[hidden] { display: none; }
+.toast { display: flex; align-items: center; gap: 12px; }
+.toast-acao { background: #fff; color: #1c1a22; border-color: #fff; }
+
+.evid-thumb-falta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 76px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--bg-2);
+  border-radius: var(--radius-sm);
+}
+
+/* --- travas e avisos do item -------------------------------------------- */
+
+/* item aceito: fechado por padrão, aberto por um clique consciente */
+.trava,
+.mudou {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  max-width: 980px;
+  margin: 0 auto 16px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  box-shadow: var(--sh-1);
+}
+.trava {
+  background: var(--ok-sf);
+  border: 1px solid var(--ok-br);
+  border-left: 4px solid var(--ok);
+  color: #14532d;
+}
+.mudou {
+  background: var(--warn-sf);
+  border: 1px solid var(--warn-br);
+  border-left: 4px solid #e0a03c;
+  color: #6b4400;
+}
+.trava-txt,
+.mudou-txt { flex: 1; min-width: 220px; }
+
+/* marcador do item que outra pessoa mexeu */
+.fora-dot {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+/* --- o que mudou por fora, lado a lado ---------------------------------- */
+
+.dif-quem {
+  font-size: 13px !important;
+  font-weight: 600;
+  color: var(--ink-2) !important;
+}
+.dif-box { max-height: 52vh; overflow-y: auto; }
+.dif-campo { margin-bottom: 14px; }
+.dif-rotulo {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.dif-par { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dif-lado {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.dif-lado--antes  { border-left: 3px solid var(--danger); }
+.dif-lado--depois { border-left: 3px solid var(--ok); }
+.dif-cab {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  background: var(--line-2);
+  color: var(--ink-2);
+}
+.dif-txt {
+  margin: 0;
+  padding: 8px;
+  font: inherit;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* --- folhas e tamanho da pasta ------------------------------------------ */
+
+.dlg-folhas { font-size: 13px; color: var(--muted); margin: 0 0 10px !important; }
+.dlg-folhas-long { color: var(--warn); font-weight: 600; }
+.pasta-tamanhos {
+  font-size: 12.5px !important;
+  color: var(--muted) !important;
+  margin: 12px 0 0 !important;
+}
 
 /* --- responsivo --------------------------------------------------------- */
 
 @media (max-width: 900px) {
   .layout { flex-direction: column; }
+  .dif-par { grid-template-columns: 1fr; }
   .sidebar { width: auto; flex: 0 0 auto; max-height: 44vh; border-right: none; border-bottom: 1px solid var(--line); }
   .grid--3, .grid--2 { grid-template-columns: 1fr; }
   .editor-scroll { padding: 14px; }

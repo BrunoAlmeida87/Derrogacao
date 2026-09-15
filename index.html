@@ -6,6 +6,8 @@
 <title>Waiver Request — Gerador de Relatórios de Derrogação</title>
 <meta name="description" content="Editor de relatórios de derrogação de NCR com exportação em PDF no padrão Waiver Request.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%234B0082'/><text y='72' x='50' text-anchor='middle' font-size='60' fill='white' font-family='Arial'>W</text></svg>">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#4B0082">
 <link rel="stylesheet" href="assets/css/app.css">
 <link rel="stylesheet" href="assets/css/report.css">
 </head>
@@ -125,11 +127,12 @@
         <h2 id="sidebarTitle">NCRs</h2>
         <div class="sidebar-head-actions">
           <button class="btn btn--sm btn--primary" id="addNcrBtn">+ Nova NCR</button>
+          <button class="btn btn--sm" id="dupNcrBtn" title="Criar uma cópia do item selecionado, para editar por cima">Duplicar</button>
           <button class="btn btn--sm" id="copyNcrBtn" title="Copiar NCRs de outro relatório">Copiar de…</button>
           <button class="btn btn--sm btn--danger" id="delNcrBtn" title="Excluir a NCR selecionada">Excluir</button>
         </div>
       </div>
-      <input type="search" id="ncrFilter" placeholder="Filtrar por número, sistema ou função…">
+      <input type="search" id="ncrFilter" placeholder="Buscar em todo o texto: número, sistema, descrição, certificado…">
       <div class="ordem-row">
         <label for="ordemSelect">Ordem</label>
         <select id="ordemSelect"></select>
@@ -195,6 +198,7 @@
 
     <div id="pdfPick" class="pick-list"></div>
     <p class="pick-summary" id="pdfSummary"></p>
+    <p class="dlg-folhas" id="pdfFolhas" hidden></p>
     <div id="pdfGaps" class="dlg-gaps" hidden></div>
 
     <details class="dlg-tips">
@@ -303,6 +307,8 @@
       </ol>
     </details>
 
+    <p class="pasta-tamanhos" id="pastaTamanhos" hidden></p>
+
     <div id="pastaHistorico" class="hist-box" hidden></div>
   </div>
   <div class="dlg-actions">
@@ -351,6 +357,20 @@
   <div class="dlg-actions">
     <button class="btn" id="copyCancelBtn">Cancelar</button>
     <button class="btn btn--primary" id="copyGoBtn">Copiar</button>
+  </div>
+</dialog>
+
+<dialog id="difDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>O que mudou neste item</h3>
+    <p>A pasta compartilhada segue a regra “vale a edição mais recente”. Isto é
+       o que o texto de outra pessoa substituiu aqui — para você conferir, e
+       reescrever se algo se perdeu.</p>
+    <p class="dif-quem" id="difQuem"></p>
+    <div id="difBody" class="dif-box"></div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn btn--primary" id="difCloseBtn">Fechar</button>
   </div>
 </dialog>
 

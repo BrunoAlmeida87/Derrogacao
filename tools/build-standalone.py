@@ -45,6 +45,10 @@ def embutir(doc: str) -> str:
     doc = re.sub(r'<link rel="stylesheet" href="([^"?]+)[^"]*">', css, doc)
     doc = re.sub(r'<script src="([^"?]+)[^"]*"></script>', js, doc)
 
+    # O arquivo único é um arquivo só: não há manifesto nem service worker
+    # para acompanhar, e de file:// o navegador nem tentaria.
+    doc = re.sub(r'\s*<link rel="manifest"[^>]*>', "", doc)
+
     if faltando:
         raise SystemExit("Arquivos não encontrados: " + ", ".join(faltando))
     if 'href="assets/' in doc or 'src="assets/' in doc:

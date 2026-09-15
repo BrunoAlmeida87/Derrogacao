@@ -42,6 +42,21 @@
   function situacao(item) { return Store.statusInfo(item.status).nome; }
   var SITUACOES = Store.STATUS.map(function (o) { return o.nome; });
 
+  /* A partir de quantos dias sem ninguém tocar um item pendente vira
+     "parado". Trinta dias é mais ou menos o ciclo de resposta do arquiteto:
+     abaixo disso ainda é espera normal. */
+  var DIAS_PARADO = 30;
+
+  /** Dias desde a última edição do item — null quando nunca foi registrado. */
+  function diasSemMexer(item) { return Store.diasDesde(item && item.editedAt); }
+
+  /** Pendente e sem ninguém tocar há muito tempo. */
+  function estaParado(item) {
+    if (item.done) return false;
+    var d = diasSemMexer(item);
+    return d !== null && d >= DIAS_PARADO;
+  }
+
   /** Um item pode citar vários sistemas ("BX,BQ,BD"). */
   function sistemas(item) {
     return clean(item.systems).split(/[,;/]+/).map(clean).filter(Boolean);
@@ -71,9 +86,8 @@
     if (f.evidencia === 'sem' && (n.evidence || []).length) return false;
     var t = clean(f.busca).toLowerCase();
     if (t) {
-      var palheiro = [n.ncrId, n.systems, n.func, n.description, n.currentSituation,
-                      n.archAnswer, (n.certificates || []).join(' ')].join(' ').toLowerCase();
-      if (palheiro.indexOf(t) < 0) return false;
+      /* a busca varre todo o texto do item, evidências incluídas */
+      if (Store.textoBusca(n).indexOf(t) < 0) return false;
     }
     return true;
   }
@@ -123,6 +137,7 @@
       porSistema: {},
       porSituacao: {},
       certificados: {},
+      parados: [],
       linhas: linhas
     };
     SITUACOES.forEach(function (s) { st.porSituacao[s] = 0; });
@@ -130,6 +145,7 @@
     linhas.forEach(function (r) {
       var n = r.item;
       if (n.done) st.concluidos++; else st.pendentes++;
+      if (estaParado(n)) st.parados.push(r);
       st.porSituacao[situacao(n)]++;
       sistemas(n).forEach(function (s) { st.porSistema[s] = (st.porSistema[s] || 0) + 1; });
       (n.certificates || []).forEach(function (c) {
@@ -140,6 +156,10 @@
         st.imagens += (ev.images || []).length;
       });
     });
+    /* o mais esquecido primeiro: é a pergunta que se faz numa reunião */
+    st.parados.sort(function (a, b) {
+      return (diasSemMexer(b.item) || 0) - (diasSemMexer(a.item) || 0);
+    });
     return st;
   }
 
@@ -149,7 +169,7 @@
       marcos: porMarco.length,
       totalSemFiltro: 0,
       ncr: 0, dev: 0, total: 0, concluidos: 0, pendentes: 0, evidencias: 0, imagens: 0,
-      porSistema: {}, porSituacao: {}
+      porSistema: {}, porSituacao: {}, parados: []
     };
     SITUACOES.forEach(function (s) { geral.porSituacao[s] = 0; });
     porMarco.forEach(function (m) {
@@ -160,6 +180,10 @@
         geral.porSistema[s] = (geral.porSistema[s] || 0) + m.porSistema[s];
       });
       SITUACOES.forEach(function (s) { geral.porSituacao[s] += m.porSituacao[s]; });
+      m.parados.forEach(function (r) { geral.parados.push(r); });
+    });
+    geral.parados.sort(function (a, b) {
+      return (diasSemMexer(b.item) || 0) - (diasSemMexer(a.item) || 0);
     });
     return { porMarco: porMarco, geral: geral };
   }
@@ -307,6 +331,9 @@
   }
 
   global.Summary = {
+    DIAS_PARADO: DIAS_PARADO,
+    diasSemMexer: diasSemMexer,
+    estaParado: estaParado,
     C1: C1, C2: C2, C3: C3, NEUTRO: NEUTRO,
     SITUACOES: SITUACOES,
     situacao: situacao,
@@ -354,7 +381,9 @@
       ['Itens em derrogação', st.total, st.ncr + ' NCR · ' + st.dev + ' DEV'],
       ['Waiver accepted', st.concluidos, pct(st.concluidos, st.total) + ' do total'],
       ['Em andamento', st.pendentes, pct(st.pendentes, st.total) + ' do total'],
-      ['Páginas de evidência', st.evidencias, st.imagens + ' imagens']
+      ['Páginas de evidência', st.evidencias, st.imagens + ' imagens'],
+      ['Parados há ' + S.DIAS_PARADO + '+ dias', (st.parados || []).length,
+        'pendentes sem ninguém mexer']
     ].forEach(function (k) {
       var t = el('div', 'sm-kpi');
       t.appendChild(el('span', 'sm-kpi-label', k[0]));
@@ -463,7 +492,8 @@
     var cab = ['Marco', 'Tipo', 'Numero', 'Sistemas', 'Funcao/Descricao',
                'Situacao (controle interno)',
                'Arch Status', 'Request Expiry', 'Approved Expiry', 'Concluido',
-               'Certificados', 'Anexos', 'Imagens', 'Alterado por', 'Alterado em'];
+               'Certificados', 'Anexos', 'Imagens', 'Alterado por', 'Alterado em',
+               'Dias sem edicao'];
     var linhas = st.linhas.map(function (r) {
       var n = r.item;
       var imgs = (n.evidence || []).reduce(function (a, e) { return a + (e.images || []).length; }, 0);
@@ -475,7 +505,8 @@
         n.done ? 'Sim' : 'Nao',
         (n.certificates || []).join(' | '),
         (n.evidence || []).length, imgs,
-        n.editedBy, n.editedAt
+        n.editedBy, n.editedAt,
+        S.diasSemMexer(n) === null ? '' : S.diasSemMexer(n)
       ].map(csvCampo).join(';');
     });
     /* BOM para o Excel reconhecer os acentos */
@@ -659,6 +690,11 @@
           } }
       ], dados.porMarco, { vazio: 'Nenhum relatório neste navegador.' }));
       host.appendChild(b4);
+
+      if (dados.geral.parados.length) {
+        host.appendChild(blocoParados(dados.geral.parados,
+          'De todos os marcos. Pendentes sem nenhuma edição há ' + S.DIAS_PARADO + ' dias ou mais.'));
+      }
     } else {
       var b5 = bloco('Itens de ' + alvo.marco, 'Todas as NCRs e DEVs deste marco.');
       b5.appendChild(tabela([
@@ -673,6 +709,11 @@
       ], alvo.linhas, { vazio: 'Este marco ainda não tem itens.' }));
       host.appendChild(b5);
 
+      if (alvo.parados.length) {
+        host.appendChild(blocoParados(alvo.parados,
+          'Pendentes sem nenhuma edição há ' + S.DIAS_PARADO + ' dias ou mais, do mais esquecido para o menos.'));
+      }
+
       var certs = Object.keys(alvo.certificados).sort();
       if (certs.length) {
         var b6 = bloco('Certificados impactados', 'Quantos itens citam cada certificado.');
@@ -685,8 +726,23 @@
     }
   }
 
+  /** Tabela dos itens parados — a mesma na tela e no resumo impresso. */
+  function blocoParados(linhas, sub) {
+    var b = bloco('Parados há ' + S.DIAS_PARADO + '+ dias', sub);
+    b.appendChild(tabela([
+      { titulo: 'Dias', num: true, valor: function (r) { return num(S.diasSemMexer(r.item)); } },
+      { titulo: 'Tipo', valor: function (r) { return r.kind === 'dev' ? 'DEV' : 'NCR'; } },
+      { titulo: 'Número', valor: function (r) { return r.item.ncrId || '(sem número)'; } },
+      { titulo: 'Função / descrição', valor: function (r) { return r.item.func || '—'; } },
+      { titulo: 'Situação', valor: function (r) { return pilulaSituacao(r.item); } },
+      { titulo: 'Última edição de', valor: function (r) { return r.item.editedBy || '—'; } }
+    ], linhas));
+    return b;
+  }
+
   global.SummaryView = {
     render: render,
+    blocoParados: blocoParados,
     toCsv: toCsv,
     kpiRow: kpiRow,
     tabela: tabela,

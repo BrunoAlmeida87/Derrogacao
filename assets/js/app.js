@@ -48,12 +48,30 @@
   /* ---------------------------------------------------------------------- */
 
   var toastTimer = null;
-  function toast(msg) {
+  /**
+   * Aviso rápido no pé da tela.
+   * `acao` — {rotulo, fn} — vira um botão dentro do aviso: é assim que o
+   * "Desfazer" da exclusão fica à mão sem virar mais uma janela.
+   */
+  function toast(msg, ms, acao) {
     var t = $('#toast');
-    t.textContent = msg;
+    t.textContent = '';
+    t.appendChild(document.createTextNode(msg));
+    if (acao) {
+      var b = document.createElement('button');
+      b.className = 'btn btn--sm btn--accent toast-acao';
+      b.type = 'button';
+      b.textContent = acao.rotulo;
+      b.addEventListener('click', function () {
+        t.hidden = true;
+        clearTimeout(toastTimer);
+        acao.fn();
+      });
+      t.appendChild(b);
+    }
     t.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.hidden = true; }, 2600);
+    toastTimer = setTimeout(function () { t.hidden = true; }, ms || 2600);
   }
 
   var saveTimer = null;
@@ -221,7 +239,9 @@
     $('#addNcrBtn').textContent = '+ Nova ' + t;
     $('#addNcrBtn').title = 'Adicionar ' + t + ' a este relatório';
     $('#sidebarTitle').textContent = t + 's';
-    $('#ncrFilter').placeholder = 'Filtrar ' + t + 's…';
+    /* a busca não é só pelo número: dizer isso no campo é o que faz alguém
+       tentar procurar por um certificado ou por um trecho do texto */
+    $('#ncrFilter').placeholder = 'Buscar em todo o texto da ' + t + '…';
     $('#previewBtn').textContent = 'Pré-visualizar';
     $('#previewBtn').title = 'Ver as folhas do relatório de ' + t + ' como sairão no PDF';
   }
@@ -334,6 +354,11 @@
       project ? dados.porMarco[0].porSistema : dados.geral.porSistema));
     pg.appendChild(g3);
 
+    if ((st.parados || []).length) {
+      pg.appendChild(SummaryView.blocoParados(st.parados,
+        'Pendentes sem nenhuma edição há ' + Summary.DIAS_PARADO + ' dias ou mais.'));
+    }
+
     if (project) {
       var t = SummaryView.bloco('Itens');
       t.appendChild(SummaryView.tabela([
@@ -379,8 +404,9 @@
     var pendingOnly = $('#pendingOnly').checked;
     var touched = touchedIds();
     rows.forEach(function (ncr, i) {
-      var hay = (ncr.ncrId + ' ' + ncr.systems + ' ' + ncr.func).toLowerCase();
-      if (term && hay.indexOf(term) === -1) return;
+      /* a busca alcança todo o texto do item — é o que responde "onde foi
+         mesmo que a gente citou aquele certificado?" */
+      if (term && Store.textoBusca(ncr).indexOf(term) === -1) return;
       if (pendingOnly && ncr.done) return;
 
       var li = el('li', 'ncr-item');
@@ -413,6 +439,11 @@
         var sd = el('span', 'status-dot');
         sd.title = 'Situação: ' + st.nome;
         badges.appendChild(sd);
+      }
+      if (mudancasDeFora[ncr.id]) {
+        var fora = el('span', 'fora-dot', '⇄');
+        fora.title = 'Alterado por outra pessoa — abra o item para ver o que mudou';
+        badges.appendChild(fora);
       }
       if (touched[ncr.id]) {
         li.classList.add('is-touched');
@@ -546,6 +577,74 @@
     renderNcrList();
     renderEditor();
     scheduleSave();
+    toast(kindName() + ' "' + (ncr.ncrId || 'sem número') + '" excluída.', 9000, {
+      rotulo: '↩ Desfazer',
+      fn: function () { desfazerExclusao(state.project, state.kind, ncr, at); }
+    });
+  }
+
+  /**
+   * Traz de volta o item que acabou de ser excluído.
+   *
+   * Tirar a lápide não basta: ela pode já ter viajado para o computador do
+   * colega. O que faz o item sobreviver lá também é a hora de edição nova,
+   * posterior à exclusão — pela regra da mesclagem, quem editou por último
+   * vence a lápide.
+   */
+  function desfazerExclusao(projeto, kind, item, posicao) {
+    var lista = projeto[Store.itemsKey(kind)];
+    var lapide = (projeto.deleted || []).filter(function (t) { return t.id === item.id; })[0];
+    projeto.deleted = (projeto.deleted || []).filter(function (t) { return t.id !== item.id; });
+    lista.splice(Math.min(posicao, lista.length), 0, item);
+
+    if (state.project && state.project.id === projeto.id) {
+      state.kind = kind;
+      setSelectedId(item.id);
+      touch(item, 'criou');
+      /* na sessão o item não foi "excluído": foi excluído e trazido de volta,
+         o que é uma edição — deixar "excluiu" no histórico seria mentira */
+      var sess = currentSession();
+      if (sess) {
+        sess.changes.forEach(function (c) { if (c.itemId === item.id) c.action = 'editou'; });
+      }
+    } else {
+      item.editedBy = Store.getUser();
+      item.editedAt = Store.nowIso();
+    }
+    /* A hora de edição tem de ficar depois da lápide: é ela que ressuscita o
+       item também no computador de quem já recebeu a exclusão. */
+    if (lapide) item.editedAt = Store.depoisDe(lapide.at);
+
+    if (state.project && state.project.id === projeto.id) {
+      renderTabs();
+      renderNcrList();
+      renderEditor();
+      scheduleSave();
+    } else {
+      Store.save(projeto).then(agendarGravacaoPasta).catch(markError);
+    }
+    toast('"' + (item.ncrId || 'sem número') + '" de volta.');
+  }
+
+  /** Cópia do item selecionado, logo abaixo dele. */
+  function duplicarNcr() {
+    var ncr = currentNcr();
+    if (!ncr) return;
+    var copia = Store.duplicar(ncr);
+    var list = items();
+    var at = list.findIndex(function (n) { return n.id === ncr.id; });
+    list.splice(at + 1, 0, copia);
+    touch(copia, 'criou');
+    /* A cópia nasce ao lado do original; com a lista em outra ordem, isso só
+       se vê depois de fixar a ordem — mas o item existe do mesmo jeito. */
+    setSelectedId(copia.id);
+    renderTabs();
+    renderNcrList();
+    renderEditor();
+    scheduleSave();
+    var campo = $('#f-ncrId');
+    if (campo) { campo.focus(); campo.select(); }
+    toast('Cópia criada. Troque o número — ele veio marcado como "(cópia)".', 5000);
   }
 
   /* ---------------------------------------------------------------------- */
@@ -756,6 +855,104 @@
 
     /* --- situação de acompanhamento --- */
     host.appendChild(renderStatusBar());
+
+    /* --- travas e avisos, por cima do que já está montado --- */
+    if (travado(ncr)) aplicarTrava(host);
+    var mudanca = mudancasDeFora[ncr.id];
+    if (mudanca) host.insertBefore(barraMudouPorFora(mudanca), host.firstChild);
+  }
+
+  /* Item aceito é documento fechado: um clique distraído num campo dele se
+     espalha para todo mundo na sincronização seguinte. Fica travado até a
+     pessoa dizer que quer mesmo mexer. */
+  var destravados = {};
+
+  function travado(ncr) {
+    return !!(ncr && ncr.done && !destravados[ncr.id]);
+  }
+
+  function aplicarTrava(host) {
+    var aviso = el('div', 'trava');
+    aviso.appendChild(el('span', 'trava-txt',
+      '🔒 Waiver aceito — os campos estão travados para não sobrescrever por engano.'));
+    var b = el('button', 'btn btn--sm', 'Editar mesmo assim');
+    b.type = 'button';
+    b.addEventListener('click', function () {
+      destravados[currentNcr().id] = true;
+      renderEditor();
+    });
+    aviso.appendChild(b);
+
+    $$('.card', host).forEach(function (card) {
+      $$('input, textarea, select, button', card).forEach(function (n) {
+        if (n.tagName === 'TEXTAREA' || (n.tagName === 'INPUT' && n.type === 'text')) n.readOnly = true;
+        else n.disabled = true;
+      });
+      /* a área de soltar imagens não é um controle de formulário */
+      $$('.evid-drop', card).forEach(function (d) {
+        d.style.pointerEvents = 'none';
+        d.style.opacity = '.55';
+      });
+    });
+    host.insertBefore(aviso, host.firstChild);
+  }
+
+  /* --- o que mudou por fora --------------------------------------------- */
+
+  /* Itens que a sincronização substituiu pelo texto de outra pessoa, desde
+     que esta página foi aberta. A regra da pasta é "vale a edição mais
+     recente"; sem isto, o que foi por cima do meu texto passaria em branco. */
+  var mudancasDeFora = {};
+
+  function guardarMudancas(resumo) {
+    if (!resumo || !resumo.substituidos) return;
+    resumo.substituidos.forEach(function (sub) { mudancasDeFora[sub.id] = sub; });
+  }
+
+  function barraMudouPorFora(sub) {
+    var bar = el('div', 'mudou');
+    var txt = 'Este item foi alterado' +
+      (sub.quem ? ' por ' + sub.quem : ' em outro computador') +
+      (sub.quando ? ', ' + shortDate(sub.quando) : '') +
+      ' — ' + sub.campos.length + ' campo(s).';
+    bar.appendChild(el('span', 'mudou-txt', txt));
+    var ver = el('button', 'btn btn--sm btn--accent', 'Ver o que mudou');
+    ver.type = 'button';
+    ver.addEventListener('click', function () { abrirDif(sub); });
+    bar.appendChild(ver);
+    var ok = el('button', 'btn btn--sm btn--quiet', 'Dispensar');
+    ok.type = 'button';
+    ok.addEventListener('click', function () {
+      delete mudancasDeFora[sub.id];
+      renderEditor();
+      renderNcrList();
+    });
+    bar.appendChild(ok);
+    return bar;
+  }
+
+  function abrirDif(sub) {
+    var body = $('#difBody');
+    body.innerHTML = '';
+    $('#difQuem').textContent = (sub.quem || 'Outro computador') +
+      (sub.quando ? ' · ' + shortDate(sub.quando) : '') +
+      ' · ' + (sub.ncrId || 'sem número');
+    sub.campos.forEach(function (c) {
+      var bloco = el('div', 'dif-campo');
+      bloco.appendChild(el('div', 'dif-rotulo', c.rotulo));
+      var par = el('div', 'dif-par');
+      var antes = el('div', 'dif-lado dif-lado--antes');
+      antes.appendChild(el('div', 'dif-cab', 'Estava aqui'));
+      antes.appendChild(el('pre', 'dif-txt', c.antes || '(em branco)'));
+      var depois = el('div', 'dif-lado dif-lado--depois');
+      depois.appendChild(el('div', 'dif-cab', 'Passou a ser'));
+      depois.appendChild(el('pre', 'dif-txt', c.depois || '(em branco)'));
+      par.appendChild(antes);
+      par.appendChild(depois);
+      bloco.appendChild(par);
+      body.appendChild(bloco);
+    });
+    $('#difDialog').showModal();
   }
 
   /* Situação de acompanhamento: controle interno, não sai no PDF. Substitui o
@@ -1003,10 +1200,19 @@
       thumbs.innerHTML = '';
       ev.images.forEach(function (img, i) {
         var t = el('div', 'evid-thumb');
-        var im = document.createElement('img');
-        im.src = img.src;
-        im.alt = img.caption || 'Evidência ' + (i + 1);
-        t.appendChild(im);
+        if (img.src) {
+          var im = document.createElement('img');
+          im.src = img.src;
+          im.alt = img.caption || 'Evidência ' + (i + 1);
+          t.appendChild(im);
+        } else {
+          /* imagem que mora na pasta e ainda não chegou aqui: some da tela
+             seria pior — a pessoa acharia que a foto se perdeu */
+          var falta = el('div', 'evid-thumb-falta', '⏳ na pasta');
+          falta.title = 'Imagem guardada na pasta compartilhada (' + (img.arquivo || '') +
+            '). Ela chega na próxima sincronização.';
+          t.appendChild(falta);
+        }
 
         var cap = document.createElement('input');
         cap.type = 'text';
@@ -1769,6 +1975,49 @@
         ? 'Um arquivo com o relatório escolhido.'
         : 'Um único arquivo com os ' + n + ' relatórios, em sequência.');
     renderGaps(picked);
+    agendarContagemFolhas(picked);
+  }
+
+  /**
+   * Quantas folhas cada item vai ocupar.
+   *
+   * A conta só existe depois de montar as páginas de verdade, então a
+   * montagem é a mesma da exportação — feita no #printRoot escondido, com um
+   * atraso para não repetir a cada clique nas caixas de seleção.
+   */
+  var folhasTimer = null;
+  function agendarContagemFolhas(picked) {
+    clearTimeout(folhasTimer);
+    var host = $('#pdfFolhas');
+    if (!picked.length) { host.hidden = true; return; }
+    host.hidden = false;
+    host.textContent = 'Conferindo as folhas…';
+    folhasTimer = setTimeout(function () { contarFolhas(picked, host); }, 220);
+  }
+
+  function contarFolhas(picked, host) {
+    var longos;
+    try {
+      buildPrintRoot(picked);
+      longos = Report.itensLongos();
+    } catch (e) {
+      markError(e);
+      host.hidden = true;
+      return;
+    }
+    var total = $$('#printRoot .rep-page').length;
+    host.textContent = '';
+    host.appendChild(el('span', null, total + ' folha(s) no total. '));
+    if (!longos.length) {
+      host.appendChild(el('span', null, 'Cada item cabe numa folha.'));
+      return;
+    }
+    var nomes = longos.map(function (x) {
+      return (x.ncrId || 'sem número') + ' (' + x.folhas + ')';
+    }).join(', ');
+    host.appendChild(el('span', 'dlg-folhas-long',
+      longos.length + ' item(ns) passam de uma folha e seguem em folha de ' +
+      'continuação: ' + nomes + '.'));
   }
 
   function doPrint() {
@@ -2195,19 +2444,140 @@
   var gravarPendente = false;
   var ultimaTecla = 0;
   var ultimaVersao = 0;
+  var ultimaPoda = 0;
+  /* Dados gravados por uma versão mais nova da página: daqui para a frente
+     esta sessão só lê, para não apagar campos que ainda não conhece. */
+  var versaoDesatualizada = false;
   var gravaTimer = null;
   var pollTimer = null;
   var POLL_MS = 20000;
 
+  /** Todas as imagens de todos os relatórios, com o item a que pertencem. */
+  function todasAsImagens(projects) {
+    var out = [];
+    (projects || []).forEach(function (p) {
+      ['ncrs', 'devs'].forEach(function (key) {
+        (p[key] || []).forEach(function (item) {
+          (item.evidence || []).forEach(function (ev) {
+            (ev.images || []).forEach(function (im) { out.push(im); });
+          });
+        });
+      });
+    });
+    return out;
+  }
+
+  /**
+   * Manda para a pasta as imagens que ainda não têm arquivo próprio.
+   *
+   * O `arquivo` é gravado também na cópia local: é o que faz cada foto ser
+   * escrita uma vez só, e não a cada sincronização.
+   */
+  function externalizarImagens() {
+    var pendentes = todasAsImagens(state.projects).filter(function (im) {
+      return im.src && !im.arquivo;
+    });
+    if (!pendentes.length) return Promise.resolve(0);
+    var feito = 0;
+    return pendentes.reduce(function (fila, im) {
+      return fila.then(function () {
+        return Pasta.gravarImagem(im.id, im.src).then(function (caminho) {
+          im.arquivo = caminho;
+          feito++;
+        }).catch(function (e) {
+          /* sem arquivo, a imagem continua viajando dentro do JSON: o
+             relatório do colega não pode ficar sem a foto por causa disto */
+          console.warn('Não foi possível gravar a imagem na pasta:', e);
+        });
+      });
+    }, Promise.resolve()).then(function () { return feito; });
+  }
+
+  /**
+   * Devolve às imagens do que veio da pasta o conteúdo que o JSON não traz
+   * mais. O que já existe aqui é reaproveitado — só o que falta é lido do
+   * disco, e uma vez só.
+   */
+  function hidratarImagens(payload) {
+    var conhecidas = {};
+    todasAsImagens(state.projects).forEach(function (im) {
+      if (im.arquivo && im.src) conhecidas[im.arquivo] = im.src;
+    });
+    var faltando = todasAsImagens(payload && payload.projects).filter(function (im) {
+      return !im.src && im.arquivo;
+    });
+    if (!faltando.length) return Promise.resolve(payload);
+    return faltando.reduce(function (fila, im) {
+      return fila.then(function () {
+        if (conhecidas[im.arquivo]) { im.src = conhecidas[im.arquivo]; return null; }
+        return Pasta.lerImagem(im.arquivo).then(function (dataUrl) {
+          im.src = dataUrl;
+          conhecidas[im.arquivo] = dataUrl;
+        }).catch(function (e) {
+          /* o arquivo pode ainda estar sendo gravado do outro lado: fica o
+             ponteiro, e a próxima sincronização tenta de novo */
+          console.warn('Imagem ainda não disponível na pasta:', im.arquivo, e);
+        });
+      });
+    }, Promise.resolve()).then(function () { return payload; });
+  }
+
+  /**
+   * O retrato que vai para a pasta. As imagens que já têm arquivo próprio
+   * viajam só pelo nome — é o que mantém o JSON pequeno mesmo com centenas
+   * de fotos, e o histórico com ele.
+   */
   function montaPayload() {
+    var copia = JSON.parse(JSON.stringify(state.projects));
+    todasAsImagens(copia).forEach(function (im) {
+      if (im.arquivo && im.src) delete im.src;
+    });
     return {
       format: 'derrogacao-banco',
-      schema: 1,
+      schema: Store.SCHEMA,
       caminho: pastaCaminho,
       updatedAt: new Date().toISOString(),
       updatedBy: Store.getUser(),
-      projects: JSON.parse(JSON.stringify(state.projects))
+      projects: copia
     };
+  }
+
+  function ehMaisNovoQueEu(dados) {
+    if (!dados) return false;
+    if ((Number(dados.schema) || 0) > Store.SCHEMA) return true;
+    return Store.maisNovoQueEu(dados.projects);
+  }
+
+  /** Caminhos de imagem em uso — no que está aqui e em cada versão guardada. */
+  function imagensEmUso() {
+    var usados = [];
+    todasAsImagens(state.projects).forEach(function (im) {
+      if (im.arquivo) usados.push(im.arquivo);
+    });
+    return Pasta.listarHistorico().then(function (versoes) {
+      return versoes.reduce(function (fila, v) {
+        return fila.then(function () {
+          return Pasta.lerHistorico(v.arquivo).then(function (dados) {
+            todasAsImagens(dados && dados.projects).forEach(function (im) {
+              if (im.arquivo) usados.push(im.arquivo);
+            });
+          }).catch(function () { /* versão ilegível não derruba a limpeza */ });
+        });
+      }, Promise.resolve()).then(function () { return usados; });
+    });
+  }
+
+  /**
+   * Apaga as fotos que nenhum item e nenhuma versão do histórico citam mais.
+   * De hora em hora, no máximo: ler todas as versões é barato agora que elas
+   * não carregam mais o base64, mas não é de graça.
+   */
+  function limparImagensOrfas() {
+    if (Date.now() - ultimaPoda < 60 * 60 * 1000) return Promise.resolve(0);
+    ultimaPoda = Date.now();
+    return imagensEmUso()
+      .then(function (usados) { return Pasta.podarImagens(usados); })
+      .catch(function () { return 0; });
   }
 
   /**
@@ -2236,13 +2606,20 @@
 
     /* grava o resultado da junção, não só o que era meu */
     function gravarJuncao(resumo) {
-      return Pasta.gravar(montaPayload()).then(function () {
-        /* além do retrato feito antes de cada junção, uma linha do tempo a
-           cada dez minutos — sem transformar a pasta num depósito */
-        if (Date.now() - ultimaVersao < 10 * 60 * 1000) return null;
-        ultimaVersao = Date.now();
-        return Pasta.versionar(montaPayload(), Store.getUser());
-      }).then(function () { return resumo; });
+      /* Página velha diante de dados novos: junta para ver o trabalho dos
+         outros, mas não regrava — o que ela não entende seria apagado. */
+      if (versaoDesatualizada) return Promise.resolve(resumo);
+      return externalizarImagens()
+        .then(function () { return Pasta.gravar(montaPayload()); })
+        .then(function () {
+          /* além do retrato feito antes de cada junção, uma linha do tempo a
+             cada dez minutos — sem transformar a pasta num depósito */
+          if (Date.now() - ultimaVersao < 10 * 60 * 1000) return null;
+          ultimaVersao = Date.now();
+          return Pasta.versionar(montaPayload(), Store.getUser());
+        })
+        .then(function () { return limparImagensOrfas(); })
+        .then(function () { return resumo; });
     }
 
     return Pasta.ler()
@@ -2259,10 +2636,20 @@
           ? Pasta.versionar(montaPayload(), (Store.getUser() || 'sem-nome') + '-antes')
           : Promise.resolve();
 
-        return antes.then(function () {
-          resumo = Store.mergeListas(state.projects, r.dados.projects || []);
-          return gravarJuncao(resumo);
-        });
+        /* Guarda de versão: se o arquivo veio de uma página mais nova do que
+           esta, tudo o que ela não conhece sumiria na regravação. */
+        if (!versaoDesatualizada && ehMaisNovoQueEu(r.dados)) {
+          versaoDesatualizada = true;
+          toast('Estes dados foram gravados por uma versão mais nova do programa. ' +
+            'Recarregue a página (Ctrl+F5) para voltar a gravar — por ora, só leitura.', 9000);
+        }
+
+        return antes
+          .then(function () { return hidratarImagens(r.dados); })
+          .then(function () {
+            resumo = Store.mergeListas(state.projects, r.dados.projects || []);
+            return gravarJuncao(resumo);
+          });
       })
       .then(function (resumo) {
         sincronizando = false;
@@ -2296,6 +2683,7 @@
 
   /** Redesenha só o necessário, para não estragar o que está sendo digitado. */
   function aplicarMudancasNaTela(resumo, opts) {
+    guardarMudancas(resumo);
     var mudou = resumo && (resumo.entraram || resumo.atualizados || resumo.removidos || resumo.novosRelatorios);
     /* o relatório aberto pode ter sido substituído pela cópia mesclada */
     if (state.project) {
@@ -2405,7 +2793,15 @@
       }
       pastaEstado = 'on';
       agendarPoll();
-      return sincronizar({});
+      return sincronizar({}).then(function (r) {
+        /* a janela costuma continuar aberta depois de escolher a pasta:
+           o histórico e o tamanho só aparecem se forem redesenhados aqui */
+        if ($('#pastaDialog').open) {
+          renderTamanhosPasta();
+          renderHistoricoPasta();
+        }
+        return r;
+      });
     });
   }
 
@@ -2425,8 +2821,34 @@
     $('#pastaEstadoLinha').dataset.estado = Pasta.ligada() ? pastaEstado : 'off';
     $('#pastaEscolherBtn').textContent = Pasta.ligada() ? 'Trocar de pasta…' : 'Escolher a pasta…';
     $('#pastaEscolherBtn').disabled = !Pasta.suportado();
+    renderTamanhosPasta();
     renderHistoricoPasta();
     dlg.showModal();
+  }
+
+  function mb(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  /* Quanto a pasta está ocupando. Saber disso antes é melhor do que
+     descobrir quando a rede começar a arrastar. */
+  function renderTamanhosPasta() {
+    var linha = $('#pastaTamanhos');
+    if (!Pasta.ligada() || pastaEstado !== 'on') { linha.hidden = true; return; }
+    linha.hidden = false;
+    linha.textContent = 'Somando os arquivos…';
+    Pasta.tamanhos().then(function (t) {
+      if (!t) { linha.hidden = true; return; }
+      linha.textContent = 'Ocupando ' + mb(t.total) + ' na pasta: ' +
+        mb(t.dados) + ' de dados, ' +
+        mb(t.imagens) + ' em ' + t.fotos + ' imagem(ns), ' +
+        mb(t.historico) + ' em ' + t.versoes + ' versão(ões) do histórico.' +
+        (versaoDesatualizada
+          ? ' Só leitura: os dados foram gravados por uma versão mais nova do programa.'
+          : '');
+    }).catch(function () { linha.hidden = true; });
   }
 
   function renderHistoricoPasta() {
@@ -2463,6 +2885,9 @@
       'Só volta o que não existe mais aqui. Nada do que está em uso agora é ' +
       'apagado nem substituído.')) return;
     Pasta.lerHistorico(v.arquivo).then(function (dados) {
+      /* a versão guarda só o nome das imagens: o conteúdo vem dos arquivos */
+      return hidratarImagens(dados);
+    }).then(function (dados) {
       return Store.saveSnapshot(state.projects, 'antes de restaurar ' + v.quando)
         .then(function () {
           var resumo = Store.reviver(state.projects, dados.projects || []);
@@ -2698,6 +3123,8 @@
     $('#settingsBtn').addEventListener('click', openSettings);
     $('#settingsCloseBtn').addEventListener('click', function () { $('#settingsDialog').close(); });
     $('#copyNcrBtn').addEventListener('click', openCopyDialog);
+    $('#dupNcrBtn').addEventListener('click', duplicarNcr);
+    $('#difCloseBtn').addEventListener('click', function () { $('#difDialog').close(); });
     $('#copyCancelBtn').addEventListener('click', function () { $('#copyDialog').close(); });
     $('#zoomRange').addEventListener('input', applyZoom);
 
@@ -2786,8 +3213,26 @@
     if (link) link.hidden = location.protocol === 'file:';
   }
 
+  /**
+   * Registra o service worker. Serve a duas coisas: abrir sem rede e fazer o
+   * Edge oferecer a instalação como aplicativo — que é o que faz o navegador
+   * guardar a permissão da pasta entre sessões.
+   *
+   * Só no site publicado: de file:// não existe service worker, e a versão de
+   * arquivo único não precisa de nenhum.
+   */
+  function registrarServiceWorker() {
+    if (!navigator.serviceWorker) return;
+    var local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    if (location.protocol !== 'https:' && !local) return;
+    navigator.serviceWorker.register('sw.js').catch(function (e) {
+      console.warn('Service worker não registrado:', e);
+    });
+  }
+
   function boot() {
     wire();
+    registrarServiceWorker();
     requestPersistentStorage();
     refreshUndo();
     renderVersion();
