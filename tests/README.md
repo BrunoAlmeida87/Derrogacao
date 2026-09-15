@@ -4,6 +4,9 @@ Suítes de ponta a ponta em Playwright (Chromium). Cada arquivo abre a
 aplicação de verdade, faz o caminho de um usuário e confere o resultado —
 inclusive gerando PDFs e conferindo o que saiu neles.
 
+As suítes 25 a 29 **falham com `AssertionError`** quando algo sai do lugar; as
+mais antigas conferem imprimindo valores, que precisam ser lidos.
+
 ## Rodar
 
 ```bash
@@ -56,8 +59,13 @@ qualquer uma sozinha, em qualquer ordem, num diretório vazio.
 | `test22.py` | ordenação da lista refletida no PDF; arrastar volta ao manual |
 | `test23.py` | filtros do Resumo, refletidos nos números, no CSV e no resumo em PDF |
 | `test24.py` | índice da capa fechando com o *Arch Status* |
+| `test25.py` | paginação: texto que passa da folha continua noutra, com as margens certas |
+| `test26.py` | duplicar, desfazer a exclusão, busca em todo o texto, trava do item aceito |
+| `test27.py` | imagens em arquivos na pasta, o que mudou por fora, guarda de versão |
+| `test28.py` | itens parados: números, tabela, CSV e resumo impresso |
+| `test29.py` | manifesto, service worker e a aplicação abrindo sem rede |
 
-Nos testes da pasta compartilhada (19, 20, 21) o seletor de pastas do Windows
+Nos testes da pasta compartilhada (19, 20, 21, 27) o seletor de pastas do Windows
 é substituído por um diretório OPFS — mesma interface
 `FileSystemDirectoryHandle` que a pasta de rede entrega, então o caminho
 exercitado é o de verdade.

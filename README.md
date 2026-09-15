@@ -34,14 +34,37 @@ login e nenhum dado sai do computador.
   em retrato, à sua escolha.
 - **Reaproveitamento entre marcos.** **Copiar de…** traz NCRs já escritas de
   outro relatório, com ou sem as imagens, como cópias independentes.
+- **Duplicar.** O botão **Duplicar** cria, ao lado do item aberto, uma cópia
+  independente dele — anexos incluídos — com o número marcado como `(cópia)`
+  para você trocar. É o caminho mais curto quando várias NCRs do mesmo sistema
+  se repetem quase iguais.
+- **Busca em todo o texto.** O campo da lista lateral procura no número, no
+  sistema e na função, mas também dentro das descrições, do *Arch Status*, dos
+  certificados e até nas legendas das fotos.
+- **Item aceito abre travado.** Quem chegou em *Waiver accepted* é documento
+  fechado: os campos ficam em somente leitura até você clicar em **Editar
+  mesmo assim**. Evita que um clique distraído sobrescreva — e se espalhe para
+  todo mundo pela pasta compartilhada.
+- **Desfazer a exclusão.** Excluiu sem querer? O aviso que aparece no pé da
+  tela traz **↩ Desfazer** por alguns segundos, e o item volta inteiro.
 - **Conferência antes de exportar.** A janela de exportação lista as NCRs com
   campos essenciais em branco, com link direto para corrigir.
 - **Exportação em PDF** no mesmo padrão do relatório original: capa com o índice
   de NCRs (`NCR-…|HP|FV09 - …|WAIVER ACCEPTED`), páginas A4 retrato para as
   NCRs, páginas A4 paisagem para as evidências, mesmas cores de faixa e mesmo
   rodapé.
+- **Texto que não cabe na folha continua na seguinte.** O layout é de uma
+  folha por item, mas quando o texto passa disso a página continua numa folha
+  de continuação de verdade — com as mesmas margens, o mesmo rodapé e o
+  título repetido com `(cont.)`. A janela de exportação diz, antes de gerar,
+  quantas folhas sairão e quais itens passaram de uma.
 - **Backup e restauração** em arquivo `.json`, para levar o trabalho a outro
   computador ou passar para outra pessoa.
+- **Instalar como aplicativo e usar sem rede.** No Edge ou no Chrome, o menu do
+  navegador oferece **Instalar**: o programa ganha ícone próprio, abre em
+  janela separada, funciona com a rede fora do ar e — o que mais importa no
+  dia a dia — o navegador passa a guardar a permissão da pasta compartilhada,
+  em vez de pedir a cada sessão.
 - **Uma pasta da rede como banco de dados**: o programa lê e grava direto nela,
   e quem abrir apontando para a mesma pasta vê o trabalho de todos, sem importar
   nada. Com histórico automático de versões.
@@ -204,6 +227,10 @@ aberto:
 - **Itens por sistema** — um item que cita vários sistemas (`BX,BQ,BD`) conta em
   cada um; acima de dez sistemas o excedente vira "Outros".
 - **Tabela de marcos**, com percentual aceito e quem editou por último.
+- **Parados há 30+ dias** — os itens pendentes em que ninguém toca há um mês ou
+  mais, do mais esquecido para o menos, com o número de dias e quem mexeu por
+  último. Waiver aceito não conta: está pronto, não parado. O bloco sai também
+  no **Resumo em PDF**, e o CSV ganha a coluna *Dias sem edição*.
 
 ### Filtros
 
@@ -216,7 +243,7 @@ Abaixo do seletor de marco há uma linha de filtros, que se somam:
 | **Sistema** | um sistema específico (`HP`, `EX`, `BF`…), com a contagem de cada um |
 | **Arch Status** | o texto que vai impresso no relatório, inclusive `(em branco)` |
 | **Evidência** | só itens com anexo, ou só os sem |
-| **Buscar no texto** | procura no número, sistema, função, nos blocos de texto e nos certificados |
+| **Buscar no texto** | procura em todo o texto do item: número, sistema, função, os cinco blocos, *Arch Status*, certificados e legendas das evidências |
 
 Os números, os gráficos e as tabelas passam a contar **só o que está
 filtrado** — e é isso que sai no **Resumo em PDF** (que traz uma linha dizendo
@@ -254,10 +281,22 @@ A pasta guarda:
 ```
 Derrogacao\
   derrogacao-dados.json     <- o banco: todos os marcos, NCRs e DEVs
+  imagens\
+    3f2a...-9c1.jpg                 <- as fotos das evidências, uma por arquivo
+    ...
   historico\
     2026-09-11_14h32_bruno.json     <- versões datadas, automáticas
     ...
 ```
+
+As **fotos ficam em arquivos próprios**, e o `derrogacao-dados.json` guarda só o
+nome de cada uma. Cada foto sobe uma vez; dali em diante o que vai e vem pela
+rede é o texto, que é pequeno. As versões do histórico apontam para os mesmos
+arquivos, em vez de carregar uma cópia das imagens cada uma. Uma foto só é
+apagada da pasta quando **nenhum item e nenhuma versão guardada** a citam mais —
+e, ainda assim, nunca antes de sete dias, para nunca competir com a gravação de
+outra pessoa. A janela **🗄 Pasta da rede…** mostra quanto a pasta está
+ocupando, dividido entre dados, imagens e histórico.
 
 - **Ao abrir**, o programa lê a pasta e junta com o que está aqui.
 - **Ao salvar** (poucos segundos depois de parar de digitar), ele relê a pasta,
@@ -267,12 +306,23 @@ Derrogacao\
   traz. Duas pessoas com o programa aberto se enxergam sem recarregar nada.
 - Tudo continua salvo **também neste navegador**, então a pasta cair não
   interrompe o trabalho de ninguém.
+- **Se os dados tiverem sido gravados por uma versão mais nova do programa**,
+  esta página passa a só ler: ela mostra o trabalho de todos, mas não regrava a
+  pasta — senão apagaria, em silêncio, os campos que ainda não conhece. O aviso
+  aparece na tela e na janela da pasta, e basta recarregar a página (Ctrl+F5)
+  para voltar ao normal.
 
 ### A regra de quem vence
 
 Item a item, **vale a edição mais recente**. Não há tela de conflito aqui, ao
 contrário da importação manual de arquivo: a gravação acontece sozinha, e
 ninguém pode ficar parado esperando outra pessoa decidir.
+
+Quando isso acontece com um item seu, o programa não deixa passar em branco: o
+item ganha a marca **⇄** na lista e, ao abri-lo, uma faixa diz quem mexeu e
+quando, com **Ver o que mudou** — os campos substituídos lado a lado, *estava
+aqui* × *passou a ser*. Se algo de seu se perdeu, está ali para copiar de
+volta.
 
 A regra **converge**: mesmo que duas gravações se atropelem, a sincronização
 seguinte de cada lado traz de volta o que faltou, porque cada um ainda tem os
@@ -486,15 +536,18 @@ O site é servido pela branch `gh-pages`, publicada pelo workflow
 
 ```
 index.html               interface
+manifest.webmanifest     instalação como aplicativo
+sw.js                    service worker: abre sem rede
+assets/icons/            ícones do aplicativo instalado
 assets/css/app.css       estilos do editor
 assets/css/report.css    layout do relatório (tela e impressão A4)
 assets/js/store.js       modelo de dados, persistência (IndexedDB) e mesclagem
 assets/js/pasta.js       a pasta da rede como banco de dados
-assets/js/report.js      montagem das páginas no padrão do PDF
+assets/js/report.js      montagem das páginas no padrão do PDF, com paginação
 assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
 tools/build-standalone.py  gera a versão de arquivo único
 assets/js/app.js         lógica do editor
-tests/                   24 suítes de ponta a ponta (Playwright)
+tests/                   29 suítes de ponta a ponta (Playwright)
 exemplos/                relatórios .json prontos para importar
 CLAUDE.md                notas de manutenção: decisões, armadilhas, porquês
 ```

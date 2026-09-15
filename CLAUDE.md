@@ -42,15 +42,18 @@ Não são preferências — são o que faz o sistema servir ao ambiente dele:
 
 ```
 index.html                 interface inteira (nenhum template em JS)
+manifest.webmanifest       instalação como aplicativo (só no site publicado)
+sw.js                      service worker: rede primeiro, cache como reserva
+assets/icons/              ícones do aplicativo instalado
 assets/css/app.css         estilos do editor
 assets/css/report.css      layout do relatório — tela e impressão A4
 assets/js/store.js         modelo, persistência, mesclagem, ordenação
-assets/js/pasta.js         a pasta da rede como banco de dados
-assets/js/report.js        monta as páginas no padrão do PDF
+assets/js/pasta.js         a pasta da rede como banco de dados (e as imagens)
+assets/js/report.js        monta as páginas no padrão do PDF, e as pagina
 assets/js/summary.js       apuração, filtros, gráficos SVG, aba Resumo
-assets/js/app.js           o editor (o maior; ~2600 linhas)
+assets/js/app.js           o editor (o maior; ~3000 linhas)
 tools/build-standalone.py  gera derrogacao.html (arquivo único)
-tests/                     24 suítes Playwright — leia tests/README.md
+tests/                     29 suítes Playwright — leia tests/README.md
 exemplos/                  .json prontos para importar
 .github/workflows/pages.yml  publicação
 ```
@@ -78,7 +81,9 @@ Ordem de carga dos scripts (importa: cada um usa o anterior):
 { id, ncrId, systems, func,
   description, currentSituation, whyNotPossible, arguments, archAnswer,
   requestExpiry, archStatus, approvedExpiry, historic,
-  certificates: [], evidence: [{id, ref, note, orientation, images:[{id,src,caption}]}],
+  certificates: [],
+  evidence: [{id, ref, note, orientation,
+              images:[{id, src, caption, arquivo}]}],   // arquivo: nome na pasta (§5)
   status,                      // acompanhamento interno; NÃO sai no PDF
   done,                        // espelho de status === 'aceito'
   editedBy, editedAt,          // editedAt é a chave da mesclagem
@@ -87,6 +92,14 @@ Ordem de carga dos scripts (importa: cada um usa o anterior):
 
 Persistência: **IndexedDB** (`derrogacao`, v3, stores `projects`, `snapshots`,
 `handles`), com `localStorage` de reserva. `Store.save/list/remove`.
+
+**Campos desconhecidos sobrevivem.** `normalizeNcr`/`normalizeProject` remontam
+o registro campo a campo — o que não estivesse na lista sumia, e era assim que
+uma página velha lendo dados de uma versão nova apagava, em silêncio, o que não
+entendia, e regravava a perda na pasta. Agora o que não é conhecido é copiado
+de volta intacto (`extrasDe`), e `schema` guarda o maior número já visto. A
+segunda linha de defesa está em `app.js`: vendo dados de `schema` maior que o
+seu, a sessão passa a **só ler** (`versaoDesatualizada`) até recarregar.
 
 ### Dois campos que parecem o mesmo e não são
 
@@ -106,6 +119,27 @@ Não há biblioteca de PDF. `report.js` monta as folhas em `#printRoot`,
 resto. Páginas de evidência usam uma página nomeada
 (`@page rep-landscape`). Foi decisão consciente: fidelidade total ao original,
 zero dependências, e o usuário escolhe onde salvar.
+
+### Paginação: as margens são padding, e padding não se repete
+As margens da folha são `padding` da `.rep-page`, e a impressão sai com
+`@page { margin: 0 }` — é isso que permite mandar **Margens: Nenhuma** na
+janela de impressão e ainda assim sair no lugar certo. O preço: um texto que
+passe do fim da folha continuaria na seguinte **colado na borda do papel**
+(medido: 0,0 mm). Por isso `report.js` pagina antes de imprimir:
+
+- `paginar()` mede a folha montada e, enquanto ela transborda, tira do fim os
+  blocos marcados `data-fluido` e os leva para uma folha de continuação de
+  verdade — com as mesmas margens, o rodapé repetido e o título com `(cont.)`.
+  Uma seção sozinha maior que a folha é partida no texto (`partirSecao`, busca
+  binária pelo ponto de corte, sem partir palavra).
+- O índice da capa é `data-lista`: ali a unidade é cada linha.
+- A conta só existe com layout; como o `#printRoot` fica `display:none`,
+  `abrirMedida()` dá layout a ele fora da vista enquanto mede.
+- A margem de segurança contra o arredondamento da impressão é a classe
+  `.rep-medindo`, que encurta a área útil em 1,5 mm **durante a medição** — não
+  se mexe no `limite`, que é a folha inteira: `min-height: 297mm` faz toda
+  folha medir exatamente isso, e descontar dali marcaria tudo como transbordo.
+- Quem cabe numa folha continua saindo exatamente como antes.
 
 ### Ordem da lista = ordem do PDF
 `project.ordem` escolhe; `Store.ordenar(project, kind)` devolve um vetor
@@ -130,7 +164,8 @@ distintos.
 
 ### A pasta da rede como banco (`pasta.js`)
 File System Access API (`showDirectoryPicker`), Chrome/Edge, **funciona também
-em `file://`**. A pasta guarda `derrogacao-dados.json` e `historico/`.
+em `file://`**. A pasta guarda `derrogacao-dados.json`, `imagens/` e
+`historico/`.
 
 - Ao abrir: lê e junta. Ao salvar: **relê, junta, grava** (é o que evita apagar
   o trabalho de quem salvou no meio). A cada 20 s confere se mudou lá fora.
@@ -141,6 +176,24 @@ em `file://`**. A pasta guarda `derrogacao-dados.json` e `historico/`.
   10 min, guardando as últimas 40. Restaurar **só ressuscita o que sumiu**
   (`Store.reviver`), registrado como edição de quem restaurou — é isso que faz
   o item sobreviver no computador dos outros.
+- **Imagens em arquivos próprios** (`imagens/<id do registro>.jpg`). No JSON da
+  pasta fica só `arquivo`; o `src` em base64 é removido na hora de montar o
+  retrato (`montaPayload`) e devolvido na leitura (`hidratarImagens`, que
+  reaproveita o que já está aqui e só lê do disco o que falta). Motivo: antes
+  cada gravação reescrevia os megabytes de todas as fotos, e cada uma das 40
+  versões do histórico era outra cópia inteira. **O backup `.json` continua
+  embutindo tudo** — esse precisa viajar sozinho por e-mail.
+  Ordem que importa: grava-se a imagem **antes** do JSON que a cita.
+  A poda (`Pasta.podarImagens`) só apaga o que nenhum item **e nenhuma versão
+  do histórico** citam, e nunca com menos de 7 dias — entre gravar a foto e
+  gravar o JSON existe um instante em que ela parece órfã para quem estiver
+  lendo. Roda no máximo de hora em hora (`limparImagensOrfas`).
+- **Guarda de versão**: lendo dados com `schema` maior que o desta página, a
+  sessão para de gravar (só lê) e avisa. Sem isso, a página velha regravaria a
+  pasta sem os campos que não conhece. Ver §4.
+- **O que foi substituído por fora** não passa mais em branco: `mergeLWW`
+  devolve `substituidos` (campo a campo, sem base64), o item ganha a marca `⇄`
+  na lista e uma faixa com *estava aqui* × *passou a ser*.
 - O "crachá" (handle) fica no IndexedDB, store `handles`. **Não é um caminho** e
   não viaja: cada pessoa escolhe a pasta uma vez, por navegador. O campo de
   caminho no diálogo é texto informativo que viaja nos dados, só para dizer ao
@@ -158,6 +211,17 @@ funcionam de `file://`. Paleta validada para daltonismo. Filtros (tipo,
 situação, sistema, arch status, evidência, busca) alteram números, gráficos,
 tabelas, **CSV e resumo em PDF** — e o PDF filtrado diz qual foi o recorte. O
 **backup do marco sai sempre inteiro**: backup pela metade não é backup.
+
+**Parados há 30+ dias** (`Summary.DIAS_PARADO`): pendentes sem edição há um mês
+ou mais, do mais esquecido para o menos. Sai do `editedAt` que já existia — item
+aceito nunca conta, porque está pronto, não parado.
+
+### Instalação e uso sem rede
+`manifest.webmanifest` + `sw.js`, registrados só em `https:` ou `localhost`
+(de `file://` a API nem existe, e o arquivo único não acompanha manifesto — o
+`build-standalone.py` remove a linha). Serve a duas coisas: abrir sem rede e
+fazer o Edge oferecer **Instalar**, que é o que faz o navegador guardar a
+permissão da pasta entre sessões.
 
 ## 6. Armadilhas já pagas — não repita
 
@@ -177,10 +241,17 @@ tabelas, **CSV e resumo em PDF** — e o PDF filtrado diz qual foi o recorte. O
   exemplo).
 - **Não versione `derrogacao.html`** na `main` (está no `.gitignore`); ele é
   gerado na publicação.
+- **Botão novo na barra lateral pode empurrar os outros para fora.**
+  `.sidebar-head-actions` tem 332 px; sem `flex-wrap` a fila escorre por baixo
+  do editor e o botão deixa de ser clicável (dois testes caíram assim).
+- **O service worker é rede-primeiro, de propósito.** Cache-primeiro traria de
+  volta o problema de HTML novo com JS velho que o `?v=<sha>` existe para
+  evitar. O `sw.js` também é carimbado na publicação: sem mudar de conteúdo,
+  o navegador não o atualiza.
 
 ## 7. Como testar
 
-`tests/README.md` tem o passo a passo. Em resumo: 24 suítes Playwright que
+`tests/README.md` tem o passo a passo. Em resumo: 29 suítes Playwright que
 abrem a aplicação de verdade, fazem o caminho do usuário e conferem o
 resultado, **inclusive o PDF gerado**. Rode a suíte inteira antes de publicar —
 já houve mais de uma vez em que uma mudança de interface quebrou um teste de
@@ -224,3 +295,7 @@ desta máquina às vezes bloqueia `github.io`.
 | Histórico dentro da pasta | o navegador só libera a pasta escolhida |
 | Situação interna separada do Arch Status | um é do documento, o outro do acompanhamento |
 | Índice da capa fecha com o Arch Status | o SBR4 traz assim (o SBR3 não trazia) |
+| Paginar em vez de mudar as margens para `@page` | mover as margens para a página quebraria quem imprime com "Margens: Nenhuma", que é o que o README manda fazer |
+| Imagem em arquivo na pasta, embutida no backup | na pasta o que pesa é reescrever tudo a cada gravação; no backup o arquivo tem de viajar sozinho |
+| Item aceito abre travado, com "editar mesmo assim" | a regra da pasta espalha um clique distraído para todo mundo em 20 s |
+| Cópia nasce com o número marcado `(cópia)` | a mesclagem pareia itens pelo número: dois com o mesmo número viram um só no computador do colega |
