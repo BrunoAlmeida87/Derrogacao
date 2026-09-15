@@ -211,6 +211,7 @@
     renderSessionInfo();
     renderBackupNotice();
     if (isResumo()) renderSummary();
+    if (isFluxos()) renderFluxos();
     markSaved();
   }
 
@@ -305,11 +306,25 @@
     toast('Planilha do marco salva.');
   }
 
-  /** Monta as páginas A4 do resumo e manda para a impressão. */
+  /** Monta as folhas A4 do resumo e manda para a impressão. */
   function exportarResumoPdf(project) {
     var root = $('#printRoot');
     root.innerHTML = '';
-    root.appendChild(buildSummaryPage(project));
+    /* A mesma paginação do relatório. Sem ela, um resumo com muitos itens
+       passava do fim da folha e continuava colado na borda do papel — as
+       margens do layout são padding da folha, e padding não se repete. */
+    var medida = Report.abrirMedida(root);
+    try {
+      var folha = buildSummaryPage(project);
+      root.appendChild(folha.pag);
+      Report.paginar(folha.pag, root, function () {
+        var c = el('section', 'rep-page rep-page--summary rep-page--cont');
+        c.appendChild(el('div', 'rep-cover-title', folha.titulo + ' (cont.)'));
+        return c;
+      }, folha.rodape);
+    } finally {
+      Report.fecharMedida(medida);
+    }
     var titulo = document.title;
     document.title = project
       ? Report.suggestedFileName(project, 'pdf', 'ncr').replace('WaiverRequest_', 'Resumo_').replace(/\.pdf$/, '')
@@ -320,9 +335,22 @@
     }, 60);
   }
 
-  /** Uma folha A4 com os números, os gráficos e a tabela do escopo. */
+  /**
+   * As folhas A4 com os números, os gráficos e a lista do escopo.
+   *
+   * Cada bloco é marcado `data-fluido`: é a unidade que a paginação leva
+   * para a folha seguinte quando não couber nesta. A lista de itens vai
+   * além — cada linha é uma unidade, para uma lista comprida ser partida no
+   * ponto certo em vez de transbordar.
+   */
   function buildSummaryPage(project) {
     var pg = el('section', 'rep-page rep-page--summary');
+    /* acrescenta o bloco já marcado como movível */
+    function fluido(node) {
+      node.setAttribute('data-fluido', '');
+      pg.appendChild(node);
+      return node;
+    }
     var alvos = project ? [project] : state.projects;
     var dados = Summary.compute(alvos, summaryFiltros);
     var st = project ? dados.porMarco[0] : dados.geral;
@@ -331,7 +359,7 @@
       ? 'Resumo de derrogações — ' + (Report.marcoOf(project, 'ncr') || project.name)
       : 'Resumo de derrogações — todos os marcos';
     pg.appendChild(el('div', 'rep-cover-title', titulo));
-    pg.appendChild(el('div', 'sm-print-date',
+    fluido(el('div', 'sm-print-date',
       'Gerado em ' + new Date().toLocaleDateString('pt-BR') +
       (Store.getUser() ? ' por ' + Store.getUser() : '')));
 
@@ -344,47 +372,53 @@
       if (summaryFiltros.archStatus) ditos.push('arch status: ' + summaryFiltros.archStatus);
       if (summaryFiltros.evidencia) ditos.push(summaryFiltros.evidencia === 'com' ? 'só com anexo' : 'só sem anexo');
       if (summaryFiltros.busca) ditos.push('texto: “' + summaryFiltros.busca + '”');
-      pg.appendChild(el('div', 'sm-print-filtro',
+      fluido(el('div', 'sm-print-filtro',
         'Recorte: ' + ditos.join(' · ') + ' — ' + st.total + ' de ' + st.totalSemFiltro + ' itens.'));
     }
 
-    pg.appendChild(SummaryView.kpiRow(st));
+    fluido(SummaryView.kpiRow(st));
 
     var g1 = SummaryView.bloco('Progresso');
     g1.appendChild(SummaryView.graficoProgresso(dados.porMarco));
-    pg.appendChild(g1);
+    fluido(g1);
 
     var g2 = SummaryView.bloco('Situação dos itens (controle interno)');
     g2.appendChild(SummaryView.graficoSituacao(dados.porMarco));
-    pg.appendChild(g2);
+    fluido(g2);
 
     var g3 = SummaryView.bloco('Itens por sistema');
     g3.appendChild(SummaryView.graficoSistemas(
       project ? dados.porMarco[0].porSistema : dados.geral.porSistema));
-    pg.appendChild(g3);
+    fluido(g3);
 
     if ((st.parados || []).length) {
-      pg.appendChild(SummaryView.blocoParados(st.parados,
-        'Pendentes sem nenhuma edição há ' + Summary.DIAS_PARADO + ' dias ou mais.'));
+      pg.appendChild(SummaryView.blocoLista(
+        'Parados há ' + Summary.DIAS_PARADO + '+ dias',
+        'Pendentes sem nenhuma edição há ' + Summary.DIAS_PARADO + ' dias ou mais.',
+        SummaryView.colunasParados(true), st.parados));
     }
 
     if (project) {
-      var t = SummaryView.bloco('Itens');
-      t.appendChild(SummaryView.tabela([
-        { titulo: 'Tipo', valor: function (r) { return r.kind === 'dev' ? 'DEV' : 'NCR'; } },
-        { titulo: 'Número', valor: function (r) { return r.item.ncrId || '(sem número)'; } },
-        { titulo: 'Sistemas', valor: function (r) { return r.item.systems || '—'; } },
-        { titulo: 'Função / descrição', valor: function (r) { return r.item.func || '—'; } },
-        { titulo: 'Situação', valor: function (r) { return Summary.situacao(r.item); } },
-        { titulo: 'Arch Status', valor: function (r) { return r.item.archStatus || '—'; } }
-      ], dados.porMarco[0].linhas));
-      pg.appendChild(t);
+      pg.appendChild(SummaryView.blocoLista('Itens', null, [
+        { titulo: 'Tipo', larg: 7, valor: function (r) { return r.kind === 'dev' ? 'DEV' : 'NCR'; } },
+        { titulo: 'Número', larg: 22, valor: function (r) { return r.item.ncrId || '(sem número)'; } },
+        { titulo: 'Sistemas', larg: 12, valor: function (r) { return r.item.systems || '—'; } },
+        { titulo: 'Função / descrição', larg: 24, valor: function (r) { return r.item.func || '—'; } },
+        { titulo: 'Situação', larg: 16, valor: function (r) { return Summary.situacao(r.item); } },
+        /* "WAIVER REQUESTED" é a resposta mais comprida e a mais comum:
+           mais estreito do que isto, ela sai partida ao meio */
+        { titulo: 'Arch Status', larg: 19, valor: function (r) { return r.item.archStatus || '—'; } }
+      ], dados.porMarco[0].linhas, 'Nenhum item neste recorte.'));
     }
 
+    /* O rodapé fica dentro da folha desde já, para entrar na conta da
+       paginação — e é repetido em cada folha de continuação. */
+    var rodape = null;
     if (state.project && state.project.footer) {
-      pg.appendChild(el('div', 'rep-footer', state.project.footer));
+      rodape = el('div', 'rep-footer', state.project.footer);
+      pg.appendChild(rodape);
     }
-    return pg;
+    return { pag: pg, titulo: titulo, rodape: rodape };
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1399,6 +1433,9 @@
     up.addEventListener('click', function () {
       var l = currentNcr().evidence;
       l.splice(index - 1, 0, l.splice(index, 1)[0]);
+      /* a ordem dos anexos é a ordem das páginas do PDF: mexer nela é
+         editar o item, e sem o registro a troca se perderia na mesclagem */
+      touch();
       redrawAll(); scheduleSave();
     });
 
@@ -1409,6 +1446,7 @@
     down.addEventListener('click', function () {
       var l = currentNcr().evidence;
       l.splice(index + 1, 0, l.splice(index, 1)[0]);
+      touch();
       redrawAll(); scheduleSave();
     });
 
@@ -1492,6 +1530,7 @@
         left.disabled = i === 0;
         left.addEventListener('click', function () {
           ev.images.splice(i - 1, 0, ev.images.splice(i, 1)[0]);
+          touch();
           redrawThumbs(); scheduleSave();
         });
         var right = el('button', 'btn btn--icon', '→');
@@ -1499,6 +1538,7 @@
         right.disabled = i === ev.images.length - 1;
         right.addEventListener('click', function () {
           ev.images.splice(i + 1, 0, ev.images.splice(i, 1)[0]);
+          touch();
           redrawThumbs(); scheduleSave();
         });
         var rm = el('button', 'btn btn--icon btn--danger', '✕');
@@ -3433,6 +3473,9 @@
       }
       var ncr = currentNcr();
       if (!ncr || !e.clipboardData) return;
+      /* item aceito está travado: a área de soltar imagens fica desligada,
+         e colar não pode ser a porta dos fundos */
+      if (travado(ncr)) { toast('Item aceito e travado — use “Editar mesmo assim” antes de colar.'); return; }
       var files = Array.prototype.slice.call(e.clipboardData.files)
         .filter(function (f) { return /^image\//.test(f.type); });
       if (!files.length) return;

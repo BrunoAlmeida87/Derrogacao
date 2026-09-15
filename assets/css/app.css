@@ -1703,3 +1703,34 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .rep-page--summary .sm-table th, .rep-page--summary .sm-table td { padding: 3px 6px; white-space: normal; }
 .rep-page--summary .sm-table-wrap { overflow: visible; }
 .sm-print-date { font-size: 10pt; color: #6b7280; margin: 3mm 0 5mm; }
+
+/* --- lista que a paginação parte linha a linha ---------------------------
+   Tem a cara de uma tabela, mas cada linha é filha direta do bloco: é isso
+   que deixa a paginação levar as que não couberem para a folha seguinte,
+   repetindo o cabeçalho. Um <table> de verdade não permitiria — as linhas
+   ficam dentro do <tbody>, e mudar de folha exigiria partir a tabela. */
+.sm-grade-linha {
+  display: flex;
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+}
+.sm-grade-cel {
+  padding: 3px 6px;
+  min-width: 0;
+  overflow-wrap: break-word;
+  font-size: 10pt;
+}
+.sm-grade-cel.is-num { text-align: right; }
+.sm-grade-linha--cab { border-bottom-width: 2px; }
+.sm-grade-linha--cab .sm-grade-cel {
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+/* a folha já é partida pela paginação: deixar o navegador partir de novo
+   traria de volta o texto colado na borda do papel */
+.rep-page--summary .sm-grade { break-inside: auto; page-break-inside: auto; }
+/* a lista usa a largura toda da folha — cada milímetro a mais é uma palavra
+   que deixa de ser partida ao meio numa coluna estreita */
+.rep-page--summary .sm-grade { padding-left: 4px; padding-right: 4px; }

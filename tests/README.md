@@ -4,7 +4,7 @@ Suítes de ponta a ponta em Playwright (Chromium). Cada arquivo abre a
 aplicação de verdade, faz o caminho de um usuário e confere o resultado —
 inclusive gerando PDFs e conferindo o que saiu neles.
 
-As suítes 25 a 30 **falham com `AssertionError`** quando algo sai do lugar; as
+As suítes 25 a 31 **falham com `AssertionError`** quando algo sai do lugar; as
 mais antigas conferem imprimindo valores, que precisam ser lidos.
 
 ## Rodar
@@ -23,8 +23,10 @@ Duas variáveis, ambas opcionais:
 | `DERROG_CHROME` | caminho do Chromium | o do Playwright nesta máquina |
 
 Cada suíte é autossuficiente: as imagens de apoio, o backup em formato antigo
-e a versão de arquivo único são gerados na hora, se faltarem. Dá para rodar
-qualquer uma sozinha, em qualquer ordem, num diretório vazio.
+e a versão de arquivo único são gerados na hora. Dá para rodar qualquer uma
+sozinha, em qualquer ordem, num diretório vazio. Nenhuma escreve dentro do
+repositório — o `test11.py` gera o arquivo único no diretório de trabalho,
+para não mexer no `derrogacao.html` versionado.
 
 > **`ERRORS: none` no fim não quer dizer que passou.** Essa linha só reporta o
 > console do navegador. O que vale são as asserções e os valores impressos —
@@ -65,6 +67,7 @@ qualquer uma sozinha, em qualquer ordem, num diretório vazio.
 | `test28.py` | itens parados: números, tabela, CSV e resumo impresso |
 | `test29.py` | manifesto, service worker e a aplicação abrindo sem rede |
 | `test30.py` | fluxo dos waivers: leitura do campo, item, pop-up, aba e PDF |
+| `test31.py` | paginação do resumo e do compilado de fluxos: margens de cada folha, cabeçalho repetido, nada perdido |
 
 Nos testes da pasta compartilhada (19, 20, 21, 27) o seletor de pastas do Windows
 é substituído por um diretório OPFS — mesma interface

@@ -6,7 +6,13 @@ O index.html normal carrega seis arquivos ao lado dele. Para usar no próprio
 computador — ou deixar numa pasta de rede para a equipe — é mais prático um
 .html só, que se abre com dois cliques e não depende de nada em volta.
 
+O arquivo gerado é versionado na `main` (derrogacao.html), para quem baixa o
+repositório já levar o programa inteiro. Como é conteúdo derivado, ele
+envelhece em silêncio se alguém mexer no index.html e esquecer de gerar de
+novo — daí o modo de conferência:
+
 Uso:  python3 tools/build-standalone.py [versao] [saida]
+      python3 tools/build-standalone.py --conferir [arquivo]
 """
 
 import html
@@ -15,6 +21,7 @@ import re
 import sys
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
+MARCA = re.compile(r'<meta name="app-version" content="([^"]*)">\n')
 
 
 def ler(rel: str) -> str:
@@ -56,19 +63,45 @@ def embutir(doc: str) -> str:
     return doc
 
 
-def main():
-    versao = sys.argv[1] if len(sys.argv) > 1 else "local"
-    saida = RAIZ / (sys.argv[2] if len(sys.argv) > 2 else "derrogacao.html")
-
+def montar(versao: str) -> str:
     doc = embutir(ler("index.html"))
-
     # a marca de versão vem de uma meta, já que não há mais src carimbado
-    doc = doc.replace(
+    return doc.replace(
         "<title>",
         '<meta name="app-version" content="%s">\n<title>' % html.escape(versao),
         1,
     )
-    saida.write_text(doc, encoding="utf-8")
+
+
+def conferir(saida: pathlib.Path) -> int:
+    """O arquivo único gravado ainda corresponde ao index.html e aos assets?
+
+    A versão gravada nele é a da última publicação, então a conferência
+    reconstrói com essa mesma marca: o que se compara é o conteúdo.
+    """
+    if not saida.exists():
+        print("FALTA: %s não existe. Rode tools/build-standalone.py." % saida.name)
+        return 1
+    atual = saida.read_text(encoding="utf-8")
+    m = MARCA.search(atual)
+    esperado = montar(m.group(1) if m else "local")
+    if atual == esperado:
+        print("%s está em dia com o index.html e os assets." % saida.name)
+        return 0
+    print("DESATUALIZADO: %s não corresponde mais ao index.html/assets.\n"
+          "Rode: python3 tools/build-standalone.py" % saida.name)
+    return 1
+
+
+def main():
+    args = sys.argv[1:]
+    if args and args[0] == "--conferir":
+        alvo = RAIZ / (args[1] if len(args) > 1 else "derrogacao.html")
+        raise SystemExit(conferir(alvo))
+
+    versao = args[0] if args else "local"
+    saida = RAIZ / (args[1] if len(args) > 1 else "derrogacao.html")
+    saida.write_text(montar(versao), encoding="utf-8")
     print("%s — %.1f KB — versão %s" % (saida.name, saida.stat().st_size / 1024, versao))
 
 

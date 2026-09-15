@@ -402,6 +402,49 @@
     return p;
   }
 
+  /**
+   * A mesma tabela, montada de um jeito que a paginação sabe partir: cada
+   * linha é filha direta do bloco (data-lista), e o cabeçalho é repetido em
+   * cada folha (data-cabecalho). Serve ao PDF; na tela continua valendo a
+   * tabela de verdade, que é o que o navegador rola e ordena melhor.
+   *
+   * `colunas[].larg` é a largura da coluna, em por cento da folha.
+   */
+  function blocoLista(titulo, sub, colunas, linhas, vazio) {
+    var c = el('section', 'sm-card sm-grade');
+    c.setAttribute('data-fluido', '');
+    c.setAttribute('data-lista', '');
+
+    var h = el('header', 'sm-card-head');
+    h.setAttribute('data-cabecalho', '');
+    h.appendChild(el('h3', null, titulo));
+    if (sub) h.appendChild(el('p', null, sub));
+    c.appendChild(h);
+
+    function celula(col, conteudo) {
+      var cel = el('div', 'sm-grade-cel' + (col.num ? ' is-num' : ''));
+      /* largura fixa: com '1 1' as colunas disputam espaço entre si e a
+         última acaba partindo palavra ao meio na folha */
+      cel.style.flex = '0 0 ' + (col.larg || Math.floor(100 / colunas.length)) + '%';
+      if (conteudo instanceof Node) cel.appendChild(conteudo);
+      else if (conteudo != null) cel.textContent = conteudo;
+      return cel;
+    }
+
+    var cab = el('div', 'sm-grade-linha sm-grade-linha--cab');
+    cab.setAttribute('data-cabecalho', '');
+    colunas.forEach(function (col) { cab.appendChild(celula(col, col.titulo)); });
+    c.appendChild(cab);
+
+    linhas.forEach(function (l) {
+      var linha = el('div', 'sm-grade-linha');
+      colunas.forEach(function (col) { linha.appendChild(celula(col, col.valor(l))); });
+      c.appendChild(linha);
+    });
+    if (!linhas.length) c.appendChild(el('p', 'sm-empty', vazio || 'Nada a listar.'));
+    return c;
+  }
+
   function tabela(colunas, linhas, opts) {
     opts = opts || {};
     var wrap = el('div', 'sm-table-wrap');
@@ -726,23 +769,33 @@
     }
   }
 
-  /** Tabela dos itens parados — a mesma na tela e no resumo impresso. */
+  /* As colunas dos parados, num lugar só: na tela é uma tabela, no PDF é a
+     lista que a paginação sabe partir — mas as colunas são as mesmas. */
+  function colunasParados(paraImpressao) {
+    return [
+      { titulo: 'Dias', num: true, larg: 7, valor: function (r) { return num(S.diasSemMexer(r.item)); } },
+      { titulo: 'Tipo', larg: 7, valor: function (r) { return r.kind === 'dev' ? 'DEV' : 'NCR'; } },
+      { titulo: 'Número', larg: 22, valor: function (r) { return r.item.ncrId || '(sem número)'; } },
+      { titulo: 'Função / descrição', larg: 28, valor: function (r) { return r.item.func || '—'; } },
+      { titulo: 'Situação', larg: 18, valor: function (r) {
+        return paraImpressao ? S.situacao(r.item) : pilulaSituacao(r.item);
+      } },
+      { titulo: 'Última edição de', larg: 18, valor: function (r) { return r.item.editedBy || '—'; } }
+    ];
+  }
+
+  /** Tabela dos itens parados, como ela aparece na tela. */
   function blocoParados(linhas, sub) {
     var b = bloco('Parados há ' + S.DIAS_PARADO + '+ dias', sub);
-    b.appendChild(tabela([
-      { titulo: 'Dias', num: true, valor: function (r) { return num(S.diasSemMexer(r.item)); } },
-      { titulo: 'Tipo', valor: function (r) { return r.kind === 'dev' ? 'DEV' : 'NCR'; } },
-      { titulo: 'Número', valor: function (r) { return r.item.ncrId || '(sem número)'; } },
-      { titulo: 'Função / descrição', valor: function (r) { return r.item.func || '—'; } },
-      { titulo: 'Situação', valor: function (r) { return pilulaSituacao(r.item); } },
-      { titulo: 'Última edição de', valor: function (r) { return r.item.editedBy || '—'; } }
-    ], linhas));
+    b.appendChild(tabela(colunasParados(false), linhas));
     return b;
   }
 
   global.SummaryView = {
     render: render,
     blocoParados: blocoParados,
+    blocoLista: blocoLista,
+    colunasParados: colunasParados,
     toCsv: toCsv,
     kpiRow: kpiRow,
     tabela: tabela,

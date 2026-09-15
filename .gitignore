@@ -1,2 +1,4 @@
-# gerado pela publicação (tools/build-standalone.py); não versionar na main
-derrogacao.html
+# Nada a ignorar por enquanto. O derrogacao.html (arquivo único) é gerado
+# por tools/build-standalone.py e fica versionado: quem baixa o repositório
+# leva o programa inteiro num arquivo só. Depois de mexer no index.html ou
+# nos assets, gere de novo — tools/build-standalone.py --conferir avisa.

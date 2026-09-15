@@ -53,8 +53,9 @@ assets/js/report.js        monta as páginas no padrão do PDF, e as pagina
 assets/js/fluxo.js         lê o Waiver Historic e desenha o caminho do waiver
 assets/js/summary.js       apuração, filtros, gráficos SVG, aba Resumo
 assets/js/app.js           o editor (o maior; ~3000 linhas)
-tools/build-standalone.py  gera derrogacao.html (arquivo único)
-tests/                     30 suítes Playwright — leia tests/README.md
+derrogacao.html            o programa inteiro num arquivo só — gerado, e versionado
+tools/build-standalone.py  gera (e confere) o derrogacao.html
+tests/                     31 suítes Playwright — leia tests/README.md
 exemplos/                  .json prontos para importar
 .github/workflows/pages.yml  publicação
 ```
@@ -141,6 +142,16 @@ passe do fim da folha continuaria na seguinte **colado na borda do papel**
   se mexe no `limite`, que é a folha inteira: `min-height: 297mm` faz toda
   folha medir exatamente isso, e descontar dali marcaria tudo como transbordo.
 - Quem cabe numa folha continua saindo exatamente como antes.
+- **Listas partidas linha a linha**: um bloco `data-lista` entrega os próprios
+  filhos como unidades, e os filhos marcados `data-cabecalho` não migram — são
+  repetidos no alto de cada continuação. É assim que a lista de itens do
+  resumo atravessa quatro folhas sem perder o título nem os rótulos das
+  colunas. Uma lista que ficasse só com o cabeçalho é removida.
+- A mesma máquina serve ao **relatório**, ao **resumo** e aos **fluxos**: os
+  três chamam `Report.paginar`. O resumo foi o último a entrar (era uma folha
+  só, que transbordava com poucos itens); a lista dele não é um `<table>`
+  justamente por isso — linha de tabela mora dentro do `<tbody>`, e mudar de
+  folha exigiria partir a tabela.
 
 ### Ordem da lista = ordem do PDF
 `project.ordem` escolhe; `Store.ordenar(project, kind)` devolve um vetor
@@ -258,8 +269,12 @@ permissão da pasta entre sessões.
 - **Ao mudar a interface, confira o PDF.** São folhas de estilo separadas, mas
   `app.css` tem regras que alcançam `.rep-page` (o resumo impresso, por
   exemplo).
-- **Não versione `derrogacao.html`** na `main` (está no `.gitignore`); ele é
-  gerado na publicação.
+- **O `derrogacao.html` é versionado, e é conteúdo derivado.** Mexeu no
+  `index.html`, num css ou num js? Rode `python3 tools/build-standalone.py`
+  antes de commitar. O workflow `conferir.yml` roda
+  `tools/build-standalone.py --conferir` a cada envio e reprova quando os dois
+  divergem — sem isso, quem baixasse o repositório levaria uma versão antiga
+  do programa achando que levava a de agora.
 - **Botão novo na barra lateral pode empurrar os outros para fora.**
   `.sidebar-head-actions` tem 332 px; sem `flex-wrap` a fila escorre por baixo
   do editor e o botão deixa de ser clicável (dois testes caíram assim).
@@ -277,7 +292,7 @@ permissão da pasta entre sessões.
 
 ## 7. Como testar
 
-`tests/README.md` tem o passo a passo. Em resumo: 30 suítes Playwright que
+`tests/README.md` tem o passo a passo. Em resumo: 31 suítes Playwright que
 abrem a aplicação de verdade, fazem o caminho do usuário e conferem o
 resultado, **inclusive o PDF gerado**. Rode a suíte inteira antes de publicar —
 já houve mais de uma vez em que uma mudança de interface quebrou um teste de
@@ -288,6 +303,12 @@ seletor do Windows: mesma interface `FileSystemDirectoryHandle`, então o
 caminho exercitado é o real.
 
 ## 8. Publicação
+
+Dois workflows:
+
+- `.github/workflows/conferir.yml` — a cada envio, confere se o
+  `derrogacao.html` versionado ainda corresponde ao `index.html` e aos assets.
+- `.github/workflows/pages.yml` — publica.
 
 `main` → workflow `.github/workflows/pages.yml`:
 gera `derrogacao.html`, carimba `?v=<sha>` nos assets, força tudo para a branch
@@ -327,3 +348,5 @@ desta máquina às vezes bloqueia `github.io`.
 | Fluxo lido do `historic`, sem campo novo | o texto do relatório é a verdade; um campo paralelo sairia do ar na primeira vez que alguém editasse só o texto |
 | Ordem dos marcos fixa em `Fluxo.ORDEM` | as setas mandam; a lista só decide quando o texto não diz (confirmada com o Bruno, com J06 e J10 onde a mensagem dele tinha typo) |
 | Cópia nasce com o número marcado `(cópia)` | a mesclagem pareia itens pelo número: dois com o mesmo número viram um só no computador do colega |
+| `derrogacao.html` versionado na `main`, com conferência no CI | quem baixa o repositório leva o programa pronto; a conferência é o preço de guardar conteúdo derivado |
+| Lista do resumo impresso em `div`, não em `<table>` | a paginação move filhos diretos do bloco; linha de tabela mora no `<tbody>` e não migraria sem partir a tabela |

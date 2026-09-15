@@ -151,12 +151,42 @@
       var c = filhos[i];
       if (!c.hasAttribute('data-fluido')) continue;
       if (c.hasAttribute('data-lista')) {
-        for (var j = 0; j < c.children.length; j++) out.push({ no: c.children[j], lista: c });
+        for (var j = 0; j < c.children.length; j++) {
+          /* o cabeçalho não muda de folha: é repetido em cada uma */
+          if (c.children[j].hasAttribute('data-cabecalho')) continue;
+          out.push({ no: c.children[j], lista: c });
+        }
       } else {
         out.push({ no: c, lista: null });
       }
     }
     return out;
+  }
+
+  /**
+   * Repete na continuação os filhos marcados como cabeçalho da lista — o
+   * título do bloco e a linha de rótulos das colunas. Sem isso, a segunda
+   * folha de uma lista comprida chega sem dizer o que são as colunas.
+   */
+  function repetirCabecalho(lista, clone) {
+    for (var i = 0; i < lista.children.length; i++) {
+      if (lista.children[i].hasAttribute('data-cabecalho')) {
+        clone.appendChild(lista.children[i].cloneNode(true));
+      }
+    }
+  }
+
+  /* Uma lista que ficou só com o cabeçalho é um título solto no fim da
+     folha, com as linhas todas na seguinte. Melhor não existir. */
+  function limparListasVazias(pag) {
+    var listas = pag.querySelectorAll('[data-lista]');
+    for (var i = 0; i < listas.length; i++) {
+      var l = listas[i], vazia = true;
+      for (var j = 0; j < l.children.length; j++) {
+        if (!l.children[j].hasAttribute('data-cabecalho')) { vazia = false; break; }
+      }
+      if (vazia && l.children.length && l.parentNode) l.parentNode.removeChild(l);
+    }
   }
 
   /** Corta o texto numa quebra de linha ou espaço, para não partir palavra. */
@@ -244,6 +274,7 @@
         if (u.lista !== listaAtual) {
           listaAtual = u.lista;
           clone = u.lista.cloneNode(false);
+          repetirCabecalho(u.lista, clone);
           nova.appendChild(clone);
         }
         clone.appendChild(u.no);
@@ -253,7 +284,10 @@
       paginas.push(nova);
       atual = nova;
     }
-    paginas.forEach(function (p) { p.classList.remove('rep-medindo'); });
+    paginas.forEach(function (p) {
+      p.classList.remove('rep-medindo');
+      limparListasVazias(p);
+    });
     return paginas;
   }
 

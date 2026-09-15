@@ -1,0 +1,19 @@
+# O arquivo único (derrogacao.html) é conteúdo derivado do index.html e dos
+# assets, e está versionado. Sem esta conferência ele envelheceria em
+# silêncio: quem baixasse o repositório levaria uma versão antiga do
+# programa, achando que levava a de agora.
+name: Conferir o arquivo único
+
+on:
+  push:
+    branches-ignore: [gh-pages]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  conferir:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: O derrogacao.html corresponde ao index.html e aos assets?
+        run: python3 tools/build-standalone.py --conferir

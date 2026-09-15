@@ -207,6 +207,9 @@ JavaScript embutidos:
 **https://brunoalmeida87.github.io/Derrogacao/derrogacao.html**
 (ou pelo menu **⋯ Mais → ⤓ Baixar para usar sem internet**)
 
+O mesmo arquivo está no repositório, na raiz — `derrogacao.html`. Quem baixa
+o projeto inteiro já leva o programa pronto, sem precisar publicar nada.
+
 Salve o arquivo e abra com dois cliques. Não precisa de servidor, instalação
 nem conexão — funciona inclusive numa pasta de rede, onde cada pessoa abre a
 sua cópia.
@@ -217,8 +220,9 @@ sua cópia.
 > máquina. Para levar o trabalho de um para o outro, use **★ Salvar backup de
 > tudo** de um lado e **Abrir arquivo…** do outro.
 
-O arquivo é gerado a cada publicação por `tools/build-standalone.py`, então
-acompanha sempre a versão do site.
+O arquivo é gerado por `tools/build-standalone.py`: a publicação o refaz a
+cada commit, carimbado com a versão do site, e a cópia versionada na raiz é
+conferida a cada envio (`--conferir`), para não envelhecer em silêncio.
 
 ## O caminho do waiver (aba Fluxos)
 
@@ -293,7 +297,7 @@ contagem por certificado impactado. Nesse modo aparecem três exportações:
 
 | Botão | O que sai |
 | --- | --- |
-| **Resumo em PDF** | Uma folha A4 com os números, os gráficos e a tabela de itens |
+| **Resumo em PDF** | Folhas A4 com os números, os gráficos e a lista de itens — com quantas folhas forem precisas, o título repetido e as mesmas margens em todas |
 | **Planilha (CSV)** | Uma linha por NCR/DEV, com todos os campos — abre no Excel |
 | **Backup deste marco** | O `.json` só desse marco, para enviar a alguém |
 
@@ -583,9 +587,10 @@ assets/js/pasta.js       a pasta da rede como banco de dados
 assets/js/report.js      montagem das páginas no padrão do PDF, com paginação
 assets/js/fluxo.js       leitura do Waiver Historic e desenho do fluxo
 assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
-tools/build-standalone.py  gera a versão de arquivo único
 assets/js/app.js         lógica do editor
-tests/                   30 suítes de ponta a ponta (Playwright)
+derrogacao.html          o programa inteiro num arquivo só (gerado)
+tools/build-standalone.py  gera a versão de arquivo único
+tests/                   31 suítes de ponta a ponta (Playwright)
 exemplos/                relatórios .json prontos para importar
 CLAUDE.md                notas de manutenção: decisões, armadilhas, porquês
 ```

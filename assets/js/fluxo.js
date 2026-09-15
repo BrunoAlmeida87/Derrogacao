@@ -71,13 +71,17 @@
     if (no.solto) return 900;                       /* o que não é marco vai para o fim */
     var base = no.rotulo.replace(/Cer$/i, '');
     var i = ORDEM.indexOf(base);
-    if (i < 0) {
-      /* marco fora da lista (J13, por exemplo): entra pelo número */
+    var listado = i >= 0;
+    if (!listado) {
+      /* marco fora da lista (J04 sozinho, J13): entra pelo número */
       i = ORDEM.length;
       for (var k = 0; k < ORDEM.length; k++) {
         var mk = /J\s*0*(\d{1,2})/i.exec(ORDEM[k]);
         if (mk && no.num != null && no.num < Number(mk[1])) { i = k; break; }
       }
+      /* um tiquinho antes de quem o sucede: "J04" fica acima de "J05" na
+         coluna, em vez de empatar com ele e depender da ordem de digitação */
+      i -= 0.25;
     }
     return no.cer ? i - 0.5 : i;                    /* J06Cer fica antes de J06 */
   }
