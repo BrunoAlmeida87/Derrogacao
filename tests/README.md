@@ -4,7 +4,7 @@ Suítes de ponta a ponta em Playwright (Chromium). Cada arquivo abre a
 aplicação de verdade, faz o caminho de um usuário e confere o resultado —
 inclusive gerando PDFs e conferindo o que saiu neles.
 
-As suítes 25 a 29 **falham com `AssertionError`** quando algo sai do lugar; as
+As suítes 25 a 30 **falham com `AssertionError`** quando algo sai do lugar; as
 mais antigas conferem imprimindo valores, que precisam ser lidos.
 
 ## Rodar
@@ -64,6 +64,7 @@ qualquer uma sozinha, em qualquer ordem, num diretório vazio.
 | `test27.py` | imagens em arquivos na pasta, o que mudou por fora, guarda de versão |
 | `test28.py` | itens parados: números, tabela, CSV e resumo impresso |
 | `test29.py` | manifesto, service worker e a aplicação abrindo sem rede |
+| `test30.py` | fluxo dos waivers: leitura do campo, item, pop-up, aba e PDF |
 
 Nos testes da pasta compartilhada (19, 20, 21, 27) o seletor de pastas do Windows
 é substituído por um diretório OPFS — mesma interface

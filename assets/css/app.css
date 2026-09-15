@@ -48,6 +48,7 @@
 /* cada categoria tem a sua cor, para não haver dúvida de onde se está */
 body[data-kind="dev"]    { --kind: #0e7490; --kind-sf: #e4f3f8; --kind-br: #b9dce8; }
 body[data-kind="resumo"] { --kind: #a15c07; --kind-sf: #fdf4e3; --kind-br: #f0d8a8; }
+body[data-kind="fluxos"] { --kind: #0f7a52; --kind-sf: #e8f6f0; --kind-br: #b6e0cf; }
 
 * { box-sizing: border-box; }
 
@@ -304,6 +305,7 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
 .tab[data-kind="ncr"]    { --tab: #4B0082; --tab-sf: #f3ecfb; }
 .tab[data-kind="dev"]    { --tab: #0e7490; --tab-sf: #e4f3f8; }
 .tab[data-kind="resumo"] { --tab: #a15c07; --tab-sf: #fdf4e3; }
+.tab[data-kind="fluxos"] { --tab: #0f7a52; --tab-sf: #e8f6f0; }
 .tab:hover { background: var(--tab-sf); color: var(--tab); }
 .tab[aria-selected="true"] {
   color: var(--tab);
@@ -1306,6 +1308,92 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   border-radius: var(--radius-sm);
 }
 
+/* --- fluxo dos waivers --------------------------------------------------- */
+
+/* O desenho é SVG escrito à mão (fluxo.js); a aparência mora aqui, para o
+   mesmo fluxo servir à tela pequena do item, ao pop-up e ao PDF. */
+.fx-svg { display: block; height: auto; max-width: 100%; overflow: visible; }
+/* sem largura própria o aviso de "nada escrito" esticaria pela linha toda */
+.fx-svg--vazio { max-width: 260px; }
+.fx-card-caixa {
+  fill: var(--fx-sf, #f3ecfb);
+  stroke: var(--fx, #4B0082);
+  stroke-width: 1.2;
+}
+.fx-card-txt { fill: var(--fx-ink, #2e0050); font-family: inherit; font-weight: 700; }
+.fx-card.is-destaque .fx-card-caixa { fill: var(--fx, #4B0082); stroke: var(--fx, #4B0082); }
+.fx-card.is-destaque .fx-card-txt { fill: #fff; }
+.fx-card.is-solto .fx-card-caixa { fill: #f2f4f7; stroke: #9aa1ae; stroke-dasharray: 3 2; }
+.fx-card.is-solto .fx-card-txt { fill: #4b515f; }
+.fx-seta { fill: none; stroke: #6d7383; stroke-width: 1.6; }
+.fx-ponta { fill: #6d7383; }
+.fx-vazio-txt { fill: var(--muted); font-family: inherit; font-size: 12px; font-style: italic; }
+
+.fx-palco { overflow-x: auto; padding: 2px 0; }
+.fx-palco--mini { margin-top: 8px; }
+.fx-palco--linha { flex: 1; min-width: 0; }
+
+/* bloco dentro do item, embaixo do Waiver Historic */
+.fx-bloco {
+  margin-top: 14px;
+  padding: 10px 12px 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.fx-bloco-cab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.fx-bloco-sub { color: var(--muted); font-size: 12px; flex: 1; min-width: 140px; }
+
+/* pop-up */
+.fx-item { font-size: 13px !important; font-weight: 600; color: var(--ink-2) !important; }
+.fx-caminho { font-size: 13px !important; color: var(--ink-2) !important; margin: 10px 0 0 !important; }
+.fx-avisos {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--warn-sf);
+  border-left: 3px solid #e0a03c;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 12.5px;
+  color: #6b4400;
+}
+.fx-avisos p { margin: 0 0 4px; }
+.fx-avisos p:last-child { margin-bottom: 0; }
+.fx-cru {
+  margin: 0;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  color: var(--ink-2);
+}
+
+/* aba Fluxos */
+.fx-info { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.fx-info span { color: var(--muted); }
+.fx-check { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
+.fx-linha {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--line-2);
+}
+.fx-linha:first-of-type { border-top: none; }
+.fx-linha-id { flex: 0 0 240px; min-width: 0; }
+.fx-linha-num { font-weight: 700; font-size: 13px; }
+.fx-linha-sub { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* Na folha a linha é sempre em coluna. A media query de tela estreita vale
+   também na impressão — a folha tem 210mm —, e medir de um jeito para
+   imprimir de outro faz a paginação errar a conta de folhas. */
+.rep-page .fx-linha { flex-direction: column; align-items: flex-start; gap: 6px; }
+.rep-page .fx-linha-id { flex: 0 0 auto; }
+.rep-page .fx-palco { overflow: visible; }
+
 /* --- travas e avisos do item -------------------------------------------- */
 
 /* item aceito: fechado por padrão, aberto por um clique consciente */
@@ -1401,6 +1489,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 @media (max-width: 900px) {
   .layout { flex-direction: column; }
   .dif-par { grid-template-columns: 1fr; }
+  .fx-linha { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .fx-linha-id { flex: 0 0 auto; }
   .sidebar { width: auto; flex: 0 0 auto; max-height: 44vh; border-right: none; border-bottom: 1px solid var(--line); }
   .grid--3, .grid--2 { grid-template-columns: 1fr; }
   .editor-scroll { padding: 14px; }

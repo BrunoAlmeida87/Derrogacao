@@ -38,6 +38,12 @@ login e nenhum dado sai do computador.
   independente dele — anexos incluídos — com o número marcado como `(cópia)`
   para você trocar. É o caminho mais curto quando várias NCRs do mesmo sistema
   se repetem quase iguais.
+- **O caminho do waiver, em fluxo.** Cada item tem, embaixo do *Waiver
+  Historic*, o desenho do que aquelas linhas dizem: `J04 To: J06` mais
+  `J06 To: J08` viram **J04 → J06 → J08**. Os cards aparecem conforme o campo
+  é preenchido, e o botão **⤳ Ver fluxo** abre o desenho em tamanho grande. A
+  aba **Fluxos** reúne todos os itens do relatório aberto, NCR e DEV, e sai em
+  PDF.
 - **Busca em todo o texto.** O campo da lista lateral procura no número, no
   sistema e na função, mas também dentro das descrições, do *Arch Status*, dos
   certificados e até nas legendas das fotos.
@@ -213,6 +219,37 @@ sua cópia.
 
 O arquivo é gerado a cada publicação por `tools/build-standalone.py`, então
 acompanha sempre a versão do site.
+
+## O caminho do waiver (aba Fluxos)
+
+O campo **Waiver Historic** é escrito à mão, uma entrada por linha, no formato
+do relatório. Cada linha é uma seta:
+
+```
+J01 & J03 To: J02 & J04
+J02 & J04 To: J06
+J06Cer To: J06
+```
+
+Juntando as setas aparece o caminho: **J01 & J03 → J02 & J04 → J06**, com o
+`J06Cer` desembocando no mesmo J06. Nada é inventado — um marco que ninguém
+escreveu não aparece — e nada é alterado: o texto continua sendo a verdade, o
+desenho é só a leitura dele.
+
+- **`J01 & J03` é um card só.** Os números do mesmo lado da seta andam juntos,
+  como no relatório.
+- **`J1`, `J01` e `J 01` são o mesmo marco**, e `RANAE J06` também é J06.
+- **`J06Cer` é o certificado**, e fica logo antes do J06 dele.
+- **O card do marco deste relatório sai destacado**, para se achar de relance.
+- Quando as setas não dizem quem vem antes, vale a ordem do programa:
+  J01 & J03 · J02 & J04 · J05 · J06 · J07 · J08 · J09 · J10 · J11 · J12.
+- Uma linha sem `To:` vira um card sozinho, e o pop-up avisa. Setas em círculo
+  (`J06 To: J08` com `J08 To: J06`) também viram aviso, em vez de travar.
+
+Na aba **Fluxos** está o compilado: um fluxo por item do relatório aberto, NCR
+e DEV separados, com busca (que alcança também os marcos do fluxo), a opção de
+esconder quem não tem nada escrito e **Fluxos em PDF** — que pagina sozinho
+quando a lista passa de uma folha.
 
 ## Aba Resumo
 
@@ -544,10 +581,11 @@ assets/css/report.css    layout do relatório (tela e impressão A4)
 assets/js/store.js       modelo de dados, persistência (IndexedDB) e mesclagem
 assets/js/pasta.js       a pasta da rede como banco de dados
 assets/js/report.js      montagem das páginas no padrão do PDF, com paginação
+assets/js/fluxo.js       leitura do Waiver Historic e desenho do fluxo
 assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
 tools/build-standalone.py  gera a versão de arquivo único
 assets/js/app.js         lógica do editor
-tests/                   29 suítes de ponta a ponta (Playwright)
+tests/                   30 suítes de ponta a ponta (Playwright)
 exemplos/                relatórios .json prontos para importar
 CLAUDE.md                notas de manutenção: decisões, armadilhas, porquês
 ```

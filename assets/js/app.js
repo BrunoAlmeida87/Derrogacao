@@ -23,14 +23,17 @@
 
   var isDev = function () { return state.kind === 'dev'; };
   var isResumo = function () { return state.kind === 'resumo'; };
+  var isFluxos = function () { return state.kind === 'fluxos'; };
+  /* Abas que tomam a tela inteira: não têm lista lateral nem formulário. */
+  var telaCheia = function () { return isResumo() || isFluxos(); };
   /** Lista de itens da aba ativa — o vetor de verdade, para alterar. */
   var items = function () {
-    if (!state.project || isResumo()) return [];
+    if (!state.project || telaCheia()) return [];
     return state.project[Store.itemsKey(state.kind)];
   };
   /** A mesma lista na ordem escolhida — para mostrar e para exportar. */
   var itemsNaOrdem = function () {
-    if (!state.project || isResumo()) return [];
+    if (!state.project || telaCheia()) return [];
     return Store.ordenar(state.project, state.kind);
   };
   /** Nome da aba, para textos da interface. */
@@ -141,6 +144,7 @@
       renderUser();
       renderBackupNotice();
       if (isResumo()) renderSummary();
+      if (isFluxos()) renderFluxos(true);
     }).catch(markError);
   }
 
@@ -224,13 +228,15 @@
       if (cnt) cnt.textContent = state.project[Store.itemsKey(t.dataset.kind)].length;
     });
 
-    /* a aba de resumo troca a tela inteira: não há lista nem formulário */
-    $('#sidebarBody').hidden = isResumo();
+    /* resumo e fluxos trocam a tela inteira: não há lista nem formulário */
+    $('#sidebarBody').hidden = telaCheia();
     $('#sidebarResumo').hidden = !isResumo();
-    $('#editorScroll').hidden = isResumo();
+    $('#sidebarFluxos').hidden = !isFluxos();
+    $('#editorScroll').hidden = telaCheia();
     $('#summaryScroll').hidden = !isResumo();
-    $('#previewBtn').hidden = isResumo();
-    if (isResumo()) {
+    $('#fluxosScroll').hidden = !isFluxos();
+    $('#previewBtn').hidden = telaCheia();
+    if (telaCheia()) {
       $('#pdfBtn').textContent = 'Exportar PDF…';
       return;
     }
@@ -251,6 +257,7 @@
     state.kind = kind;
     renderTabs();
     if (isResumo()) { renderSummary(); return; }
+    if (isFluxos()) { renderFluxos(); return; }
     renderNcrList();
     renderEditor();
     $('#editorScroll').scrollTop = 0;
@@ -262,6 +269,8 @@
 
   var summaryFilter = '';
   var summaryFiltros = {};
+  /* aba Fluxos: recorte do que está à vista */
+  var fluxosFiltro = { busca: '', soComFluxo: false };
 
   function renderSummary(semRolar) {
     SummaryView.render($('#summaryScroll'), state.projects, summaryFilter, {
@@ -383,6 +392,180 @@
   /* ---------------------------------------------------------------------- */
 
   var dragFrom = null;
+
+  /* ---------------------------------------------------------------------- */
+  /* aba Fluxos — o caminho de cada item, tudo junto                        */
+  /* ---------------------------------------------------------------------- */
+
+  /** Uma linha por item, na ordem do PDF, com o fluxo já analisado. */
+  function linhasDeFluxo() {
+    var out = [];
+    if (!state.project) return out;
+    ['ncr', 'dev'].forEach(function (kind) {
+      Store.ordenar(state.project, kind).forEach(function (item) {
+        out.push({ kind: kind, item: item, fluxo: Fluxo.analisar(item.historic) });
+      });
+    });
+    return out;
+  }
+
+  function passaNoFiltroDeFluxo(r) {
+    if (fluxosFiltro.soComFluxo && r.fluxo.vazio) return false;
+    var t = (fluxosFiltro.busca || '').trim().toLowerCase();
+    if (!t) return true;
+    var palheiro = (Store.textoBusca(r.item) + ' ' + Fluxo.caminhoTexto(r.fluxo)).toLowerCase();
+    return palheiro.indexOf(t) >= 0;
+  }
+
+  function renderFluxos(semRolar) {
+    var host = $('#fluxosScroll');
+    if (!state.project) return;
+    var antes = host.scrollTop;
+    host.innerHTML = '';
+
+    var todas = linhasDeFluxo();
+    var linhas = todas.filter(passaNoFiltroDeFluxo);
+    var comFluxo = todas.filter(function (r) { return !r.fluxo.vazio; }).length;
+
+    /* --- barra: o que está à vista e como exportar --- */
+    var barra = el('div', 'sm-bar');
+    var info = el('div', 'fx-info');
+    info.appendChild(el('strong', null, Report.marcoOf(state.project, 'ncr') || state.project.name || 'sem marco'));
+    info.appendChild(el('span', null, comFluxo + ' de ' + todas.length +
+      ' item(ns) com waivers anteriores escritos.'));
+    barra.appendChild(info);
+
+    var acoes = el('div', 'sm-bar-actions');
+    var bpdf = el('button', 'btn btn--sm btn--primary', 'Fluxos em PDF');
+    bpdf.type = 'button';
+    bpdf.addEventListener('click', function () { exportarFluxosPdf(); });
+    acoes.appendChild(bpdf);
+    barra.appendChild(acoes);
+    host.appendChild(barra);
+
+    /* --- filtros --- */
+    var fb = el('div', 'sm-filtros');
+    var busca = el('div', 'sm-bar-field');
+    busca.appendChild(el('label', null, 'Buscar'));
+    var inp = document.createElement('input');
+    inp.type = 'search';
+    inp.value = fluxosFiltro.busca;
+    inp.placeholder = 'número, função ou marco do fluxo…';
+    inp.addEventListener('input', function () {
+      fluxosFiltro.busca = inp.value;
+      renderFluxos(true);
+      var novo = $('#fluxosScroll input[type="search"]');
+      if (novo) { novo.focus(); novo.setSelectionRange(novo.value.length, novo.value.length); }
+    });
+    busca.appendChild(inp);
+    fb.appendChild(busca);
+
+    var so = el('label', 'fx-check');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = fluxosFiltro.soComFluxo;
+    cb.addEventListener('change', function () {
+      fluxosFiltro.soComFluxo = cb.checked;
+      renderFluxos(true);
+    });
+    so.appendChild(cb);
+    so.appendChild(document.createTextNode(' esconder quem não tem fluxo'));
+    fb.appendChild(so);
+    host.appendChild(fb);
+
+    /* --- um bloco por categoria --- */
+    ['ncr', 'dev'].forEach(function (kind) {
+      var minhas = linhas.filter(function (r) { return r.kind === kind; });
+      var nome = kind === 'dev' ? 'DEV' : 'NCR';
+      var total = todas.filter(function (r) { return r.kind === kind; }).length;
+      if (!total) return;
+      var bloco = SummaryView.bloco(nome + 's', minhas.length + ' de ' + total +
+        ' item(ns), na mesma ordem do PDF.');
+      if (!minhas.length) {
+        bloco.appendChild(el('p', 'hint', 'Nada aqui com este recorte.'));
+      }
+      minhas.forEach(function (r) { bloco.appendChild(linhaDeFluxo(r, false)); });
+      host.appendChild(bloco);
+    });
+
+    if (!semRolar) host.scrollTop = 0; else host.scrollTop = antes;
+  }
+
+  /** A linha de um item: identificação à esquerda, fluxo à direita. */
+  function linhaDeFluxo(r, paraImpressao) {
+    var linha = el('div', 'fx-linha');
+    if (paraImpressao) linha.setAttribute('data-fluido', '');
+
+    var id = el('div', 'fx-linha-id');
+    var num = el('div', 'fx-linha-num', r.item.ncrId || '(sem número)');
+    if (!paraImpressao) {
+      var a = el('a', 'sm-link', r.item.ncrId || '(sem número)');
+      a.href = '#';
+      a.title = 'Abrir este item';
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        state.kind = r.kind;
+        renderTabs();
+        renderNcrList();
+        selectNcr(r.item.id);
+      });
+      num.textContent = '';
+      num.appendChild(a);
+    }
+    id.appendChild(num);
+    var sub = (r.kind === 'dev' ? [r.item.func] : [r.item.systems, r.item.func])
+      .filter(Boolean).join(' | ');
+    id.appendChild(el('div', 'fx-linha-sub', sub || '—'));
+    linha.appendChild(id);
+
+    var palco = el('div', 'fx-palco fx-palco--linha');
+    palco.appendChild(Fluxo.svg(r.fluxo, { escala: 'compacto', destaque: marcoDesteRelatorio() }));
+    linha.appendChild(palco);
+    return linha;
+  }
+
+  /**
+   * O compilado em PDF. Usa a mesma paginação do relatório: uma lista
+   * comprida não pode terminar no fim da folha e continuar na borda do papel.
+   */
+  function exportarFluxosPdf() {
+    var root = $('#printRoot');
+    root.innerHTML = '';
+    var medida = Report.abrirMedida(root);
+    try {
+      var pg = el('section', 'rep-page rep-page--summary');
+      var marco = Report.marcoOf(state.project, 'ncr') || state.project.name || '';
+      pg.appendChild(el('div', 'rep-cover-title', 'Fluxo dos waivers — ' + marco));
+      pg.appendChild(el('div', 'sm-print-date',
+        'Gerado em ' + new Date().toLocaleDateString('pt-BR') +
+        (Store.getUser() ? ' por ' + Store.getUser() : '')));
+
+      var linhas = linhasDeFluxo().filter(passaNoFiltroDeFluxo);
+      var lista = el('div', 'fx-lista');
+      lista.setAttribute('data-fluido', '');
+      lista.setAttribute('data-lista', '');
+      linhas.forEach(function (r) { lista.appendChild(linhaDeFluxo(r, true)); });
+      if (!linhas.length) lista.appendChild(el('p', null, 'Nenhum item neste recorte.'));
+      pg.appendChild(lista);
+      root.appendChild(pg);
+
+      Report.paginar(pg, root, function () {
+        var c = el('section', 'rep-page rep-page--summary rep-page--cont');
+        c.appendChild(el('div', 'rep-cover-title', 'Fluxo dos waivers — ' + marco + ' (cont.)'));
+        return c;
+      });
+    } finally {
+      Report.fecharMedida(medida);
+    }
+
+    var titulo = document.title;
+    document.title = Report.suggestedFileName(state.project, 'pdf', 'ncr')
+      .replace('WaiverRequest_', 'Fluxos_').replace(/\.pdf$/, '');
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.title = titulo; }, 500);
+    }, 60);
+  }
 
   function renderNcrList() {
     var ul = $('#ncrList');
@@ -847,6 +1030,7 @@
         : 'Uma entrada por linha.'
     }));
     stCard.appendChild(g2);
+    stCard.appendChild(renderFluxoDoItem(g2));
     stCard.appendChild(renderCertificates());
     host.appendChild(stCard);
 
@@ -885,6 +1069,9 @@
 
     $$('.card', host).forEach(function (card) {
       $$('input, textarea, select, button', card).forEach(function (n) {
+        /* o que só mostra continua valendo: travar é para não escrever sem
+           querer, não para deixar de ver */
+        if (n.hasAttribute('data-livre')) return;
         if (n.tagName === 'TEXTAREA' || (n.tagName === 'INPUT' && n.type === 'text')) n.readOnly = true;
         else n.disabled = true;
       });
@@ -953,6 +1140,84 @@
       body.appendChild(bloco);
     });
     $('#difDialog').showModal();
+  }
+
+  /* --- o caminho do waiver, dentro do item ------------------------------- */
+
+  /** O marco deste relatório, no formato dos cards ("RANAE J06" -> "J06"). */
+  function marcoDesteRelatorio() {
+    var m = Fluxo.marco(Report.marcoOf(state.project, state.kind));
+    return m ? m.rotulo : '';
+  }
+
+  /**
+   * Mostra, embaixo do Waiver Historic, o caminho que aquelas linhas
+   * descrevem — e redesenha a cada tecla, para os cards irem aparecendo
+   * conforme o campo é preenchido.
+   *
+   * Só este pedaço é redesenhado: refazer o formulário durante a digitação
+   * faria o cursor pular.
+   */
+  function renderFluxoDoItem(ondeEstaOCampo) {
+    var bloco = el('div', 'fx-bloco');
+
+    var cab = el('div', 'fx-bloco-cab');
+    cab.appendChild(el('strong', null, 'Fluxo dos waivers'));
+    var sub = el('span', 'fx-bloco-sub', 'montado a partir do Waiver Historic acima');
+    cab.appendChild(sub);
+    var btn = el('button', 'btn btn--sm btn--accent', '⤳ Ver fluxo');
+    btn.type = 'button';
+    btn.id = 'fluxoAbrirBtn';
+    btn.title = 'Abre o fluxo em tamanho grande';
+    btn.setAttribute('data-livre', '');   /* só mostra: vale mesmo com o item travado */
+    btn.addEventListener('click', function () { abrirFluxo(currentNcr(), state.kind); });
+    cab.appendChild(btn);
+    bloco.appendChild(cab);
+
+    var palco = el('div', 'fx-palco fx-palco--mini');
+    bloco.appendChild(palco);
+
+    function redesenhar() {
+      var n = currentNcr();
+      if (!n) return;
+      var a = Fluxo.analisar(n.historic);
+      palco.innerHTML = '';
+      palco.appendChild(Fluxo.svg(a, { escala: 'compacto', destaque: marcoDesteRelatorio() }));
+      btn.textContent = a.vazio ? '⤳ Ver fluxo' : '⤳ Ver fluxo (' + a.nos.length + ')';
+    }
+    redesenhar();
+
+    /* O formulário ainda não está na tela quando este bloco é montado, então
+       o campo é procurado dentro do pedaço que o contém, e não no documento. */
+    var campo = $('#f-historic', ondeEstaOCampo);
+    if (campo) campo.addEventListener('input', redesenhar);
+    return bloco;
+  }
+
+  /** O fluxo em tamanho grande, com o texto de origem à mão. */
+  function abrirFluxo(item, kind) {
+    if (!item) return;
+    var a = Fluxo.analisar(item.historic);
+    $('#fluxoItem').textContent = (kind === 'dev' ? 'DEV ' : 'NCR ') +
+      (item.ncrId || 'sem número') +
+      (item.func ? ' · ' + item.func : '');
+
+    var palco = $('#fluxoPalco');
+    palco.innerHTML = '';
+    palco.appendChild(Fluxo.svg(a, { destaque: marcoDesteRelatorio() }));
+
+    $('#fluxoCaminho').textContent = a.vazio
+      ? 'Escreva as entradas no Waiver Historic — uma por linha, no formato “J04 To: J06” — e os cards aparecem aqui.'
+      : a.nos.length + ' marco(s): ' + Fluxo.caminhoTexto(a);
+
+    var avisos = $('#fluxoAvisos');
+    avisos.innerHTML = '';
+    avisos.hidden = !a.avisos.length;
+    a.avisos.forEach(function (x) { avisos.appendChild(el('p', null, x)); });
+
+    $('#fluxoCru').hidden = a.vazio;
+    $('#fluxoCruTxt').textContent = a.linhas.join('\n');
+    $('#fluxoDialog').showModal();
   }
 
   /* Situação de acompanhamento: controle interno, não sai no PDF. Substitui o
@@ -2700,8 +2965,9 @@
     renderNcrList();
     renderUser();
     if (isResumo()) renderSummary();
+    if (isFluxos()) renderFluxos(true);
 
-    if (!isResumo()) {
+    if (!telaCheia()) {
       var agora = currentNcr();
       if (!agora) {
         /* o item aberto foi excluído por outra pessoa */
@@ -3125,6 +3391,7 @@
     $('#copyNcrBtn').addEventListener('click', openCopyDialog);
     $('#dupNcrBtn').addEventListener('click', duplicarNcr);
     $('#difCloseBtn').addEventListener('click', function () { $('#difDialog').close(); });
+    $('#fluxoCloseBtn').addEventListener('click', function () { $('#fluxoDialog').close(); });
     $('#copyCancelBtn').addEventListener('click', function () { $('#copyDialog').close(); });
     $('#zoomRange').addEventListener('input', applyZoom);
 

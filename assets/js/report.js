@@ -509,6 +509,11 @@
 
   global.Report = {
     build: build,
+    /* A paginação serve a qualquer folha montada por aqui — o resumo e os
+       fluxos usam a mesma, para não repetirem o erro de transbordar. */
+    paginar: paginar,
+    abrirMedida: abrirMedida,
+    fecharMedida: fecharMedida,
     itensLongos: itensLongos,
     zerarContagem: zerarContagem,
     buildMany: buildMany,

@@ -116,8 +116,12 @@
       <button class="tab" role="tab" data-kind="dev" aria-selected="false">
         DEV <span class="tab-count">0</span>
       </button>
-      <button class="tab tab--wide" role="tab" data-kind="resumo" aria-selected="false">
+      <button class="tab" role="tab" data-kind="resumo" aria-selected="false">
         Resumo
+      </button>
+      <button class="tab" role="tab" data-kind="fluxos" aria-selected="false"
+              title="O caminho dos waivers de cada item, lido do Waiver Historic">
+        Fluxos
       </button>
     </div>
 
@@ -159,6 +163,12 @@
     </div>
     </div>
 
+    <div class="sidebar-note" id="sidebarFluxos" hidden>
+      O fluxo é lido do campo <strong>Waiver Historic</strong> de cada item:
+      cada linha <em>“J04 To: J06”</em> é uma seta. Aqui estão todos os itens
+      do <strong>relatório aberto</strong>, NCR e DEV.
+    </div>
+
     <div class="sidebar-note" id="sidebarResumo" hidden>
       O resumo reúne <strong>todos os marcos</strong> deste navegador — não só o
       relatório aberto. Escolha um marco na tela ao lado para ver o detalhe e
@@ -169,6 +179,7 @@
   <main class="editor">
     <div class="editor-scroll" id="editorScroll"></div>
     <div class="editor-scroll summary-scroll" id="summaryScroll" hidden></div>
+    <div class="editor-scroll summary-scroll" id="fluxosScroll" hidden></div>
   </main>
 
 </div>
@@ -360,6 +371,23 @@
   </div>
 </dialog>
 
+<dialog id="fluxoDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>Fluxo dos waivers</h3>
+    <p class="fx-item" id="fluxoItem"></p>
+    <div class="fx-palco" id="fluxoPalco"></div>
+    <p class="fx-caminho" id="fluxoCaminho"></p>
+    <div class="fx-avisos" id="fluxoAvisos" hidden></div>
+    <details class="dlg-tips" id="fluxoCru">
+      <summary>O texto como está escrito no Waiver Historic</summary>
+      <pre class="fx-cru" id="fluxoCruTxt"></pre>
+    </details>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn btn--primary" id="fluxoCloseBtn">Fechar</button>
+  </div>
+</dialog>
+
 <dialog id="difDialog" class="dlg--wide">
   <div class="dlg-body">
     <h3>O que mudou neste item</h3>
@@ -382,6 +410,7 @@
 <script src="assets/js/store.js"></script>
 <script src="assets/js/pasta.js"></script>
 <script src="assets/js/report.js"></script>
+<script src="assets/js/fluxo.js"></script>
 <script src="assets/js/summary.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

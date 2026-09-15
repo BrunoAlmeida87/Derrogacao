@@ -50,16 +50,17 @@ assets/css/report.css      layout do relatório — tela e impressão A4
 assets/js/store.js         modelo, persistência, mesclagem, ordenação
 assets/js/pasta.js         a pasta da rede como banco de dados (e as imagens)
 assets/js/report.js        monta as páginas no padrão do PDF, e as pagina
+assets/js/fluxo.js         lê o Waiver Historic e desenha o caminho do waiver
 assets/js/summary.js       apuração, filtros, gráficos SVG, aba Resumo
 assets/js/app.js           o editor (o maior; ~3000 linhas)
 tools/build-standalone.py  gera derrogacao.html (arquivo único)
-tests/                     29 suítes Playwright — leia tests/README.md
+tests/                     30 suítes Playwright — leia tests/README.md
 exemplos/                  .json prontos para importar
 .github/workflows/pages.yml  publicação
 ```
 
 Ordem de carga dos scripts (importa: cada um usa o anterior):
-`store.js → pasta.js → report.js → summary.js → app.js`.
+`store.js → pasta.js → report.js → fluxo.js → summary.js → app.js`.
 
 ## 4. Modelo de dados
 
@@ -205,6 +206,24 @@ isso, o item apagado por uma pessoa voltaria pela sincronização de quem ainda
 não soube. O carimbo é sempre **posterior à versão excluída**
 (`Store.depoisDe`), para não ressuscitar por relógio adiantado.
 
+### O fluxo do waiver (`fluxo.js`)
+O campo `historic` é texto livre, uma entrada por linha (`J01 & J03 To: J06`).
+`Fluxo.analisar` lê cada linha como uma **seta** e devolve cards, setas e
+colunas; `Fluxo.svg` desenha. O texto nunca é alterado — o desenho é leitura.
+
+- A coluna de um card é **uma a mais que a de quem aponta para ele**. É isso
+  que faz `J06 To: J08` + `J04 To: J06` virarem J04 → J06 → J08 sem ninguém
+  dizer a ordem, e faz dois marcos que vão ao mesmo destino se juntarem.
+- Quando as setas não decidem, vale `Fluxo.ORDEM` (J01 & J03 · J02 & J04 · J05
+  · J06 · J07 · J08 · J09 · J10 · J11 · J12), com `<marco>Cer` meio ponto antes
+  do marco dele.
+- Setas em círculo não travam: há um teto de colunas, a seta que fecha o
+  círculo é ignorada e o pop-up avisa.
+- O que não tem marco nenhum no texto (`RANAE`) vira card tracejado no fim, em
+  vez de sumir.
+- A aba **Fluxos** (`renderFluxos` em `app.js`) é o compilado do relatório
+  aberto, e o PDF dela usa `Report.paginar` — a mesma paginação do relatório.
+
 ### Aba Resumo (`summary.js`)
 Gráficos em **SVG escrito à mão** — sem biblioteca, imprimem em vetor e
 funcionam de `file://`. Paleta validada para daltonismo. Filtros (tipo,
@@ -244,6 +263,13 @@ permissão da pasta entre sessões.
 - **Botão novo na barra lateral pode empurrar os outros para fora.**
   `.sidebar-head-actions` tem 332 px; sem `flex-wrap` a fila escorre por baixo
   do editor e o botão deixa de ser clicável (dois testes caíram assim).
+- **SVG sem `width`/`height` sai em branco na impressão.** Com só o `viewBox`
+  ele ocupa espaço na tela e nada no papel: o layout de impressão do Chrome não
+  deduz o tamanho como o da tela. Os desenhos do fluxo levam os dois atributos.
+- **As media queries de tela estreita valem na impressão** — a folha tem
+  210 mm. Uma regra `@media (max-width: 900px)` mudou a altura das linhas só no
+  papel, e a paginação, que mede na tela, errou a conta de folhas. O que entra
+  na folha tem layout próprio sob `.rep-page`, sem depender da largura.
 - **O service worker é rede-primeiro, de propósito.** Cache-primeiro traria de
   volta o problema de HTML novo com JS velho que o `?v=<sha>` existe para
   evitar. O `sw.js` também é carimbado na publicação: sem mudar de conteúdo,
@@ -251,7 +277,7 @@ permissão da pasta entre sessões.
 
 ## 7. Como testar
 
-`tests/README.md` tem o passo a passo. Em resumo: 29 suítes Playwright que
+`tests/README.md` tem o passo a passo. Em resumo: 30 suítes Playwright que
 abrem a aplicação de verdade, fazem o caminho do usuário e conferem o
 resultado, **inclusive o PDF gerado**. Rode a suíte inteira antes de publicar —
 já houve mais de uma vez em que uma mudança de interface quebrou um teste de
@@ -298,4 +324,6 @@ desta máquina às vezes bloqueia `github.io`.
 | Paginar em vez de mudar as margens para `@page` | mover as margens para a página quebraria quem imprime com "Margens: Nenhuma", que é o que o README manda fazer |
 | Imagem em arquivo na pasta, embutida no backup | na pasta o que pesa é reescrever tudo a cada gravação; no backup o arquivo tem de viajar sozinho |
 | Item aceito abre travado, com "editar mesmo assim" | a regra da pasta espalha um clique distraído para todo mundo em 20 s |
+| Fluxo lido do `historic`, sem campo novo | o texto do relatório é a verdade; um campo paralelo sairia do ar na primeira vez que alguém editasse só o texto |
+| Ordem dos marcos fixa em `Fluxo.ORDEM` | as setas mandam; a lista só decide quando o texto não diz (confirmada com o Bruno, com J06 e J10 onde a mensagem dele tinha typo) |
 | Cópia nasce com o número marcado `(cópia)` | a mesclagem pareia itens pelo número: dois com o mesmo número viram um só no computador do colega |
