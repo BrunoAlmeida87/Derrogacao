@@ -50,13 +50,14 @@ assets/css/report.css      layout do relatório — tela e impressão A4
 assets/js/store.js         modelo, persistência, mesclagem, ordenação
 assets/js/pasta.js         a pasta da rede como banco de dados (e as imagens)
 assets/js/report.js        monta as páginas no padrão do PDF, e as pagina
-assets/js/fluxo.js         lê o Waiver Historic e desenha o caminho do waiver
+assets/js/fluxo.js         lê o Waiver Historic, desenha o caminho do waiver e
+                           acha o mesmo item no relatório do marco anterior
 assets/js/summary.js       apuração, filtros, gráficos SVG, aba Resumo
 assets/js/chat.js          a conversa da equipe (aba opcional), pela pasta
 assets/js/app.js           o editor (o maior; ~3000 linhas)
 derrogacao.html            o programa inteiro num arquivo só — gerado, e versionado
 tools/build-standalone.py  gera (e confere) o derrogacao.html
-tests/                     32 suítes Playwright — leia tests/README.md
+tests/                     33 suítes Playwright — leia tests/README.md
 exemplos/                  .json prontos para importar
 .github/workflows/pages.yml  publicação
 ```
@@ -236,6 +237,33 @@ colunas; `Fluxo.svg` desenha. O texto nunca é alterado — o desenho é leitura
 - A aba **Fluxos** (`renderFluxos` em `app.js`) é o compilado do relatório
   aberto, e o PDF dela usa `Report.paginar` — a mesma paginação do relatório.
 
+### A resposta do marco anterior (o ponto no card)
+Cada marco é um projeto à parte e o mesmo item atravessa vários: a `NCR-001` do
+J06 vira a `NCR-001` do J08. Então a resposta que o J06 deu **já está neste
+navegador** — é só procurar. `Fluxo.indice(projects, kind, atualId)` monta a
+procura (um registro por relatório, com o marco entendido por `Fluxo.marco` e
+os itens indexados por `Store.numeroChave`) e `Fluxo.anterior(idx, no, item)`
+responde por card. `Fluxo.svg` recebe isso em `opts.antes` e, achando, põe o
+ponto no canto, o balão no `mouseenter`/`focus` e o clique em `opts.abrir`.
+
+- **Só acha o que está aqui.** Marco sem relatório neste computador fica sem
+  ponto; inventar resposta seria pior do que não mostrar nada. Quem traz os
+  outros marcos para cá é a pasta da rede.
+- **O pareamento é o de sempre**: marco pelo texto (`RANAE J06` = `J06`;
+  `J06Cer` ≠ `J06`; `J01 & J03` alcança o `J03` por interseção de números) e
+  item por `Store.numeroChave`. Empate: o marco escrito igual vale mais; depois
+  o relatório mexido por último.
+- **O próprio item aberto nunca é resposta de marco nenhum** — seria ele
+  mesmo, e o card do marco atual já vem destacado.
+- **O índice é montado uma vez por desenho**, não por card: a aba Fluxos
+  pergunta por cada card de cada item.
+- **Ler não escreve.** O outro relatório não é tocado; `test33.py` confere.
+- O balão vive fora do desenho (`div.fx-balao`, `position: fixed`,
+  `pointer-events: none`), porque SVG não quebra linha sozinho. Ele é
+  reparentado para o `<dialog>` quando o card está dentro de um: elemento da
+  camada de cima não deixa ver quem ficou no `body`. Nada disso vai para o
+  papel — a impressão não passa `opts.antes`.
+
 ### A conversa da equipe (`chat.js`)
 Aba opcional, desligada de saída, ligada em **Ajustes** (a escolha vive no
 `localStorage`, não no projeto: quem decide ver recado é cada pessoa).
@@ -314,6 +342,11 @@ permissão da pasta entre sessões.
   210 mm. Uma regra `@media (max-width: 900px)` mudou a altura das linhas só no
   papel, e a paginação, que mede na tela, errou a conta de folhas. O que entra
   na folha tem layout próprio sob `.rep-page`, sem depender da largura.
+- **Fechar o balão no `scroll` apaga o balão que acabou de abrir.** Rolar
+  para trazer o card à vista dispara o evento *depois* do `mouseenter`, e o
+  balão sumia sem ninguém entender por quê (um teste pegou isso). Hoje a
+  rolagem **reposiciona** o balão junto do card e só fecha quando o card sai
+  da tela.
 - **O service worker é rede-primeiro, de propósito.** Cache-primeiro traria de
   volta o problema de HTML novo com JS velho que o `?v=<sha>` existe para
   evitar. O `sw.js` também é carimbado na publicação: sem mudar de conteúdo,
@@ -321,7 +354,7 @@ permissão da pasta entre sessões.
 
 ## 7. Como testar
 
-`tests/README.md` tem o passo a passo. Em resumo: 32 suítes Playwright que
+`tests/README.md` tem o passo a passo. Em resumo: 33 suítes Playwright que
 abrem a aplicação de verdade, fazem o caminho do usuário e conferem o
 resultado, **inclusive o PDF gerado**. Rode a suíte inteira antes de publicar —
 já houve mais de uma vez em que uma mudança de interface quebrou um teste de
@@ -381,4 +414,6 @@ desta máquina às vezes bloqueia `github.io`.
 | Conversa desligada de saída, ligada por navegador | é a única aba que não serve ao relatório: quem quer, liga |
 | A tela diz que a conversa direta não é secreta | ela não é, e deixar isso subentendido seria pior do que não ter a conversa |
 | `derrogacao.html` versionado na `main`, com conferência no CI | quem baixa o repositório leva o programa pronto; a conferência é o preço de guardar conteúdo derivado |
+| A resposta do marco anterior é só leitura, e só do que está neste navegador | os dados são de quem tem a pasta; inventar resposta, ou escrever no relatório do outro marco, seria pior do que não mostrar nada |
+| Balão em `div` sobre o SVG, e não `<title>` do SVG | o `<title>` é uma linha só, sem formatação e com o atraso do navegador; e os dois juntos apareceriam ao mesmo tempo |
 | Lista do resumo impresso em `div`, não em `<table>` | a paginação move filhos diretos do bloco; linha de tabela mora no `<tbody>` e não migraria sem partir a tabela |

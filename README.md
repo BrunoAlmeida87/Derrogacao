@@ -44,6 +44,10 @@ login e nenhum dado sai do computador.
   é preenchido, e o botão **⤳ Ver fluxo** abre o desenho em tamanho grande. A
   aba **Fluxos** reúne todos os itens do relatório aberto, NCR e DEV, e sai em
   PDF.
+- **O que o marco anterior respondeu.** Se a mesma NCR (ou DEV) também está no
+  relatório de um marco que aparece no fluxo, aquele card ganha um ponto:
+  passe o mouse e leia o *Arch Answer* de lá, sem sair do que está fazendo.
+  Clicando, o item de lá abre.
 - **Busca em todo o texto.** O campo da lista lateral procura no número, no
   sistema e na função, mas também dentro das descrições, do *Arch Status*, dos
   certificados e até nas legendas das fotos.
@@ -254,6 +258,30 @@ Na aba **Fluxos** está o compilado: um fluxo por item do relatório aberto, NCR
 e DEV separados, com busca (que alcança também os marcos do fluxo), a opção de
 esconder quem não tem nada escrito e **Fluxos em PDF** — que pagina sozinho
 quando a lista passa de uma folha.
+
+### O card com um ponto: a resposta do marco anterior
+
+Cada marco é um relatório à parte, e o mesmo item costuma atravessar vários — a
+`NCR-001` do J06 vira a `NCR-001` do J08. Quando o card de um marco do fluxo
+tem, **neste navegador**, um relatório daquele marco com o mesmo número, o card
+ganha um **ponto no canto**:
+
+- **Passe o mouse** (ou chegue nele pelo Tab) e aparece o que aquele relatório
+  diz sobre este item: *Arch Answer*, *Arch Status*, *Approved Expiry*, quem
+  escreveu e quando. Um texto muito comprido vem cortado, com o aviso.
+- **Clique no card** e o item de lá abre — o relatório troca junto, e o que
+  você estava escrevendo é gravado antes.
+- **Sem ponto, não há nada a ver**: ou aquele marco não tem relatório neste
+  computador, ou o relatório dele não tem este número. Nada é adivinhado.
+
+O pareamento é o mesmo do resto do programa: o marco pelo texto (`RANAE J06`,
+`J06` e `J 6` são o mesmo; `J06Cer` não é o J06) e o item pelo número, sem
+ligar para maiúsculas e espaços. É leitura, só leitura: abrir o balão não
+escreve nada no outro relatório.
+
+Como a busca só enxerga o que está neste navegador, ela funciona melhor com a
+**pasta da rede ligada** — é ela que traz os relatórios dos outros marcos para
+cá.
 
 ## Conversa da equipe (aba opcional)
 
@@ -618,13 +646,14 @@ assets/css/report.css    layout do relatório (tela e impressão A4)
 assets/js/store.js       modelo de dados, persistência (IndexedDB) e mesclagem
 assets/js/pasta.js       a pasta da rede como banco de dados
 assets/js/report.js      montagem das páginas no padrão do PDF, com paginação
-assets/js/fluxo.js       leitura do Waiver Historic e desenho do fluxo
+assets/js/fluxo.js       leitura do Waiver Historic, desenho do fluxo e a
+                         resposta do marco anterior
 assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
 assets/js/chat.js        a conversa da equipe, dentro da pasta da rede
 assets/js/app.js         lógica do editor
 derrogacao.html          o programa inteiro num arquivo só (gerado)
 tools/build-standalone.py  gera a versão de arquivo único
-tests/                   32 suítes de ponta a ponta (Playwright)
+tests/                   33 suítes de ponta a ponta (Playwright)
 exemplos/                relatórios .json prontos para importar
 CLAUDE.md                notas de manutenção: decisões, armadilhas, porquês
 ```

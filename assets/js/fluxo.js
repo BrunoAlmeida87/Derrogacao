@@ -52,7 +52,7 @@
 
     if (!achados.length) {
       /* sem marco no texto: é um destino escrito por extenso, como "RANAE" */
-      return { chave: t.toUpperCase(), rotulo: t, num: null, cer: false, solto: true };
+      return { chave: t.toUpperCase(), rotulo: t, num: null, nums: [], cer: false, solto: true };
     }
 
     /* "J01 & J03" é um card só: os números do mesmo lado da seta andam juntos */
@@ -63,7 +63,10 @@
 
     var rotulo = unicos.map(function (n) { return 'J' + (n < 10 ? '0' : '') + n; }).join(' & ');
     if (cer) rotulo += 'Cer';
-    return { chave: rotulo.toUpperCase(), rotulo: rotulo, num: unicos[unicos.length - 1], cer: cer, solto: false };
+    return {
+      chave: rotulo.toUpperCase(), rotulo: rotulo,
+      num: unicos[unicos.length - 1], nums: unicos, cer: cer, solto: false
+    };
   }
 
   /** Posição na fila dos marcos. O "Cer" vem logo antes do marco dele. */
@@ -183,6 +186,250 @@
     }).join(' → ');
   }
 
+  /* --- o que o marco anterior respondeu ---------------------------------- */
+
+  /* O relatório de cada marco é um projeto à parte, e o mesmo item atravessa
+     vários: a NCR-001 do J06 vira a NCR-001 do J08. Então, quando o card do
+     J06 aparece no fluxo da NCR-001, o Arch Answer daquele relatório já está
+     neste navegador — basta procurar pelo marco e pelo número.
+
+     Só acha o que está aqui. Relatório que este computador nunca abriu (nem
+     pela pasta, nem por importação) não existe para esta busca, e o card fica
+     sem marca: é melhor não mostrar nada do que inventar resposta. */
+
+  /** O card do fluxo e o marco de um relatório falam do mesmo marco? */
+  function mesmoMarco(a, b) {
+    if (!a || !b) return false;
+    if (a.chave === b.chave) return true;
+    /* "J01 & J03" e "J03" são o mesmo trabalho; "J06Cer" e "J06", não */
+    if (a.solto || b.solto || a.cer !== b.cer) return false;
+    return (a.nums || []).some(function (n) { return (b.nums || []).indexOf(n) >= 0; });
+  }
+
+  /**
+   * Prepara a procura: um registro por relatório, com o marco já entendido e
+   * os itens pelo número. Feito uma vez por desenho — a aba Fluxos pergunta
+   * por cada card de cada item, e reler todos os relatórios a cada pergunta
+   * seria trabalho repetido à toa.
+   *
+   * `atual` é o id do relatório aberto, só para o balão poder dizer que a
+   * resposta veio de onde a pessoa já está.
+   */
+  function indice(projects, kind, atual) {
+    var marcos = [];
+    (projects || []).forEach(function (p) {
+      var no = marco(Report.marcoOf(p, kind));
+      if (!no) return;
+      var porNumero = {};
+      (p[Store.itemsKey(kind)] || []).forEach(function (item) {
+        var k = Store.numeroChave(item);
+        if (k && !porNumero[k]) porNumero[k] = item;
+      });
+      marcos.push({ projeto: p, marco: no, itens: porNumero, aqui: p.id === atual });
+    });
+    return { kind: kind, marcos: marcos, atual: atual || '' };
+  }
+
+  function dataCurta(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR');
+  }
+
+  /**
+   * O mesmo item, no relatório do marco deste card. Devolve `null` quando não
+   * há relatório daquele marco aqui, ou quando ele não tem este número.
+   */
+  function anterior(idx, no, item) {
+    if (!idx || !no || !item) return null;
+    var numero = Store.numeroChave(item);
+    if (!numero) return null;
+
+    var achados = [];
+    idx.marcos.forEach(function (reg) {
+      if (!mesmoMarco(no, reg.marco)) return;
+      var outro = reg.itens[numero];
+      if (!outro) return;
+      /* o próprio item aberto não é resposta de marco nenhum: é ele mesmo */
+      if (reg.aqui && outro.id === item.id) return;
+      achados.push({
+        projectId: reg.projeto.id,
+        itemId: outro.id,
+        kind: idx.kind,
+        aqui: reg.aqui,
+        exato: reg.marco.chave === no.chave,
+        rotulo: no.rotulo,
+        marco: Report.marcoOf(reg.projeto, idx.kind) || reg.projeto.name || '',
+        ncrId: texto(outro.ncrId),
+        archAnswer: texto(outro.archAnswer),
+        archStatus: texto(outro.archStatus),
+        approvedExpiry: texto(outro.approvedExpiry),
+        quem: texto(outro.editedBy),
+        quando: texto(outro.editedAt),
+        mexidoEm: texto(reg.projeto.updatedAt)
+      });
+    });
+    if (!achados.length) return null;
+    /* o marco escrito igual vale mais que o parecido; empatando, o mais novo */
+    achados.sort(function (a, b) {
+      if (a.exato !== b.exato) return a.exato ? -1 : 1;
+      return String(b.mexidoEm).localeCompare(String(a.mexidoEm));
+    });
+    return achados[0];
+  }
+
+  /** Uma linha de texto que resume o achado — serve de rótulo acessível. */
+  function resumoDoAchado(d) {
+    var quem = d.quem ? ' por ' + d.quem : '';
+    var quando = d.quando ? ' em ' + dataCurta(d.quando) : '';
+    return d.rotulo + ': ' + (d.ncrId || 'o mesmo item') + ' no relatório ' +
+      (d.marco || 'sem marco') + quem + quando +
+      (d.archAnswer ? '. Arch Answer: ' + d.archAnswer : '. Sem Arch Answer escrito lá.');
+  }
+
+  /* --- o balão que aparece ao passar o mouse ------------------------------ */
+
+  var MAX_BALAO = 700;        /* o resto se lê abrindo o item */
+  var balao = null;
+  var cardDoBalao = null;
+
+  function oBalao() {
+    if (balao) return balao;
+    balao = document.createElement('div');
+    balao.className = 'fx-balao';
+    balao.setAttribute('role', 'tooltip');
+    balao.hidden = true;
+    /* o desenho pode estar dentro de um <dialog>, que fica por cima de tudo:
+       o balão é remontado no mesmo lugar do card na hora de mostrar */
+    document.body.appendChild(balao);
+    /* rolar não fecha: o balão acompanha o card. Fechar seria o certo se ele
+       ficasse parado na tela, mas quem rola com o mouse parado no card está
+       lendo o balão — e a própria rolagem que traz o card para a vista
+       chegaria depois do mouse, apagando o que acabou de abrir. */
+    window.addEventListener('scroll', acompanhar, true);
+    window.addEventListener('resize', acompanhar);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') esconderBalao();
+    });
+    return balao;
+  }
+
+  function acompanhar() {
+    if (!balao || balao.hidden || !cardDoBalao) return;
+    if (!cardDoBalao.isConnected) { esconderBalao(); return; }
+    var r = cardDoBalao.getBoundingClientRect();
+    /* card que saiu da vista leva o balão junto */
+    if (r.bottom < 0 || r.top > window.innerHeight) { esconderBalao(); return; }
+    posicionar(r);
+  }
+
+  function linhaDoBalao(rotulo, valor) {
+    var p = document.createElement('p');
+    p.className = 'fx-balao-linha';
+    var b = document.createElement('b');
+    b.textContent = rotulo;
+    p.appendChild(b);
+    p.appendChild(document.createTextNode(' ' + valor));
+    return p;
+  }
+
+  function montarBalao(d, temAbrir) {
+    var box = oBalao();
+    box.innerHTML = '';
+
+    var cab = document.createElement('div');
+    cab.className = 'fx-balao-cab';
+    var forte = document.createElement('strong');
+    forte.textContent = (d.ncrId || 'este item') + ' · ' + d.rotulo;
+    cab.appendChild(forte);
+    var onde = document.createElement('span');
+    onde.textContent = (d.aqui ? 'neste relatório · ' : '') + (d.marco || 'sem marco') +
+      (d.quem ? ' · ' + d.quem : '') + (d.quando ? ' · ' + dataCurta(d.quando) : '');
+    cab.appendChild(onde);
+    box.appendChild(cab);
+
+    if (d.archStatus) box.appendChild(linhaDoBalao('Arch Status:', d.archStatus));
+    if (d.approvedExpiry) box.appendChild(linhaDoBalao('Approved Expiry:', d.approvedExpiry));
+
+    var tit = document.createElement('div');
+    tit.className = 'fx-balao-tit';
+    tit.textContent = 'Arch Answer';
+    box.appendChild(tit);
+
+    var txt = document.createElement('p');
+    txt.className = 'fx-balao-txt' + (d.archAnswer ? '' : ' fx-balao-txt--vazio');
+    txt.textContent = d.archAnswer
+      ? (d.archAnswer.length > MAX_BALAO ? d.archAnswer.slice(0, MAX_BALAO) + '…' : d.archAnswer)
+      : 'Nada escrito no Arch Answer daquele relatório.';
+    box.appendChild(txt);
+
+    if (temAbrir) {
+      var pe = document.createElement('div');
+      pe.className = 'fx-balao-pe';
+      pe.textContent = d.archAnswer && d.archAnswer.length > MAX_BALAO
+        ? 'Clique no card para abrir e ler o texto inteiro.'
+        : 'Clique no card para abrir este item.';
+      box.appendChild(pe);
+    }
+    return box;
+  }
+
+  /** Embaixo do card, ou em cima quando não cabe — sempre dentro da janela. */
+  function posicionar(r) {
+    var b = balao.getBoundingClientRect();
+    var margem = 8;
+    var x = r.left + r.width / 2 - b.width / 2;
+    if (x < margem) x = margem;
+    if (x + b.width > window.innerWidth - margem) x = window.innerWidth - margem - b.width;
+    var y = r.bottom + 6;
+    if (y + b.height > window.innerHeight - margem) {
+      var acima = r.top - 6 - b.height;
+      y = acima >= margem ? acima : Math.max(margem, window.innerHeight - margem - b.height);
+    }
+    balao.style.left = Math.round(x) + 'px';
+    balao.style.top = Math.round(y) + 'px';
+  }
+
+  /** Junto do card, dentro da janela — e dentro do <dialog>, quando há um. */
+  function mostrarBalao(alvo, d, temAbrir) {
+    var box = montarBalao(d, temAbrir);
+    /* elemento do topo (o <dialog> modal) não deixa ver quem está no body */
+    var casa = (alvo.closest && alvo.closest('dialog')) || document.body;
+    if (box.parentNode !== casa) casa.appendChild(box);
+    cardDoBalao = alvo;
+    box.hidden = false;
+    posicionar(alvo.getBoundingClientRect());
+  }
+
+  function esconderBalao() {
+    cardDoBalao = null;
+    if (balao) { balao.hidden = true; balao.innerHTML = ''; }
+  }
+
+  /**
+   * Liga o card ao balão. Sem <title>: o do navegador apareceria junto,
+   * dizendo menos e atrapalhando. O texto inteiro vai no aria-label, que é o
+   * que o leitor de tela anuncia.
+   */
+  function marcarCard(g, achado, abrir) {
+    g.setAttribute('tabindex', '0');
+    g.setAttribute('role', abrir ? 'button' : 'img');
+    g.setAttribute('aria-label', resumoDoAchado(achado));
+    g.addEventListener('mouseenter', function () { mostrarBalao(g, achado, !!abrir); });
+    g.addEventListener('mouseleave', esconderBalao);
+    g.addEventListener('focus', function () { mostrarBalao(g, achado, !!abrir); });
+    g.addEventListener('blur', esconderBalao);
+    if (!abrir) return;
+    g.addEventListener('click', function () { esconderBalao(); abrir(achado); });
+    g.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        esconderBalao();
+        abrir(achado);
+      }
+    });
+  }
+
   /* --- desenho ----------------------------------------------------------- */
 
   var SVGNS = 'http://www.w3.org/2000/svg';
@@ -204,9 +451,15 @@
    *
    * opts.destaque  rótulo do card a realçar (o marco do próprio relatório)
    * opts.escala    'compacto' para as listas
+   * opts.antes     function(no) -> o mesmo item no relatório daquele marco,
+   *                ou null. Quem passa isto ganha o ponto no canto do card e
+   *                o balão com o Arch Answer de lá. Na impressão não se passa:
+   *                marca sem balão, no papel, é só sujeira.
+   * opts.abrir     function(dados) para o clique no card marcado
    */
   function svg(analise, opts) {
     opts = opts || {};
+    esconderBalao();     /* redesenhar com o balão aberto deixaria um órfão */
     var compacto = opts.escala === 'compacto';
     var largCard = compacto ? 96 : LARG;
     var altCard = compacto ? 30 : ALT;
@@ -285,8 +538,9 @@
     analise.colunas.forEach(function (col) {
       col.forEach(function (no) {
         var p = onde[no.chave];
+        var achado = opts.antes ? opts.antes(no) : null;
         var g = sv('g', { class: 'fx-card' + (no.rotulo === opts.destaque ? ' is-destaque' : '') +
-          (no.solto ? ' is-solto' : '') });
+          (no.solto ? ' is-solto' : '') + (achado ? ' is-achado' : '') });
         g.appendChild(sv('rect', {
           x: p.x, y: p.y, width: p.w, height: p.h, rx: 6, class: 'fx-card-caixa'
         }));
@@ -299,9 +553,19 @@
         });
         txt.textContent = no.rotulo;
         g.appendChild(txt);
-        var titulo = sv('title', {});
-        titulo.textContent = no.rotulo + (no.rotulo === opts.destaque ? ' — marco deste relatório' : '');
-        g.appendChild(titulo);
+
+        if (achado) {
+          /* o ponto no canto é o que diz que há algo a ler ali: sem ele,
+             passar o mouse em cada card para descobrir seria adivinhação */
+          g.appendChild(sv('circle', {
+            cx: p.x + p.w - 7, cy: p.y + 7, r: 3.2, class: 'fx-card-marca'
+          }));
+          marcarCard(g, achado, opts.abrir);
+        } else {
+          var titulo = sv('title', {});
+          titulo.textContent = no.rotulo + (no.rotulo === opts.destaque ? ' — marco deste relatório' : '');
+          g.appendChild(titulo);
+        }
         s.appendChild(g);
       });
     });
@@ -313,6 +577,11 @@
     analisar: analisar,
     caminhoTexto: caminhoTexto,
     marco: marco,
+    mesmoMarco: mesmoMarco,
+    indice: indice,
+    anterior: anterior,
+    resumoDoAchado: resumoDoAchado,
+    esconderBalao: esconderBalao,
     svg: svg
   };
 })(window);

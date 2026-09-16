@@ -470,6 +470,10 @@
     var todas = linhasDeFluxo();
     var linhas = todas.filter(passaNoFiltroDeFluxo);
     var comFluxo = todas.filter(function (r) { return !r.fluxo.vazio; }).length;
+    /* um índice por categoria, montado uma vez: a lista pergunta por cada
+       card de cada item, e remontar a procura a cada pergunta seria refazer
+       o mesmo trabalho dezenas de vezes */
+    var idxs = { ncr: indiceDeAnteriores('ncr'), dev: indiceDeAnteriores('dev') };
 
     /* --- barra: o que está à vista e como exportar --- */
     var barra = el('div', 'sm-bar');
@@ -477,6 +481,10 @@
     info.appendChild(el('strong', null, Report.marcoOf(state.project, 'ncr') || state.project.name || 'sem marco'));
     info.appendChild(el('span', null, comFluxo + ' de ' + todas.length +
       ' item(ns) com waivers anteriores escritos.'));
+    /* preenchido no fim, quando os cards já estão na tela e dá para contar
+       quantos acharam o mesmo item em outro relatório */
+    var achou = el('span', 'fx-achou');
+    info.appendChild(achou);
     barra.appendChild(info);
 
     var acoes = el('div', 'sm-bar-actions');
@@ -528,15 +536,21 @@
       if (!minhas.length) {
         bloco.appendChild(el('p', 'hint', 'Nada aqui com este recorte.'));
       }
-      minhas.forEach(function (r) { bloco.appendChild(linhaDeFluxo(r, false)); });
+      minhas.forEach(function (r) { bloco.appendChild(linhaDeFluxo(r, false, idxs)); });
       host.appendChild(bloco);
     });
+
+    var marcados = $$('.fx-card.is-achado', host).length;
+    achou.textContent = marcados
+      ? marcados + ' card(s) com ponto: o mesmo item está no relatório daquele ' +
+        'marco, aqui no navegador. Passe o mouse para ler o Arch Answer de lá.'
+      : 'Nenhum card com resposta de outro marco neste navegador.';
 
     if (!semRolar) host.scrollTop = 0; else host.scrollTop = antes;
   }
 
   /** A linha de um item: identificação à esquerda, fluxo à direita. */
-  function linhaDeFluxo(r, paraImpressao) {
+  function linhaDeFluxo(r, paraImpressao, idxs) {
     var linha = el('div', 'fx-linha');
     if (paraImpressao) linha.setAttribute('data-fluido', '');
 
@@ -563,7 +577,14 @@
     linha.appendChild(id);
 
     var palco = el('div', 'fx-palco fx-palco--linha');
-    palco.appendChild(Fluxo.svg(r.fluxo, { escala: 'compacto', destaque: marcoDesteRelatorio() }));
+    /* na impressão não vai `antes`: o papel não tem mouse, e a marca sem o
+       balão seria uma pergunta sem resposta */
+    palco.appendChild(Fluxo.svg(r.fluxo, {
+      escala: 'compacto',
+      destaque: marcoDesteRelatorio(),
+      antes: paraImpressao ? null : buscadorDeAnteriores(idxs && idxs[r.kind], r.item),
+      abrir: paraImpressao ? null : abrirAchado
+    }));
     linha.appendChild(palco);
     return linha;
   }
@@ -1520,6 +1541,42 @@
   }
 
   /**
+   * A procura que alimenta o balão dos cards: o mesmo número, no relatório do
+   * marco daquele card. O índice é montado uma vez por desenho e o item é
+   * lido a cada pergunta — assim o card acompanha quem troca o número do item
+   * sem refazer o índice a cada tecla.
+   */
+  function indiceDeAnteriores(kind) {
+    return Fluxo.indice(state.projects, kind, state.project ? state.project.id : '');
+  }
+
+  function buscadorDeAnteriores(idx, item) {
+    if (!idx || !item) return null;
+    return function (no) { return Fluxo.anterior(idx, no, item); };
+  }
+
+  /**
+   * Clique no card marcado: abre o item no relatório de onde veio a resposta.
+   * Grava o que está na tela antes de sair — trocar de relatório redesenha
+   * tudo, e o que estivesse esperando os 500 ms da gravação se perderia.
+   */
+  function abrirAchado(dados) {
+    var alvo = state.projects.filter(function (p) { return p.id === dados.projectId; })[0];
+    if (!alvo) { toast('Esse relatório não está mais neste navegador.'); return; }
+    if ($('#fluxoDialog').open) $('#fluxoDialog').close();
+
+    function ir() {
+      state.kind = dados.kind;
+      if (!state.project || alvo.id !== state.project.id) loadProject(alvo);
+      renderTabs();
+      renderNcrList();
+      selectNcr(dados.itemId);
+      toast((dados.ncrId || 'Item') + ' aberta no relatório ' + (dados.marco || 'sem marco') + '.');
+    }
+    flushSave().then(ir, ir);
+  }
+
+  /**
    * Mostra, embaixo do Waiver Historic, o caminho que aquelas linhas
    * descrevem — e redesenha a cada tecla, para os cards irem aparecendo
    * conforme o campo é preenchido.
@@ -1546,13 +1603,26 @@
     var palco = el('div', 'fx-palco fx-palco--mini');
     bloco.appendChild(palco);
 
+    var idx = indiceDeAnteriores(state.kind);
+
     function redesenhar() {
       var n = currentNcr();
       if (!n) return;
       var a = Fluxo.analisar(n.historic);
       palco.innerHTML = '';
-      palco.appendChild(Fluxo.svg(a, { escala: 'compacto', destaque: marcoDesteRelatorio() }));
+      palco.appendChild(Fluxo.svg(a, {
+        escala: 'compacto',
+        destaque: marcoDesteRelatorio(),
+        antes: buscadorDeAnteriores(idx, n),
+        abrir: abrirAchado
+      }));
       btn.textContent = a.vazio ? '⤳ Ver fluxo' : '⤳ Ver fluxo (' + a.nos.length + ')';
+      var achados = $$('.fx-card.is-achado', palco).length;
+      sub.textContent = achados
+        ? 'montado a partir do Waiver Historic acima · ' + achados +
+          (achados > 1 ? ' marcos já responderam' : ' marco já respondeu') +
+          ' (passe o mouse no card)'
+        : 'montado a partir do Waiver Historic acima';
     }
     redesenhar();
 
@@ -1573,11 +1643,18 @@
 
     var palco = $('#fluxoPalco');
     palco.innerHTML = '';
-    palco.appendChild(Fluxo.svg(a, { destaque: marcoDesteRelatorio() }));
+    palco.appendChild(Fluxo.svg(a, {
+      destaque: marcoDesteRelatorio(),
+      antes: buscadorDeAnteriores(indiceDeAnteriores(kind), item),
+      abrir: abrirAchado
+    }));
 
+    var marcados = $$('.fx-card.is-achado', palco).length;
     $('#fluxoCaminho').textContent = a.vazio
       ? 'Escreva as entradas no Waiver Historic — uma por linha, no formato “J04 To: J06” — e os cards aparecem aqui.'
-      : a.nos.length + ' marco(s): ' + Fluxo.caminhoTexto(a);
+      : a.nos.length + ' marco(s): ' + Fluxo.caminhoTexto(a) +
+        (marcados ? ' · ' + marcados + ' com ponto: passe o mouse para ver o que ' +
+          'aquele relatório respondeu, ou clique para abrir.' : '');
 
     var avisos = $('#fluxoAvisos');
     avisos.innerHTML = '';

@@ -1346,9 +1346,63 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .fx-card.is-destaque .fx-card-txt { fill: #fff; }
 .fx-card.is-solto .fx-card-caixa { fill: #f2f4f7; stroke: #9aa1ae; stroke-dasharray: 3 2; }
 .fx-card.is-solto .fx-card-txt { fill: #4b515f; }
+/* card cujo marco tem relatório aqui, com o mesmo item dentro: o ponto no
+   canto avisa que há um Arch Answer para ler ao passar o mouse */
+.fx-card.is-achado { cursor: pointer; }
+.fx-card.is-achado .fx-card-caixa { stroke-width: 2; }
+.fx-card-marca { fill: var(--fx, #4B0082); stroke: #fff; stroke-width: 1.2; }
+.fx-card.is-destaque .fx-card-marca { fill: #fff; stroke: var(--fx, #4B0082); }
+.fx-card.is-achado:focus { outline: none; }
+.fx-card.is-achado:focus .fx-card-caixa { stroke: #0b57d0; stroke-width: 2.4; }
 .fx-seta { fill: none; stroke: #6d7383; stroke-width: 1.6; }
 .fx-ponta { fill: #6d7383; }
 .fx-vazio-txt { fill: var(--muted); font-family: inherit; font-size: 12px; font-style: italic; }
+
+/* o balão do card: o Arch Answer daquele marco, sem sair da tela.
+   Fica solto no body (ou dentro do <dialog>, que é camada de cima) e é
+   posicionado por JS; não recebe o mouse, para não piscar quando o ponteiro
+   passa por cima dele. */
+.fx-balao {
+  position: fixed;
+  z-index: 60;
+  width: min(380px, calc(100vw - 16px));
+  max-height: 60vh;
+  overflow: hidden;
+  padding: 10px 12px;
+  border: 1px solid var(--fx, #4B0082);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(16, 20, 32, .22);
+  pointer-events: none;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.fx-balao-cab { display: flex; flex-direction: column; gap: 1px; margin-bottom: 6px; }
+.fx-balao-cab strong { font-size: 13px; color: var(--fx, #4B0082); }
+.fx-balao-cab span { color: var(--muted); font-size: 11.5px; }
+.fx-balao-linha { margin: 0 0 3px; }
+.fx-balao-linha b { color: var(--ink); }
+.fx-balao-tit {
+  margin: 7px 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.fx-balao-txt { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fx-balao-txt--vazio { color: var(--muted); font-style: italic; }
+.fx-balao-pe {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11.5px;
+}
+/* papel não tem mouse: o balão é da tela, e o ponto só existe quando ele
+   existe (a impressão não passa `antes` para o desenho) */
+@media print { .fx-balao { display: none !important; } }
 
 .fx-palco { overflow-x: auto; padding: 2px 0; }
 .fx-palco--mini { margin-top: 8px; }
@@ -1395,6 +1449,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 /* aba Fluxos */
 .fx-info { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
 .fx-info span { color: var(--muted); }
+.fx-info .fx-achou { color: var(--ink-2); }
 .fx-check { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
 .fx-linha {
   display: flex;
