@@ -58,7 +58,6 @@ assets/js/lado.js          o item preso ao lado do editor, em só leitura
 assets/js/app.js           o editor (o maior; ~3000 linhas)
 derrogacao.html            o programa inteiro num arquivo só — gerado, e versionado
 tools/build-standalone.py  gera (e confere) o derrogacao.html
-tests/                     40 suítes Playwright — leia tests/README.md
 exemplos/                  .json prontos para importar
 .github/workflows/pages.yml  publicação
 ```
@@ -269,7 +268,7 @@ ponto no canto, o balão no `mouseenter`/`focus` e o clique em `opts.abrir`.
   mesmo, e o card do marco atual já vem destacado.
 - **O índice é montado uma vez por desenho**, não por card: a aba Fluxos
   pergunta por cada card de cada item.
-- **Ler não escreve.** O outro relatório não é tocado; `test33.py` confere.
+- **Ler não escreve.** O outro relatório não é tocado.
 - O balão vive fora do desenho (`div.fx-balao`, `position: fixed`,
   `pointer-events: none`), porque SVG não quebra linha sozinho. Ele é
   reparentado para o `<dialog>` quando o card está dentro de um: elemento da
@@ -290,8 +289,7 @@ Shift+clique no card do fluxo.
   editores de verdade é preciso amarrar cada campo ao seu item e dar escopo aos
   ids — reforma da camada de formulário, com a trava do item aceito, o colar de
   imagem e o autossalvamento junto. Enquanto isso não for feito, a coluna
-  mostra e não escreve, e o `test34.py` confere que escrever aqui não encosta no
-  item de lá.
+  mostra e não escreve: escrever aqui não pode encostar no item de lá.
 - **Terceira coluna do `.layout`**, fora do `<main>`: os quatro painéis de aba
   do editor ficam intocados. Some nas abas de tela cheia (não há editor ao lado
   de quê) e volta ao entrar na NCR/DEV.
@@ -347,12 +345,10 @@ permissão da pasta entre sessões.
 
 ## 6. Armadilhas já pagas — não repita
 
-- **`ERRORS: none` não é aprovação.** Um teste já reportou isso enquanto
-  capturava páginas em branco. Confira o artefato. Pior: onze suítes
-  (`test.py`, `test2`–`test12`) **não têm nenhuma asserção** —
-  só imprimem valores. Sair com código 0 ali não quer dizer nada. Ao mexer
-  nessas áreas, confira os números impressos, ou transforme-os em `assert`
-  (foi o que a `test18` virou).
+- **Console limpo não é aprovação.** Um teste já reportou "nenhum erro"
+  enquanto capturava páginas em branco. O console só conta o que o navegador
+  reclamou; quem diz se o resultado presta é o artefato — abra o PDF, olhe a
+  folha, confira o número.
 - **A mesclagem não pode ficar aplicada pela metade.** `Store.mergeListas`
   altera `state.projects` **no lugar**. Se a gravação na pasta falhar depois
   disso, o resultado ainda precisa ser salvo aqui e redesenhado — é o que
@@ -368,8 +364,8 @@ permissão da pasta entre sessões.
 - **A CSP tem `connect-src 'none'`, e isso alcança os testes.** O programa
   nunca chama `fetch`, então nada deve poder chamar — nem um `.json` recebido.
   Teste que queira conferir um arquivo servido não usa `fetch()` de dentro da
-  página: usa `ctx.request.get` (de fora) ou `Page.getAppManifest` pelo CDP,
-  que é o que o navegador faz de verdade. A `test29.py` já caiu por isso.
+  página: pergunte de fora, ou use `Page.getAppManifest` pelo CDP, que é o
+  que o navegador faz de verdade.
 - **`manifest-src 'self'` não é enfeite.** Sem essa diretiva o Chrome não lê o
   `manifest.webmanifest` (conferido: `Page.getAppManifest` volta sem dados) e o
   Edge deixa de oferecer "instalar" — sem erro nenhum no console. No arquivo
@@ -417,17 +413,16 @@ permissão da pasta entre sessões.
   evitar. O `sw.js` também é carimbado na publicação: sem mudar de conteúdo,
   o navegador não o atualiza.
 
-## 7. Como testar
+## 7. Conferir antes de publicar
 
-`tests/README.md` tem o passo a passo. Em resumo: 40 suítes Playwright que
-abrem a aplicação de verdade, fazem o caminho do usuário e conferem o
-resultado, **inclusive o PDF gerado**. Rode a suíte inteira antes de publicar —
-já houve mais de uma vez em que uma mudança de interface quebrou um teste de
-exportação.
+Não há mais suíte automatizada no repositório. O que resta é olhar, e vale
+para toda mudança de interface: **abra o PDF exportado** (relatório, resumo e
+fluxos), confira a capa, uma folha de continuação e uma página de evidência.
+Mais de uma vez uma mudança de tela vazou para a impressão sem ninguém
+perceber — é o §2, "o PDF é sagrado", e agora ninguém confere isso por você.
 
-Para a pasta compartilhada, os testes injetam um diretório OPFS no lugar do
-seletor do Windows: mesma interface `FileSystemDirectoryHandle`, então o
-caminho exercitado é o real.
+Abra também de `file://` e pelo `derrogacao.html`: são os dois caminhos que o
+Bruno usa e os que mais escapam.
 
 ## 8. Publicação
 

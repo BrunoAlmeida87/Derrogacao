@@ -695,7 +695,6 @@ assets/js/chat.js        a conversa da equipe, dentro da pasta da rede
 assets/js/app.js         lógica do editor
 derrogacao.html          o programa inteiro num arquivo só (gerado)
 tools/build-standalone.py  gera a versão de arquivo único
-tests/                   40 suítes de ponta a ponta (Playwright)
 exemplos/                relatórios .json prontos para importar
 CLAUDE.md                notas de manutenção: decisões, armadilhas, porquês
 ```
