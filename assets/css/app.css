@@ -48,6 +48,8 @@
 /* cada categoria tem a sua cor, para não haver dúvida de onde se está */
 body[data-kind="dev"]    { --kind: #0e7490; --kind-sf: #e4f3f8; --kind-br: #b9dce8; }
 body[data-kind="resumo"] { --kind: #a15c07; --kind-sf: #fdf4e3; --kind-br: #f0d8a8; }
+body[data-kind="fluxos"] { --kind: #0f7a52; --kind-sf: #e8f6f0; --kind-br: #b6e0cf; }
+body[data-kind="conversa"] { --kind: #7a4b0f; --kind-sf: #f7efe6; --kind-br: #e2c9ad; }
 
 * { box-sizing: border-box; }
 
@@ -278,13 +280,19 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   min-height: 0;
 }
 
+/* Com cinco abas, largura igual para todas cortava o rótulo mais comprido
+   ("Conversa"). Cada uma leva a largura do seu texto e divide a sobra; se um
+   dia não couber, a fila quebra em duas linhas em vez de esconder alguma. */
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
 .tab {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
   font: inherit;
   font-weight: 700;
   font-size: 13px;
@@ -293,17 +301,19 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   background: none;
   border: none;
   border-bottom: 3px solid transparent;
-  padding: 11px 8px 9px;
+  padding: 11px 5px 9px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 5px;
   transition: background .12s, color .12s;
 }
 .tab[data-kind="ncr"]    { --tab: #4B0082; --tab-sf: #f3ecfb; }
 .tab[data-kind="dev"]    { --tab: #0e7490; --tab-sf: #e4f3f8; }
 .tab[data-kind="resumo"] { --tab: #a15c07; --tab-sf: #fdf4e3; }
+.tab[data-kind="fluxos"] { --tab: #0f7a52; --tab-sf: #e8f6f0; }
+.tab[data-kind="conversa"] { --tab: #7a4b0f; --tab-sf: #f7efe6; }
 .tab:hover { background: var(--tab-sf); color: var(--tab); }
 .tab[aria-selected="true"] {
   color: var(--tab);
@@ -316,10 +326,23 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   background: #e3e6ee;
   color: #575e6e;
   border-radius: 9px;
-  padding: 1px 7px;
-  min-width: 22px;
+  padding: 1px 5px;
+  min-width: 19px;
 }
 .tab[aria-selected="true"] .tab-count { background: var(--tab); color: #fff; }
+/* Recado não lido: um ponto no canto, fora da fila. Um número ali dentro
+   aumentaria a aba e faria a fila inteira quebrar de linha quando chegasse
+   mensagem — a contagem exata fica na dica e na lista de canais. */
+.tab { position: relative; }
+.tab-ponto {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tab);
+}
 
 .badge {
   font-size: 11px;
@@ -349,6 +372,7 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  flex-wrap: wrap;
 }
 .sidebar-head-row h2 {
   margin: 0;
@@ -368,7 +392,11 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   border-radius: 3px;
   background: var(--kind);
 }
-.sidebar-head-actions { display: flex; gap: 5px; }
+/* Quatro botões nos 332px da barra: o respiro lateral encolhe para caberem
+   na mesma linha, e mesmo assim a fila pode quebrar — o que não pode é
+   escorrer por cima do editor e deixar o botão inalcançável. */
+.sidebar-head-actions { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.sidebar-head-actions .btn { padding-left: 8px; padding-right: 8px; }
 
 .ncr-list {
   list-style: none;
@@ -1287,14 +1315,406 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   box-shadow: 0 8px 26px rgba(0, 0, 0, .35);
 }
 .toast[hidden] { display: none; }
+.toast { display: flex; align-items: center; gap: 12px; }
+.toast-acao { background: #fff; color: #1c1a22; border-color: #fff; }
+
+.evid-thumb-falta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 76px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--bg-2);
+  border-radius: var(--radius-sm);
+}
+
+/* --- o item preso ao lado (lado.js) -------------------------------------- */
+
+/* Terceira coluna do .layout, à direita do editor. Não entra dentro do
+   <main>: assim o editor, com seus quatro painéis de aba, fica intocado. */
+.lado {
+  width: 420px;
+  flex: 0 0 420px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-2);
+  border-left: 1px solid #d3d7de;
+}
+.lado-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+.lado-head-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.lado-head-txt strong { font-size: 13.5px; overflow-wrap: anywhere; }
+.lado-head-txt span { font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
+.lado-head-acoes { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.lado-aviso {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #fffbe9;
+  color: #6b5a12;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.lado-body { flex: 1; overflow-y: auto; padding: 12px 12px 48px; }
+
+.lado-id {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--fx, #4B0082);
+  border-radius: 8px;
+  background: #fff;
+}
+.lado-id-num { display: flex; align-items: center; gap: 8px; }
+.lado-id-num strong { font-size: 14px; overflow-wrap: anywhere; }
+.lado-etiqueta {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--fx, #4B0082);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+.lado-id-sub { margin-top: 2px; font-size: 12px; color: var(--ink-2); overflow-wrap: anywhere; }
+.lado-id-tit { margin-top: 5px; font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
+.lado-id-pe { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.lado-chip {
+  padding: 1px 8px;
+  border: 1px solid var(--st, #9aa1ae);
+  border-radius: 999px;
+  color: var(--st, #9aa1ae);
+  font-size: 11px;
+  font-weight: 700;
+}
+.lado-quem { font-size: 11.5px; color: var(--muted); }
+
+.lado-sec {
+  margin-bottom: 10px;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--sec-color, #d3d7de);
+  border-radius: 8px;
+  background: #fff;
+}
+.lado-sec-cab { display: flex; align-items: center; gap: 4px; margin-bottom: 5px; }
+.lado-sec-nome {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.lado-copiar { margin-left: auto; flex: 0 0 auto; }
+.lado-txt {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lado-txt--vazio { color: var(--muted); font-style: italic; }
+.lado-par { display: flex; gap: 8px; margin-bottom: 4px; font-size: 12.5px; }
+.lado-par-rot { flex: 0 0 46%; color: var(--muted); font-size: 11.5px; }
+.lado-par-val { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.lado-sec--waiver .lado-sec-cab + .lado-par { margin-top: 2px; }
+.lado-lista { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.5; }
+.lado-ev { margin-bottom: 8px; }
+.lado-ev:last-child { margin-bottom: 0; }
+.lado-ev-ref { font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
+.lado-ev-nota { font-size: 12px; color: var(--ink-2); overflow-wrap: anywhere; }
+.lado-ev-tira { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.lado-ev-tira img {
+  width: 84px;
+  height: 62px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.lado-ev-falta {
+  padding: 4px 6px;
+  border: 1px dashed #9aa1ae;
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* a lista do diálogo que escolhe o item */
+.lado-escolha { max-height: 46vh; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; }
+.lado-op {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.lado-op:last-child { border-bottom: none; }
+.lado-op:hover, .lado-op:focus { background: var(--bg-2); }
+.lado-op strong { font-size: 13px; }
+.lado-op span { display: block; font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* o papel não tem coluna ao lado */
+@media print { .lado { display: none !important; } }
+
+/* --- fluxo dos waivers --------------------------------------------------- */
+
+/* O desenho é SVG escrito à mão (fluxo.js); a aparência mora aqui, para o
+   mesmo fluxo servir à tela pequena do item, ao pop-up e ao PDF. */
+.fx-svg { display: block; height: auto; max-width: 100%; overflow: visible; }
+/* sem largura própria o aviso de "nada escrito" esticaria pela linha toda */
+.fx-svg--vazio { max-width: 260px; }
+.fx-card-caixa {
+  fill: var(--fx-sf, #f3ecfb);
+  stroke: var(--fx, #4B0082);
+  stroke-width: 1.2;
+}
+.fx-card-txt { fill: var(--fx-ink, #2e0050); font-family: inherit; font-weight: 700; }
+.fx-card.is-destaque .fx-card-caixa { fill: var(--fx, #4B0082); stroke: var(--fx, #4B0082); }
+.fx-card.is-destaque .fx-card-txt { fill: #fff; }
+.fx-card.is-solto .fx-card-caixa { fill: #f2f4f7; stroke: #9aa1ae; stroke-dasharray: 3 2; }
+.fx-card.is-solto .fx-card-txt { fill: #4b515f; }
+/* card cujo marco tem relatório aqui, com o mesmo item dentro: o ponto no
+   canto avisa que há um Arch Answer para ler ao passar o mouse */
+.fx-card.is-achado { cursor: pointer; }
+.fx-card.is-achado .fx-card-caixa { stroke-width: 2; }
+.fx-card-marca { fill: var(--fx, #4B0082); stroke: #fff; stroke-width: 1.2; }
+.fx-card.is-destaque .fx-card-marca { fill: #fff; stroke: var(--fx, #4B0082); }
+.fx-card.is-achado:focus { outline: none; }
+.fx-card.is-achado:focus .fx-card-caixa { stroke: #0b57d0; stroke-width: 2.4; }
+.fx-seta { fill: none; stroke: #6d7383; stroke-width: 1.6; }
+.fx-ponta { fill: #6d7383; }
+.fx-vazio-txt { fill: var(--muted); font-family: inherit; font-size: 12px; font-style: italic; }
+
+/* o balão do card: o Arch Answer daquele marco, sem sair da tela.
+   Fica solto no body (ou dentro do <dialog>, que é camada de cima) e é
+   posicionado por JS; não recebe o mouse, para não piscar quando o ponteiro
+   passa por cima dele. */
+.fx-balao {
+  position: fixed;
+  z-index: 60;
+  width: min(380px, calc(100vw - 16px));
+  max-height: 60vh;
+  overflow: hidden;
+  padding: 10px 12px;
+  border: 1px solid var(--fx, #4B0082);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(16, 20, 32, .22);
+  pointer-events: none;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.fx-balao-cab { display: flex; flex-direction: column; gap: 1px; margin-bottom: 6px; }
+.fx-balao-cab strong { font-size: 13px; color: var(--fx, #4B0082); }
+.fx-balao-cab span { color: var(--muted); font-size: 11.5px; }
+.fx-balao-linha { margin: 0 0 3px; }
+.fx-balao-linha b { color: var(--ink); }
+.fx-balao-tit {
+  margin: 7px 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.fx-balao-txt { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fx-balao-txt--vazio { color: var(--muted); font-style: italic; }
+.fx-balao-pe {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11.5px;
+}
+/* papel não tem mouse: o balão é da tela, e o ponto só existe quando ele
+   existe (a impressão não passa `antes` para o desenho) */
+@media print { .fx-balao { display: none !important; } }
+
+.fx-palco { overflow-x: auto; padding: 2px 0; }
+.fx-palco--mini { margin-top: 8px; }
+.fx-palco--linha { flex: 1; min-width: 0; }
+
+/* bloco dentro do item, embaixo do Waiver Historic */
+.fx-bloco {
+  margin-top: 14px;
+  padding: 10px 12px 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.fx-bloco-cab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.fx-bloco-sub { color: var(--muted); font-size: 12px; flex: 1; min-width: 140px; }
+
+/* pop-up */
+.fx-item { font-size: 13px !important; font-weight: 600; color: var(--ink-2) !important; }
+.fx-caminho { font-size: 13px !important; color: var(--ink-2) !important; margin: 10px 0 0 !important; }
+.fx-avisos {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--warn-sf);
+  border-left: 3px solid #e0a03c;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 12.5px;
+  color: #6b4400;
+}
+.fx-avisos p { margin: 0 0 4px; }
+.fx-avisos p:last-child { margin-bottom: 0; }
+.fx-cru {
+  margin: 0;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  color: var(--ink-2);
+}
+
+/* aba Fluxos */
+.fx-info { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.fx-info span { color: var(--muted); }
+.fx-info .fx-achou { color: var(--ink-2); }
+.fx-check { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
+.fx-linha {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--line-2);
+}
+.fx-linha:first-of-type { border-top: none; }
+.fx-linha-id { flex: 0 0 240px; min-width: 0; }
+.fx-linha-num { font-weight: 700; font-size: 13px; }
+.fx-linha-sub { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* Na folha a linha é sempre em coluna. A media query de tela estreita vale
+   também na impressão — a folha tem 210mm —, e medir de um jeito para
+   imprimir de outro faz a paginação errar a conta de folhas. */
+.rep-page .fx-linha { flex-direction: column; align-items: flex-start; gap: 6px; }
+.rep-page .fx-linha-id { flex: 0 0 auto; }
+.rep-page .fx-palco { overflow: visible; }
+
+/* --- travas e avisos do item -------------------------------------------- */
+
+/* item aceito: fechado por padrão, aberto por um clique consciente */
+.trava,
+.mudou {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  max-width: 980px;
+  margin: 0 auto 16px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  box-shadow: var(--sh-1);
+}
+.trava {
+  background: var(--ok-sf);
+  border: 1px solid var(--ok-br);
+  border-left: 4px solid var(--ok);
+  color: #14532d;
+}
+.mudou {
+  background: var(--warn-sf);
+  border: 1px solid var(--warn-br);
+  border-left: 4px solid #e0a03c;
+  color: #6b4400;
+}
+.trava-txt,
+.mudou-txt { flex: 1; min-width: 220px; }
+
+/* marcador do item que outra pessoa mexeu */
+.fora-dot {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+/* --- o que mudou por fora, lado a lado ---------------------------------- */
+
+.dif-quem {
+  font-size: 13px !important;
+  font-weight: 600;
+  color: var(--ink-2) !important;
+}
+.dif-box { max-height: 52vh; overflow-y: auto; }
+.dif-campo { margin-bottom: 14px; }
+.dif-rotulo {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.dif-par { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dif-lado {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.dif-lado--antes  { border-left: 3px solid var(--danger); }
+.dif-lado--depois { border-left: 3px solid var(--ok); }
+.dif-cab {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  background: var(--line-2);
+  color: var(--ink-2);
+}
+.dif-txt {
+  margin: 0;
+  padding: 8px;
+  font: inherit;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* --- folhas e tamanho da pasta ------------------------------------------ */
+
+.dlg-folhas { font-size: 13px; color: var(--muted); margin: 0 0 10px !important; }
+.dlg-folhas-long { color: var(--warn); font-weight: 600; }
+.pasta-tamanhos {
+  font-size: 12.5px !important;
+  color: var(--muted) !important;
+  margin: 12px 0 0 !important;
+}
 
 /* --- responsivo --------------------------------------------------------- */
 
+@media (max-width: 1400px) and (min-width: 901px) {
+  .lado { width: 340px; flex: 0 0 340px; }
+}
+
 @media (max-width: 900px) {
   .layout { flex-direction: column; }
+  .dif-par { grid-template-columns: 1fr; }
+  .fx-linha { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .fx-linha-id { flex: 0 0 auto; }
   .sidebar { width: auto; flex: 0 0 auto; max-height: 44vh; border-right: none; border-bottom: 1px solid var(--line); }
   .grid--3, .grid--2 { grid-template-columns: 1fr; }
   .editor-scroll { padding: 14px; }
+  /* com o .layout em coluna, 420px viraria altura: aqui ela empilha */
+  .lado { width: auto; flex: 0 0 auto; max-height: 50vh; border-left: none; border-top: 1px solid var(--line); }
   .brand-text small { display: none; }
   .topbar-status { min-width: 0; }
 }
@@ -1504,6 +1924,179 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .rep-page--summary .sm-table th, .rep-page--summary .sm-table td { padding: 3px 6px; white-space: normal; }
 .rep-page--summary .sm-table-wrap { overflow: visible; }
 .sm-print-date { font-size: 10pt; color: #6b7280; margin: 3mm 0 5mm; }
+
+/* --- lista que a paginação parte linha a linha ---------------------------
+   Tem a cara de uma tabela, mas cada linha é filha direta do bloco: é isso
+   que deixa a paginação levar as que não couberem para a folha seguinte,
+   repetindo o cabeçalho. Um <table> de verdade não permitiria — as linhas
+   ficam dentro do <tbody>, e mudar de folha exigiria partir a tabela. */
+.sm-grade-linha {
+  display: flex;
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+}
+.sm-grade-cel {
+  padding: 3px 6px;
+  min-width: 0;
+  overflow-wrap: break-word;
+  font-size: 10pt;
+}
+.sm-grade-cel.is-num { text-align: right; }
+.sm-grade-linha--cab { border-bottom-width: 2px; }
+.sm-grade-linha--cab .sm-grade-cel {
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+/* a folha já é partida pela paginação: deixar o navegador partir de novo
+   traria de volta o texto colado na borda do papel */
+.rep-page--summary .sm-grade { break-inside: auto; page-break-inside: auto; }
+/* a lista usa a largura toda da folha — cada milímetro a mais é uma palavra
+   que deixa de ser partida ao meio numa coluna estreita */
+.rep-page--summary .sm-grade { padding-left: 4px; padding-right: 4px; }
+
+
+/* ==========================================================================
+   aba Conversa — recados da equipe, pela pasta da rede
+   Nada aqui alcança .rep-page: a conversa não entra em nenhuma folha do PDF.
+   ========================================================================== */
+
+.sidebar-conversa { display: flex; flex-direction: column; min-height: 0; overflow: auto; }
+.conv-canais { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 14px; }
+.conv-canais-tit {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  margin: 14px 2px 4px;
+}
+.conv-canal {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 7px 9px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+}
+.conv-canal:hover { background: var(--kind-sf); }
+.conv-canal.is-on {
+  background: var(--kind-sf);
+  border-color: var(--kind-br);
+  font-weight: 600;
+}
+.conv-canal-topo { display: flex; align-items: center; gap: 8px; }
+.conv-canal-nome { flex: 1 1 auto; font-size: 13.5px; }
+.conv-canal-sub { font-size: 11.5px; color: var(--muted); font-weight: 400; }
+.conv-canal-n {
+  flex: 0 0 auto;
+  min-width: 19px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--kind);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.conversa-scroll { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; }
+.conv-cab { display: flex; flex-direction: column; gap: 2px; }
+.conv-cab strong { font-size: 16px; color: var(--kind); }
+.conv-cab-sub { font-size: 12.5px; color: var(--muted); }
+
+/* O aviso fica sempre à vista, e não escondido num "saiba mais": tratar a
+   conversa direta como reservada seria um engano caro num programa de
+   defesa. */
+.conv-aviso {
+  border: 1px solid #e2c9ad;
+  background: #fdf6ee;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #6b4a1f;
+}
+.conv-sem-pasta {
+  border: 1px solid var(--line);
+  background: var(--panel-2, #f6f7f9);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.conv-lista {
+  flex: 1 1 auto;
+  min-height: 160px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 4px;
+}
+/* com poucos recados a conversa fica encostada no campo de escrever, e não
+   solta no alto de uma tela vazia; quando enche, o espaço some sozinho */
+.conv-lista::before { content: ''; margin-top: auto; }
+.conv-dia {
+  align-self: center;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--kind-sf);
+  border-radius: 10px;
+  padding: 2px 10px;
+  margin: 6px 0 2px;
+}
+.conv-msg {
+  max-width: 78%;
+  align-self: flex-start;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 11px 9px;
+}
+.conv-msg.is-minha {
+  align-self: flex-end;
+  background: var(--kind-sf);
+  border-color: var(--kind-br);
+}
+.conv-msg-cab { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.conv-msg-quem { font-size: 12px; font-weight: 700; color: var(--kind); }
+.conv-msg-quando { font-size: 11px; color: var(--muted); }
+.conv-msg-apagar {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+.conv-msg-apagar:hover { color: var(--danger, #b91c1c); }
+/* o recado sai como foi escrito, com as quebras de linha que a pessoa fez */
+.conv-msg-txt { font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: break-word; }
+
+.conv-form { display: flex; gap: 8px; align-items: flex-end; }
+.conv-form textarea {
+  flex: 1 1 auto;
+  resize: vertical;
+  min-height: 46px;
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.conv-form .btn { flex: 0 0 auto; }
+
+/* uma seção à parte dentro de um diálogo */
+.dlg-sec { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 12px; }
+.dlg-sec-tit { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+
 
 /* Alternativa a arrastar (WCAG 2.5.7): subir/descer com um clique só.
    Alvo de 24x24, o mínimo do 2.5.8. */

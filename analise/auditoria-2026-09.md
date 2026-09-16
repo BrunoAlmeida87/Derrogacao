@@ -4,6 +4,13 @@ Feita sobre `claude/relaxed-keller-pngvj6`, commit `c9b0b2b`. Tudo aqui foi
 verificado no navegador (Chromium do Playwright), não por leitura de código
 apenas — quando a conclusão veio só da leitura, está dito.
 
+> **Erro de partida, corrigido depois.** A auditoria saiu de `c9b0b2b`, de 11 de
+> setembro, sem conferir a `main` — que já estava oito commits à frente
+> (`1e6fa4e`: paginação, fluxo dos waivers, conversa da equipe, coluna ao lado,
+> PWA, imagens em arquivo, `derrogacao.html` versionado, 34 suítes). O certo era
+> ter olhado antes de começar. A junção com a `main` está na seção 9, com o que
+> cada achado virou depois dela.
+
 ## 0. Escopo pedido × escopo existente
 
 O pedido citava `AGENTS.md`, a pasta `analise/`, `docs/index.html` e um
@@ -56,7 +63,7 @@ gravação falhar; ou (melhor) mesclar sobre uma cópia e só adotá-la depois d
 gravação bem-sucedida. Em qualquer caso, salvar localmente e redesenhar a tela
 sempre que o merge for adotado.
 
-**Teste de regressão** — `tests/test25.py`: simular falha de `Pasta.gravar`
+**Teste de regressão** — `tests/test35.py`: simular falha de `Pasta.gravar`
 depois de uma alteração externa e exigir que (a) o texto do colega não suma e
 (b) a tela não fique mostrando um texto que já não é o gravado.
 
@@ -87,7 +94,7 @@ lista de relatórios excluídos no payload da pasta, respeitada por
 `mergeListas`. Alternativa mínima e honesta: com a pasta ligada, avisar que a
 exclusão só vale neste navegador.
 
-**Teste** — `tests/test26.py`: excluir o relatório, sincronizar, exigir que ele
+**Teste** — `tests/test36.py`: excluir o relatório, sincronizar, exigir que ele
 não volte.
 
 ---
@@ -111,7 +118,7 @@ NCR-002 volta na sincronização seguinte.
 
 **Correção** — `Store.tombstone(local, e.kind, e.mine)` antes do `splice`.
 
-**Teste** — `tests/test27.py`: o fluxo acima, exigindo `lapides: 1` e que a
+**Teste** — `tests/test37.py`: o fluxo acima, exigindo `lapides: 1` e que a
 NCR-002 não volte.
 
 ---
@@ -136,7 +143,7 @@ campos que o Excel trata como formula:
 **Correção** — prefixar com apóstrofo (ou tabulação) todo campo que comece com
 `= + - @ \t \r`, no `csvCampo`.
 
-**Teste** — `tests/test28.py`: gerar o CSV de um item com esses prefixos e
+**Teste** — `tests/test38.py`: gerar o CSV de um item com esses prefixos e
 exigir que nenhum campo comece com um caractere de fórmula.
 
 ---
@@ -165,7 +172,7 @@ aberto. É um *beacon* de leitura dentro de material de programa.
 `blob:` em `src`; (b) `<meta http-equiv="Content-Security-Policy">` com
 `default-src 'self'; img-src data: blob:; connect-src 'none'`.
 
-**Teste** — `tests/test29.py`: importar um projeto com `src` http e exigir zero
+**Teste** — `tests/test39.py`: importar um projeto com `src` http e exigir zero
 requisições externas.
 
 > XSS propriamente dito **não foi reproduzido**: `report.js`, `summary.js` e
@@ -216,7 +223,7 @@ menciona o termo em "Why is not possible" some do recorte sem aviso.
 **Correção** — incluir `whyNotPossible`, `arguments` e (útil) `historic` e
 `archStatus`.
 
-**Teste** — `tests/test30.py`: item cujo termo só existe em `whyNotPossible`,
+**Teste** — `tests/test40.py`: item cujo termo só existe em `whyNotPossible`,
 exigindo que a busca o encontre.
 
 ---
@@ -358,22 +365,53 @@ foi executada em seguida.
 
 | # | Situação | Correção | Teste |
 | --- | --- | --- | --- |
-| E1 | **corrigido** | `sincronizar()` passa a salvar e redesenhar a junção mesmo quando a gravação na pasta falha (`adotar()`); `sincronizando` só é liberado depois disso, o que fecha também R2 | `test25.py` |
-| E2 | **corrigido** | Lápide de relatório inteiro (`Store.tombstoneProjeto`), guardada no navegador e enviada no campo `relatoriosExcluidos` do arquivo da pasta; `mergeListas` a respeita; `reviver` a desfaz | `test27.py` |
-| E3 | **corrigido** | `applyMerge` chama `Store.tombstone` antes de remover | `test26.py` |
-| E4 | **corrigido** | `csvCampo` prefixa com apóstrofo o campo que comece por `= + - @ \t \r` | `test28.py` |
-| E5 | **corrigido** | `normalizeImage` só aceita `data:image/` e `blob:`; CSP no `index.html` (verificada: um servidor externo não recebe nada, e o uso de `file://` continua funcionando) | `test28.py` |
-| E6 | **corrigido** | Empate de `editedAt` resolvido pela assinatura — mesmo resultado nos dois computadores | `test29.py` |
-| E7 | **corrigido** | A busca passa a cobrir os cinco blocos, mais `archStatus` e `historic` | `test29.py` |
+| E1 | **corrigido** | `sincronizar()` passa a salvar e redesenhar a junção mesmo quando a gravação na pasta falha (`adotar()`); `sincronizando` só é liberado depois disso, o que fecha também R2 | `test35.py` |
+| E2 | **corrigido** | Lápide de relatório inteiro (`Store.tombstoneProjeto`), guardada no navegador e enviada no campo `relatoriosExcluidos` do arquivo da pasta; `mergeListas` a respeita; `reviver` a desfaz | `test37.py` |
+| E3 | **corrigido** | `applyMerge` chama `Store.tombstone` antes de remover | `test36.py` |
+| E4 | **corrigido** | `csvCampo` prefixa com apóstrofo o campo que comece por `= + - @ \t \r` | `test38.py` |
+| E5 | **corrigido** | `normalizeImage` só aceita `data:image/` e `blob:`; CSP no `index.html` (verificada: um servidor externo não recebe nada, e o uso de `file://` continua funcionando) | `test38.py` |
+| E6 | **corrigido** | Empate de `editedAt` resolvido pela assinatura — mesmo resultado nos dois computadores | `test39.py` |
+| E7 | **corrigido na `main`** | A minha correção cobria sete campos; a da `main` (`Store.textoBusca`) cobre os doze campos visíveis, os certificados e as legendas das evidências. Na junção ficou a da `main`, e a minha saiu | `test39.py` |
 | E8 | **parcial** | `test18.py` (as regras de mesclagem da pasta) passou a conferir o que imprime. As outras 11 suítes sem asserção continuam como estavam — convertê-las é uma tarefa à parte, e não convinha mexer nelas na mesma passagem em que elas serviram de rede de proteção | — |
-| E9a | **corrigido** | `role="status"` em `#toast`, `#saveState` e `#backupNotice`; o toast aparece antes de receber o texto, senão a mudança não é anunciada | `test30.py` |
-| E9b | **corrigido** | `aria-label` em `#ncrFilter` e nas cinco áreas de texto | `test30.py` |
-| E9c | **corrigido** | Botões ↑/↓ em cada item, 24×24, com `aria-label` e foco preservado | `test30.py` |
-| E9d | **corrigido** | `--muted` de `#6d7383` para `#5f6577` (4,5:1) | `test30.py` |
-| E9e | **corrigido** | `lang="en"` nas páginas do relatório, `lang="pt-BR"` nos dois trechos em português | `test30.py` |
-| E9f | **corrigido** | `aria-controls`, `role="tabpanel"`, `tabindex` rotativo e setas ← → nas abas | `test30.py` |
+| E9a | **corrigido** | `role="status"` em `#toast`, `#saveState` e `#backupNotice`; o toast aparece antes de receber o texto, senão a mudança não é anunciada | `test40.py` |
+| E9b | **corrigido** | `aria-label` em `#ncrFilter` e nas cinco áreas de texto | `test40.py` |
+| E9c | **corrigido** | Botões ↑/↓ em cada item, 24×24, com `aria-label` e foco preservado | `test40.py` |
+| E9d | **corrigido** | `--muted` de `#6d7383` para `#5f6577` (4,5:1) | `test40.py` |
+| E9e | **corrigido** | `lang="en"` nas páginas do relatório, `lang="pt-BR"` nos dois trechos em português | `test40.py` |
+| E9f | **corrigido** | `aria-controls`, `role="tabpanel"`, `tabindex` rotativo e setas ← → nas abas | `test40.py` |
 
 **Não mexido de propósito:** R1, R3, R4, R5, R7, todas as limitações
 arquiteturais e todas as melhorias. R1 em particular é uma decisão de projeto —
 acrescentar um campo de revisão ao arquivo da pasta muda o formato e merece ser
 discutido antes, não resolvido de passagem numa auditoria.
+
+---
+
+## 9. A junção com a `main`
+
+A auditoria foi feita sobre uma árvore oito commits atrás da `main`. Depois de
+entregue, a `main` foi trazida para esta branch e os conflitos resolvidos à mão.
+O que mudou em cada achado:
+
+| # | Antes da junção | Depois |
+| --- | --- | --- |
+| E1 | corrigido aqui | **mantido.** `adotar()` e `mesclado` convivem com a guarda de versão e com a hidratação de imagens que a `main` acrescentou ao `sincronizar()` |
+| E2 | corrigido aqui | **mantido.** `relatoriosExcluidos` viaja junto com a cópia sem `src` que a `main` passou a gravar (imagem em arquivo ao lado) |
+| E3 | corrigido aqui | **mantido** |
+| E4 | corrigido aqui | **mantido.** A `main` tinha um `csvCampo` que só escapava aspas; ficou a versão com o apóstrofo |
+| E5 | corrigido aqui | **refeito.** `srcLocal` continua descartando o que não for `data:`/`blob:`, mas agora preserva o campo `arquivo` da `main` — que não é endereço de rede, e sim um arquivo dentro da pasta escolhida. A CSP ganhou `manifest-src` e `worker-src`, senão o manifesto e o service worker da `main` seriam bloqueados |
+| E6 | corrigido aqui | **mantido**, agora alimentando também a lista `substituidos` que a `main` usa para mostrar o que o texto do colega apagou |
+| E7 | corrigido aqui | **descartado.** A `main` já resolvia melhor (`Store.textoBusca`) |
+| E8 | parcial | **inalterado.** Onze suítes seguem sem asserção; as dez novas da `main` (25–34) têm |
+| E9 | corrigido aqui | **mantido e estendido** às duas abas novas (Fluxos, Conversa): id, `aria-controls`, `role="tabpanel"` e tabindex rotativo |
+
+Duas coisas que a `main` trouxe e que atacam achados desta auditoria por conta
+própria:
+
+- **`res.substituidos`** e o diálogo *O que mudou neste item* mostram o texto
+  que a regra "vale a edição mais recente" substituiu. É uma resposta parcial à
+  limitação **L1** — o texto sobrescrito deixa de ser invisível, ainda que a
+  recuperação continue sendo manual.
+- **A guarda de versão** (`ehMaisNovoQueEu`) e o `extrasDe`, que impedem uma
+  página velha de apagar em silêncio o que não entende ao regravar a pasta.
+  Esse era um caminho de perda de dados que esta auditoria não encontrou.

@@ -42,6 +42,21 @@
   function situacao(item) { return Store.statusInfo(item.status).nome; }
   var SITUACOES = Store.STATUS.map(function (o) { return o.nome; });
 
+  /* A partir de quantos dias sem ninguém tocar um item pendente vira
+     "parado". Trinta dias é mais ou menos o ciclo de resposta do arquiteto:
+     abaixo disso ainda é espera normal. */
+  var DIAS_PARADO = 30;
+
+  /** Dias desde a última edição do item — null quando nunca foi registrado. */
+  function diasSemMexer(item) { return Store.diasDesde(item && item.editedAt); }
+
+  /** Pendente e sem ninguém tocar há muito tempo. */
+  function estaParado(item) {
+    if (item.done) return false;
+    var d = diasSemMexer(item);
+    return d !== null && d >= DIAS_PARADO;
+  }
+
   /** Um item pode citar vários sistemas ("BX,BQ,BD"). */
   function sistemas(item) {
     return clean(item.systems).split(/[,;/]+/).map(clean).filter(Boolean);
@@ -71,15 +86,8 @@
     if (f.evidencia === 'sem' && (n.evidence || []).length) return false;
     var t = clean(f.busca).toLowerCase();
     if (t) {
-      /* os cinco blocos de texto do relatório, e não só três: um item que
-         cita o termo em "Why is not possible" some do recorte sem aviso — e
-         o recorte é o que sai no CSV e no resumo em PDF */
-      var palheiro = [n.ncrId, n.systems, n.func,
-                      n.description, n.currentSituation, n.whyNotPossible,
-                      n['arguments'], n.archAnswer,
-                      n.archStatus, n.historic,
-                      (n.certificates || []).join(' ')].join(' ').toLowerCase();
-      if (palheiro.indexOf(t) < 0) return false;
+      /* a busca varre todo o texto do item, evidências incluídas */
+      if (Store.textoBusca(n).indexOf(t) < 0) return false;
     }
     return true;
   }
@@ -129,6 +137,7 @@
       porSistema: {},
       porSituacao: {},
       certificados: {},
+      parados: [],
       linhas: linhas
     };
     SITUACOES.forEach(function (s) { st.porSituacao[s] = 0; });
@@ -136,6 +145,7 @@
     linhas.forEach(function (r) {
       var n = r.item;
       if (n.done) st.concluidos++; else st.pendentes++;
+      if (estaParado(n)) st.parados.push(r);
       st.porSituacao[situacao(n)]++;
       sistemas(n).forEach(function (s) { st.porSistema[s] = (st.porSistema[s] || 0) + 1; });
       (n.certificates || []).forEach(function (c) {
@@ -146,6 +156,10 @@
         st.imagens += (ev.images || []).length;
       });
     });
+    /* o mais esquecido primeiro: é a pergunta que se faz numa reunião */
+    st.parados.sort(function (a, b) {
+      return (diasSemMexer(b.item) || 0) - (diasSemMexer(a.item) || 0);
+    });
     return st;
   }
 
@@ -155,7 +169,7 @@
       marcos: porMarco.length,
       totalSemFiltro: 0,
       ncr: 0, dev: 0, total: 0, concluidos: 0, pendentes: 0, evidencias: 0, imagens: 0,
-      porSistema: {}, porSituacao: {}
+      porSistema: {}, porSituacao: {}, parados: []
     };
     SITUACOES.forEach(function (s) { geral.porSituacao[s] = 0; });
     porMarco.forEach(function (m) {
@@ -166,6 +180,10 @@
         geral.porSistema[s] = (geral.porSistema[s] || 0) + m.porSistema[s];
       });
       SITUACOES.forEach(function (s) { geral.porSituacao[s] += m.porSituacao[s]; });
+      m.parados.forEach(function (r) { geral.parados.push(r); });
+    });
+    geral.parados.sort(function (a, b) {
+      return (diasSemMexer(b.item) || 0) - (diasSemMexer(a.item) || 0);
     });
     return { porMarco: porMarco, geral: geral };
   }
@@ -313,6 +331,9 @@
   }
 
   global.Summary = {
+    DIAS_PARADO: DIAS_PARADO,
+    diasSemMexer: diasSemMexer,
+    estaParado: estaParado,
     C1: C1, C2: C2, C3: C3, NEUTRO: NEUTRO,
     SITUACOES: SITUACOES,
     situacao: situacao,
@@ -360,7 +381,9 @@
       ['Itens em derrogação', st.total, st.ncr + ' NCR · ' + st.dev + ' DEV'],
       ['Waiver accepted', st.concluidos, pct(st.concluidos, st.total) + ' do total'],
       ['Em andamento', st.pendentes, pct(st.pendentes, st.total) + ' do total'],
-      ['Páginas de evidência', st.evidencias, st.imagens + ' imagens']
+      ['Páginas de evidência', st.evidencias, st.imagens + ' imagens'],
+      ['Parados há ' + S.DIAS_PARADO + '+ dias', (st.parados || []).length,
+        'pendentes sem ninguém mexer']
     ].forEach(function (k) {
       var t = el('div', 'sm-kpi');
       t.appendChild(el('span', 'sm-kpi-label', k[0]));
@@ -377,6 +400,49 @@
     var p = el('span', 'sm-pill', st.nome);
     p.style.setProperty('--st', st.cor);
     return p;
+  }
+
+  /**
+   * A mesma tabela, montada de um jeito que a paginação sabe partir: cada
+   * linha é filha direta do bloco (data-lista), e o cabeçalho é repetido em
+   * cada folha (data-cabecalho). Serve ao PDF; na tela continua valendo a
+   * tabela de verdade, que é o que o navegador rola e ordena melhor.
+   *
+   * `colunas[].larg` é a largura da coluna, em por cento da folha.
+   */
+  function blocoLista(titulo, sub, colunas, linhas, vazio) {
+    var c = el('section', 'sm-card sm-grade');
+    c.setAttribute('data-fluido', '');
+    c.setAttribute('data-lista', '');
+
+    var h = el('header', 'sm-card-head');
+    h.setAttribute('data-cabecalho', '');
+    h.appendChild(el('h3', null, titulo));
+    if (sub) h.appendChild(el('p', null, sub));
+    c.appendChild(h);
+
+    function celula(col, conteudo) {
+      var cel = el('div', 'sm-grade-cel' + (col.num ? ' is-num' : ''));
+      /* largura fixa: com '1 1' as colunas disputam espaço entre si e a
+         última acaba partindo palavra ao meio na folha */
+      cel.style.flex = '0 0 ' + (col.larg || Math.floor(100 / colunas.length)) + '%';
+      if (conteudo instanceof Node) cel.appendChild(conteudo);
+      else if (conteudo != null) cel.textContent = conteudo;
+      return cel;
+    }
+
+    var cab = el('div', 'sm-grade-linha sm-grade-linha--cab');
+    cab.setAttribute('data-cabecalho', '');
+    colunas.forEach(function (col) { cab.appendChild(celula(col, col.titulo)); });
+    c.appendChild(cab);
+
+    linhas.forEach(function (l) {
+      var linha = el('div', 'sm-grade-linha');
+      colunas.forEach(function (col) { linha.appendChild(celula(col, col.valor(l))); });
+      c.appendChild(linha);
+    });
+    if (!linhas.length) c.appendChild(el('p', 'sm-empty', vazio || 'Nada a listar.'));
+    return c;
   }
 
   function tabela(colunas, linhas, opts) {
@@ -476,7 +542,8 @@
     var cab = ['Marco', 'Tipo', 'Numero', 'Sistemas', 'Funcao/Descricao',
                'Situacao (controle interno)',
                'Arch Status', 'Request Expiry', 'Approved Expiry', 'Concluido',
-               'Certificados', 'Anexos', 'Imagens', 'Alterado por', 'Alterado em'];
+               'Certificados', 'Anexos', 'Imagens', 'Alterado por', 'Alterado em',
+               'Dias sem edicao'];
     var linhas = st.linhas.map(function (r) {
       var n = r.item;
       var imgs = (n.evidence || []).reduce(function (a, e) { return a + (e.images || []).length; }, 0);
@@ -488,7 +555,8 @@
         n.done ? 'Sim' : 'Nao',
         (n.certificates || []).join(' | '),
         (n.evidence || []).length, imgs,
-        n.editedBy, n.editedAt
+        n.editedBy, n.editedAt,
+        S.diasSemMexer(n) === null ? '' : S.diasSemMexer(n)
       ].map(csvCampo).join(';');
     });
     /* BOM para o Excel reconhecer os acentos */
@@ -672,6 +740,11 @@
           } }
       ], dados.porMarco, { vazio: 'Nenhum relatório neste navegador.' }));
       host.appendChild(b4);
+
+      if (dados.geral.parados.length) {
+        host.appendChild(blocoParados(dados.geral.parados,
+          'De todos os marcos. Pendentes sem nenhuma edição há ' + S.DIAS_PARADO + ' dias ou mais.'));
+      }
     } else {
       var b5 = bloco('Itens de ' + alvo.marco, 'Todas as NCRs e DEVs deste marco.');
       b5.appendChild(tabela([
@@ -686,6 +759,11 @@
       ], alvo.linhas, { vazio: 'Este marco ainda não tem itens.' }));
       host.appendChild(b5);
 
+      if (alvo.parados.length) {
+        host.appendChild(blocoParados(alvo.parados,
+          'Pendentes sem nenhuma edição há ' + S.DIAS_PARADO + ' dias ou mais, do mais esquecido para o menos.'));
+      }
+
       var certs = Object.keys(alvo.certificados).sort();
       if (certs.length) {
         var b6 = bloco('Certificados impactados', 'Quantos itens citam cada certificado.');
@@ -698,8 +776,33 @@
     }
   }
 
+  /* As colunas dos parados, num lugar só: na tela é uma tabela, no PDF é a
+     lista que a paginação sabe partir — mas as colunas são as mesmas. */
+  function colunasParados(paraImpressao) {
+    return [
+      { titulo: 'Dias', num: true, larg: 7, valor: function (r) { return num(S.diasSemMexer(r.item)); } },
+      { titulo: 'Tipo', larg: 7, valor: function (r) { return r.kind === 'dev' ? 'DEV' : 'NCR'; } },
+      { titulo: 'Número', larg: 22, valor: function (r) { return r.item.ncrId || '(sem número)'; } },
+      { titulo: 'Função / descrição', larg: 28, valor: function (r) { return r.item.func || '—'; } },
+      { titulo: 'Situação', larg: 18, valor: function (r) {
+        return paraImpressao ? S.situacao(r.item) : pilulaSituacao(r.item);
+      } },
+      { titulo: 'Última edição de', larg: 18, valor: function (r) { return r.item.editedBy || '—'; } }
+    ];
+  }
+
+  /** Tabela dos itens parados, como ela aparece na tela. */
+  function blocoParados(linhas, sub) {
+    var b = bloco('Parados há ' + S.DIAS_PARADO + '+ dias', sub);
+    b.appendChild(tabela(colunasParados(false), linhas));
+    return b;
+  }
+
   global.SummaryView = {
     render: render,
+    blocoParados: blocoParados,
+    blocoLista: blocoLista,
+    colunasParados: colunasParados,
     toCsv: toCsv,
     kpiRow: kpiRow,
     tabela: tabela,

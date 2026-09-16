@@ -9,13 +9,13 @@ CHROME = os.environ.get("DERROG_CHROME", "/opt/pw-browsers/chromium-1194/chrome-
 
 DL=SP/"dl6"; DL.mkdir(exist_ok=True)
 
-# A versão de arquivo único é gerada na publicação; aqui geramos sob demanda.
+# A versão de arquivo único fica versionada na raiz, mas aqui ela é gerada
+# de novo, sempre: o que interessa é testar o código de agora — e gerar num
+# arquivo à parte para não mexer no derrogacao.html do repositório.
 import subprocess
 _RAIZ = pathlib.Path(__file__).resolve().parent.parent
-if not (SP/"solo.html").exists():
-    subprocess.run(["python3", str(_RAIZ/"tools"/"build-standalone.py"), "teste"],
-                   cwd=str(_RAIZ), check=True, stdout=subprocess.DEVNULL)
-    (SP/"solo.html").write_bytes((_RAIZ/"derrogacao.html").read_bytes())
+subprocess.run(["python3", str(_RAIZ/"tools"/"build-standalone.py"), "teste", str(SP/"solo.html")],
+               cwd=str(_RAIZ), check=True, stdout=subprocess.DEVNULL)
 
 URL="file://"+str(SP/"solo.html")
 

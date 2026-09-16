@@ -4,6 +4,9 @@ Suítes de ponta a ponta em Playwright (Chromium). Cada arquivo abre a
 aplicação de verdade, faz o caminho de um usuário e confere o resultado —
 inclusive gerando PDFs e conferindo o que saiu neles.
 
+As suítes 25 a 40 **falham com `AssertionError`** quando algo sai do lugar; as
+mais antigas conferem imprimindo valores, que precisam ser lidos.
+
 ## Rodar
 
 ```bash
@@ -20,8 +23,10 @@ Duas variáveis, ambas opcionais:
 | `DERROG_CHROME` | caminho do Chromium | o do Playwright nesta máquina |
 
 Cada suíte é autossuficiente: as imagens de apoio, o backup em formato antigo
-e a versão de arquivo único são gerados na hora, se faltarem. Dá para rodar
-qualquer uma sozinha, em qualquer ordem, num diretório vazio.
+e a versão de arquivo único são gerados na hora. Dá para rodar qualquer uma
+sozinha, em qualquer ordem, num diretório vazio. Nenhuma escreve dentro do
+repositório — o `test11.py` gera o arquivo único no diretório de trabalho,
+para não mexer no `derrogacao.html` versionado.
 
 > **`ERRORS: none` no fim não quer dizer que passou.** Essa linha só reporta o
 > console do navegador. O que vale são as asserções e os valores impressos —
@@ -56,14 +61,24 @@ qualquer uma sozinha, em qualquer ordem, num diretório vazio.
 | `test22.py` | ordenação da lista refletida no PDF; arrastar volta ao manual |
 | `test23.py` | filtros do Resumo, refletidos nos números, no CSV e no resumo em PDF |
 | `test24.py` | índice da capa fechando com o *Arch Status* |
+| `test25.py` | paginação: texto que passa da folha continua noutra, com as margens certas |
+| `test26.py` | duplicar, desfazer a exclusão, busca em todo o texto, trava do item aceito |
+| `test27.py` | imagens em arquivos na pasta, o que mudou por fora, guarda de versão |
+| `test28.py` | itens parados: números, tabela, CSV e resumo impresso |
+| `test29.py` | manifesto, service worker e a aplicação abrindo sem rede |
+| `test30.py` | fluxo dos waivers: leitura do campo, item, pop-up, aba e PDF |
+| `test31.py` | paginação do resumo e do compilado de fluxos: margens de cada folha, cabeçalho repetido, nada perdido |
+| `test32.py` | conversa da equipe: ligar nos ajustes, geral e conversa direta, recado do colega sem perder o daqui, apagar, desligar |
+| `test33.py` | a resposta do marco anterior: pareamento de marco e número, ponto no card, balão com o Arch Answer de lá, clique que abre o item, e nada disso no papel |
+| `test34.py` | o item preso ao lado: Shift no card e escolha pelo diálogo, conteúdo em só leitura, escrever aqui sem tocar no de lá, copiar, abrir, fechar, e nada no papel |
 | `test35.py` | falha ao gravar na pasta não perde o texto do colega |
 | `test36.py` | exclusão aceita na mesclagem deixa lápide e não volta |
 | `test37.py` | exclusão de relatório inteiro sobrevive e alcança os outros |
 | `test38.py` | nada sai do computador; CSV sem fórmula para o Excel |
-| `test39.py` | convergência no empate de carimbo; busca nos cinco blocos |
+| `test39.py` | convergência no empate de carimbo; busca em todo o texto do item |
 | `test40.py` | acessibilidade WCAG 2.2 AA na tela carregada |
 
-Nos testes da pasta compartilhada (19, 20, 21, 25, 26, 27) o seletor de pastas do Windows
+Nos testes da pasta compartilhada (19, 20, 21, 27, 32, 35, 36, 37, 39) o seletor de pastas do Windows
 é substituído por um diretório OPFS — mesma interface
 `FileSystemDirectoryHandle` que a pasta de rede entrega, então o caminho
 exercitado é o de verdade.

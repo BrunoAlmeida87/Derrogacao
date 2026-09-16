@@ -23,14 +23,18 @@
 
   var isDev = function () { return state.kind === 'dev'; };
   var isResumo = function () { return state.kind === 'resumo'; };
+  var isFluxos = function () { return state.kind === 'fluxos'; };
+  var isConversa = function () { return state.kind === 'conversa'; };
+  /* Abas que tomam a tela inteira: não têm lista lateral nem formulário. */
+  var telaCheia = function () { return isResumo() || isFluxos() || isConversa(); };
   /** Lista de itens da aba ativa — o vetor de verdade, para alterar. */
   var items = function () {
-    if (!state.project || isResumo()) return [];
+    if (!state.project || telaCheia()) return [];
     return state.project[Store.itemsKey(state.kind)];
   };
   /** A mesma lista na ordem escolhida — para mostrar e para exportar. */
   var itemsNaOrdem = function () {
-    if (!state.project || isResumo()) return [];
+    if (!state.project || telaCheia()) return [];
     return Store.ordenar(state.project, state.kind);
   };
   /** Nome da aba, para textos da interface. */
@@ -48,14 +52,32 @@
   /* ---------------------------------------------------------------------- */
 
   var toastTimer = null;
-  function toast(msg) {
+  /**
+   * Aviso rápido no pé da tela.
+   * `acao` — {rotulo, fn} — vira um botão dentro do aviso: é assim que o
+   * "Desfazer" da exclusão fica à mão sem virar mais uma janela.
+   */
+  function toast(msg, ms, acao) {
     var t = $('#toast');
     /* mostrar antes de escrever: escondido, o aviso está fora da árvore de
        acessibilidade e a mudança de texto não seria anunciada */
     t.hidden = false;
-    t.textContent = msg;
+    t.textContent = '';
+    t.appendChild(document.createTextNode(msg));
+    if (acao) {
+      var b = document.createElement('button');
+      b.className = 'btn btn--sm btn--accent toast-acao';
+      b.type = 'button';
+      b.textContent = acao.rotulo;
+      b.addEventListener('click', function () {
+        t.hidden = true;
+        clearTimeout(toastTimer);
+        acao.fn();
+      });
+      t.appendChild(b);
+    }
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.hidden = true; }, 2600);
+    toastTimer = setTimeout(function () { t.hidden = true; }, ms || 2600);
   }
 
   var saveTimer = null;
@@ -125,6 +147,7 @@
       renderUser();
       renderBackupNotice();
       if (isResumo()) renderSummary();
+      if (isFluxos()) renderFluxos(true);
     }).catch(markError);
   }
 
@@ -144,6 +167,38 @@
     var id = selectedId();
     if (!state.project || !id) return null;
     return items().filter(function (n) { return n.id === id; })[0] || null;
+  }
+
+  /**
+   * Copia texto para a área de transferência.
+   *
+   * `navigator.clipboard` não existe fora de contexto seguro, e abrir o
+   * programa do disco (`file://`) é exatamente isso — era assim que o arquivo
+   * único respondia "cópia indisponível". A reserva é o `<textarea>` com
+   * `execCommand('copy')`, que funciona em qualquer lugar por vir de um
+   * clique do usuário.
+   */
+  function copiarTexto(txt, ok, falha) {
+    ok = ok || function () {};
+    falha = falha || function () {};
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(ok, function () { reservaDeCopia(txt, ok, falha); });
+      return;
+    }
+    reservaDeCopia(txt, ok, falha);
+  }
+
+  function reservaDeCopia(txt, ok, falha) {
+    var ta = document.createElement('textarea');
+    ta.value = txt;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    var deu = false;
+    try { deu = document.execCommand('copy'); } catch (e) { deu = false; }
+    ta.remove();
+    if (deu) ok(); else falha();
   }
 
   function download(blob, filename) {
@@ -191,6 +246,8 @@
     renderSessionInfo();
     renderBackupNotice();
     if (isResumo()) renderSummary();
+    if (isFluxos()) renderFluxos();
+    if (isConversa()) renderCanais();
     markSaved();
   }
 
@@ -206,18 +263,28 @@
       t.setAttribute('aria-selected', on ? 'true' : 'false');
       /* uma faixa de abas é um ponto só na tabulação; entre elas, as setas */
       t.tabIndex = on ? 0 : -1;
+      /* a contagem é de itens: as abas que não têm itens usam a etiqueta
+         para outra coisa (a Conversa mostra ali os recados não lidos) */
       var cnt = $('.tab-count', t);
-      if (cnt) cnt.textContent = state.project[Store.itemsKey(t.dataset.kind)].length;
+      if (cnt && (t.dataset.kind === 'ncr' || t.dataset.kind === 'dev')) {
+        cnt.textContent = state.project[Store.itemsKey(t.dataset.kind)].length;
+      }
     });
+    renderConversaBadge();
 
-    /* a aba de resumo troca a tela inteira: não há lista nem formulário */
-    $('#sidebarBody').hidden = isResumo();
+    /* resumo, fluxos e conversa trocam a tela inteira: não há lista nem formulário */
+    $('#sidebarBody').hidden = telaCheia();
     $('#sidebarResumo').hidden = !isResumo();
-    $('#editorScroll').hidden = isResumo();
+    $('#sidebarFluxos').hidden = !isFluxos();
+    $('#sidebarConversa').hidden = !isConversa();
+    $('#editorScroll').hidden = telaCheia();
     $('#editorScroll').setAttribute('aria-labelledby', isDev() ? 'tabDev' : 'tabNcr');
     $('#summaryScroll').hidden = !isResumo();
-    $('#previewBtn').hidden = isResumo();
-    if (isResumo()) {
+    $('#fluxosScroll').hidden = !isFluxos();
+    $('#conversaScroll').hidden = !isConversa();
+    $('#previewBtn').hidden = telaCheia();
+    renderAoLado();     /* o item ao lado só existe onde há editor ao lado dele */
+    if (telaCheia()) {
       $('#pdfBtn').textContent = 'Exportar PDF…';
       return;
     }
@@ -226,7 +293,9 @@
     $('#addNcrBtn').textContent = '+ Nova ' + t;
     $('#addNcrBtn').title = 'Adicionar ' + t + ' a este relatório';
     $('#sidebarTitle').textContent = t + 's';
-    $('#ncrFilter').placeholder = 'Filtrar ' + t + 's…';
+    /* a busca não é só pelo número: dizer isso no campo é o que faz alguém
+       tentar procurar por um certificado ou por um trecho do texto */
+    $('#ncrFilter').placeholder = 'Buscar em todo o texto da ' + t + '…';
     $('#previewBtn').textContent = 'Pré-visualizar';
     $('#previewBtn').title = 'Ver as folhas do relatório de ' + t + ' como sairão no PDF';
   }
@@ -236,6 +305,8 @@
     state.kind = kind;
     renderTabs();
     if (isResumo()) { renderSummary(); return; }
+    if (isFluxos()) { renderFluxos(); return; }
+    if (isConversa()) { abrirCanal(canalAberto); return; }
     renderNcrList();
     renderEditor();
     $('#editorScroll').scrollTop = 0;
@@ -247,6 +318,8 @@
 
   var summaryFilter = '';
   var summaryFiltros = {};
+  /* aba Fluxos: recorte do que está à vista */
+  var fluxosFiltro = { busca: '', soComFluxo: false };
 
   function renderSummary(semRolar) {
     SummaryView.render($('#summaryScroll'), state.projects, summaryFilter, {
@@ -281,11 +354,25 @@
     toast('Planilha do marco salva.');
   }
 
-  /** Monta as páginas A4 do resumo e manda para a impressão. */
+  /** Monta as folhas A4 do resumo e manda para a impressão. */
   function exportarResumoPdf(project) {
     var root = $('#printRoot');
     root.innerHTML = '';
-    root.appendChild(buildSummaryPage(project));
+    /* A mesma paginação do relatório. Sem ela, um resumo com muitos itens
+       passava do fim da folha e continuava colado na borda do papel — as
+       margens do layout são padding da folha, e padding não se repete. */
+    var medida = Report.abrirMedida(root);
+    try {
+      var folha = buildSummaryPage(project);
+      root.appendChild(folha.pag);
+      Report.paginar(folha.pag, root, function () {
+        var c = el('section', 'rep-page rep-page--summary rep-page--cont');
+        c.appendChild(el('div', 'rep-cover-title', folha.titulo + ' (cont.)'));
+        return c;
+      }, folha.rodape);
+    } finally {
+      Report.fecharMedida(medida);
+    }
     var titulo = document.title;
     document.title = project
       ? Report.suggestedFileName(project, 'pdf', 'ncr').replace('WaiverRequest_', 'Resumo_').replace(/\.pdf$/, '')
@@ -296,9 +383,22 @@
     }, 60);
   }
 
-  /** Uma folha A4 com os números, os gráficos e a tabela do escopo. */
+  /**
+   * As folhas A4 com os números, os gráficos e a lista do escopo.
+   *
+   * Cada bloco é marcado `data-fluido`: é a unidade que a paginação leva
+   * para a folha seguinte quando não couber nesta. A lista de itens vai
+   * além — cada linha é uma unidade, para uma lista comprida ser partida no
+   * ponto certo em vez de transbordar.
+   */
   function buildSummaryPage(project) {
     var pg = el('section', 'rep-page rep-page--summary');
+    /* acrescenta o bloco já marcado como movível */
+    function fluido(node) {
+      node.setAttribute('data-fluido', '');
+      pg.appendChild(node);
+      return node;
+    }
     var alvos = project ? [project] : state.projects;
     var dados = Summary.compute(alvos, summaryFiltros);
     var st = project ? dados.porMarco[0] : dados.geral;
@@ -307,7 +407,7 @@
       ? 'Resumo de derrogações — ' + (Report.marcoOf(project, 'ncr') || project.name)
       : 'Resumo de derrogações — todos os marcos';
     pg.appendChild(el('div', 'rep-cover-title', titulo));
-    pg.appendChild(el('div', 'sm-print-date',
+    fluido(el('div', 'sm-print-date',
       'Gerado em ' + new Date().toLocaleDateString('pt-BR') +
       (Store.getUser() ? ' por ' + Store.getUser() : '')));
 
@@ -320,42 +420,53 @@
       if (summaryFiltros.archStatus) ditos.push('arch status: ' + summaryFiltros.archStatus);
       if (summaryFiltros.evidencia) ditos.push(summaryFiltros.evidencia === 'com' ? 'só com anexo' : 'só sem anexo');
       if (summaryFiltros.busca) ditos.push('texto: “' + summaryFiltros.busca + '”');
-      pg.appendChild(el('div', 'sm-print-filtro',
+      fluido(el('div', 'sm-print-filtro',
         'Recorte: ' + ditos.join(' · ') + ' — ' + st.total + ' de ' + st.totalSemFiltro + ' itens.'));
     }
 
-    pg.appendChild(SummaryView.kpiRow(st));
+    fluido(SummaryView.kpiRow(st));
 
     var g1 = SummaryView.bloco('Progresso');
     g1.appendChild(SummaryView.graficoProgresso(dados.porMarco));
-    pg.appendChild(g1);
+    fluido(g1);
 
     var g2 = SummaryView.bloco('Situação dos itens (controle interno)');
     g2.appendChild(SummaryView.graficoSituacao(dados.porMarco));
-    pg.appendChild(g2);
+    fluido(g2);
 
     var g3 = SummaryView.bloco('Itens por sistema');
     g3.appendChild(SummaryView.graficoSistemas(
       project ? dados.porMarco[0].porSistema : dados.geral.porSistema));
-    pg.appendChild(g3);
+    fluido(g3);
+
+    if ((st.parados || []).length) {
+      pg.appendChild(SummaryView.blocoLista(
+        'Parados há ' + Summary.DIAS_PARADO + '+ dias',
+        'Pendentes sem nenhuma edição há ' + Summary.DIAS_PARADO + ' dias ou mais.',
+        SummaryView.colunasParados(true), st.parados));
+    }
 
     if (project) {
-      var t = SummaryView.bloco('Itens');
-      t.appendChild(SummaryView.tabela([
-        { titulo: 'Tipo', valor: function (r) { return r.kind === 'dev' ? 'DEV' : 'NCR'; } },
-        { titulo: 'Número', valor: function (r) { return r.item.ncrId || '(sem número)'; } },
-        { titulo: 'Sistemas', valor: function (r) { return r.item.systems || '—'; } },
-        { titulo: 'Função / descrição', valor: function (r) { return r.item.func || '—'; } },
-        { titulo: 'Situação', valor: function (r) { return Summary.situacao(r.item); } },
-        { titulo: 'Arch Status', valor: function (r) { return r.item.archStatus || '—'; } }
-      ], dados.porMarco[0].linhas));
-      pg.appendChild(t);
+      pg.appendChild(SummaryView.blocoLista('Itens', null, [
+        { titulo: 'Tipo', larg: 7, valor: function (r) { return r.kind === 'dev' ? 'DEV' : 'NCR'; } },
+        { titulo: 'Número', larg: 22, valor: function (r) { return r.item.ncrId || '(sem número)'; } },
+        { titulo: 'Sistemas', larg: 12, valor: function (r) { return r.item.systems || '—'; } },
+        { titulo: 'Função / descrição', larg: 24, valor: function (r) { return r.item.func || '—'; } },
+        { titulo: 'Situação', larg: 16, valor: function (r) { return Summary.situacao(r.item); } },
+        /* "WAIVER REQUESTED" é a resposta mais comprida e a mais comum:
+           mais estreito do que isto, ela sai partida ao meio */
+        { titulo: 'Arch Status', larg: 19, valor: function (r) { return r.item.archStatus || '—'; } }
+      ], dados.porMarco[0].linhas, 'Nenhum item neste recorte.'));
     }
 
+    /* O rodapé fica dentro da folha desde já, para entrar na conta da
+       paginação — e é repetido em cada folha de continuação. */
+    var rodape = null;
     if (state.project && state.project.footer) {
-      pg.appendChild(el('div', 'rep-footer', state.project.footer));
+      rodape = el('div', 'rep-footer', state.project.footer);
+      pg.appendChild(rodape);
     }
-    return pg;
+    return { pag: pg, titulo: titulo, rodape: rodape };
   }
 
   /* ---------------------------------------------------------------------- */
@@ -363,6 +474,526 @@
   /* ---------------------------------------------------------------------- */
 
   var dragFrom = null;
+
+  /* ---------------------------------------------------------------------- */
+  /* aba Fluxos — o caminho de cada item, tudo junto                        */
+  /* ---------------------------------------------------------------------- */
+
+  /** Uma linha por item, na ordem do PDF, com o fluxo já analisado. */
+  function linhasDeFluxo() {
+    var out = [];
+    if (!state.project) return out;
+    ['ncr', 'dev'].forEach(function (kind) {
+      Store.ordenar(state.project, kind).forEach(function (item) {
+        out.push({ kind: kind, item: item, fluxo: Fluxo.analisar(item.historic) });
+      });
+    });
+    return out;
+  }
+
+  function passaNoFiltroDeFluxo(r) {
+    if (fluxosFiltro.soComFluxo && r.fluxo.vazio) return false;
+    var t = (fluxosFiltro.busca || '').trim().toLowerCase();
+    if (!t) return true;
+    var palheiro = (Store.textoBusca(r.item) + ' ' + Fluxo.caminhoTexto(r.fluxo)).toLowerCase();
+    return palheiro.indexOf(t) >= 0;
+  }
+
+  function renderFluxos(semRolar) {
+    var host = $('#fluxosScroll');
+    if (!state.project) return;
+    var antes = host.scrollTop;
+    host.innerHTML = '';
+
+    var todas = linhasDeFluxo();
+    var linhas = todas.filter(passaNoFiltroDeFluxo);
+    var comFluxo = todas.filter(function (r) { return !r.fluxo.vazio; }).length;
+    /* um índice por categoria, montado uma vez: a lista pergunta por cada
+       card de cada item, e remontar a procura a cada pergunta seria refazer
+       o mesmo trabalho dezenas de vezes */
+    var idxs = { ncr: indiceDeAnteriores('ncr'), dev: indiceDeAnteriores('dev') };
+
+    /* --- barra: o que está à vista e como exportar --- */
+    var barra = el('div', 'sm-bar');
+    var info = el('div', 'fx-info');
+    info.appendChild(el('strong', null, Report.marcoOf(state.project, 'ncr') || state.project.name || 'sem marco'));
+    info.appendChild(el('span', null, comFluxo + ' de ' + todas.length +
+      ' item(ns) com waivers anteriores escritos.'));
+    /* preenchido no fim, quando os cards já estão na tela e dá para contar
+       quantos acharam o mesmo item em outro relatório */
+    var achou = el('span', 'fx-achou');
+    info.appendChild(achou);
+    barra.appendChild(info);
+
+    var acoes = el('div', 'sm-bar-actions');
+    var bpdf = el('button', 'btn btn--sm btn--primary', 'Fluxos em PDF');
+    bpdf.type = 'button';
+    bpdf.addEventListener('click', function () { exportarFluxosPdf(); });
+    acoes.appendChild(bpdf);
+    barra.appendChild(acoes);
+    host.appendChild(barra);
+
+    /* --- filtros --- */
+    var fb = el('div', 'sm-filtros');
+    var busca = el('div', 'sm-bar-field');
+    busca.appendChild(el('label', null, 'Buscar'));
+    var inp = document.createElement('input');
+    inp.type = 'search';
+    inp.value = fluxosFiltro.busca;
+    inp.placeholder = 'número, função ou marco do fluxo…';
+    inp.addEventListener('input', function () {
+      fluxosFiltro.busca = inp.value;
+      renderFluxos(true);
+      var novo = $('#fluxosScroll input[type="search"]');
+      if (novo) { novo.focus(); novo.setSelectionRange(novo.value.length, novo.value.length); }
+    });
+    busca.appendChild(inp);
+    fb.appendChild(busca);
+
+    var so = el('label', 'fx-check');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = fluxosFiltro.soComFluxo;
+    cb.addEventListener('change', function () {
+      fluxosFiltro.soComFluxo = cb.checked;
+      renderFluxos(true);
+    });
+    so.appendChild(cb);
+    so.appendChild(document.createTextNode(' esconder quem não tem fluxo'));
+    fb.appendChild(so);
+    host.appendChild(fb);
+
+    /* --- um bloco por categoria --- */
+    ['ncr', 'dev'].forEach(function (kind) {
+      var minhas = linhas.filter(function (r) { return r.kind === kind; });
+      var nome = kind === 'dev' ? 'DEV' : 'NCR';
+      var total = todas.filter(function (r) { return r.kind === kind; }).length;
+      if (!total) return;
+      var bloco = SummaryView.bloco(nome + 's', minhas.length + ' de ' + total +
+        ' item(ns), na mesma ordem do PDF.');
+      if (!minhas.length) {
+        bloco.appendChild(el('p', 'hint', 'Nada aqui com este recorte.'));
+      }
+      minhas.forEach(function (r) { bloco.appendChild(linhaDeFluxo(r, false, idxs)); });
+      host.appendChild(bloco);
+    });
+
+    var marcados = $$('.fx-card.is-achado', host).length;
+    achou.textContent = marcados
+      ? marcados + ' card(s) com ponto: o mesmo item está no relatório daquele ' +
+        'marco, aqui no navegador. Passe o mouse para ler o Arch Answer de lá.'
+      : 'Nenhum card com resposta de outro marco neste navegador.';
+
+    if (!semRolar) host.scrollTop = 0; else host.scrollTop = antes;
+  }
+
+  /** A linha de um item: identificação à esquerda, fluxo à direita. */
+  function linhaDeFluxo(r, paraImpressao, idxs) {
+    var linha = el('div', 'fx-linha');
+    if (paraImpressao) linha.setAttribute('data-fluido', '');
+
+    var id = el('div', 'fx-linha-id');
+    var num = el('div', 'fx-linha-num', r.item.ncrId || '(sem número)');
+    if (!paraImpressao) {
+      var a = el('a', 'sm-link', r.item.ncrId || '(sem número)');
+      a.href = '#';
+      a.title = 'Abrir este item';
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        state.kind = r.kind;
+        renderTabs();
+        renderNcrList();
+        selectNcr(r.item.id);
+      });
+      num.textContent = '';
+      num.appendChild(a);
+    }
+    id.appendChild(num);
+    var sub = (r.kind === 'dev' ? [r.item.func] : [r.item.systems, r.item.func])
+      .filter(Boolean).join(' | ');
+    id.appendChild(el('div', 'fx-linha-sub', sub || '—'));
+    linha.appendChild(id);
+
+    var palco = el('div', 'fx-palco fx-palco--linha');
+    /* na impressão não vai `antes`: o papel não tem mouse, e a marca sem o
+       balão seria uma pergunta sem resposta */
+    palco.appendChild(Fluxo.svg(r.fluxo, {
+      escala: 'compacto',
+      destaque: marcoDesteRelatorio(),
+      antes: paraImpressao ? null : buscadorDeAnteriores(idxs && idxs[r.kind], r.item),
+      abrir: paraImpressao ? null : abrirAchado
+    }));
+    linha.appendChild(palco);
+    return linha;
+  }
+
+  /**
+   * O compilado em PDF. Usa a mesma paginação do relatório: uma lista
+   * comprida não pode terminar no fim da folha e continuar na borda do papel.
+   */
+  function exportarFluxosPdf() {
+    var root = $('#printRoot');
+    root.innerHTML = '';
+    var medida = Report.abrirMedida(root);
+    try {
+      var pg = el('section', 'rep-page rep-page--summary');
+      var marco = Report.marcoOf(state.project, 'ncr') || state.project.name || '';
+      pg.appendChild(el('div', 'rep-cover-title', 'Fluxo dos waivers — ' + marco));
+      pg.appendChild(el('div', 'sm-print-date',
+        'Gerado em ' + new Date().toLocaleDateString('pt-BR') +
+        (Store.getUser() ? ' por ' + Store.getUser() : '')));
+
+      var linhas = linhasDeFluxo().filter(passaNoFiltroDeFluxo);
+      var lista = el('div', 'fx-lista');
+      lista.setAttribute('data-fluido', '');
+      lista.setAttribute('data-lista', '');
+      linhas.forEach(function (r) { lista.appendChild(linhaDeFluxo(r, true)); });
+      if (!linhas.length) lista.appendChild(el('p', null, 'Nenhum item neste recorte.'));
+      pg.appendChild(lista);
+      root.appendChild(pg);
+
+      Report.paginar(pg, root, function () {
+        var c = el('section', 'rep-page rep-page--summary rep-page--cont');
+        c.appendChild(el('div', 'rep-cover-title', 'Fluxo dos waivers — ' + marco + ' (cont.)'));
+        return c;
+      });
+    } finally {
+      Report.fecharMedida(medida);
+    }
+
+    var titulo = document.title;
+    document.title = Report.suggestedFileName(state.project, 'pdf', 'ncr')
+      .replace('WaiverRequest_', 'Fluxos_').replace(/\.pdf$/, '');
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.title = titulo; }, 500);
+    }, 60);
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* aba Conversa — recados da equipe, pela pasta da rede                    */
+  /* ---------------------------------------------------------------------- */
+
+  /* Tudo o que este navegador conhece da conversa. A cópia que vale é a da
+     pasta; esta existe para a aba abrir antes de a pasta responder, e para o
+     que você escreveu não se perder se a rede estiver fora do ar. */
+  var conversas = [];
+  var canalAberto = Chat.GERAL;
+  var pessoasConhecidas = [];
+  var conversaTimer = null;
+  var sincronizandoConversa = false;
+  /* arquivo de conversa gravado por uma versão mais nova: só leitura, pela
+     mesma razão dos dados — o que esta página não conhece sumiria */
+  var conversaSoLeitura = false;
+  var caixaDeTexto = null;
+
+  function podeConversar() {
+    return Chat.ligado() && Pasta.ligada() && pastaEstado === 'on';
+  }
+
+  function atualizarPessoas() {
+    pessoasConhecidas = Chat.pessoas(state.projects, conversas, Store.getUser());
+    return pessoasConhecidas;
+  }
+
+  function nomeDaChave(chave) {
+    var achado = pessoasConhecidas.filter(function (p) { return p.chave === chave; })[0];
+    return achado ? achado.nome : chave;
+  }
+
+  function rotuloCanal(canal) {
+    return canal === Chat.GERAL ? 'Geral' : nomeDaChave(Chat.outroLado(canal, Store.getUser()));
+  }
+
+  /** Recados não lidos, na etiqueta da aba. */
+  function renderConversaBadge() {
+    var tab = $('.tab[data-kind="conversa"]');
+    if (!tab) return;
+    tab.hidden = !Chat.ligado();
+    var box = $('#conversaCount');
+    var n = Chat.ligado() ? Chat.naoLidas(conversas, Store.getUser()).total : 0;
+    box.hidden = !n;
+    tab.title = n
+      ? n + (n === 1 ? ' recado não lido' : ' recados não lidos')
+      : 'Recados da equipe, pela pasta da rede';
+  }
+
+  /** A lista de canais, na lateral: o geral e uma linha por pessoa. */
+  function renderCanais() {
+    var host = $('#convCanais');
+    if (!host) return;
+    host.innerHTML = '';
+    atualizarPessoas();
+    var contas = Chat.naoLidas(conversas, Store.getUser()).canais;
+
+    function linha(canal, rotulo, sub) {
+      var b = el('button', 'conv-canal' + (canal === canalAberto ? ' is-on' : ''));
+      b.type = 'button';
+      var topo = el('div', 'conv-canal-topo');
+      topo.appendChild(el('span', 'conv-canal-nome', rotulo));
+      var n = contas[canal] || 0;
+      if (n) topo.appendChild(el('span', 'conv-canal-n', String(n)));
+      b.appendChild(topo);
+      if (sub) b.appendChild(el('span', 'conv-canal-sub', sub));
+      b.addEventListener('click', function () { abrirCanal(canal); });
+      host.appendChild(b);
+    }
+
+    linha(Chat.GERAL, 'Geral', 'todo mundo que abre esta pasta');
+    host.appendChild(el('div', 'conv-canais-tit', 'Conversa direta'));
+
+    if (!Store.getUser()) {
+      host.appendChild(el('p', 'hint',
+        'Informe o seu nome (no menu “⋯ Mais”) para falar com alguém em separado.'));
+      return;
+    }
+    if (!pessoasConhecidas.length) {
+      host.appendChild(el('p', 'hint',
+        'Ninguém mais assinou nada nesta pasta ainda. Quem editar um item ou ' +
+        'escrever no geral aparece aqui.'));
+      return;
+    }
+    pessoasConhecidas.forEach(function (p) {
+      linha(Chat.canalDireto(Store.getUser(), p.nome), p.nome, '');
+    });
+  }
+
+  /** Lido até a mensagem mais nova que está à vista neste canal. */
+  function marcarCanalLido(canal) {
+    var msgs = Chat.doCanal(conversas, canal);
+    Chat.marcarLido(canal, msgs.length ? msgs[msgs.length - 1].em : '');
+  }
+
+  function abrirCanal(canal) {
+    canalAberto = canal;
+    marcarCanalLido(canal);
+    renderCanais();
+    renderConversa();
+    renderConversaBadge();
+  }
+
+  /**
+   * Monta a aba. O campo de escrever é montado aqui e só aqui: a lista de
+   * mensagens se redesenha sozinha a cada sincronização, e refazer o campo
+   * junto apagaria o que está sendo digitado.
+   */
+  function renderConversa() {
+    var host = $('#conversaScroll');
+    if (!host) return;
+    var rascunho = caixaDeTexto ? caixaDeTexto.value : '';
+    host.innerHTML = '';
+    caixaDeTexto = null;
+
+    var cab = el('div', 'conv-cab');
+    cab.appendChild(el('strong', null, rotuloCanal(canalAberto)));
+    cab.appendChild(el('span', 'conv-cab-sub', canalAberto === Chat.GERAL
+      ? 'Recado para quem abrir esta pasta.'
+      : 'Conversa entre você e ' + rotuloCanal(canalAberto) + '.'));
+    host.appendChild(cab);
+
+    /* O aviso não é enfeite: sem ele alguém trataria a conversa direta como
+       canal reservado, que ela não é. */
+    var aviso = el('div', 'conv-aviso');
+    aviso.appendChild(el('strong', null, 'Isto não é canal seguro. '));
+    aviso.appendChild(document.createTextNode(
+      'Tudo fica num arquivo dentro da pasta da rede (' + Pasta.CONVERSAS + '), ' +
+      'inclusive as conversas diretas: quem abre a pasta pode ler. E o nome é o ' +
+      'que cada um digitou — não há senha que prove quem escreveu.'));
+    host.appendChild(aviso);
+
+    if (!Pasta.ligada() || pastaEstado !== 'on') {
+      var sem = el('div', 'conv-sem-pasta');
+      sem.appendChild(el('strong', null, 'A pasta da rede não está ligada. '));
+      sem.appendChild(document.createTextNode(
+        'O que você escrever fica só neste navegador até a pasta voltar — ' +
+        'e ninguém mais vê. Ligue em “⋯ Mais → Pasta da rede como banco de dados”.'));
+      host.appendChild(sem);
+    } else if (conversaSoLeitura) {
+      host.appendChild(el('div', 'conv-sem-pasta',
+        'A conversa desta pasta foi gravada por uma versão mais nova do programa. ' +
+        'Só leitura até você recarregar a página (Ctrl+F5).'));
+    }
+
+    var lista = el('div', 'conv-lista');
+    lista.id = 'convLista';
+    host.appendChild(lista);
+
+    var form = el('div', 'conv-form');
+    var caixa = document.createElement('textarea');
+    caixa.rows = 2;
+    caixa.id = 'convTexto';
+    caixa.maxLength = Chat.MAX_TEXTO;
+    caixa.placeholder = 'Escreva o recado… (Enter envia, Shift+Enter quebra a linha)';
+    caixa.value = rascunho;
+    caixa.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarConversa(); }
+    });
+    form.appendChild(caixa);
+    caixaDeTexto = caixa;
+
+    var enviar = el('button', 'btn btn--primary', 'Enviar');
+    enviar.type = 'button';
+    enviar.id = 'convEnviarBtn';
+    enviar.addEventListener('click', enviarConversa);
+    form.appendChild(enviar);
+    host.appendChild(form);
+
+    renderMensagens(true);
+  }
+
+  /** Só a lista de mensagens — é o que a sincronização redesenha. */
+  function renderMensagens(irParaOFim) {
+    var lista = $('#convLista');
+    if (!lista) return;
+    /* quem estava lendo mais acima não é jogado para o fim a cada recado */
+    var colado = irParaOFim ||
+      (lista.scrollTop + lista.clientHeight >= lista.scrollHeight - 30);
+    lista.innerHTML = '';
+
+    var msgs = Chat.doCanal(conversas, canalAberto).filter(function (m) { return !m.apagada; });
+    if (!msgs.length) {
+      lista.appendChild(el('p', 'hint', canalAberto === Chat.GERAL
+        ? 'Nenhum recado ainda. O primeiro é seu.'
+        : 'Vocês ainda não trocaram nenhum recado.'));
+      return;
+    }
+
+    var meu = Chat.chaveNome(Store.getUser());
+    var diaAnterior = '';
+    msgs.forEach(function (m) {
+      var dia = String(m.em).slice(0, 10);
+      if (dia !== diaAnterior) {
+        diaAnterior = dia;
+        var d = new Date(m.em);
+        lista.appendChild(el('div', 'conv-dia',
+          isNaN(d) ? dia : d.toLocaleDateString('pt-BR')));
+      }
+
+      var ehMinha = Chat.chaveNome(m.de) === meu && !!meu;
+      var linha = el('div', 'conv-msg' + (ehMinha ? ' is-minha' : ''));
+      var cabMsg = el('div', 'conv-msg-cab');
+      cabMsg.appendChild(el('span', 'conv-msg-quem', m.de || 'sem nome'));
+      cabMsg.appendChild(el('span', 'conv-msg-quando', horaDe(m.em)));
+      if (ehMinha) {
+        var x = el('button', 'conv-msg-apagar', '✕');
+        x.type = 'button';
+        x.title = 'Apagar este recado para todo mundo';
+        x.addEventListener('click', function () { apagarMensagem(m); });
+        cabMsg.appendChild(x);
+      }
+      linha.appendChild(cabMsg);
+      linha.appendChild(el('div', 'conv-msg-txt', m.texto));
+      lista.appendChild(linha);
+    });
+
+    if (colado) lista.scrollTop = lista.scrollHeight;
+  }
+
+  function horaDe(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return '';
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function enviarConversa() {
+    var texto = (caixaDeTexto ? caixaDeTexto.value : '').trim();
+    if (!texto) return;
+    /* o recado é assinado: sem nome não dá para saber de quem veio */
+    if (!Store.getUser()) {
+      openUserDialog(function () { enviarConversa(); });
+      toast('Informe o seu nome — é ele que assina o recado.');
+      return;
+    }
+    conversas = Chat.juntar(conversas, [Chat.nova(canalAberto, texto, Store.getUser())]);
+    Chat.gravarLocais(conversas);
+    marcarCanalLido(canalAberto);
+    caixaDeTexto.value = '';
+    caixaDeTexto.focus();
+    renderMensagens(true);
+    renderCanais();
+    renderConversaBadge();
+    sincronizarConversas({ forcar: true }).then(function (r) {
+      if (r === 'sem-pasta') {
+        toast('Sem a pasta da rede, o recado fica só neste navegador.', 4500);
+      }
+    });
+  }
+
+  /* Apagar vale para todo mundo: a marca viaja junto, senão o recado voltaria
+     pela sincronização de quem ainda não soube — a mesma lápide dos itens. */
+  function apagarMensagem(m) {
+    if (!confirm('Apagar este recado para todo mundo?')) return;
+    m.apagada = true;
+    m.texto = '';
+    Chat.gravarLocais(conversas);
+    renderMensagens();
+    sincronizarConversas({ forcar: true });
+  }
+
+  /**
+   * Lê a conversa da pasta, junta com a daqui e grava de volta o resultado.
+   *
+   * Ler-juntar-gravar, e não só gravar: dois navegadores escrevendo ao mesmo
+   * tempo apagariam o recado um do outro. Como mensagem não se edita, a
+   * junção é união por identificador — e sempre converge.
+   */
+  function sincronizarConversas(opts) {
+    opts = opts || {};
+    if (!Chat.ligado()) return Promise.resolve(null);
+    if (!Pasta.ligada() || pastaEstado !== 'on') return Promise.resolve('sem-pasta');
+    if (sincronizandoConversa) return Promise.resolve(null);
+    sincronizandoConversa = true;
+
+    var antes = Chat.naoLidas(conversas, Store.getUser()).total;
+    return Pasta.lerConversas()
+      .then(function (dados) {
+        if (dados && Number(dados.schema) > 1) conversaSoLeitura = true;
+        var remotas = (dados && Array.isArray(dados.mensagens)) ? dados.mensagens : [];
+        conversas = Chat.juntar(conversas, remotas);
+        Chat.gravarLocais(conversas);
+        if (conversaSoLeitura) return false;
+        if (!opts.forcar && !Chat.faltamLa(conversas, remotas)) return false;
+        return Pasta.gravarConversas(Chat.envelope(conversas));
+      })
+      .then(function () {
+        sincronizandoConversa = false;
+        var depois = Chat.naoLidas(conversas, Store.getUser()).total;
+        if (isConversa()) {
+          /* o canal aberto está à vista: o que chega nele já está lido */
+          marcarCanalLido(canalAberto);
+          renderMensagens();
+          renderCanais();
+        } else if (depois > antes) {
+          toast('Recado novo na aba Conversa.', 4000);
+        }
+        renderConversaBadge();
+        return depois;
+      })
+      .catch(function (e) {
+        sincronizandoConversa = false;
+        console.warn('Conversa: não foi possível sincronizar com a pasta.', e);
+        return null;
+      });
+  }
+
+  /* De tempos em tempos, como os dados. Não é conversa ao vivo, e o programa
+     não promete que seja: o recado chega na próxima leitura da pasta. */
+  function agendarConversa() {
+    clearInterval(conversaTimer);
+    if (!Chat.ligado()) return;
+    conversaTimer = setInterval(function () {
+      if (!podeConversar() || sincronizandoConversa) return;
+      if (document.hidden) return;
+      sincronizarConversas({});
+    }, POLL_MS);
+  }
+
+  function iniciarConversa() {
+    conversas = Chat.juntar(Chat.locais(), []);
+    renderConversaBadge();
+    agendarConversa();
+    if (podeConversar()) sincronizarConversas({});
+  }
 
   function renderNcrList() {
     var ul = $('#ncrList');
@@ -384,8 +1015,9 @@
     var pendingOnly = $('#pendingOnly').checked;
     var touched = touchedIds();
     rows.forEach(function (ncr, i) {
-      var hay = (ncr.ncrId + ' ' + ncr.systems + ' ' + ncr.func).toLowerCase();
-      if (term && hay.indexOf(term) === -1) return;
+      /* a busca alcança todo o texto do item — é o que responde "onde foi
+         mesmo que a gente citou aquele certificado?" */
+      if (term && Store.textoBusca(ncr).indexOf(term) === -1) return;
       if (pendingOnly && ncr.done) return;
 
       var li = el('li', 'ncr-item');
@@ -418,6 +1050,11 @@
         var sd = el('span', 'status-dot');
         sd.title = 'Situação: ' + st.nome;
         badges.appendChild(sd);
+      }
+      if (mudancasDeFora[ncr.id]) {
+        var fora = el('span', 'fora-dot', '⇄');
+        fora.title = 'Alterado por outra pessoa — abra o item para ver o que mudou';
+        badges.appendChild(fora);
       }
       if (touched[ncr.id]) {
         li.classList.add('is-touched');
@@ -583,6 +1220,74 @@
     renderNcrList();
     renderEditor();
     scheduleSave();
+    toast(kindName() + ' "' + (ncr.ncrId || 'sem número') + '" excluída.', 9000, {
+      rotulo: '↩ Desfazer',
+      fn: function () { desfazerExclusao(state.project, state.kind, ncr, at); }
+    });
+  }
+
+  /**
+   * Traz de volta o item que acabou de ser excluído.
+   *
+   * Tirar a lápide não basta: ela pode já ter viajado para o computador do
+   * colega. O que faz o item sobreviver lá também é a hora de edição nova,
+   * posterior à exclusão — pela regra da mesclagem, quem editou por último
+   * vence a lápide.
+   */
+  function desfazerExclusao(projeto, kind, item, posicao) {
+    var lista = projeto[Store.itemsKey(kind)];
+    var lapide = (projeto.deleted || []).filter(function (t) { return t.id === item.id; })[0];
+    projeto.deleted = (projeto.deleted || []).filter(function (t) { return t.id !== item.id; });
+    lista.splice(Math.min(posicao, lista.length), 0, item);
+
+    if (state.project && state.project.id === projeto.id) {
+      state.kind = kind;
+      setSelectedId(item.id);
+      touch(item, 'criou');
+      /* na sessão o item não foi "excluído": foi excluído e trazido de volta,
+         o que é uma edição — deixar "excluiu" no histórico seria mentira */
+      var sess = currentSession();
+      if (sess) {
+        sess.changes.forEach(function (c) { if (c.itemId === item.id) c.action = 'editou'; });
+      }
+    } else {
+      item.editedBy = Store.getUser();
+      item.editedAt = Store.nowIso();
+    }
+    /* A hora de edição tem de ficar depois da lápide: é ela que ressuscita o
+       item também no computador de quem já recebeu a exclusão. */
+    if (lapide) item.editedAt = Store.depoisDe(lapide.at);
+
+    if (state.project && state.project.id === projeto.id) {
+      renderTabs();
+      renderNcrList();
+      renderEditor();
+      scheduleSave();
+    } else {
+      Store.save(projeto).then(agendarGravacaoPasta).catch(markError);
+    }
+    toast('"' + (item.ncrId || 'sem número') + '" de volta.');
+  }
+
+  /** Cópia do item selecionado, logo abaixo dele. */
+  function duplicarNcr() {
+    var ncr = currentNcr();
+    if (!ncr) return;
+    var copia = Store.duplicar(ncr);
+    var list = items();
+    var at = list.findIndex(function (n) { return n.id === ncr.id; });
+    list.splice(at + 1, 0, copia);
+    touch(copia, 'criou');
+    /* A cópia nasce ao lado do original; com a lista em outra ordem, isso só
+       se vê depois de fixar a ordem — mas o item existe do mesmo jeito. */
+    setSelectedId(copia.id);
+    renderTabs();
+    renderNcrList();
+    renderEditor();
+    scheduleSave();
+    var campo = $('#f-ncrId');
+    if (campo) { campo.focus(); campo.select(); }
+    toast('Cópia criada. Troque o número — ele veio marcado como "(cópia)".', 5000);
   }
 
   /* ---------------------------------------------------------------------- */
@@ -660,6 +1365,7 @@
     host.innerHTML = '';
     var ncr = currentNcr();
 
+    renderAoLado();
     if (!state.project) return;
     if (!ncr) {
       var empty = el('div', 'editor-empty');
@@ -699,6 +1405,16 @@
       idCard.appendChild(g);
       watched = ['f-ncrId', 'f-systems', 'f-func'];
     }
+    /* Ao lado do título, como o "Recolher preenchidos" do cartão de baixo.
+       `data-livre` porque só mostra: vale mesmo com o item travado. */
+    var ladoBtn = el('button', 'btn btn--sm', '⇥ Ver outra ao lado');
+    ladoBtn.type = 'button';
+    ladoBtn.style.marginLeft = 'auto';
+    ladoBtn.title = 'Mostra outro item numa coluna à direita, em só leitura';
+    ladoBtn.setAttribute('data-livre', '');
+    ladoBtn.addEventListener('click', abrirEscolhaDoLado);
+    $('h3', idCard).appendChild(ladoBtn);
+
     var prev = el('div', 'hint');
     prev.style.marginTop = '10px';
     prev.textContent = 'Título gerado: Waiver Request for ' + Report.ncrLabel(ncr, state.kind);
@@ -788,6 +1504,7 @@
         : 'Uma entrada por linha.'
     }));
     stCard.appendChild(g2);
+    stCard.appendChild(renderFluxoDoItem(g2));
     stCard.appendChild(renderCertificates());
     host.appendChild(stCard);
 
@@ -796,6 +1513,249 @@
 
     /* --- situação de acompanhamento --- */
     host.appendChild(renderStatusBar());
+
+    /* --- travas e avisos, por cima do que já está montado --- */
+    if (travado(ncr)) aplicarTrava(host);
+    var mudanca = mudancasDeFora[ncr.id];
+    if (mudanca) host.insertBefore(barraMudouPorFora(mudanca), host.firstChild);
+  }
+
+  /* Item aceito é documento fechado: um clique distraído num campo dele se
+     espalha para todo mundo na sincronização seguinte. Fica travado até a
+     pessoa dizer que quer mesmo mexer. */
+  var destravados = {};
+
+  function travado(ncr) {
+    return !!(ncr && ncr.done && !destravados[ncr.id]);
+  }
+
+  function aplicarTrava(host) {
+    var aviso = el('div', 'trava');
+    aviso.appendChild(el('span', 'trava-txt',
+      '🔒 Waiver aceito — os campos estão travados para não sobrescrever por engano.'));
+    var b = el('button', 'btn btn--sm', 'Editar mesmo assim');
+    b.type = 'button';
+    b.addEventListener('click', function () {
+      destravados[currentNcr().id] = true;
+      renderEditor();
+    });
+    aviso.appendChild(b);
+
+    $$('.card', host).forEach(function (card) {
+      $$('input, textarea, select, button', card).forEach(function (n) {
+        /* o que só mostra continua valendo: travar é para não escrever sem
+           querer, não para deixar de ver */
+        if (n.hasAttribute('data-livre')) return;
+        if (n.tagName === 'TEXTAREA' || (n.tagName === 'INPUT' && n.type === 'text')) n.readOnly = true;
+        else n.disabled = true;
+      });
+      /* a área de soltar imagens não é um controle de formulário */
+      $$('.evid-drop', card).forEach(function (d) {
+        d.style.pointerEvents = 'none';
+        d.style.opacity = '.55';
+      });
+    });
+    host.insertBefore(aviso, host.firstChild);
+  }
+
+  /* --- o que mudou por fora --------------------------------------------- */
+
+  /* Itens que a sincronização substituiu pelo texto de outra pessoa, desde
+     que esta página foi aberta. A regra da pasta é "vale a edição mais
+     recente"; sem isto, o que foi por cima do meu texto passaria em branco. */
+  var mudancasDeFora = {};
+
+  function guardarMudancas(resumo) {
+    if (!resumo || !resumo.substituidos) return;
+    resumo.substituidos.forEach(function (sub) { mudancasDeFora[sub.id] = sub; });
+  }
+
+  function barraMudouPorFora(sub) {
+    var bar = el('div', 'mudou');
+    var txt = 'Este item foi alterado' +
+      (sub.quem ? ' por ' + sub.quem : ' em outro computador') +
+      (sub.quando ? ', ' + shortDate(sub.quando) : '') +
+      ' — ' + sub.campos.length + ' campo(s).';
+    bar.appendChild(el('span', 'mudou-txt', txt));
+    var ver = el('button', 'btn btn--sm btn--accent', 'Ver o que mudou');
+    ver.type = 'button';
+    ver.addEventListener('click', function () { abrirDif(sub); });
+    bar.appendChild(ver);
+    var ok = el('button', 'btn btn--sm btn--quiet', 'Dispensar');
+    ok.type = 'button';
+    ok.addEventListener('click', function () {
+      delete mudancasDeFora[sub.id];
+      renderEditor();
+      renderNcrList();
+    });
+    bar.appendChild(ok);
+    return bar;
+  }
+
+  function abrirDif(sub) {
+    var body = $('#difBody');
+    body.innerHTML = '';
+    $('#difQuem').textContent = (sub.quem || 'Outro computador') +
+      (sub.quando ? ' · ' + shortDate(sub.quando) : '') +
+      ' · ' + (sub.ncrId || 'sem número');
+    sub.campos.forEach(function (c) {
+      var bloco = el('div', 'dif-campo');
+      bloco.appendChild(el('div', 'dif-rotulo', c.rotulo));
+      var par = el('div', 'dif-par');
+      var antes = el('div', 'dif-lado dif-lado--antes');
+      antes.appendChild(el('div', 'dif-cab', 'Estava aqui'));
+      antes.appendChild(el('pre', 'dif-txt', c.antes || '(em branco)'));
+      var depois = el('div', 'dif-lado dif-lado--depois');
+      depois.appendChild(el('div', 'dif-cab', 'Passou a ser'));
+      depois.appendChild(el('pre', 'dif-txt', c.depois || '(em branco)'));
+      par.appendChild(antes);
+      par.appendChild(depois);
+      bloco.appendChild(par);
+      body.appendChild(bloco);
+    });
+    $('#difDialog').showModal();
+  }
+
+  /* --- o caminho do waiver, dentro do item ------------------------------- */
+
+  /** O marco deste relatório, no formato dos cards ("RANAE J06" -> "J06"). */
+  function marcoDesteRelatorio() {
+    var m = Fluxo.marco(Report.marcoOf(state.project, state.kind));
+    return m ? m.rotulo : '';
+  }
+
+  /**
+   * A procura que alimenta o balão dos cards: o mesmo número, no relatório do
+   * marco daquele card. O índice é montado uma vez por desenho e o item é
+   * lido a cada pergunta — assim o card acompanha quem troca o número do item
+   * sem refazer o índice a cada tecla.
+   */
+  function indiceDeAnteriores(kind) {
+    return Fluxo.indice(state.projects, kind, state.project ? state.project.id : '');
+  }
+
+  function buscadorDeAnteriores(idx, item) {
+    if (!idx || !item) return null;
+    return function (no) { return Fluxo.anterior(idx, no, item); };
+  }
+
+  /**
+   * Clique no card marcado: abre o item no relatório de onde veio a resposta.
+   * Grava o que está na tela antes de sair — trocar de relatório redesenha
+   * tudo, e o que estivesse esperando os 500 ms da gravação se perderia.
+   */
+  function abrirAchado(dados, ev) {
+    var alvo = state.projects.filter(function (p) { return p.id === dados.projectId; })[0];
+    if (!alvo) { toast('Esse relatório não está mais neste navegador.'); return; }
+    /* com Shift, em vez de trocar de tela, o item vai para a coluna ao lado —
+       é o caminho curto para escrever este olhando aquele */
+    if (ev && ev.shiftKey) {
+      if ($('#fluxoDialog').open) $('#fluxoDialog').close();
+      fixarAoLado(dados.projectId, dados.kind, dados.itemId);
+      toast('Preso ao lado: ' + (dados.ncrId || 'item') + ' (' + (dados.marco || 'sem marco') + ').');
+      return;
+    }
+    if ($('#fluxoDialog').open) $('#fluxoDialog').close();
+
+    function ir() {
+      state.kind = dados.kind;
+      if (!state.project || alvo.id !== state.project.id) loadProject(alvo);
+      renderTabs();
+      renderNcrList();
+      selectNcr(dados.itemId);
+      toast((dados.ncrId || 'Item') + ' aberta no relatório ' + (dados.marco || 'sem marco') + '.');
+    }
+    flushSave().then(ir, ir);
+  }
+
+  /**
+   * Mostra, embaixo do Waiver Historic, o caminho que aquelas linhas
+   * descrevem — e redesenha a cada tecla, para os cards irem aparecendo
+   * conforme o campo é preenchido.
+   *
+   * Só este pedaço é redesenhado: refazer o formulário durante a digitação
+   * faria o cursor pular.
+   */
+  function renderFluxoDoItem(ondeEstaOCampo) {
+    var bloco = el('div', 'fx-bloco');
+
+    var cab = el('div', 'fx-bloco-cab');
+    cab.appendChild(el('strong', null, 'Fluxo dos waivers'));
+    var sub = el('span', 'fx-bloco-sub', 'montado a partir do Waiver Historic acima');
+    cab.appendChild(sub);
+    var btn = el('button', 'btn btn--sm btn--accent', '⤳ Ver fluxo');
+    btn.type = 'button';
+    btn.id = 'fluxoAbrirBtn';
+    btn.title = 'Abre o fluxo em tamanho grande';
+    btn.setAttribute('data-livre', '');   /* só mostra: vale mesmo com o item travado */
+    btn.addEventListener('click', function () { abrirFluxo(currentNcr(), state.kind); });
+    cab.appendChild(btn);
+    bloco.appendChild(cab);
+
+    var palco = el('div', 'fx-palco fx-palco--mini');
+    bloco.appendChild(palco);
+
+    var idx = indiceDeAnteriores(state.kind);
+
+    function redesenhar() {
+      var n = currentNcr();
+      if (!n) return;
+      var a = Fluxo.analisar(n.historic);
+      palco.innerHTML = '';
+      palco.appendChild(Fluxo.svg(a, {
+        escala: 'compacto',
+        destaque: marcoDesteRelatorio(),
+        antes: buscadorDeAnteriores(idx, n),
+        abrir: abrirAchado
+      }));
+      btn.textContent = a.vazio ? '⤳ Ver fluxo' : '⤳ Ver fluxo (' + a.nos.length + ')';
+      var achados = $$('.fx-card.is-achado', palco).length;
+      sub.textContent = achados
+        ? 'montado a partir do Waiver Historic acima · ' + achados +
+          (achados > 1 ? ' marcos já responderam' : ' marco já respondeu') +
+          ' (passe o mouse no card)'
+        : 'montado a partir do Waiver Historic acima';
+    }
+    redesenhar();
+
+    /* O formulário ainda não está na tela quando este bloco é montado, então
+       o campo é procurado dentro do pedaço que o contém, e não no documento. */
+    var campo = $('#f-historic', ondeEstaOCampo);
+    if (campo) campo.addEventListener('input', redesenhar);
+    return bloco;
+  }
+
+  /** O fluxo em tamanho grande, com o texto de origem à mão. */
+  function abrirFluxo(item, kind) {
+    if (!item) return;
+    var a = Fluxo.analisar(item.historic);
+    $('#fluxoItem').textContent = (kind === 'dev' ? 'DEV ' : 'NCR ') +
+      (item.ncrId || 'sem número') +
+      (item.func ? ' · ' + item.func : '');
+
+    var palco = $('#fluxoPalco');
+    palco.innerHTML = '';
+    palco.appendChild(Fluxo.svg(a, {
+      destaque: marcoDesteRelatorio(),
+      antes: buscadorDeAnteriores(indiceDeAnteriores(kind), item),
+      abrir: abrirAchado
+    }));
+
+    var marcados = $$('.fx-card.is-achado', palco).length;
+    $('#fluxoCaminho').textContent = a.vazio
+      ? 'Escreva as entradas no Waiver Historic — uma por linha, no formato “J04 To: J06” — e os cards aparecem aqui.'
+      : a.nos.length + ' marco(s): ' + Fluxo.caminhoTexto(a) +
+        (marcados ? ' · ' + marcados + ' com ponto: passe o mouse para ver o que ' +
+          'aquele relatório respondeu, ou clique para abrir.' : '');
+
+    var avisos = $('#fluxoAvisos');
+    avisos.innerHTML = '';
+    avisos.hidden = !a.avisos.length;
+    a.avisos.forEach(function (x) { avisos.appendChild(el('p', null, x)); });
+
+    $('#fluxoCru').hidden = a.vazio;
+    $('#fluxoCruTxt').textContent = a.linhas.join('\n');
+    $('#fluxoDialog').showModal();
   }
 
   /* Situação de acompanhamento: controle interno, não sai no PDF. Substitui o
@@ -977,6 +1937,9 @@
     up.addEventListener('click', function () {
       var l = currentNcr().evidence;
       l.splice(index - 1, 0, l.splice(index, 1)[0]);
+      /* a ordem dos anexos é a ordem das páginas do PDF: mexer nela é
+         editar o item, e sem o registro a troca se perderia na mesclagem */
+      touch();
       redrawAll(); scheduleSave();
     });
 
@@ -987,6 +1950,7 @@
     down.addEventListener('click', function () {
       var l = currentNcr().evidence;
       l.splice(index + 1, 0, l.splice(index, 1)[0]);
+      touch();
       redrawAll(); scheduleSave();
     });
 
@@ -1043,10 +2007,19 @@
       thumbs.innerHTML = '';
       ev.images.forEach(function (img, i) {
         var t = el('div', 'evid-thumb');
-        var im = document.createElement('img');
-        im.src = img.src;
-        im.alt = img.caption || 'Evidência ' + (i + 1);
-        t.appendChild(im);
+        if (img.src) {
+          var im = document.createElement('img');
+          im.src = img.src;
+          im.alt = img.caption || 'Evidência ' + (i + 1);
+          t.appendChild(im);
+        } else {
+          /* imagem que mora na pasta e ainda não chegou aqui: some da tela
+             seria pior — a pessoa acharia que a foto se perdeu */
+          var falta = el('div', 'evid-thumb-falta', '⏳ na pasta');
+          falta.title = 'Imagem guardada na pasta compartilhada (' + (img.arquivo || '') +
+            '). Ela chega na próxima sincronização.';
+          t.appendChild(falta);
+        }
 
         var cap = document.createElement('input');
         cap.type = 'text';
@@ -1061,6 +2034,7 @@
         left.disabled = i === 0;
         left.addEventListener('click', function () {
           ev.images.splice(i - 1, 0, ev.images.splice(i, 1)[0]);
+          touch();
           redrawThumbs(); scheduleSave();
         });
         var right = el('button', 'btn btn--icon', '→');
@@ -1068,6 +2042,7 @@
         right.disabled = i === ev.images.length - 1;
         right.addEventListener('click', function () {
           ev.images.splice(i + 1, 0, ev.images.splice(i, 1)[0]);
+          touch();
           redrawThumbs(); scheduleSave();
         });
         var rm = el('button', 'btn btn--icon btn--danger', '✕');
@@ -1471,7 +2446,242 @@
       if (def[3]) f.appendChild(el('div', 'hint', def[3]));
       body.appendChild(f);
     });
+    /* Fora do #settingsBody de propósito: aquilo são ajustes do relatório, e
+       a conversa é deste navegador. Fica como seção à parte, no fim. */
+    var caixa = body.parentNode;
+    var velho = $('#conversaAjuste');
+    if (velho && velho.parentNode) velho.parentNode.removeChild(velho);
+    caixa.appendChild(ajusteDaConversa());
     $('#settingsDialog').showModal();
+  }
+
+  /**
+   * Ligar e desligar a aba Conversa.
+   *
+   * Fica guardado neste navegador, e não no relatório: quem decide ver
+   * recados é cada pessoa, e a escolha não tem nada a ver com o marco aberto.
+   * Por isso também: ligar aqui não liga a conversa dos outros.
+   */
+  function ajusteDaConversa() {
+    var box = el('div', 'dlg-sec');
+    box.id = 'conversaAjuste';
+    box.appendChild(el('div', 'dlg-sec-tit', 'Conversa da equipe'));
+
+    var f = el('div', 'field');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = 'conversaLigada';
+    cb.checked = Chat.ligado();
+    cb.style.width = 'auto';
+    var lab = el('label', 'field-check');
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode('Mostrar a aba Conversa'));
+    f.appendChild(lab);
+    f.appendChild(el('div', 'hint',
+      'Recados da equipe guardados na pasta da rede, no arquivo ' + Pasta.CONVERSAS +
+      ' — sem servidor e sem nuvem, como o resto do programa. Chegam a cada ' +
+      'sincronização (20 s), não na hora. Vale só para este navegador, e só ' +
+      'funciona entre quem aponta para a mesma pasta. Não é canal seguro: quem ' +
+      'abre a pasta lê tudo, inclusive as conversas diretas.'));
+    box.appendChild(f);
+
+    cb.addEventListener('change', function () {
+      Chat.ligar(cb.checked);
+      if (!cb.checked && isConversa()) {
+        state.kind = 'ncr';
+        renderNcrList();
+        renderEditor();
+      }
+      renderTabs();
+      agendarConversa();
+      if (cb.checked) {
+        iniciarConversa();
+        toast(Pasta.ligada()
+          ? 'Conversa ligada. A aba está na fila das outras, no alto da lista.'
+          : 'Conversa ligada — mas sem a pasta da rede ninguém recebe o que você escrever.', 5000);
+      } else {
+        toast('Conversa desligada. Nada foi apagado da pasta.');
+      }
+    });
+    return box;
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* o item preso ao lado                                                    */
+  /* ---------------------------------------------------------------------- */
+
+  /* Uma coluna à direita do editor com outro item, em só leitura: é o que
+     permite escrever a NCR-001 do J08 olhando a do J06 sem trocar de tela.
+
+     Por que só leitura está explicado no cabeçalho do lado.js: hoje cada
+     campo do formulário escreve no item *selecionado*, então dois formulários
+     abertos escreveriam no mesmo item. Quem quer editar o de lá clica em
+     "abrir" — aí ele passa a ser o selecionado.
+
+     A escolha vive no localStorage, como o nome de quem usa e a conversa: é
+     de quem está neste navegador, não do relatório. */
+
+  var CHAVE_LADO = 'derrogacao:aoLado';
+  var aoLado = null;          /* {projectId, kind, itemId} */
+
+  function lerAoLado() {
+    try {
+      var cru = localStorage.getItem(CHAVE_LADO);
+      var v = cru ? JSON.parse(cru) : null;
+      return (v && v.projectId && v.itemId) ? v : null;
+    } catch (e) { return null; }
+  }
+
+  function gravarAoLado(v) {
+    try {
+      if (v) localStorage.setItem(CHAVE_LADO, JSON.stringify(v));
+      else localStorage.removeItem(CHAVE_LADO);
+    } catch (e) { /* cheio ou bloqueado: a coluna só não volta ao reabrir */ }
+  }
+
+  /** O que está preso ao lado, se ainda existir. */
+  function itemDoLado() {
+    if (!aoLado) return null;
+    var p = state.projects.filter(function (x) { return x.id === aoLado.projectId; })[0];
+    if (!p) return null;
+    var item = (p[Store.itemsKey(aoLado.kind)] || []).filter(function (x) {
+      return x.id === aoLado.itemId;
+    })[0];
+    return item ? { project: p, item: item, kind: aoLado.kind } : null;
+  }
+
+  function fixarAoLado(projectId, kind, itemId) {
+    aoLado = { projectId: projectId, kind: kind, itemId: itemId };
+    gravarAoLado(aoLado);
+    renderAoLado();
+  }
+
+  function soltarAoLado() {
+    aoLado = null;
+    gravarAoLado(null);
+    renderAoLado();
+  }
+
+  function renderAoLado() {
+    var pane = $('#ladoPane');
+    if (!pane) return;
+    var achado = aoLado ? itemDoLado() : null;
+
+    /* estava preso e sumiu (excluído aqui ou pela pasta): não deixar a coluna
+       mostrando um retrato do que não existe mais */
+    if (aoLado && !achado && state.projects.length) {
+      aoLado = null;
+      gravarAoLado(null);
+      toast('O item que estava ao lado não está mais neste navegador.');
+    }
+
+    if (!achado || telaCheia() || !state.project) {
+      pane.hidden = true;
+      $('#ladoBody').innerHTML = '';
+      return;
+    }
+
+    pane.hidden = false;
+    var marco = Report.marcoOf(achado.project, achado.kind) || achado.project.name || 'sem marco';
+    var ehOAberto = achado.project.id === state.project.id && achado.item.id === selectedId() &&
+      achado.kind === state.kind;
+    $('#ladoTitulo').textContent = achado.item.ncrId || 'sem número';
+    $('#ladoOnde').textContent = (achado.kind === 'dev' ? 'DEV · ' : 'NCR · ') + marco +
+      (ehOAberto ? ' · é o item aberto à esquerda' : '');
+
+    Lado.montar($('#ladoBody'), achado.project, achado.item, achado.kind, {
+      copiar: function (txt, rotulo) {
+        copiarTexto(txt,
+          function () { toast('“' + rotulo + '” copiado — cole no campo daqui.'); },
+          function () { toast('Não foi possível copiar.'); });
+      }
+    });
+  }
+
+  /** Abre no editor o item que está ao lado. */
+  function abrirODoLado() {
+    var achado = itemDoLado();
+    if (!achado) return;
+    abrirAchado({
+      projectId: achado.project.id, kind: achado.kind, itemId: achado.item.id,
+      ncrId: achado.item.ncrId,
+      marco: Report.marcoOf(achado.project, achado.kind) || achado.project.name || ''
+    });
+  }
+
+  /** Todos os itens de todos os relatórios, o aberto primeiro. */
+  function candidatosDoLado() {
+    var out = [];
+    var ordemProj = state.projects.slice().sort(function (a, b) {
+      if (state.project) {
+        if (a.id === state.project.id) return -1;
+        if (b.id === state.project.id) return 1;
+      }
+      return String(b.updatedAt).localeCompare(String(a.updatedAt));
+    });
+    ordemProj.forEach(function (p) {
+      ['ncr', 'dev'].forEach(function (kind) {
+        Store.ordenar(p, kind).forEach(function (item) {
+          out.push({ project: p, kind: kind, item: item });
+        });
+      });
+    });
+    return out;
+  }
+
+  var MAX_ESCOLHA = 150;      /* lista comprida demais não se lê: refine a busca */
+
+  function abrirEscolhaDoLado() {
+    var body = $('#ladoEscolhaBody');
+    body.innerHTML = '';
+    var todos = candidatosDoLado();
+
+    var busca = el('div', 'sm-bar-field');
+    busca.appendChild(el('label', null, 'Buscar'));
+    var inp = document.createElement('input');
+    inp.type = 'search';
+    inp.placeholder = 'número, marco, sistema, função…';
+    busca.appendChild(inp);
+    body.appendChild(busca);
+
+    var conta = el('p', 'hint');
+    body.appendChild(conta);
+    var lista = el('div', 'lado-escolha');
+    body.appendChild(lista);
+
+    function desenhar() {
+      var t = inp.value.trim().toLowerCase();
+      var achados = todos.filter(function (c) {
+        if (!t) return true;
+        var marco = Report.marcoOf(c.project, c.kind) || c.project.name || '';
+        return (Store.textoBusca(c.item) + ' ' + marco).toLowerCase().indexOf(t) >= 0;
+      });
+      lista.innerHTML = '';
+      conta.textContent = achados.length + ' item(ns)' +
+        (achados.length > MAX_ESCOLHA ? ' — mostrando os ' + MAX_ESCOLHA + ' primeiros.' : '.');
+      achados.slice(0, MAX_ESCOLHA).forEach(function (c) {
+        var b = el('button', 'lado-op');
+        b.type = 'button';
+        b.appendChild(el('strong', null,
+          (c.kind === 'dev' ? 'DEV · ' : 'NCR · ') + (c.item.ncrId || 'sem número')));
+        var marco = Report.marcoOf(c.project, c.kind) || c.project.name || 'sem marco';
+        var sub = (c.kind === 'dev' ? [c.item.func] : [c.item.systems, c.item.func])
+          .filter(Boolean).join(' | ');
+        b.appendChild(el('span', null, marco + (sub ? ' · ' + sub : '')));
+        b.addEventListener('click', function () {
+          fixarAoLado(c.project.id, c.kind, c.item.id);
+          $('#ladoDialog').close();
+          toast('Preso ao lado: ' + (c.item.ncrId || 'item') + ' (' + marco + ').');
+        });
+        lista.appendChild(b);
+      });
+      if (!achados.length) lista.appendChild(el('p', 'hint', 'Nada com esse texto.'));
+    }
+
+    inp.addEventListener('input', desenhar);
+    desenhar();
+    $('#ladoDialog').showModal();
+    inp.focus();
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1809,6 +3019,49 @@
         ? 'Um arquivo com o relatório escolhido.'
         : 'Um único arquivo com os ' + n + ' relatórios, em sequência.');
     renderGaps(picked);
+    agendarContagemFolhas(picked);
+  }
+
+  /**
+   * Quantas folhas cada item vai ocupar.
+   *
+   * A conta só existe depois de montar as páginas de verdade, então a
+   * montagem é a mesma da exportação — feita no #printRoot escondido, com um
+   * atraso para não repetir a cada clique nas caixas de seleção.
+   */
+  var folhasTimer = null;
+  function agendarContagemFolhas(picked) {
+    clearTimeout(folhasTimer);
+    var host = $('#pdfFolhas');
+    if (!picked.length) { host.hidden = true; return; }
+    host.hidden = false;
+    host.textContent = 'Conferindo as folhas…';
+    folhasTimer = setTimeout(function () { contarFolhas(picked, host); }, 220);
+  }
+
+  function contarFolhas(picked, host) {
+    var longos;
+    try {
+      buildPrintRoot(picked);
+      longos = Report.itensLongos();
+    } catch (e) {
+      markError(e);
+      host.hidden = true;
+      return;
+    }
+    var total = $$('#printRoot .rep-page').length;
+    host.textContent = '';
+    host.appendChild(el('span', null, total + ' folha(s) no total. '));
+    if (!longos.length) {
+      host.appendChild(el('span', null, 'Cada item cabe numa folha.'));
+      return;
+    }
+    var nomes = longos.map(function (x) {
+      return (x.ncrId || 'sem número') + ' (' + x.folhas + ')';
+    }).join(', ');
+    host.appendChild(el('span', 'dlg-folhas-long',
+      longos.length + ' item(ns) passam de uma folha e seguem em folha de ' +
+      'continuação: ' + nomes + '.'));
   }
 
   function doPrint() {
@@ -2239,21 +3492,142 @@
   var gravarPendente = false;
   var ultimaTecla = 0;
   var ultimaVersao = 0;
+  var ultimaPoda = 0;
+  /* Dados gravados por uma versão mais nova da página: daqui para a frente
+     esta sessão só lê, para não apagar campos que ainda não conhece. */
+  var versaoDesatualizada = false;
   var gravaTimer = null;
   var pollTimer = null;
   var POLL_MS = 20000;
 
+  /** Todas as imagens de todos os relatórios, com o item a que pertencem. */
+  function todasAsImagens(projects) {
+    var out = [];
+    (projects || []).forEach(function (p) {
+      ['ncrs', 'devs'].forEach(function (key) {
+        (p[key] || []).forEach(function (item) {
+          (item.evidence || []).forEach(function (ev) {
+            (ev.images || []).forEach(function (im) { out.push(im); });
+          });
+        });
+      });
+    });
+    return out;
+  }
+
+  /**
+   * Manda para a pasta as imagens que ainda não têm arquivo próprio.
+   *
+   * O `arquivo` é gravado também na cópia local: é o que faz cada foto ser
+   * escrita uma vez só, e não a cada sincronização.
+   */
+  function externalizarImagens() {
+    var pendentes = todasAsImagens(state.projects).filter(function (im) {
+      return im.src && !im.arquivo;
+    });
+    if (!pendentes.length) return Promise.resolve(0);
+    var feito = 0;
+    return pendentes.reduce(function (fila, im) {
+      return fila.then(function () {
+        return Pasta.gravarImagem(im.id, im.src).then(function (caminho) {
+          im.arquivo = caminho;
+          feito++;
+        }).catch(function (e) {
+          /* sem arquivo, a imagem continua viajando dentro do JSON: o
+             relatório do colega não pode ficar sem a foto por causa disto */
+          console.warn('Não foi possível gravar a imagem na pasta:', e);
+        });
+      });
+    }, Promise.resolve()).then(function () { return feito; });
+  }
+
+  /**
+   * Devolve às imagens do que veio da pasta o conteúdo que o JSON não traz
+   * mais. O que já existe aqui é reaproveitado — só o que falta é lido do
+   * disco, e uma vez só.
+   */
+  function hidratarImagens(payload) {
+    var conhecidas = {};
+    todasAsImagens(state.projects).forEach(function (im) {
+      if (im.arquivo && im.src) conhecidas[im.arquivo] = im.src;
+    });
+    var faltando = todasAsImagens(payload && payload.projects).filter(function (im) {
+      return !im.src && im.arquivo;
+    });
+    if (!faltando.length) return Promise.resolve(payload);
+    return faltando.reduce(function (fila, im) {
+      return fila.then(function () {
+        if (conhecidas[im.arquivo]) { im.src = conhecidas[im.arquivo]; return null; }
+        return Pasta.lerImagem(im.arquivo).then(function (dataUrl) {
+          im.src = dataUrl;
+          conhecidas[im.arquivo] = dataUrl;
+        }).catch(function (e) {
+          /* o arquivo pode ainda estar sendo gravado do outro lado: fica o
+             ponteiro, e a próxima sincronização tenta de novo */
+          console.warn('Imagem ainda não disponível na pasta:', im.arquivo, e);
+        });
+      });
+    }, Promise.resolve()).then(function () { return payload; });
+  }
+
+  /**
+   * O retrato que vai para a pasta. As imagens que já têm arquivo próprio
+   * viajam só pelo nome — é o que mantém o JSON pequeno mesmo com centenas
+   * de fotos, e o histórico com ele.
+   */
   function montaPayload() {
+    var copia = JSON.parse(JSON.stringify(state.projects));
+    todasAsImagens(copia).forEach(function (im) {
+      if (im.arquivo && im.src) delete im.src;
+    });
     return {
       format: 'derrogacao-banco',
-      schema: 1,
+      schema: Store.SCHEMA,
       caminho: pastaCaminho,
       updatedAt: new Date().toISOString(),
       updatedBy: Store.getUser(),
       /* sem isto a exclusão de um relatório não alcançaria os outros */
       relatoriosExcluidos: Store.lapidesProjeto(),
-      projects: JSON.parse(JSON.stringify(state.projects))
+      projects: copia
     };
+  }
+
+  function ehMaisNovoQueEu(dados) {
+    if (!dados) return false;
+    if ((Number(dados.schema) || 0) > Store.SCHEMA) return true;
+    return Store.maisNovoQueEu(dados.projects);
+  }
+
+  /** Caminhos de imagem em uso — no que está aqui e em cada versão guardada. */
+  function imagensEmUso() {
+    var usados = [];
+    todasAsImagens(state.projects).forEach(function (im) {
+      if (im.arquivo) usados.push(im.arquivo);
+    });
+    return Pasta.listarHistorico().then(function (versoes) {
+      return versoes.reduce(function (fila, v) {
+        return fila.then(function () {
+          return Pasta.lerHistorico(v.arquivo).then(function (dados) {
+            todasAsImagens(dados && dados.projects).forEach(function (im) {
+              if (im.arquivo) usados.push(im.arquivo);
+            });
+          }).catch(function () { /* versão ilegível não derruba a limpeza */ });
+        });
+      }, Promise.resolve()).then(function () { return usados; });
+    });
+  }
+
+  /**
+   * Apaga as fotos que nenhum item e nenhuma versão do histórico citam mais.
+   * De hora em hora, no máximo: ler todas as versões é barato agora que elas
+   * não carregam mais o base64, mas não é de graça.
+   */
+  function limparImagensOrfas() {
+    if (Date.now() - ultimaPoda < 60 * 60 * 1000) return Promise.resolve(0);
+    ultimaPoda = Date.now();
+    return imagensEmUso()
+      .then(function (usados) { return Pasta.podarImagens(usados); })
+      .catch(function () { return 0; });
   }
 
   /**
@@ -2298,13 +3672,20 @@
 
     /* grava o resultado da junção, não só o que era meu */
     function gravarJuncao(resumo) {
-      return Pasta.gravar(montaPayload()).then(function () {
-        /* além do retrato feito antes de cada junção, uma linha do tempo a
-           cada dez minutos — sem transformar a pasta num depósito */
-        if (Date.now() - ultimaVersao < 10 * 60 * 1000) return null;
-        ultimaVersao = Date.now();
-        return Pasta.versionar(montaPayload(), Store.getUser());
-      }).then(function () { return resumo; });
+      /* Página velha diante de dados novos: junta para ver o trabalho dos
+         outros, mas não regrava — o que ela não entende seria apagado. */
+      if (versaoDesatualizada) return Promise.resolve(resumo);
+      return externalizarImagens()
+        .then(function () { return Pasta.gravar(montaPayload()); })
+        .then(function () {
+          /* além do retrato feito antes de cada junção, uma linha do tempo a
+             cada dez minutos — sem transformar a pasta num depósito */
+          if (Date.now() - ultimaVersao < 10 * 60 * 1000) return null;
+          ultimaVersao = Date.now();
+          return Pasta.versionar(montaPayload(), Store.getUser());
+        })
+        .then(function () { return limparImagensOrfas(); })
+        .then(function () { return resumo; });
     }
 
     return Pasta.ler()
@@ -2321,12 +3702,22 @@
           ? Pasta.versionar(montaPayload(), (Store.getUser() || 'sem-nome') + '-antes')
           : Promise.resolve();
 
-        return antes.then(function () {
-          resumo = Store.mergeListas(state.projects, r.dados.projects || [],
-                                     r.dados.relatoriosExcluidos);
-          mesclado = resumo;
-          return gravarJuncao(resumo);
-        });
+        /* Guarda de versão: se o arquivo veio de uma página mais nova do que
+           esta, tudo o que ela não conhece sumiria na regravação. */
+        if (!versaoDesatualizada && ehMaisNovoQueEu(r.dados)) {
+          versaoDesatualizada = true;
+          toast('Estes dados foram gravados por uma versão mais nova do programa. ' +
+            'Recarregue a página (Ctrl+F5) para voltar a gravar — por ora, só leitura.', 9000);
+        }
+
+        return antes
+          .then(function () { return hidratarImagens(r.dados); })
+          .then(function () {
+            resumo = Store.mergeListas(state.projects, r.dados.projects || [],
+                                       r.dados.relatoriosExcluidos);
+            mesclado = resumo;
+            return gravarJuncao(resumo);
+          });
       })
       .then(function (resumo) {
         pastaEstado = 'on';
@@ -2364,6 +3755,7 @@
 
   /** Redesenha só o necessário, para não estragar o que está sendo digitado. */
   function aplicarMudancasNaTela(resumo, opts) {
+    guardarMudancas(resumo);
     var mudou = resumo && (resumo.entraram || resumo.atualizados || resumo.removidos ||
                            resumo.novosRelatorios || resumo.relatoriosRemovidos);
     /* alguém excluiu o último relatório: o programa nunca fica sem nenhum */
@@ -2395,8 +3787,9 @@
     renderNcrList();
     renderUser();
     if (isResumo()) renderSummary();
+    if (isFluxos()) renderFluxos(true);
 
-    if (!isResumo()) {
+    if (!telaCheia()) {
       var agora = currentNcr();
       if (!agora) {
         /* o item aberto foi excluído por outra pessoa */
@@ -2488,7 +3881,16 @@
       }
       pastaEstado = 'on';
       agendarPoll();
-      return sincronizar({});
+      sincronizarConversas({});
+      return sincronizar({}).then(function (r) {
+        /* a janela costuma continuar aberta depois de escolher a pasta:
+           o histórico e o tamanho só aparecem se forem redesenhados aqui */
+        if ($('#pastaDialog').open) {
+          renderTamanhosPasta();
+          renderHistoricoPasta();
+        }
+        return r;
+      });
     });
   }
 
@@ -2508,8 +3910,34 @@
     $('#pastaEstadoLinha').dataset.estado = Pasta.ligada() ? pastaEstado : 'off';
     $('#pastaEscolherBtn').textContent = Pasta.ligada() ? 'Trocar de pasta…' : 'Escolher a pasta…';
     $('#pastaEscolherBtn').disabled = !Pasta.suportado();
+    renderTamanhosPasta();
     renderHistoricoPasta();
     dlg.showModal();
+  }
+
+  function mb(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  /* Quanto a pasta está ocupando. Saber disso antes é melhor do que
+     descobrir quando a rede começar a arrastar. */
+  function renderTamanhosPasta() {
+    var linha = $('#pastaTamanhos');
+    if (!Pasta.ligada() || pastaEstado !== 'on') { linha.hidden = true; return; }
+    linha.hidden = false;
+    linha.textContent = 'Somando os arquivos…';
+    Pasta.tamanhos().then(function (t) {
+      if (!t) { linha.hidden = true; return; }
+      linha.textContent = 'Ocupando ' + mb(t.total) + ' na pasta: ' +
+        mb(t.dados) + ' de dados, ' +
+        mb(t.imagens) + ' em ' + t.fotos + ' imagem(ns), ' +
+        mb(t.historico) + ' em ' + t.versoes + ' versão(ões) do histórico.' +
+        (versaoDesatualizada
+          ? ' Só leitura: os dados foram gravados por uma versão mais nova do programa.'
+          : '');
+    }).catch(function () { linha.hidden = true; });
   }
 
   function renderHistoricoPasta() {
@@ -2546,6 +3974,9 @@
       'Só volta o que não existe mais aqui. Nada do que está em uso agora é ' +
       'apagado nem substituído.')) return;
     Pasta.lerHistorico(v.arquivo).then(function (dados) {
+      /* a versão guarda só o nome das imagens: o conteúdo vem dos arquivos */
+      return hidratarImagens(dados);
+    }).then(function (dados) {
       return Store.saveSnapshot(state.projects, 'antes de restaurar ' + v.quando)
         .then(function () {
           var resumo = Store.reviver(state.projects, dados.projects || []);
@@ -2663,6 +4094,9 @@
       renderUser();
       flushSave();
       toast(Store.getUser() ? 'Nome registrado: ' + Store.getUser() : 'Nome removido.');
+      /* o canal direto é a dupla de nomes: trocar o meu troca as chaves */
+      renderConversaBadge();
+      if (isConversa()) abrirCanal(Chat.GERAL);
       /* segue de onde parou — o clique original já vale como gesto do usuário,
          então o download não é bloqueado pelo navegador */
       if (seguir && Store.getUser()) seguir();
@@ -2712,19 +4146,24 @@
         'Outro relatório de "' + (dup.marco || dup.name) + '" que já está neste navegador.');
     });
 
+    /* a coluna do item ao lado */
+    $('#ladoTrocarBtn').addEventListener('click', abrirEscolhaDoLado);
+    $('#ladoAbrirBtn').addEventListener('click', abrirODoLado);
+    $('#ladoFecharBtn').addEventListener('click', function () {
+      soltarAoLado();
+      toast('Coluna fechada. O item continua onde estava.');
+    });
+    $('#ladoEscolhaCancelBtn').addEventListener('click', function () { $('#ladoDialog').close(); });
+
     $('#sessionsBtn').addEventListener('click', openSessions);
     $('#sessionInfoBtn').addEventListener('click', openSessions);
     $('#sessionsCloseBtn').addEventListener('click', function () { $('#sessionsDialog').close(); });
     $('#sessionsCopyBtn').addEventListener('click', function () {
       var txt = sessionSummaryText();
       if (!txt) { toast('Nada alterado nesta sessão.'); return; }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(txt)
-          .then(function () { toast('Resumo da sessão copiado.'); })
-          .catch(function () { toast('Não foi possível copiar.'); });
-      } else {
-        toast('Cópia indisponível neste navegador.');
-      }
+      copiarTexto(txt,
+        function () { toast('Resumo da sessão copiado.'); },
+        function () { toast('Não foi possível copiar.'); });
     });
 
     /* lembrete da pasta de backup */
@@ -2735,13 +4174,9 @@
     $('#backupCopyPathBtn').addEventListener('click', function () {
       var caminho = Store.getFolder();
       if (!caminho) return;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(caminho)
-          .then(function () { toast('Caminho copiado — cole na barra do explorador de arquivos.'); })
-          .catch(function () { toast('Não foi possível copiar.'); });
-      } else {
-        toast('Cópia indisponível neste navegador.');
-      }
+      copiarTexto(caminho,
+        function () { toast('Caminho copiado — cole na barra do explorador de arquivos.'); },
+        function () { toast('Não foi possível copiar.'); });
     });
     $('#backupDoneBtn').addEventListener('click', function () { $('#backupDoneDialog').close(); });
 
@@ -2787,6 +4222,7 @@
       Pasta.esquecer().then(function () {
         pastaEstado = 'off';
         clearInterval(pollTimer);
+        clearInterval(conversaTimer);
         marcarPasta('off');
         $('#pastaDialog').close();
         toast('Pasta desligada. O trabalho segue salvo neste navegador.');
@@ -2796,6 +4232,9 @@
     $('#settingsBtn').addEventListener('click', openSettings);
     $('#settingsCloseBtn').addEventListener('click', function () { $('#settingsDialog').close(); });
     $('#copyNcrBtn').addEventListener('click', openCopyDialog);
+    $('#dupNcrBtn').addEventListener('click', duplicarNcr);
+    $('#difCloseBtn').addEventListener('click', function () { $('#difDialog').close(); });
+    $('#fluxoCloseBtn').addEventListener('click', function () { $('#fluxoDialog').close(); });
     $('#copyCancelBtn').addEventListener('click', function () { $('#copyDialog').close(); });
     $('#zoomRange').addEventListener('input', applyZoom);
 
@@ -2837,6 +4276,9 @@
       }
       var ncr = currentNcr();
       if (!ncr || !e.clipboardData) return;
+      /* item aceito está travado: a área de soltar imagens fica desligada,
+         e colar não pode ser a porta dos fundos */
+      if (travado(ncr)) { toast('Item aceito e travado — use “Editar mesmo assim” antes de colar.'); return; }
       var files = Array.prototype.slice.call(e.clipboardData.files)
         .filter(function (f) { return /^image\//.test(f.type); });
       if (!files.length) return;
@@ -2884,8 +4326,27 @@
     if (link) link.hidden = location.protocol === 'file:';
   }
 
+  /**
+   * Registra o service worker. Serve a duas coisas: abrir sem rede e fazer o
+   * Edge oferecer a instalação como aplicativo — que é o que faz o navegador
+   * guardar a permissão da pasta entre sessões.
+   *
+   * Só no site publicado: de file:// não existe service worker, e a versão de
+   * arquivo único não precisa de nenhum.
+   */
+  function registrarServiceWorker() {
+    if (!navigator.serviceWorker) return;
+    var local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    if (location.protocol !== 'https:' && !local) return;
+    navigator.serviceWorker.register('sw.js').catch(function (e) {
+      console.warn('Service worker não registrado:', e);
+    });
+  }
+
   function boot() {
     wire();
+    aoLado = lerAoLado();
+    registrarServiceWorker();
     requestPersistentStorage();
     refreshUndo();
     renderVersion();
@@ -2900,6 +4361,7 @@
       }
       loadProject(list[0]);
     }).then(function () {
+      iniciarConversa();
       return iniciarPasta();
     }).catch(function (e) {
       markError(e);
@@ -2925,7 +4387,10 @@
         if (perm === 'granted') {
           pastaEstado = 'on';
           agendarPoll();
-          return sincronizar({}).then(function () { agendarPoll(); });
+          return sincronizar({}).then(function () {
+            agendarPoll();
+            return sincronizarConversas({});
+          });
         }
         pastaEstado = 'permissao';
         marcarPasta('permissao');
