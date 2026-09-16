@@ -1341,6 +1341,145 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   border-radius: var(--radius-sm);
 }
 
+/* --- o item preso ao lado (lado.js) -------------------------------------- */
+
+/* Terceira coluna do .layout, à direita do editor. Não entra dentro do
+   <main>: assim o editor, com seus quatro painéis de aba, fica intocado. */
+.lado {
+  width: 420px;
+  flex: 0 0 420px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-2);
+  border-left: 1px solid #d3d7de;
+}
+.lado-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+.lado-head-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.lado-head-txt strong { font-size: 13.5px; overflow-wrap: anywhere; }
+.lado-head-txt span { font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
+.lado-head-acoes { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.lado-aviso {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #fffbe9;
+  color: #6b5a12;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.lado-body { flex: 1; overflow-y: auto; padding: 12px 12px 48px; }
+
+.lado-id {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--fx, #4B0082);
+  border-radius: 8px;
+  background: #fff;
+}
+.lado-id-num { display: flex; align-items: center; gap: 8px; }
+.lado-id-num strong { font-size: 14px; overflow-wrap: anywhere; }
+.lado-etiqueta {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--fx, #4B0082);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+.lado-id-sub { margin-top: 2px; font-size: 12px; color: var(--ink-2); overflow-wrap: anywhere; }
+.lado-id-tit { margin-top: 5px; font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
+.lado-id-pe { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.lado-chip {
+  padding: 1px 8px;
+  border: 1px solid var(--st, #9aa1ae);
+  border-radius: 999px;
+  color: var(--st, #9aa1ae);
+  font-size: 11px;
+  font-weight: 700;
+}
+.lado-quem { font-size: 11.5px; color: var(--muted); }
+
+.lado-sec {
+  margin-bottom: 10px;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--sec-color, #d3d7de);
+  border-radius: 8px;
+  background: #fff;
+}
+.lado-sec-cab { display: flex; align-items: center; gap: 4px; margin-bottom: 5px; }
+.lado-sec-nome {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.lado-copiar { margin-left: auto; flex: 0 0 auto; }
+.lado-txt {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lado-txt--vazio { color: var(--muted); font-style: italic; }
+.lado-par { display: flex; gap: 8px; margin-bottom: 4px; font-size: 12.5px; }
+.lado-par-rot { flex: 0 0 46%; color: var(--muted); font-size: 11.5px; }
+.lado-par-val { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.lado-sec--waiver .lado-sec-cab + .lado-par { margin-top: 2px; }
+.lado-lista { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.5; }
+.lado-ev { margin-bottom: 8px; }
+.lado-ev:last-child { margin-bottom: 0; }
+.lado-ev-ref { font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
+.lado-ev-nota { font-size: 12px; color: var(--ink-2); overflow-wrap: anywhere; }
+.lado-ev-tira { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.lado-ev-tira img {
+  width: 84px;
+  height: 62px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.lado-ev-falta {
+  padding: 4px 6px;
+  border: 1px dashed #9aa1ae;
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* a lista do diálogo que escolhe o item */
+.lado-escolha { max-height: 46vh; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; }
+.lado-op {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.lado-op:last-child { border-bottom: none; }
+.lado-op:hover, .lado-op:focus { background: var(--bg-2); }
+.lado-op strong { font-size: 13px; }
+.lado-op span { display: block; font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* o papel não tem coluna ao lado */
+@media print { .lado { display: none !important; } }
+
 /* --- fluxo dos waivers --------------------------------------------------- */
 
 /* O desenho é SVG escrito à mão (fluxo.js); a aparência mora aqui, para o
@@ -1574,6 +1713,10 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 
 /* --- responsivo --------------------------------------------------------- */
 
+@media (max-width: 1400px) and (min-width: 901px) {
+  .lado { width: 340px; flex: 0 0 340px; }
+}
+
 @media (max-width: 900px) {
   .layout { flex-direction: column; }
   .dif-par { grid-template-columns: 1fr; }
@@ -1582,6 +1725,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   .sidebar { width: auto; flex: 0 0 auto; max-height: 44vh; border-right: none; border-bottom: 1px solid var(--line); }
   .grid--3, .grid--2 { grid-template-columns: 1fr; }
   .editor-scroll { padding: 14px; }
+  /* com o .layout em coluna, 420px viraria altura: aqui ela empilha */
+  .lado { width: auto; flex: 0 0 auto; max-height: 50vh; border-left: none; border-top: 1px solid var(--line); }
   .brand-text small { display: none; }
   .topbar-status { min-width: 0; }
 }
@@ -2476,6 +2621,29 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     <div class="editor-scroll conversa-scroll" id="conversaScroll" hidden></div>
   </main>
 
+  <!-- o item preso ao lado: só leitura, para escrever um olhando o outro -->
+  <aside class="lado" id="ladoPane" hidden aria-label="Item preso ao lado">
+    <div class="lado-head">
+      <div class="lado-head-txt">
+        <strong id="ladoTitulo">—</strong>
+        <span id="ladoOnde"></span>
+      </div>
+      <div class="lado-head-acoes">
+        <button class="btn btn--sm" id="ladoTrocarBtn" type="button"
+                title="Escolher outro item para ver aqui">trocar</button>
+        <button class="btn btn--sm" id="ladoAbrirBtn" type="button"
+                title="Abrir este item no editor">abrir</button>
+        <button class="btn btn--sm btn--quiet" id="ladoFecharBtn" type="button"
+                title="Fechar a coluna" aria-label="Fechar a coluna">✕</button>
+      </div>
+    </div>
+    <div class="lado-aviso">
+      Só leitura. Para escrever, abra o item — ou use <strong>copiar</strong> em
+      cada bloco.
+    </div>
+    <div class="lado-body" id="ladoBody"></div>
+  </aside>
+
 </div>
 
 <!-- ====================== pré-visualização ====================== -->
@@ -2662,6 +2830,19 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   <div class="dlg-actions">
     <button class="btn" id="copyCancelBtn">Cancelar</button>
     <button class="btn btn--primary" id="copyGoBtn">Copiar</button>
+  </div>
+</dialog>
+
+<dialog id="ladoDialog">
+  <div class="dlg-body">
+    <h3>Ver um item ao lado</h3>
+    <p>Escolha o item que fica na coluna da direita, em só leitura, enquanto
+      você escreve. Pode ser deste relatório ou de qualquer outro marco que
+      esteja neste navegador.</p>
+    <div id="ladoEscolhaBody"></div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="ladoEscolhaCancelBtn">Cancelar</button>
   </div>
 </dialog>
 
@@ -5241,9 +5422,10 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     if (temAbrir) {
       var pe = document.createElement('div');
       pe.className = 'fx-balao-pe';
-      pe.textContent = d.archAnswer && d.archAnswer.length > MAX_BALAO
+      pe.textContent = (d.archAnswer && d.archAnswer.length > MAX_BALAO
         ? 'Clique no card para abrir e ler o texto inteiro.'
-        : 'Clique no card para abrir este item.';
+        : 'Clique no card para abrir este item.') +
+        ' Shift+clique deixa ele na coluna ao lado.';
       box.appendChild(pe);
     }
     return box;
@@ -5295,12 +5477,12 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     g.addEventListener('focus', function () { mostrarBalao(g, achado, !!abrir); });
     g.addEventListener('blur', esconderBalao);
     if (!abrir) return;
-    g.addEventListener('click', function () { esconderBalao(); abrir(achado); });
+    g.addEventListener('click', function (e) { esconderBalao(); abrir(achado, e); });
     g.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         esconderBalao();
-        abrir(achado);
+        abrir(achado, e);
       }
     });
   }
@@ -5330,7 +5512,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
    *                ou null. Quem passa isto ganha o ponto no canto do card e
    *                o balão com o Arch Answer de lá. Na impressão não se passa:
    *                marca sem balão, no papel, é só sujeira.
-   * opts.abrir     function(dados) para o clique no card marcado
+   * opts.abrir     function(dados, evento) para o clique no card marcado —
+   *                o evento vai junto porque quem chama decide o que fazer
+   *                com Shift (aqui: prender ao lado em vez de abrir)
    */
   function svg(analise, opts) {
     opts = opts || {};
@@ -6566,6 +6750,228 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 
 </script>
 <script>
+/* assets/js/lado.js */
+/* ==========================================================================
+   lado.js — o item preso ao lado, em só leitura
+   --------------------------------------------------------------------------
+   Serve a uma coisa só: escrever uma NCR olhando outra. A do marco anterior,
+   a do colega, a que já ficou pronta e serve de modelo.
+
+   **Só leitura, e de propósito.** Não há um campo sequer aqui. O formulário do
+   editor amarra cada campo ao *item selecionado* (`field()` em app.js escreve
+   no que `currentNcr()` devolver na hora da tecla), então dois formulários
+   abertos escreveriam os dois no mesmo item — e os ids `f-<campo>`, que são
+   únicos na página, passariam a achar o painel errado. Enquanto essa amarra
+   não mudar, a coluna ao lado mostra e não escreve. O que ela oferece no
+   lugar é o botão de copiar o texto de cada bloco.
+
+   O desenho repete as cores das seções do relatório (as mesmas do editor e do
+   PDF), porque é assim que se acha o bloco procurado sem ler os títulos.
+   ========================================================================== */
+
+(function (global) {
+  'use strict';
+
+  /* As mesmas seções, na mesma ordem e nas mesmas cores do relatório. */
+  var SECOES = [
+    ['description',      'Description',                                '#A9A9A9'],
+    ['currentSituation', 'Current Situation',                          '#8FBC8B'],
+    ['whyNotPossible',   'Why is not possible to treat the deviation',  '#FFCCE5'],
+    ['arguments',        'What are the arguments for the derrogation',  '#CCCCFF'],
+    ['archAnswer',       'Arch Answer',                                '#00B4FF']
+  ];
+
+  var CAMPOS_WAIVER = [
+    ['requestExpiry',  'Waiver Request Expiry (before)'],
+    ['archStatus',     'Arch Status Waiver'],
+    ['approvedExpiry', 'Waiver Approved Expiry (before)']
+  ];
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function str(v) { return (v == null ? '' : String(v)).trim(); }
+
+  function dataCurta(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR');
+  }
+
+  /** Um texto que pode estar vazio — e, estando, diz isso. */
+  function texto(valor) {
+    var v = str(valor);
+    var p = el('p', 'lado-txt' + (v ? '' : ' lado-txt--vazio'), v || 'em branco');
+    return p;
+  }
+
+  /** Cabeçalho de bloco com a cor da seção e o botão de copiar. */
+  function cabecalho(titulo, cor, valor, copiar) {
+    var cab = el('div', 'lado-sec-cab');
+    if (cor) {
+      var sw = el('span', 'swatch');
+      sw.style.cssText = 'display:inline-block;width:10px;height:10px;border:1px solid rgba(0,0,0,.25);' +
+        'border-radius:2px;margin-right:6px;vertical-align:middle;background:' + cor;
+      cab.appendChild(sw);
+    }
+    cab.appendChild(el('span', 'lado-sec-nome', titulo));
+    if (copiar && str(valor)) {
+      var b = el('button', 'btn btn--sm btn--quiet lado-copiar', 'copiar');
+      b.type = 'button';
+      b.title = 'Copiar o texto deste bloco';
+      b.addEventListener('click', function () { copiar(str(valor), titulo); });
+      cab.appendChild(b);
+    }
+    return cab;
+  }
+
+  function bloco(titulo, cor, valor, copiar) {
+    var b = el('div', 'lado-sec');
+    if (cor) b.style.setProperty('--sec-color', cor);
+    b.appendChild(cabecalho(titulo, cor, valor, copiar));
+    b.appendChild(texto(valor));
+    return b;
+  }
+
+  /* --- as partes ---------------------------------------------------------- */
+
+  function identificacao(item, kind, project) {
+    var box = el('div', 'lado-id');
+    var linha = el('div', 'lado-id-num');
+    linha.appendChild(el('strong', null, str(item.ncrId) || '(sem número)'));
+    var etiqueta = el('span', 'lado-etiqueta', kind === 'dev' ? 'DEV' : 'NCR');
+    linha.appendChild(etiqueta);
+    box.appendChild(linha);
+
+    var sub = (kind === 'dev' ? [item.func] : [item.systems, item.func])
+      .filter(function (x) { return str(x); }).join(' | ');
+    box.appendChild(el('div', 'lado-id-sub', sub || 'sem sistema nem função'));
+
+    if (global.Report && Report.ncrLabel) {
+      box.appendChild(el('div', 'lado-id-tit',
+        'Waiver Request for ' + Report.ncrLabel(item, kind)));
+    }
+
+    var pe = el('div', 'lado-id-pe');
+    if (global.Store && Store.statusInfo) {
+      var st = Store.statusInfo(item.status);
+      var chip = el('span', 'lado-chip', st.nome);
+      chip.style.setProperty('--st', st.cor);
+      pe.appendChild(chip);
+    }
+    var quem = str(item.editedBy);
+    var quando = dataCurta(item.editedAt);
+    if (quem || quando) {
+      pe.appendChild(el('span', 'lado-quem',
+        (quem ? 'por ' + quem : 'editado') + (quando ? ' em ' + quando : '')));
+    }
+    box.appendChild(pe);
+    return box;
+  }
+
+  function waiver(item, copiar) {
+    var box = el('div', 'lado-sec lado-sec--waiver');
+    box.appendChild(cabecalho('Status do waiver', '#4B0082', '', null));
+    CAMPOS_WAIVER.forEach(function (c) {
+      var l = el('div', 'lado-par');
+      l.appendChild(el('span', 'lado-par-rot', c[1]));
+      var v = str(item[c[0]]);
+      l.appendChild(el('span', 'lado-par-val' + (v ? '' : ' lado-txt--vazio'), v || 'em branco'));
+      box.appendChild(l);
+    });
+
+    var hist = str(item.historic);
+    box.appendChild(cabecalho('Waiver Historic', null, hist, copiar));
+    box.appendChild(texto(hist));
+    /* o mesmo desenho do editor, no tamanho pequeno — sem o ponto dos cards:
+       aqui a coluna já é a consulta, e um balão dentro dela seria consulta
+       dentro de consulta */
+    if (hist && global.Fluxo) {
+      var palco = el('div', 'fx-palco fx-palco--mini');
+      palco.appendChild(Fluxo.svg(Fluxo.analisar(hist), { escala: 'compacto' }));
+      box.appendChild(palco);
+    }
+    return box;
+  }
+
+  function certificados(item) {
+    var lista = (item.certificates || []).filter(function (c) { return str(c); });
+    var box = el('div', 'lado-sec');
+    box.appendChild(cabecalho('Certificados', null, '', null));
+    if (!lista.length) { box.appendChild(texto('')); return box; }
+    var ul = el('ul', 'lado-lista');
+    lista.forEach(function (c) { ul.appendChild(el('li', null, str(c))); });
+    box.appendChild(ul);
+    return box;
+  }
+
+  function evidencias(item) {
+    var evs = item.evidence || [];
+    var box = el('div', 'lado-sec');
+    box.appendChild(cabecalho('Evidências', null, '', null));
+    if (!evs.length) { box.appendChild(texto('')); return box; }
+
+    evs.forEach(function (ev, i) {
+      var e = el('div', 'lado-ev');
+      e.appendChild(el('div', 'lado-ev-ref', str(ev.ref) || 'Evidência ' + (i + 1)));
+      if (str(ev.note)) e.appendChild(el('div', 'lado-ev-nota', str(ev.note)));
+      var imgs = (ev.images || []);
+      if (imgs.length) {
+        var tira = el('div', 'lado-ev-tira');
+        imgs.forEach(function (im) {
+          if (im.src) {
+            var img = document.createElement('img');
+            img.src = im.src;
+            img.alt = str(im.caption) || 'evidência';
+            img.loading = 'lazy';
+            tira.appendChild(img);
+          } else {
+            /* imagem que mora na pasta e ainda não foi lida: dizer isso é
+               melhor do que um quadrado quebrado */
+            tira.appendChild(el('div', 'lado-ev-falta', str(im.arquivo) || 'imagem na pasta'));
+          }
+        });
+        e.appendChild(tira);
+      }
+      box.appendChild(e);
+    });
+    return box;
+  }
+
+  /* --- a coluna inteira ---------------------------------------------------- */
+
+  /**
+   * Monta o item dentro de `host`.
+   *
+   * opts.copiar   function(texto, rótulo) — o botão de copiar de cada bloco
+   */
+  function montar(host, project, item, kind, opts) {
+    opts = opts || {};
+    host.innerHTML = '';
+    if (!item) return host;
+
+    host.appendChild(identificacao(item, kind, project));
+    SECOES.forEach(function (s) {
+      host.appendChild(bloco(s[1], s[2], item[s[0]], opts.copiar));
+    });
+    host.appendChild(waiver(item, opts.copiar));
+    host.appendChild(certificados(item));
+    host.appendChild(evidencias(item));
+    return host;
+  }
+
+  global.Lado = {
+    SECOES: SECOES,
+    montar: montar
+  };
+})(window);
+
+</script>
+<script>
 /* assets/js/app.js */
 /* ==========================================================================
    app.js — interface do editor de relatórios de derrogação
@@ -6736,6 +7142,38 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     return items().filter(function (n) { return n.id === id; })[0] || null;
   }
 
+  /**
+   * Copia texto para a área de transferência.
+   *
+   * `navigator.clipboard` não existe fora de contexto seguro, e abrir o
+   * programa do disco (`file://`) é exatamente isso — era assim que o arquivo
+   * único respondia "cópia indisponível". A reserva é o `<textarea>` com
+   * `execCommand('copy')`, que funciona em qualquer lugar por vir de um
+   * clique do usuário.
+   */
+  function copiarTexto(txt, ok, falha) {
+    ok = ok || function () {};
+    falha = falha || function () {};
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(ok, function () { reservaDeCopia(txt, ok, falha); });
+      return;
+    }
+    reservaDeCopia(txt, ok, falha);
+  }
+
+  function reservaDeCopia(txt, ok, falha) {
+    var ta = document.createElement('textarea');
+    ta.value = txt;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    var deu = false;
+    try { deu = document.execCommand('copy'); } catch (e) { deu = false; }
+    ta.remove();
+    if (deu) ok(); else falha();
+  }
+
   function download(blob, filename) {
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -6815,6 +7253,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     $('#fluxosScroll').hidden = !isFluxos();
     $('#conversaScroll').hidden = !isConversa();
     $('#previewBtn').hidden = telaCheia();
+    renderAoLado();     /* o item ao lado só existe onde há editor ao lado dele */
     if (telaCheia()) {
       $('#pdfBtn').textContent = 'Exportar PDF…';
       return;
@@ -7864,6 +8303,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     host.innerHTML = '';
     var ncr = currentNcr();
 
+    renderAoLado();
     if (!state.project) return;
     if (!ncr) {
       var empty = el('div', 'editor-empty');
@@ -7903,6 +8343,16 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       idCard.appendChild(g);
       watched = ['f-ncrId', 'f-systems', 'f-func'];
     }
+    /* Ao lado do título, como o "Recolher preenchidos" do cartão de baixo.
+       `data-livre` porque só mostra: vale mesmo com o item travado. */
+    var ladoBtn = el('button', 'btn btn--sm', '⇥ Ver outra ao lado');
+    ladoBtn.type = 'button';
+    ladoBtn.style.marginLeft = 'auto';
+    ladoBtn.title = 'Mostra outro item numa coluna à direita, em só leitura';
+    ladoBtn.setAttribute('data-livre', '');
+    ladoBtn.addEventListener('click', abrirEscolhaDoLado);
+    $('h3', idCard).appendChild(ladoBtn);
+
     var prev = el('div', 'hint');
     prev.style.marginTop = '10px';
     prev.textContent = 'Título gerado: Waiver Request for ' + Report.ncrLabel(ncr, state.kind);
@@ -8129,9 +8579,17 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
    * Grava o que está na tela antes de sair — trocar de relatório redesenha
    * tudo, e o que estivesse esperando os 500 ms da gravação se perderia.
    */
-  function abrirAchado(dados) {
+  function abrirAchado(dados, ev) {
     var alvo = state.projects.filter(function (p) { return p.id === dados.projectId; })[0];
     if (!alvo) { toast('Esse relatório não está mais neste navegador.'); return; }
+    /* com Shift, em vez de trocar de tela, o item vai para a coluna ao lado —
+       é o caminho curto para escrever este olhando aquele */
+    if (ev && ev.shiftKey) {
+      if ($('#fluxoDialog').open) $('#fluxoDialog').close();
+      fixarAoLado(dados.projectId, dados.kind, dados.itemId);
+      toast('Preso ao lado: ' + (dados.ncrId || 'item') + ' (' + (dados.marco || 'sem marco') + ').');
+      return;
+    }
     if ($('#fluxoDialog').open) $('#fluxoDialog').close();
 
     function ir() {
@@ -8981,6 +9439,184 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       }
     });
     return box;
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* o item preso ao lado                                                    */
+  /* ---------------------------------------------------------------------- */
+
+  /* Uma coluna à direita do editor com outro item, em só leitura: é o que
+     permite escrever a NCR-001 do J08 olhando a do J06 sem trocar de tela.
+
+     Por que só leitura está explicado no cabeçalho do lado.js: hoje cada
+     campo do formulário escreve no item *selecionado*, então dois formulários
+     abertos escreveriam no mesmo item. Quem quer editar o de lá clica em
+     "abrir" — aí ele passa a ser o selecionado.
+
+     A escolha vive no localStorage, como o nome de quem usa e a conversa: é
+     de quem está neste navegador, não do relatório. */
+
+  var CHAVE_LADO = 'derrogacao:aoLado';
+  var aoLado = null;          /* {projectId, kind, itemId} */
+
+  function lerAoLado() {
+    try {
+      var cru = localStorage.getItem(CHAVE_LADO);
+      var v = cru ? JSON.parse(cru) : null;
+      return (v && v.projectId && v.itemId) ? v : null;
+    } catch (e) { return null; }
+  }
+
+  function gravarAoLado(v) {
+    try {
+      if (v) localStorage.setItem(CHAVE_LADO, JSON.stringify(v));
+      else localStorage.removeItem(CHAVE_LADO);
+    } catch (e) { /* cheio ou bloqueado: a coluna só não volta ao reabrir */ }
+  }
+
+  /** O que está preso ao lado, se ainda existir. */
+  function itemDoLado() {
+    if (!aoLado) return null;
+    var p = state.projects.filter(function (x) { return x.id === aoLado.projectId; })[0];
+    if (!p) return null;
+    var item = (p[Store.itemsKey(aoLado.kind)] || []).filter(function (x) {
+      return x.id === aoLado.itemId;
+    })[0];
+    return item ? { project: p, item: item, kind: aoLado.kind } : null;
+  }
+
+  function fixarAoLado(projectId, kind, itemId) {
+    aoLado = { projectId: projectId, kind: kind, itemId: itemId };
+    gravarAoLado(aoLado);
+    renderAoLado();
+  }
+
+  function soltarAoLado() {
+    aoLado = null;
+    gravarAoLado(null);
+    renderAoLado();
+  }
+
+  function renderAoLado() {
+    var pane = $('#ladoPane');
+    if (!pane) return;
+    var achado = aoLado ? itemDoLado() : null;
+
+    /* estava preso e sumiu (excluído aqui ou pela pasta): não deixar a coluna
+       mostrando um retrato do que não existe mais */
+    if (aoLado && !achado && state.projects.length) {
+      aoLado = null;
+      gravarAoLado(null);
+      toast('O item que estava ao lado não está mais neste navegador.');
+    }
+
+    if (!achado || telaCheia() || !state.project) {
+      pane.hidden = true;
+      $('#ladoBody').innerHTML = '';
+      return;
+    }
+
+    pane.hidden = false;
+    var marco = Report.marcoOf(achado.project, achado.kind) || achado.project.name || 'sem marco';
+    var ehOAberto = achado.project.id === state.project.id && achado.item.id === selectedId() &&
+      achado.kind === state.kind;
+    $('#ladoTitulo').textContent = achado.item.ncrId || 'sem número';
+    $('#ladoOnde').textContent = (achado.kind === 'dev' ? 'DEV · ' : 'NCR · ') + marco +
+      (ehOAberto ? ' · é o item aberto à esquerda' : '');
+
+    Lado.montar($('#ladoBody'), achado.project, achado.item, achado.kind, {
+      copiar: function (txt, rotulo) {
+        copiarTexto(txt,
+          function () { toast('“' + rotulo + '” copiado — cole no campo daqui.'); },
+          function () { toast('Não foi possível copiar.'); });
+      }
+    });
+  }
+
+  /** Abre no editor o item que está ao lado. */
+  function abrirODoLado() {
+    var achado = itemDoLado();
+    if (!achado) return;
+    abrirAchado({
+      projectId: achado.project.id, kind: achado.kind, itemId: achado.item.id,
+      ncrId: achado.item.ncrId,
+      marco: Report.marcoOf(achado.project, achado.kind) || achado.project.name || ''
+    });
+  }
+
+  /** Todos os itens de todos os relatórios, o aberto primeiro. */
+  function candidatosDoLado() {
+    var out = [];
+    var ordemProj = state.projects.slice().sort(function (a, b) {
+      if (state.project) {
+        if (a.id === state.project.id) return -1;
+        if (b.id === state.project.id) return 1;
+      }
+      return String(b.updatedAt).localeCompare(String(a.updatedAt));
+    });
+    ordemProj.forEach(function (p) {
+      ['ncr', 'dev'].forEach(function (kind) {
+        Store.ordenar(p, kind).forEach(function (item) {
+          out.push({ project: p, kind: kind, item: item });
+        });
+      });
+    });
+    return out;
+  }
+
+  var MAX_ESCOLHA = 150;      /* lista comprida demais não se lê: refine a busca */
+
+  function abrirEscolhaDoLado() {
+    var body = $('#ladoEscolhaBody');
+    body.innerHTML = '';
+    var todos = candidatosDoLado();
+
+    var busca = el('div', 'sm-bar-field');
+    busca.appendChild(el('label', null, 'Buscar'));
+    var inp = document.createElement('input');
+    inp.type = 'search';
+    inp.placeholder = 'número, marco, sistema, função…';
+    busca.appendChild(inp);
+    body.appendChild(busca);
+
+    var conta = el('p', 'hint');
+    body.appendChild(conta);
+    var lista = el('div', 'lado-escolha');
+    body.appendChild(lista);
+
+    function desenhar() {
+      var t = inp.value.trim().toLowerCase();
+      var achados = todos.filter(function (c) {
+        if (!t) return true;
+        var marco = Report.marcoOf(c.project, c.kind) || c.project.name || '';
+        return (Store.textoBusca(c.item) + ' ' + marco).toLowerCase().indexOf(t) >= 0;
+      });
+      lista.innerHTML = '';
+      conta.textContent = achados.length + ' item(ns)' +
+        (achados.length > MAX_ESCOLHA ? ' — mostrando os ' + MAX_ESCOLHA + ' primeiros.' : '.');
+      achados.slice(0, MAX_ESCOLHA).forEach(function (c) {
+        var b = el('button', 'lado-op');
+        b.type = 'button';
+        b.appendChild(el('strong', null,
+          (c.kind === 'dev' ? 'DEV · ' : 'NCR · ') + (c.item.ncrId || 'sem número')));
+        var marco = Report.marcoOf(c.project, c.kind) || c.project.name || 'sem marco';
+        var sub = (c.kind === 'dev' ? [c.item.func] : [c.item.systems, c.item.func])
+          .filter(Boolean).join(' | ');
+        b.appendChild(el('span', null, marco + (sub ? ' · ' + sub : '')));
+        b.addEventListener('click', function () {
+          fixarAoLado(c.project.id, c.kind, c.item.id);
+          $('#ladoDialog').close();
+          toast('Preso ao lado: ' + (c.item.ncrId || 'item') + ' (' + marco + ').');
+        });
+        lista.appendChild(b);
+      });
+      if (!achados.length) lista.appendChild(el('p', 'hint', 'Nada com esse texto.'));
+    }
+
+    inp.addEventListener('input', desenhar);
+    desenhar();
+    $('#ladoDialog').showModal();
+    inp.focus();
   }
 
   /* ---------------------------------------------------------------------- */
@@ -10387,19 +11023,24 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         'Outro relatório de "' + (dup.marco || dup.name) + '" que já está neste navegador.');
     });
 
+    /* a coluna do item ao lado */
+    $('#ladoTrocarBtn').addEventListener('click', abrirEscolhaDoLado);
+    $('#ladoAbrirBtn').addEventListener('click', abrirODoLado);
+    $('#ladoFecharBtn').addEventListener('click', function () {
+      soltarAoLado();
+      toast('Coluna fechada. O item continua onde estava.');
+    });
+    $('#ladoEscolhaCancelBtn').addEventListener('click', function () { $('#ladoDialog').close(); });
+
     $('#sessionsBtn').addEventListener('click', openSessions);
     $('#sessionInfoBtn').addEventListener('click', openSessions);
     $('#sessionsCloseBtn').addEventListener('click', function () { $('#sessionsDialog').close(); });
     $('#sessionsCopyBtn').addEventListener('click', function () {
       var txt = sessionSummaryText();
       if (!txt) { toast('Nada alterado nesta sessão.'); return; }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(txt)
-          .then(function () { toast('Resumo da sessão copiado.'); })
-          .catch(function () { toast('Não foi possível copiar.'); });
-      } else {
-        toast('Cópia indisponível neste navegador.');
-      }
+      copiarTexto(txt,
+        function () { toast('Resumo da sessão copiado.'); },
+        function () { toast('Não foi possível copiar.'); });
     });
 
     /* lembrete da pasta de backup */
@@ -10410,13 +11051,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     $('#backupCopyPathBtn').addEventListener('click', function () {
       var caminho = Store.getFolder();
       if (!caminho) return;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(caminho)
-          .then(function () { toast('Caminho copiado — cole na barra do explorador de arquivos.'); })
-          .catch(function () { toast('Não foi possível copiar.'); });
-      } else {
-        toast('Cópia indisponível neste navegador.');
-      }
+      copiarTexto(caminho,
+        function () { toast('Caminho copiado — cole na barra do explorador de arquivos.'); },
+        function () { toast('Não foi possível copiar.'); });
     });
     $('#backupDoneBtn').addEventListener('click', function () { $('#backupDoneDialog').close(); });
 
@@ -10585,6 +11222,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 
   function boot() {
     wire();
+    aoLado = lerAoLado();
     registrarServiceWorker();
     requestPersistentStorage();
     refreshUndo();

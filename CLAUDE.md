@@ -54,16 +54,18 @@ assets/js/fluxo.js         lê o Waiver Historic, desenha o caminho do waiver e
                            acha o mesmo item no relatório do marco anterior
 assets/js/summary.js       apuração, filtros, gráficos SVG, aba Resumo
 assets/js/chat.js          a conversa da equipe (aba opcional), pela pasta
+assets/js/lado.js          o item preso ao lado do editor, em só leitura
 assets/js/app.js           o editor (o maior; ~3000 linhas)
 derrogacao.html            o programa inteiro num arquivo só — gerado, e versionado
 tools/build-standalone.py  gera (e confere) o derrogacao.html
-tests/                     33 suítes Playwright — leia tests/README.md
+tests/                     34 suítes Playwright — leia tests/README.md
 exemplos/                  .json prontos para importar
 .github/workflows/pages.yml  publicação
 ```
 
 Ordem de carga dos scripts (importa: cada um usa o anterior):
-`store.js → pasta.js → report.js → fluxo.js → summary.js → chat.js → app.js`.
+`store.js → pasta.js → report.js → fluxo.js → summary.js → chat.js → lado.js →
+app.js`.
 
 ## 4. Modelo de dados
 
@@ -264,6 +266,34 @@ ponto no canto, o balão no `mouseenter`/`focus` e o clique em `opts.abrir`.
   camada de cima não deixa ver quem ficou no `body`. Nada disso vai para o
   papel — a impressão não passa `opts.antes`.
 
+### O item preso ao lado (`lado.js`)
+Uma coluna à direita do editor com **outro item, em só leitura**, para escrever
+um olhando o outro. `Lado.montar(host, project, item, kind, opts)` desenha; o
+`app.js` guarda a escolha (`derrogacao:aoLado` no localStorage — é de quem está
+neste navegador, não do relatório), oferece o diálogo de escolha e o
+Shift+clique no card do fluxo.
+
+- **Por que não é editável, e o que mudaria isso.** `field()` liga cada campo
+  ao item **selecionado** (`currentNcr()` na hora da tecla), e os ids `f-<campo>`
+  são únicos na página. Dois formulários abertos escreveriam os dois no mesmo
+  item, e metade das buscas por id pegaria o painel errado. Para ter dois
+  editores de verdade é preciso amarrar cada campo ao seu item e dar escopo aos
+  ids — reforma da camada de formulário, com a trava do item aceito, o colar de
+  imagem e o autossalvamento junto. Enquanto isso não for feito, a coluna
+  mostra e não escreve, e o `test34.py` confere que escrever aqui não encosta no
+  item de lá.
+- **Terceira coluna do `.layout`**, fora do `<main>`: os quatro painéis de aba
+  do editor ficam intocados. Some nas abas de tela cheia (não há editor ao lado
+  de quê) e volta ao entrar na NCR/DEV.
+- Redesenha em `renderTabs` e `renderEditor`, então acompanha o que a pasta
+  trouxer e o que for salvo aqui — inclusive quando o item preso é o próprio
+  aberto (a coluna diz isso).
+- Item preso que sumiu (excluído aqui ou pela pasta) fecha a coluna com aviso,
+  em vez de mostrar o retrato de algo que não existe mais.
+- O botão **copiar** de cada bloco usa `copiarTexto()`, que tem reserva com
+  `execCommand`: `navigator.clipboard` não existe em `file://`, e era por isso
+  que o arquivo único respondia "cópia indisponível".
+
 ### A conversa da equipe (`chat.js`)
 Aba opcional, desligada de saída, ligada em **Ajustes** (a escolha vive no
 `localStorage`, não no projeto: quem decide ver recado é cada pessoa).
@@ -354,7 +384,7 @@ permissão da pasta entre sessões.
 
 ## 7. Como testar
 
-`tests/README.md` tem o passo a passo. Em resumo: 33 suítes Playwright que
+`tests/README.md` tem o passo a passo. Em resumo: 34 suítes Playwright que
 abrem a aplicação de verdade, fazem o caminho do usuário e conferem o
 resultado, **inclusive o PDF gerado**. Rode a suíte inteira antes de publicar —
 já houve mais de uma vez em que uma mudança de interface quebrou um teste de
@@ -415,5 +445,7 @@ desta máquina às vezes bloqueia `github.io`.
 | A tela diz que a conversa direta não é secreta | ela não é, e deixar isso subentendido seria pior do que não ter a conversa |
 | `derrogacao.html` versionado na `main`, com conferência no CI | quem baixa o repositório leva o programa pronto; a conferência é o preço de guardar conteúdo derivado |
 | A resposta do marco anterior é só leitura, e só do que está neste navegador | os dados são de quem tem a pasta; inventar resposta, ou escrever no relatório do outro marco, seria pior do que não mostrar nada |
+| A coluna ao lado é só leitura | dois formulários abertos escreveriam no mesmo item enquanto `field()` amarrar os campos ao selecionado; consultar sem risco vale mais do que editar em dois lugares |
+| A coluna fica fora do `<main>`, como terceira coluna do `.layout` | o editor tem quatro painéis de aba lá dentro; mexer neles para abrir espaço era mexer no que já funciona |
 | Balão em `div` sobre o SVG, e não `<title>` do SVG | o `<title>` é uma linha só, sem formatação e com o atraso do navegador; e os dois juntos apareceriam ao mesmo tempo |
 | Lista do resumo impresso em `div`, não em `<table>` | a paginação move filhos diretos do bloco; linha de tabela mora no `<tbody>` e não migraria sem partir a tabela |

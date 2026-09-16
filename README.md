@@ -48,6 +48,10 @@ login e nenhum dado sai do computador.
   relatório de um marco que aparece no fluxo, aquele card ganha um ponto:
   passe o mouse e leia o *Arch Answer* de lá, sem sair do que está fazendo.
   Clicando, o item de lá abre.
+- **Ver outra NCR ao lado enquanto escreve.** Uma coluna à direita mostra
+  qualquer item — deste relatório ou de outro marco — em **só leitura**,
+  enquanto você preenche o da esquerda normalmente. Cada bloco tem
+  **copiar**.
 - **Busca em todo o texto.** O campo da lista lateral procura no número, no
   sistema e na função, mas também dentro das descrições, do *Arch Status*, dos
   certificados e até nas legendas das fotos.
@@ -282,6 +286,34 @@ escreve nada no outro relatório.
 Como a busca só enxerga o que está neste navegador, ela funciona melhor com a
 **pasta da rede ligada** — é ela que traz os relatórios dos outros marcos para
 cá.
+
+## Ver uma NCR ao lado da outra
+
+Escrever a `NCR-001` do J08 olhando a do J06 é o caso mais comum — e trocar de
+relatório para consultar, e voltar, perde o fio. O botão **⇥ Ver outra ao
+lado**, no alto do cartão *Identificação*, abre uma coluna à direita com o item
+que você escolher: **deste relatório ou de qualquer outro marco** que esteja
+neste navegador.
+
+- A coluna mostra o item **inteiro**: as cinco seções nas cores do relatório, o
+  bloco do waiver (com o fluxo desenhado), certificados e evidências, mais a
+  situação interna e quem editou por último.
+- **É só leitura, e a tela diz isso.** Para escrever no item de lá, clique em
+  **abrir** no alto da coluna — aí ele passa a ser o item aberto. Para trazer
+  um texto para cá, use **copiar** no bloco e cole no campo.
+- **Atalho pelo fluxo**: no card com ponto (acima), **Shift+clique** deixa
+  aquele item na coluna em vez de trocar de tela.
+- **trocar** escolhe outro item, **✕** fecha a coluna. A escolha fica guardada
+  neste navegador: ao reabrir o programa, a coluna volta como estava.
+- Nas abas **Resumo**, **Fluxos** e **Conversa** a coluna se recolhe — ali não
+  há editor ao lado de quê —, e volta ao entrar na NCR ou na DEV.
+- Ela não sai no PDF nem no backup: é uma janela de consulta, não parte do
+  documento.
+
+> **Por que não dois editores?** Porque hoje cada campo do formulário escreve
+> no item *selecionado*: dois formulários abertos gravariam os dois no mesmo
+> item. Enquanto isso não mudar, a coluna ao lado mostra e não escreve — é a
+> diferença entre consultar com segurança e perder trabalho sem perceber.
 
 ## Conversa da equipe (aba opcional)
 
@@ -646,6 +678,7 @@ assets/css/report.css    layout do relatório (tela e impressão A4)
 assets/js/store.js       modelo de dados, persistência (IndexedDB) e mesclagem
 assets/js/pasta.js       a pasta da rede como banco de dados
 assets/js/report.js      montagem das páginas no padrão do PDF, com paginação
+assets/js/lado.js        o item preso ao lado, em só leitura
 assets/js/fluxo.js       leitura do Waiver Historic, desenho do fluxo e a
                          resposta do marco anterior
 assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
@@ -653,7 +686,7 @@ assets/js/chat.js        a conversa da equipe, dentro da pasta da rede
 assets/js/app.js         lógica do editor
 derrogacao.html          o programa inteiro num arquivo só (gerado)
 tools/build-standalone.py  gera a versão de arquivo único
-tests/                   33 suítes de ponta a ponta (Playwright)
+tests/                   34 suítes de ponta a ponta (Playwright)
 exemplos/                relatórios .json prontos para importar
 CLAUDE.md                notas de manutenção: decisões, armadilhas, porquês
 ```

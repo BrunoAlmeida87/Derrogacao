@@ -4,7 +4,7 @@ Suítes de ponta a ponta em Playwright (Chromium). Cada arquivo abre a
 aplicação de verdade, faz o caminho de um usuário e confere o resultado —
 inclusive gerando PDFs e conferindo o que saiu neles.
 
-As suítes 25 a 33 **falham com `AssertionError`** quando algo sai do lugar; as
+As suítes 25 a 34 **falham com `AssertionError`** quando algo sai do lugar; as
 mais antigas conferem imprimindo valores, que precisam ser lidos.
 
 ## Rodar
@@ -70,6 +70,7 @@ para não mexer no `derrogacao.html` versionado.
 | `test31.py` | paginação do resumo e do compilado de fluxos: margens de cada folha, cabeçalho repetido, nada perdido |
 | `test32.py` | conversa da equipe: ligar nos ajustes, geral e conversa direta, recado do colega sem perder o daqui, apagar, desligar |
 | `test33.py` | a resposta do marco anterior: pareamento de marco e número, ponto no card, balão com o Arch Answer de lá, clique que abre o item, e nada disso no papel |
+| `test34.py` | o item preso ao lado: Shift no card e escolha pelo diálogo, conteúdo em só leitura, escrever aqui sem tocar no de lá, copiar, abrir, fechar, e nada no papel |
 
 Nos testes da pasta compartilhada (19, 20, 21, 27, 32) o seletor de pastas do Windows
 é substituído por um diretório OPFS — mesma interface

@@ -195,6 +195,29 @@
     <div class="editor-scroll conversa-scroll" id="conversaScroll" hidden></div>
   </main>
 
+  <!-- o item preso ao lado: só leitura, para escrever um olhando o outro -->
+  <aside class="lado" id="ladoPane" hidden aria-label="Item preso ao lado">
+    <div class="lado-head">
+      <div class="lado-head-txt">
+        <strong id="ladoTitulo">—</strong>
+        <span id="ladoOnde"></span>
+      </div>
+      <div class="lado-head-acoes">
+        <button class="btn btn--sm" id="ladoTrocarBtn" type="button"
+                title="Escolher outro item para ver aqui">trocar</button>
+        <button class="btn btn--sm" id="ladoAbrirBtn" type="button"
+                title="Abrir este item no editor">abrir</button>
+        <button class="btn btn--sm btn--quiet" id="ladoFecharBtn" type="button"
+                title="Fechar a coluna" aria-label="Fechar a coluna">✕</button>
+      </div>
+    </div>
+    <div class="lado-aviso">
+      Só leitura. Para escrever, abra o item — ou use <strong>copiar</strong> em
+      cada bloco.
+    </div>
+    <div class="lado-body" id="ladoBody"></div>
+  </aside>
+
 </div>
 
 <!-- ====================== pré-visualização ====================== -->
@@ -384,6 +407,19 @@
   </div>
 </dialog>
 
+<dialog id="ladoDialog">
+  <div class="dlg-body">
+    <h3>Ver um item ao lado</h3>
+    <p>Escolha o item que fica na coluna da direita, em só leitura, enquanto
+      você escreve. Pode ser deste relatório ou de qualquer outro marco que
+      esteja neste navegador.</p>
+    <div id="ladoEscolhaBody"></div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="ladoEscolhaCancelBtn">Cancelar</button>
+  </div>
+</dialog>
+
 <dialog id="fluxoDialog" class="dlg--wide">
   <div class="dlg-body">
     <h3>Fluxo dos waivers</h3>
@@ -426,6 +462,7 @@
 <script src="assets/js/fluxo.js"></script>
 <script src="assets/js/summary.js"></script>
 <script src="assets/js/chat.js"></script>
+<script src="assets/js/lado.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
 </html>

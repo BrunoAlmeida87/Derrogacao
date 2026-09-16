@@ -366,9 +366,10 @@
     if (temAbrir) {
       var pe = document.createElement('div');
       pe.className = 'fx-balao-pe';
-      pe.textContent = d.archAnswer && d.archAnswer.length > MAX_BALAO
+      pe.textContent = (d.archAnswer && d.archAnswer.length > MAX_BALAO
         ? 'Clique no card para abrir e ler o texto inteiro.'
-        : 'Clique no card para abrir este item.';
+        : 'Clique no card para abrir este item.') +
+        ' Shift+clique deixa ele na coluna ao lado.';
       box.appendChild(pe);
     }
     return box;
@@ -420,12 +421,12 @@
     g.addEventListener('focus', function () { mostrarBalao(g, achado, !!abrir); });
     g.addEventListener('blur', esconderBalao);
     if (!abrir) return;
-    g.addEventListener('click', function () { esconderBalao(); abrir(achado); });
+    g.addEventListener('click', function (e) { esconderBalao(); abrir(achado, e); });
     g.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         esconderBalao();
-        abrir(achado);
+        abrir(achado, e);
       }
     });
   }
@@ -455,7 +456,9 @@
    *                ou null. Quem passa isto ganha o ponto no canto do card e
    *                o balão com o Arch Answer de lá. Na impressão não se passa:
    *                marca sem balão, no papel, é só sujeira.
-   * opts.abrir     function(dados) para o clique no card marcado
+   * opts.abrir     function(dados, evento) para o clique no card marcado —
+   *                o evento vai junto porque quem chama decide o que fazer
+   *                com Shift (aqui: prender ao lado em vez de abrir)
    */
   function svg(analise, opts) {
     opts = opts || {};

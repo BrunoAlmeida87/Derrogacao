@@ -167,6 +167,38 @@
     return items().filter(function (n) { return n.id === id; })[0] || null;
   }
 
+  /**
+   * Copia texto para a área de transferência.
+   *
+   * `navigator.clipboard` não existe fora de contexto seguro, e abrir o
+   * programa do disco (`file://`) é exatamente isso — era assim que o arquivo
+   * único respondia "cópia indisponível". A reserva é o `<textarea>` com
+   * `execCommand('copy')`, que funciona em qualquer lugar por vir de um
+   * clique do usuário.
+   */
+  function copiarTexto(txt, ok, falha) {
+    ok = ok || function () {};
+    falha = falha || function () {};
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(ok, function () { reservaDeCopia(txt, ok, falha); });
+      return;
+    }
+    reservaDeCopia(txt, ok, falha);
+  }
+
+  function reservaDeCopia(txt, ok, falha) {
+    var ta = document.createElement('textarea');
+    ta.value = txt;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    var deu = false;
+    try { deu = document.execCommand('copy'); } catch (e) { deu = false; }
+    ta.remove();
+    if (deu) ok(); else falha();
+  }
+
   function download(blob, filename) {
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -246,6 +278,7 @@
     $('#fluxosScroll').hidden = !isFluxos();
     $('#conversaScroll').hidden = !isConversa();
     $('#previewBtn').hidden = telaCheia();
+    renderAoLado();     /* o item ao lado só existe onde há editor ao lado dele */
     if (telaCheia()) {
       $('#pdfBtn').textContent = 'Exportar PDF…';
       return;
@@ -1295,6 +1328,7 @@
     host.innerHTML = '';
     var ncr = currentNcr();
 
+    renderAoLado();
     if (!state.project) return;
     if (!ncr) {
       var empty = el('div', 'editor-empty');
@@ -1334,6 +1368,16 @@
       idCard.appendChild(g);
       watched = ['f-ncrId', 'f-systems', 'f-func'];
     }
+    /* Ao lado do título, como o "Recolher preenchidos" do cartão de baixo.
+       `data-livre` porque só mostra: vale mesmo com o item travado. */
+    var ladoBtn = el('button', 'btn btn--sm', '⇥ Ver outra ao lado');
+    ladoBtn.type = 'button';
+    ladoBtn.style.marginLeft = 'auto';
+    ladoBtn.title = 'Mostra outro item numa coluna à direita, em só leitura';
+    ladoBtn.setAttribute('data-livre', '');
+    ladoBtn.addEventListener('click', abrirEscolhaDoLado);
+    $('h3', idCard).appendChild(ladoBtn);
+
     var prev = el('div', 'hint');
     prev.style.marginTop = '10px';
     prev.textContent = 'Título gerado: Waiver Request for ' + Report.ncrLabel(ncr, state.kind);
@@ -1560,9 +1604,17 @@
    * Grava o que está na tela antes de sair — trocar de relatório redesenha
    * tudo, e o que estivesse esperando os 500 ms da gravação se perderia.
    */
-  function abrirAchado(dados) {
+  function abrirAchado(dados, ev) {
     var alvo = state.projects.filter(function (p) { return p.id === dados.projectId; })[0];
     if (!alvo) { toast('Esse relatório não está mais neste navegador.'); return; }
+    /* com Shift, em vez de trocar de tela, o item vai para a coluna ao lado —
+       é o caminho curto para escrever este olhando aquele */
+    if (ev && ev.shiftKey) {
+      if ($('#fluxoDialog').open) $('#fluxoDialog').close();
+      fixarAoLado(dados.projectId, dados.kind, dados.itemId);
+      toast('Preso ao lado: ' + (dados.ncrId || 'item') + ' (' + (dados.marco || 'sem marco') + ').');
+      return;
+    }
     if ($('#fluxoDialog').open) $('#fluxoDialog').close();
 
     function ir() {
@@ -2412,6 +2464,184 @@
       }
     });
     return box;
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* o item preso ao lado                                                    */
+  /* ---------------------------------------------------------------------- */
+
+  /* Uma coluna à direita do editor com outro item, em só leitura: é o que
+     permite escrever a NCR-001 do J08 olhando a do J06 sem trocar de tela.
+
+     Por que só leitura está explicado no cabeçalho do lado.js: hoje cada
+     campo do formulário escreve no item *selecionado*, então dois formulários
+     abertos escreveriam no mesmo item. Quem quer editar o de lá clica em
+     "abrir" — aí ele passa a ser o selecionado.
+
+     A escolha vive no localStorage, como o nome de quem usa e a conversa: é
+     de quem está neste navegador, não do relatório. */
+
+  var CHAVE_LADO = 'derrogacao:aoLado';
+  var aoLado = null;          /* {projectId, kind, itemId} */
+
+  function lerAoLado() {
+    try {
+      var cru = localStorage.getItem(CHAVE_LADO);
+      var v = cru ? JSON.parse(cru) : null;
+      return (v && v.projectId && v.itemId) ? v : null;
+    } catch (e) { return null; }
+  }
+
+  function gravarAoLado(v) {
+    try {
+      if (v) localStorage.setItem(CHAVE_LADO, JSON.stringify(v));
+      else localStorage.removeItem(CHAVE_LADO);
+    } catch (e) { /* cheio ou bloqueado: a coluna só não volta ao reabrir */ }
+  }
+
+  /** O que está preso ao lado, se ainda existir. */
+  function itemDoLado() {
+    if (!aoLado) return null;
+    var p = state.projects.filter(function (x) { return x.id === aoLado.projectId; })[0];
+    if (!p) return null;
+    var item = (p[Store.itemsKey(aoLado.kind)] || []).filter(function (x) {
+      return x.id === aoLado.itemId;
+    })[0];
+    return item ? { project: p, item: item, kind: aoLado.kind } : null;
+  }
+
+  function fixarAoLado(projectId, kind, itemId) {
+    aoLado = { projectId: projectId, kind: kind, itemId: itemId };
+    gravarAoLado(aoLado);
+    renderAoLado();
+  }
+
+  function soltarAoLado() {
+    aoLado = null;
+    gravarAoLado(null);
+    renderAoLado();
+  }
+
+  function renderAoLado() {
+    var pane = $('#ladoPane');
+    if (!pane) return;
+    var achado = aoLado ? itemDoLado() : null;
+
+    /* estava preso e sumiu (excluído aqui ou pela pasta): não deixar a coluna
+       mostrando um retrato do que não existe mais */
+    if (aoLado && !achado && state.projects.length) {
+      aoLado = null;
+      gravarAoLado(null);
+      toast('O item que estava ao lado não está mais neste navegador.');
+    }
+
+    if (!achado || telaCheia() || !state.project) {
+      pane.hidden = true;
+      $('#ladoBody').innerHTML = '';
+      return;
+    }
+
+    pane.hidden = false;
+    var marco = Report.marcoOf(achado.project, achado.kind) || achado.project.name || 'sem marco';
+    var ehOAberto = achado.project.id === state.project.id && achado.item.id === selectedId() &&
+      achado.kind === state.kind;
+    $('#ladoTitulo').textContent = achado.item.ncrId || 'sem número';
+    $('#ladoOnde').textContent = (achado.kind === 'dev' ? 'DEV · ' : 'NCR · ') + marco +
+      (ehOAberto ? ' · é o item aberto à esquerda' : '');
+
+    Lado.montar($('#ladoBody'), achado.project, achado.item, achado.kind, {
+      copiar: function (txt, rotulo) {
+        copiarTexto(txt,
+          function () { toast('“' + rotulo + '” copiado — cole no campo daqui.'); },
+          function () { toast('Não foi possível copiar.'); });
+      }
+    });
+  }
+
+  /** Abre no editor o item que está ao lado. */
+  function abrirODoLado() {
+    var achado = itemDoLado();
+    if (!achado) return;
+    abrirAchado({
+      projectId: achado.project.id, kind: achado.kind, itemId: achado.item.id,
+      ncrId: achado.item.ncrId,
+      marco: Report.marcoOf(achado.project, achado.kind) || achado.project.name || ''
+    });
+  }
+
+  /** Todos os itens de todos os relatórios, o aberto primeiro. */
+  function candidatosDoLado() {
+    var out = [];
+    var ordemProj = state.projects.slice().sort(function (a, b) {
+      if (state.project) {
+        if (a.id === state.project.id) return -1;
+        if (b.id === state.project.id) return 1;
+      }
+      return String(b.updatedAt).localeCompare(String(a.updatedAt));
+    });
+    ordemProj.forEach(function (p) {
+      ['ncr', 'dev'].forEach(function (kind) {
+        Store.ordenar(p, kind).forEach(function (item) {
+          out.push({ project: p, kind: kind, item: item });
+        });
+      });
+    });
+    return out;
+  }
+
+  var MAX_ESCOLHA = 150;      /* lista comprida demais não se lê: refine a busca */
+
+  function abrirEscolhaDoLado() {
+    var body = $('#ladoEscolhaBody');
+    body.innerHTML = '';
+    var todos = candidatosDoLado();
+
+    var busca = el('div', 'sm-bar-field');
+    busca.appendChild(el('label', null, 'Buscar'));
+    var inp = document.createElement('input');
+    inp.type = 'search';
+    inp.placeholder = 'número, marco, sistema, função…';
+    busca.appendChild(inp);
+    body.appendChild(busca);
+
+    var conta = el('p', 'hint');
+    body.appendChild(conta);
+    var lista = el('div', 'lado-escolha');
+    body.appendChild(lista);
+
+    function desenhar() {
+      var t = inp.value.trim().toLowerCase();
+      var achados = todos.filter(function (c) {
+        if (!t) return true;
+        var marco = Report.marcoOf(c.project, c.kind) || c.project.name || '';
+        return (Store.textoBusca(c.item) + ' ' + marco).toLowerCase().indexOf(t) >= 0;
+      });
+      lista.innerHTML = '';
+      conta.textContent = achados.length + ' item(ns)' +
+        (achados.length > MAX_ESCOLHA ? ' — mostrando os ' + MAX_ESCOLHA + ' primeiros.' : '.');
+      achados.slice(0, MAX_ESCOLHA).forEach(function (c) {
+        var b = el('button', 'lado-op');
+        b.type = 'button';
+        b.appendChild(el('strong', null,
+          (c.kind === 'dev' ? 'DEV · ' : 'NCR · ') + (c.item.ncrId || 'sem número')));
+        var marco = Report.marcoOf(c.project, c.kind) || c.project.name || 'sem marco';
+        var sub = (c.kind === 'dev' ? [c.item.func] : [c.item.systems, c.item.func])
+          .filter(Boolean).join(' | ');
+        b.appendChild(el('span', null, marco + (sub ? ' · ' + sub : '')));
+        b.addEventListener('click', function () {
+          fixarAoLado(c.project.id, c.kind, c.item.id);
+          $('#ladoDialog').close();
+          toast('Preso ao lado: ' + (c.item.ncrId || 'item') + ' (' + marco + ').');
+        });
+        lista.appendChild(b);
+      });
+      if (!achados.length) lista.appendChild(el('p', 'hint', 'Nada com esse texto.'));
+    }
+
+    inp.addEventListener('input', desenhar);
+    desenhar();
+    $('#ladoDialog').showModal();
+    inp.focus();
   }
 
   /* ---------------------------------------------------------------------- */
@@ -3818,19 +4048,24 @@
         'Outro relatório de "' + (dup.marco || dup.name) + '" que já está neste navegador.');
     });
 
+    /* a coluna do item ao lado */
+    $('#ladoTrocarBtn').addEventListener('click', abrirEscolhaDoLado);
+    $('#ladoAbrirBtn').addEventListener('click', abrirODoLado);
+    $('#ladoFecharBtn').addEventListener('click', function () {
+      soltarAoLado();
+      toast('Coluna fechada. O item continua onde estava.');
+    });
+    $('#ladoEscolhaCancelBtn').addEventListener('click', function () { $('#ladoDialog').close(); });
+
     $('#sessionsBtn').addEventListener('click', openSessions);
     $('#sessionInfoBtn').addEventListener('click', openSessions);
     $('#sessionsCloseBtn').addEventListener('click', function () { $('#sessionsDialog').close(); });
     $('#sessionsCopyBtn').addEventListener('click', function () {
       var txt = sessionSummaryText();
       if (!txt) { toast('Nada alterado nesta sessão.'); return; }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(txt)
-          .then(function () { toast('Resumo da sessão copiado.'); })
-          .catch(function () { toast('Não foi possível copiar.'); });
-      } else {
-        toast('Cópia indisponível neste navegador.');
-      }
+      copiarTexto(txt,
+        function () { toast('Resumo da sessão copiado.'); },
+        function () { toast('Não foi possível copiar.'); });
     });
 
     /* lembrete da pasta de backup */
@@ -3841,13 +4076,9 @@
     $('#backupCopyPathBtn').addEventListener('click', function () {
       var caminho = Store.getFolder();
       if (!caminho) return;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(caminho)
-          .then(function () { toast('Caminho copiado — cole na barra do explorador de arquivos.'); })
-          .catch(function () { toast('Não foi possível copiar.'); });
-      } else {
-        toast('Cópia indisponível neste navegador.');
-      }
+      copiarTexto(caminho,
+        function () { toast('Caminho copiado — cole na barra do explorador de arquivos.'); },
+        function () { toast('Não foi possível copiar.'); });
     });
     $('#backupDoneBtn').addEventListener('click', function () { $('#backupDoneDialog').close(); });
 
@@ -4016,6 +4247,7 @@
 
   function boot() {
     wire();
+    aoLado = lerAoLado();
     registrarServiceWorker();
     requestPersistentStorage();
     refreshUndo();
