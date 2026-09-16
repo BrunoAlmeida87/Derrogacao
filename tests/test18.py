@@ -29,29 +29,29 @@ CASOS = """() => {
   let r = Store.mergeLWW(meu, proj('p','RANAE J06',[
     item('a','NCR-1','2026-01-01T10:00:00.000Z','meu'),
     item('b','NCR-2','2026-01-01T11:00:00.000Z','dele')]));
-  R.push(['entra item novo', meu.ncrs.map(n=>n.ncrId).join(','), r.entraram]);
+  R.push(['entra item novo', meu.ncrs.map(n=>n.ncrId).join(',') + '/' + r.entraram, 'NCR-1,NCR-2/1']);
 
   // 2) edicao mais recente do outro vence
   meu = proj('p','RANAE J06',[item('a','NCR-1','2026-01-01T10:00:00.000Z','versao antiga')]);
   r = Store.mergeLWW(meu, proj('p','RANAE J06',[item('a','NCR-1','2026-01-01T12:00:00.000Z','versao nova')]));
-  R.push(['edicao mais nova vence', meu.ncrs[0].description, r.atualizados]);
+  R.push(['edicao mais nova vence', meu.ncrs[0].description + '/' + r.atualizados, 'versao nova/1']);
 
   // 3) a MINHA edicao mais recente permanece
   meu = proj('p','RANAE J06',[item('a','NCR-1','2026-01-01T15:00:00.000Z','minha, recente')]);
   r = Store.mergeLWW(meu, proj('p','RANAE J06',[item('a','NCR-1','2026-01-01T12:00:00.000Z','dele, antiga')]));
-  R.push(['minha edicao recente fica', meu.ncrs[0].description, r.atualizados]);
+  R.push(['minha edicao recente fica', meu.ncrs[0].description + '/' + r.atualizados, 'minha, recente/0']);
 
   // 4) lapide do outro lado exclui aqui
   meu = proj('p','RANAE J06',[item('a','NCR-1','2026-01-01T10:00:00.000Z','meu')]);
   r = Store.mergeLWW(meu, proj('p','RANAE J06',[],
       [{id:'a',kind:'ncr',ncrId:'NCR-1',at:'2026-01-01T11:00:00.000Z',by:'Maria'}]));
-  R.push(['lapide exclui', meu.ncrs.length, r.removidos]);
+  R.push(['lapide exclui', meu.ncrs.length + '/' + r.removidos, '0/1']);
 
   // 5) mas se eu editei DEPOIS da exclusao, o item fica
   meu = proj('p','RANAE J06',[item('a','NCR-1','2026-01-01T12:00:00.000Z','editei depois')]);
   r = Store.mergeLWW(meu, proj('p','RANAE J06',[],
       [{id:'a',kind:'ncr',ncrId:'NCR-1',at:'2026-01-01T11:00:00.000Z',by:'Maria'}]));
-  R.push(['edicao apos exclusao ressuscita', meu.ncrs.length, meu.ncrs[0] && meu.ncrs[0].description]);
+  R.push(['edicao apos exclusao ressuscita', meu.ncrs.length + '/' + (meu.ncrs[0] && meu.ncrs[0].description), '1/editei depois']);
 
   // 6) lista: casa por marco mesmo com id diferente, e nao mistura marcos
   let locais = [
@@ -62,10 +62,11 @@ CASOS = """() => {
     proj('OUTRO','ranae j06',[item('b','NCR-9','2026-01-01T11:00:00.000Z','J06 dele')]),
     proj('OUTRO2','RANAE J08',[item('d','NCR-8','2026-01-01T11:00:00.000Z','J08 dele')])
   ]);
-  R.push(['nao duplica marco', locais.length, locais.map(p=>p.marco).join(' | ')]);
-  R.push(['J06 juntou', locais[0].ncrs.map(n=>n.ncrId).join(','), '']);
-  R.push(['J07 intacto', locais[1].ncrs.map(n=>n.ncrId+':'+n.description).join(','), '']);
-  R.push(['relatorio novo', res.novosRelatorios, locais[2] && locais[2].marco]);
+  R.push(['nao duplica marco', locais.length + ': ' + locais.map(p=>p.marco).join(' | '),
+          '3: RANAE J06 | RANAE J07 | RANAE J08']);
+  R.push(['J06 juntou', locais[0].ncrs.map(n=>n.ncrId).join(','), 'NCR-1,NCR-9']);
+  R.push(['J07 intacto', locais[1].ncrs.map(n=>n.ncrId+':'+n.description).join(','), 'NCR-1:J07 meu']);
+  R.push(['relatorio novo', res.novosRelatorios + '/' + (locais[2] && locais[2].marco), '1/RANAE J08']);
 
   // 7) a mesclagem converge: aplicar duas vezes nao muda nada
   meu = proj('p','RANAE J06',[item('a','NCR-1','2026-01-01T10:00:00.000Z','x')]);
@@ -73,7 +74,7 @@ CASOS = """() => {
   Store.mergeLWW(meu, dele);
   const antes = JSON.stringify(meu.ncrs.map(n=>n.id));
   Store.mergeLWW(meu, dele);
-  R.push(['idempotente', antes === JSON.stringify(meu.ncrs.map(n=>n.id)), meu.ncrs.length]);
+  R.push(['idempotente', (antes === JSON.stringify(meu.ncrs.map(n=>n.id))) + '/' + meu.ncrs.length, 'true/2']);
   return R;
 }"""
 
@@ -84,7 +85,13 @@ with sync_playwright() as pw:
     pg.on("console", lambda m: errs.append(m.text) if m.type == "error" else None)
     pg.on("dialog", lambda d: d.accept())
     pg.goto("file:///home/user/Derrogacao/index.html"); pg.wait_for_timeout(800)
-    for linha in pg.evaluate(CASOS):
-        print("  ", " | ".join(str(x) for x in linha))
+    falhou = []
+    for nome, obtido, esperado in pg.evaluate(CASOS):
+        ok = str(obtido) == str(esperado)
+        print(("   OK   " if ok else "   FALHA ") + nome + " -> " + str(obtido))
+        if not ok:
+            falhou.append("%s: obtido %r, esperado %r" % (nome, obtido, esperado))
     b.close()
+
+assert not falhou, "regras da mesclagem quebradas:\n  " + "\n  ".join(falhou)
 print("\nERRORS:", errs if errs else "none")

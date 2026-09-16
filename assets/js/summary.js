@@ -71,8 +71,14 @@
     if (f.evidencia === 'sem' && (n.evidence || []).length) return false;
     var t = clean(f.busca).toLowerCase();
     if (t) {
-      var palheiro = [n.ncrId, n.systems, n.func, n.description, n.currentSituation,
-                      n.archAnswer, (n.certificates || []).join(' ')].join(' ').toLowerCase();
+      /* os cinco blocos de texto do relatório, e não só três: um item que
+         cita o termo em "Why is not possible" some do recorte sem aviso — e
+         o recorte é o que sai no CSV e no resumo em PDF */
+      var palheiro = [n.ncrId, n.systems, n.func,
+                      n.description, n.currentSituation, n.whyNotPossible,
+                      n['arguments'], n.archAnswer,
+                      n.archStatus, n.historic,
+                      (n.certificates || []).join(' ')].join(' ').toLowerCase();
       if (palheiro.indexOf(t) < 0) return false;
     }
     return true;
@@ -452,9 +458,16 @@
 
   /* --- exportação ------------------------------------------------------- */
 
+  /* O Excel avalia como fórmula toda célula que comece por = + - @ (ou por
+     tabulação/retorno), e desfaz as aspas antes de olhar: aspas não protegem.
+     Num banco compartilhado o texto vem de outras pessoas e de .json
+     recebidos, então "=cmd|'/c calc'!A1" chegaria à planilha como DDE. Um
+     apóstrofo à frente faz o Excel tratar a célula como texto, e ele não
+     aparece na tela. */
   function csvCampo(v) {
-    v = (v == null ? '' : String(v)).replace(/"/g, '""');
-    return '"' + v + '"';
+    v = (v == null ? '' : String(v));
+    if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;
+    return '"' + v.replace(/"/g, '""') + '"';
   }
 
   /** Planilha com uma linha por NCR/DEV, para abrir no Excel. */

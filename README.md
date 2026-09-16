@@ -216,7 +216,7 @@ Abaixo do seletor de marco há uma linha de filtros, que se somam:
 | **Sistema** | um sistema específico (`HP`, `EX`, `BF`…), com a contagem de cada um |
 | **Arch Status** | o texto que vai impresso no relatório, inclusive `(em branco)` |
 | **Evidência** | só itens com anexo, ou só os sem |
-| **Buscar no texto** | procura no número, sistema, função, nos blocos de texto e nos certificados |
+| **Buscar no texto** | procura no número, sistema, função, nos cinco blocos de texto, no *Arch Status*, no *Waiver Historic* e nos certificados |
 
 Os números, os gráficos e as tabelas passam a contar **só o que está
 filtrado** — e é isso que sai no **Resumo em PDF** (que traz uma linha dizendo
@@ -231,6 +231,10 @@ contagem por certificado impactado. Nesse modo aparecem três exportações:
 | --- | --- |
 | **Resumo em PDF** | Uma folha A4 com os números, os gráficos e a tabela de itens |
 | **Planilha (CSV)** | Uma linha por NCR/DEV, com todos os campos — abre no Excel |
+
+Um texto que comece por `=`, `+`, `-` ou `@` sai da planilha com um apóstrofo à
+frente: sem isso o Excel o trataria como fórmula. O apóstrofo não aparece na
+célula.
 | **Backup deste marco** | O `.json` só desse marco, para enviar a alguém |
 
 Os gráficos são SVG escrito à mão — sem biblioteca externa, imprimem em vetor e
@@ -287,6 +291,7 @@ Na prática:
 | Duas pessoas no **mesmo item** | fica a edição mais recente; a outra versão está no histórico |
 | O item aberto na sua tela muda por fora | a tela é redesenhada e um aviso diz quem alterou |
 | O item aberto é excluído por outra pessoa | a lista volta para o primeiro item, com aviso |
+| O **relatório** aberto é excluído por outra pessoa | a tela passa ao primeiro relatório, com aviso |
 
 O caso que realmente custa trabalho é o segundo, e ele é raro quando as NCRs
 estão divididas entre as pessoas. Mesmo assim: **antes de juntar qualquer
@@ -296,7 +301,11 @@ substituído nunca desaparece sem deixar cópia.
 **Exclusões deixam lápide.** Sem isso, o item apagado por uma pessoa voltaria na
 próxima sincronização, vindo do computador de quem ainda não soube. A lápide é
 sempre carimbada depois da versão que apagou, mesmo que o relógio da máquina
-esteja adiantado.
+esteja adiantado. Vale para as três formas de excluir: o botão **Excluir** da
+lateral, o grupo *Excluídos pelo colega* da tela de mesclagem e o
+**Excluir este relatório** do menu — este último deixa lápide de relatório
+inteiro, que também viaja na pasta. Restaurar uma versão do histórico desfaz
+a lápide do que voltar.
 
 ### O histórico é a rede de proteção
 
@@ -494,7 +503,7 @@ assets/js/report.js      montagem das páginas no padrão do PDF
 assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
 tools/build-standalone.py  gera a versão de arquivo único
 assets/js/app.js         lógica do editor
-tests/                   24 suítes de ponta a ponta (Playwright)
+tests/                   30 suítes de ponta a ponta (Playwright)
 exemplos/                relatórios .json prontos para importar
 CLAUDE.md                notas de manutenção: decisões, armadilhas, porquês
 ```

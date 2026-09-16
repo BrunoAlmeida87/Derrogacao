@@ -50,8 +50,10 @@
   var toastTimer = null;
   function toast(msg) {
     var t = $('#toast');
-    t.textContent = msg;
+    /* mostrar antes de escrever: escondido, o aviso está fora da árvore de
+       acessibilidade e a mudança de texto não seria anunciada */
     t.hidden = false;
+    t.textContent = msg;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { t.hidden = true; }, 2600);
   }
@@ -202,6 +204,8 @@
     $$('.tab').forEach(function (t) {
       var on = t.dataset.kind === state.kind;
       t.setAttribute('aria-selected', on ? 'true' : 'false');
+      /* uma faixa de abas é um ponto só na tabulação; entre elas, as setas */
+      t.tabIndex = on ? 0 : -1;
       var cnt = $('.tab-count', t);
       if (cnt) cnt.textContent = state.project[Store.itemsKey(t.dataset.kind)].length;
     });
@@ -210,6 +214,7 @@
     $('#sidebarBody').hidden = isResumo();
     $('#sidebarResumo').hidden = !isResumo();
     $('#editorScroll').hidden = isResumo();
+    $('#editorScroll').setAttribute('aria-labelledby', isDev() ? 'tabDev' : 'tabNcr');
     $('#summaryScroll').hidden = !isResumo();
     $('#previewBtn').hidden = isResumo();
     if (isResumo()) {
@@ -422,6 +427,21 @@
       }
       if (badges.childNodes.length) li.appendChild(badges);
 
+      var mover = el('div', 'ncr-move-box');
+      [['↑', -1, 'Subir'], ['↓', 1, 'Descer']].forEach(function (m) {
+        var bt = el('button', 'ncr-move', m[0]);
+        bt.type = 'button';
+        bt.dataset.passo = String(m[1]);
+        bt.setAttribute('aria-label', m[2] + ' ' + (ncr.ncrId || 'item sem número'));
+        bt.title = m[2] + ' na ordem da lista e do PDF';
+        bt.addEventListener('click', function (e) {
+          e.stopPropagation();
+          moverNcr(ncr.id, m[1]);
+        });
+        mover.appendChild(bt);
+      });
+      li.appendChild(mover);
+
       li.addEventListener('click', function () { selectNcr(ncr.id); });
       li.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectNcr(ncr.id); }
@@ -463,6 +483,23 @@
       ? done + ' de ' + total + ' com waiver accepted'
       : '';
     box.classList.toggle('is-complete', total > 0 && done === total);
+  }
+
+  /* Arrastar exige um gesto de ponteiro que nem todo mundo consegue fazer
+     (WCAG 2.5.7). Os mesmos passos, com um clique só — e pelo teclado. */
+  function moverNcr(id, passo) {
+    if (!state.project) return;
+    if (state.project.ordem !== 'manual') fixarOrdem(true);
+    var list = items();
+    var de = list.findIndex(function (n) { return n.id === id; });
+    var para = de + passo;
+    if (de < 0 || para < 0 || para >= list.length) return;
+    list.splice(para, 0, list.splice(de, 1)[0]);
+    renderNcrList();
+    renderOrdem();
+    scheduleSave();
+    var volta = $('.ncr-item[data-id="' + id + '"] .ncr-move[data-passo="' + passo + '"]');
+    if (volta) volta.focus();
   }
 
   function moveNcr(fromId, toId) {
@@ -708,6 +745,9 @@
       det.appendChild(sum);
 
       var f = field(d[1], d[0], { rows: d[3] });
+      /* o nome do bloco já está no <summary>; o rótulo sairia repetido na
+         tela, mas sem ele o campo fica sem nome para o leitor de tela */
+      $('#f-' + d[0], f).setAttribute('aria-label', d[1]);
       $('label', f).remove();
       det.appendChild(f);
 
@@ -2045,7 +2085,11 @@
         dels.forEach(function (e) {
           var lista = local[Store.itemsKey(e.kind)];
           var at = lista.findIndex(function (n) { return n.id === e.mine.id; });
-          if (at >= 0) lista.splice(at, 1);
+          if (at < 0) return;
+          /* a mesma lápide do botão Excluir: sem ela o item volta na
+             sincronização seguinte, vindo de quem ainda não soube */
+          Store.tombstone(local, e.kind, e.mine);
+          lista.splice(at, 1);
         });
 
         /* o que eu mantive vira a nova base comum */
@@ -2206,6 +2250,8 @@
       caminho: pastaCaminho,
       updatedAt: new Date().toISOString(),
       updatedBy: Store.getUser(),
+      /* sem isto a exclusão de um relatório não alcançaria os outros */
+      relatoriosExcluidos: Store.lapidesProjeto(),
       projects: JSON.parse(JSON.stringify(state.projects))
     };
   }
@@ -2234,6 +2280,22 @@
     var assinaturaAntes = abertoAntes ? Store.signature(abertoAntes) : null;
     var idAberto = abertoAntes ? abertoAntes.id : null;
 
+    /* Preenchido assim que a junção é aplicada na memória. Se a gravação
+       falhar depois disso, o resultado ainda precisa ser salvo aqui e posto
+       na tela: abandoná-lo deixaria o formulário mostrando um texto que já
+       não é o do programa, e a tecla seguinte gravaria o velho por cima do
+       que o colega escreveu. */
+    var mesclado = null;
+
+    /** Salva a junção neste navegador e põe na tela. */
+    function adotar(resumo) {
+      return Promise.all(state.projects.map(function (p) { return Store.save(p); }))
+        .then(function () {
+          opts.aberto = { id: idAberto, assinatura: assinaturaAntes };
+          aplicarMudancasNaTela(resumo, opts);
+        });
+    }
+
     /* grava o resultado da junção, não só o que era meu */
     function gravarJuncao(resumo) {
       return Pasta.gravar(montaPayload()).then(function () {
@@ -2248,7 +2310,7 @@
     return Pasta.ler()
       .then(function (r) {
         var resumo = { entraram: 0, atualizados: 0, removidos: 0, novosRelatorios: 0 };
-        if (!r.dados) return Promise.resolve(resumo).then(gravarJuncao);
+        if (!r.dados) { mesclado = resumo; return gravarJuncao(resumo); }
 
         if (typeof r.dados.caminho === 'string' && r.dados.caminho) pastaCaminho = r.dados.caminho;
 
@@ -2260,33 +2322,39 @@
           : Promise.resolve();
 
         return antes.then(function () {
-          resumo = Store.mergeListas(state.projects, r.dados.projects || []);
+          resumo = Store.mergeListas(state.projects, r.dados.projects || [],
+                                     r.dados.relatoriosExcluidos);
+          mesclado = resumo;
           return gravarJuncao(resumo);
         });
       })
       .then(function (resumo) {
-        sincronizando = false;
         pastaEstado = 'on';
         /* salva localmente o que veio, para funcionar mesmo sem a pasta */
-        return Promise.all(state.projects.map(function (p) { return Store.save(p); }))
-          .then(function () {
-            opts.aberto = { id: idAberto, assinatura: assinaturaAntes };
-            aplicarMudancasNaTela(resumo, opts);
-            marcarPasta('on');
-            return resumo;
-          });
+        return adotar(resumo).then(function () {
+          sincronizando = false;
+          marcarPasta('on');
+          return resumo;
+        });
       })
       .catch(function (e) {
-        sincronizando = false;
         pastaEstado = (e && e.name === 'NotAllowedError') ? 'permissao' : 'erro';
-        marcarPasta(pastaEstado);
         console.warn('Sincronização com a pasta falhou:', e);
-        if (!opts.silencioso) {
-          toast(pastaEstado === 'permissao'
-            ? 'A pasta precisa da sua permissão — clique em “Pasta” na barra de cima.'
-            : 'Não foi possível ler a pasta de dados. O trabalho segue salvo neste navegador.');
-        }
-        return null;
+        /* A junção já está na memória: deixá-la sem salvar e sem redesenhar
+           seria pior do que a falha em si — ver o comentário de `mesclado`. */
+        var fim = mesclado
+          ? adotar(mesclado).catch(function (e2) { console.warn('Não foi possível salvar a junção.', e2); })
+          : Promise.resolve();
+        return fim.then(function () {
+          sincronizando = false;
+          marcarPasta(pastaEstado);
+          if (!opts.silencioso) {
+            toast(pastaEstado === 'permissao'
+              ? 'A pasta precisa da sua permissão — clique em “Pasta” na barra de cima.'
+              : 'Não foi possível gravar na pasta de dados. O trabalho segue salvo neste navegador.');
+          }
+          return null;
+        });
       })
       .then(function (r) {
         if (gravarPendente) { gravarPendente = false; setTimeout(sincronizar, 50); }
@@ -2296,12 +2364,27 @@
 
   /** Redesenha só o necessário, para não estragar o que está sendo digitado. */
   function aplicarMudancasNaTela(resumo, opts) {
-    var mudou = resumo && (resumo.entraram || resumo.atualizados || resumo.removidos || resumo.novosRelatorios);
-    /* o relatório aberto pode ter sido substituído pela cópia mesclada */
+    var mudou = resumo && (resumo.entraram || resumo.atualizados || resumo.removidos ||
+                           resumo.novosRelatorios || resumo.relatoriosRemovidos);
+    /* alguém excluiu o último relatório: o programa nunca fica sem nenhum */
+    if (!state.projects.length) {
+      var vazio = Store.newProject('');
+      state.projects.push(vazio);
+      Store.save(vazio).then(function () { loadProject(vazio); });
+      return;
+    }
+    /* o relatório aberto pode ter sido substituído pela cópia mesclada — ou
+       excluído por outra pessoa */
+    var sumiu = false;
     if (state.project) {
       var atual = state.projects.filter(function (p) { return p.id === state.project.id; })[0];
-      if (!atual) atual = state.projects[0];
+      if (!atual) { atual = state.projects[0]; sumiu = true; }
       state.project = atual;
+    }
+    if (sumiu) {
+      loadProject(state.project);
+      if (!opts.silencioso) toast('O relatório que estava aberto foi excluído por outra pessoa.');
+      return;
     }
     if (!mudou) return;
     var avisoDoItem = '';
@@ -2495,8 +2578,17 @@
       scheduleSave();
     });
 
-    $$('.tab').forEach(function (t) {
+    var abas = $$('.tab');
+    abas.forEach(function (t, i) {
       t.addEventListener('click', function () { switchKind(t.dataset.kind); });
+      t.addEventListener('keydown', function (e) {
+        var passo = e.key === 'ArrowRight' ? 1 : (e.key === 'ArrowLeft' ? -1 : 0);
+        if (!passo) return;
+        e.preventDefault();
+        var prox = abas[(i + passo + abas.length) % abas.length];
+        switchKind(prox.dataset.kind);
+        prox.focus();
+      });
     });
     $('#projectSelect').addEventListener('change', function () {
       var sel = this.value;
@@ -2522,6 +2614,9 @@
       if (!state.project) return;
       if (!confirm('Excluir o relatório "' + (state.project.marco || state.project.name) + '" deste navegador?\n\nFaça um backup antes se quiser conservá-lo.')) return;
       var id = state.project.id;
+      /* sem a lápide o relatório voltaria na sincronização seguinte, vindo do
+         computador de quem ainda não soube */
+      Store.tombstoneProjeto(state.project);
       Store.remove(id).then(function () {
         state.projects = state.projects.filter(function (p) { return p.id !== id; });
         if (!state.projects.length) {
@@ -2529,7 +2624,10 @@
           return Store.save(p).then(function () { state.projects = [p]; loadProject(p); });
         }
         loadProject(state.projects[0]);
-      }).then(function () { toast('Relatório excluído.'); }).catch(markError);
+      }).then(function () {
+        toast('Relatório excluído.');
+        agendarGravacaoPasta();
+      }).catch(markError);
     });
 
     $('#addNcrBtn').addEventListener('click', addNcr);

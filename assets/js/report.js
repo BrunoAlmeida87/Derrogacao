@@ -77,6 +77,9 @@
 
   function page(landscape) {
     var p = el('section', 'rep-page' + (landscape ? ' rep-page--landscape' : ''));
+    /* o documento é em inglês dentro de uma página em português: sem isto o
+       leitor de tela pronuncia o relatório inteiro com a fonética errada */
+    p.lang = 'en';
     return p;
   }
 
@@ -111,14 +114,18 @@
       list.appendChild(item);
     });
     if (!rows.length) {
-      list.appendChild(el('p', 'rep-index-item', 'Nenhum item cadastrado.'));
+      var vazio = el('p', 'rep-index-item', 'Nenhum item cadastrado.');
+      vazio.lang = 'pt-BR';
+      list.appendChild(vazio);
     }
     p.appendChild(list);
 
     /* data de emissão, discreta no rodapé da capa — pode ser desligada */
     if (project.showCoverDate !== false) {
-      p.appendChild(el('div', 'rep-cover-date',
-        'Gerado em ' + new Date().toLocaleDateString('pt-BR')));
+      var data = el('div', 'rep-cover-date',
+        'Gerado em ' + new Date().toLocaleDateString('pt-BR'));
+      data.lang = 'pt-BR';
+      p.appendChild(data);
     }
     return p;
   }

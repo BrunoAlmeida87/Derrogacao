@@ -125,11 +125,21 @@
 
   function str(v) { return typeof v === 'string' ? v : (v == null ? '' : String(v)); }
 
+  /* As imagens do programa nascem de canvas.toDataURL: são sempre "data:".
+     Um .json recebido pode trazer um endereço de rede no lugar, e aí bastaria
+     abrir o item para o navegador ir buscá-lo — o servidor do outro lado
+     ficaria sabendo o IP, a hora e, pela URL, qual item foi aberto. Nada sai
+     do computador: o que não for data: ou blob: é descartado. */
+  function srcLocal(v) {
+    v = str(v);
+    return /^(data:image\/|blob:)/i.test(v) ? v : '';
+  }
+
   function normalizeImage(img) {
-    if (typeof img === 'string') return { id: uid(), src: img, caption: '' };
+    if (typeof img === 'string') return { id: uid(), src: srcLocal(img), caption: '' };
     return {
       id: str(img && img.id) || uid(),
-      src: str(img && img.src),
+      src: srcLocal(img && img.src),
       caption: str(img && img.caption)
     };
   }
@@ -465,6 +475,62 @@
 
   function maisRecente(a, b) { return String(a || '') >= String(b || '') ? String(a || '') : String(b || ''); }
 
+  /* --- lápides de relatório inteiro --------------------------------------- */
+
+  /* Excluir um relatório precisa deixar marca pela mesma razão que excluir um
+     item: sem ela o relatório voltaria na sincronização seguinte, vindo do
+     computador de quem ainda não soube — e a exclusão nunca alcançaria os
+     outros. Ficam no navegador (o relatório em si já não existe para
+     guardá-las) e viajam no arquivo da pasta. */
+  var DEL_PROJ_KEY = 'derrogacao:relatoriosExcluidos';
+  var MAX_PROJ_LAPIDES = 200;
+
+  function lapidesProjeto() {
+    try {
+      var lista = JSON.parse(global.localStorage.getItem(DEL_PROJ_KEY) || '[]');
+      if (!Array.isArray(lista)) return [];
+      return lista.filter(function (t) { return t && t.id; }).map(function (t) {
+        return { id: str(t.id), marco: str(t.marco), at: str(t.at), by: str(t.by) };
+      });
+    } catch (e) { return []; }
+  }
+
+  function gravarLapidesProjeto(lista) {
+    try {
+      global.localStorage.setItem(DEL_PROJ_KEY, JSON.stringify(
+        lista.sort(function (a, b) { return String(a.at).localeCompare(String(b.at)); })
+          .slice(-MAX_PROJ_LAPIDES)));
+    } catch (e) { /* sem espaço: a exclusão vale ao menos neste navegador */ }
+  }
+
+  /** Hora da edição mais recente dentro do relatório. */
+  function editadoEm(p) {
+    var m = '';
+    ['ncrs', 'devs'].forEach(function (k) {
+      ((p && p[k]) || []).forEach(function (n) { m = maisRecente(m, n && n.editedAt); });
+    });
+    return m;
+  }
+
+  function tombstoneProjeto(project) {
+    var lista = lapidesProjeto().filter(function (t) { return t.id !== project.id; });
+    lista.push({
+      id: str(project.id),
+      marco: marcoChave(project),
+      at: depoisDe(editadoEm(project)),
+      by: getUser()
+    });
+    gravarLapidesProjeto(lista);
+    return lista;
+  }
+
+  /** Restaurar um relatório inteiro desfaz a lápide dele. */
+  function esquecerLapideProjeto(p) {
+    gravarLapidesProjeto(lapidesProjeto().filter(function (t) {
+      return t.id !== str(p && p.id);
+    }));
+  }
+
   /**
    * Junta dois retratos do MESMO relatório pela regra "vale quem editou por
    * último", item a item, respeitando as lápides.
@@ -512,8 +578,19 @@
           return;
         }
         if (meu && dele) {
-          var novo = String(dele.editedAt || '') > String(meu.editedAt || '');
-          if (novo && signature(meu) !== signature(dele)) res.atualizados++;
+          var meuAt = String(meu.editedAt || '');
+          var deleAt = String(dele.editedAt || '');
+          var assMeu = signature(meu), assDele = signature(dele);
+          var novo;
+          if (deleAt !== meuAt) {
+            novo = deleAt > meuAt;
+          } else {
+            /* Mesmo carimbo e conteúdos diferentes: sem um critério fixo cada
+               lado ficaria com o seu e as duas bases nunca mais se
+               encontrariam. A assinatura decide — e decide igual aqui e lá. */
+            novo = assDele > assMeu;
+          }
+          if (novo && assMeu !== assDele) res.atualizados++;
           saida.push(novo ? normalizeNcr(dele) : meu);
         } else if (dele) {
           res.entraram++;
@@ -587,6 +664,7 @@
       var alvo = porId[r.id] || (k ? porMarco[k] : null);
       if (!alvo) {
         var novo = normalizeProject(r);
+        esquecerLapideProjeto(novo);   /* restaurar desfaz a exclusão */
         locais.push(novo);
         res.relatorios++;
         res.voltaram += novo.ncrs.length + novo.devs.length;
@@ -616,8 +694,39 @@
    * identificador e, na falta, pelo marco. Devolve a lista resultante e um
    * resumo do que mudou deste lado.
    */
-  function mergeListas(locais, recebidos) {
-    var res = { entraram: 0, atualizados: 0, removidos: 0, novosRelatorios: 0 };
+  function mergeListas(locais, recebidos, lapidesRecebidas) {
+    var res = { entraram: 0, atualizados: 0, removidos: 0,
+                novosRelatorios: 0, relatoriosRemovidos: 0 };
+
+    /* a lápide de relatório mais recente de cada lado */
+    var tumbas = {};
+    [lapidesProjeto(), lapidesRecebidas].forEach(function (lista) {
+      (Array.isArray(lista) ? lista : []).forEach(function (t) {
+        if (!t || !t.id) return;
+        var atual = tumbas[t.id];
+        if (!atual || String(t.at) > String(atual.at)) {
+          tumbas[t.id] = { id: str(t.id), marco: str(t.marco), at: str(t.at), by: str(t.by) };
+        }
+      });
+    });
+    /**
+     * Só pelo id — nunca pelo marco. Dá para ter dois relatórios repetidos do
+     * mesmo marco (o menu ⋯ até oferece juntá-los), e casar por marco faria a
+     * exclusão de um apagar o outro. No banco compartilhado o id é o mesmo
+     * para todo mundo, que é o caso que a lápide precisa cobrir.
+     *
+     * Como na lápide de item: só vale enquanto ninguém editou depois dela.
+     */
+    function excluido(p) {
+      var t = tumbas[str(p && p.id)];
+      return !!(t && String(t.at) >= editadoEm(p));
+    }
+
+    /* o que outra pessoa excluiu sai daqui também */
+    for (var i = locais.length - 1; i >= 0; i--) {
+      if (excluido(locais[i])) { locais.splice(i, 1); res.relatoriosRemovidos++; }
+    }
+
     var porId = {}, porMarco = {};
     locais.forEach(function (p) {
       porId[p.id] = p;
@@ -629,6 +738,7 @@
       var k = marcoChave(r);
       var alvo = porId[r.id] || (k ? porMarco[k] : null);
       if (!alvo) {
+        if (excluido(r)) return;   /* excluído por alguém, e ninguém mexeu depois */
         var novo = normalizeProject(r);
         locais.push(novo);
         porId[novo.id] = novo;
@@ -642,6 +752,8 @@
       res.atualizados += um.atualizados;
       res.removidos += um.removidos;
     });
+
+    gravarLapidesProjeto(Object.keys(tumbas).map(function (k) { return tumbas[k]; }));
     return res;
   }
 
@@ -886,6 +998,9 @@
     reviver: reviver,
     marcoChave: marcoChave,
     tombstone: tombstone,
+    tombstoneProjeto: tombstoneProjeto,
+    lapidesProjeto: lapidesProjeto,
+    esquecerLapideProjeto: esquecerLapideProjeto,
     mergeLWW: mergeLWW,
     mergeListas: mergeListas,
     putHandle: putHandle,

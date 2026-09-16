@@ -152,6 +152,16 @@ isso, o item apagado por uma pessoa voltaria pela sincronização de quem ainda
 não soube. O carimbo é sempre **posterior à versão excluída**
 (`Store.depoisDe`), para não ressuscitar por relógio adiantado.
 
+**Toda exclusão precisa passar por aqui** — são três portas: `deleteNcr()`, o
+grupo *Excluídos pelo colega* de `applyMerge()` e o *Excluir este relatório*.
+As duas últimas já esqueceram a lápide uma vez, e o item voltava minutos depois.
+
+Relatório inteiro tem lápide própria (`Store.tombstoneProjeto`), guardada no
+`localStorage` — o relatório já não existe para guardá-la — e enviada no campo
+`relatoriosExcluidos` do arquivo da pasta. Vale enquanto ninguém editou um item
+dele depois do carimbo, a mesma regra da lápide de item. `Store.reviver` apaga
+a lápide do que restaura.
+
 ### Aba Resumo (`summary.js`)
 Gráficos em **SVG escrito à mão** — sem biblioteca, imprimem em vetor e
 funcionam de `file://`. Paleta validada para daltonismo. Filtros (tipo,
@@ -162,7 +172,22 @@ tabelas, **CSV e resumo em PDF** — e o PDF filtrado diz qual foi o recorte. O
 ## 6. Armadilhas já pagas — não repita
 
 - **`ERRORS: none` não é aprovação.** Um teste já reportou isso enquanto
-  capturava páginas em branco. Confira o artefato.
+  capturava páginas em branco. Confira o artefato. Pior: metade das suítes
+  (`test.py`, `test2`–`test12`, `test18`) **não tem nenhuma asserção** — só
+  imprime valores. Sair com código 0 ali não quer dizer nada. Ao mexer nessas
+  áreas, confira os números impressos, ou transforme-os em `assert`.
+- **A mesclagem não pode ficar aplicada pela metade.** `Store.mergeListas`
+  altera `state.projects` **no lugar**. Se a gravação na pasta falhar depois
+  disso, o resultado ainda precisa ser salvo aqui e redesenhado — é o que
+  `sincronizar()` faz no `catch` via `adotar()`. Sem isso a tela mostra um
+  texto que já não é o do programa e a tecla seguinte o grava por cima do que
+  o colega escreveu.
+- **Nada sai do computador, e isso se verifica.** `Store.normalizeImage` só
+  aceita `data:` e `blob:` em `src`, e há uma CSP no `index.html`. Um `.json`
+  recebido com `src` apontando para a rede faria o navegador buscá-lo — um
+  aviso de leitura dentro de material de programa.
+- **CSV é entrada de programa, não só texto.** Campo que comece por
+  `= + - @` sai com apóstrofo à frente (`csvCampo`); aspas não protegem.
 - **`[hidden]` perde para `display: flex`.** Existe um
   `[hidden] { display: none !important }` global no `app.css`. Não remova.
 - **Não redesenhe o formulário durante a digitação** — perde o cursor.
@@ -180,7 +205,7 @@ tabelas, **CSV e resumo em PDF** — e o PDF filtrado diz qual foi o recorte. O
 
 ## 7. Como testar
 
-`tests/README.md` tem o passo a passo. Em resumo: 24 suítes Playwright que
+`tests/README.md` tem o passo a passo. Em resumo: 30 suítes Playwright que
 abrem a aplicação de verdade, fazem o caminho do usuário e conferem o
 resultado, **inclusive o PDF gerado**. Rode a suíte inteira antes de publicar —
 já houve mais de uma vez em que uma mudança de interface quebrou um teste de
@@ -224,3 +249,5 @@ desta máquina às vezes bloqueia `github.io`.
 | Histórico dentro da pasta | o navegador só libera a pasta escolhida |
 | Situação interna separada do Arch Status | um é do documento, o outro do acompanhamento |
 | Índice da capa fecha com o Arch Status | o SBR4 traz assim (o SBR3 não trazia) |
+| Empate de `editedAt` resolvido pela assinatura | `>` sozinho deixava as duas bases divergindo para sempre |
+| Reordenar também por botões ↑/↓ | arrastar sozinho exclui quem não consegue o gesto (WCAG 2.5.7) |

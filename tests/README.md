@@ -56,8 +56,14 @@ qualquer uma sozinha, em qualquer ordem, num diretório vazio.
 | `test22.py` | ordenação da lista refletida no PDF; arrastar volta ao manual |
 | `test23.py` | filtros do Resumo, refletidos nos números, no CSV e no resumo em PDF |
 | `test24.py` | índice da capa fechando com o *Arch Status* |
+| `test25.py` | falha ao gravar na pasta não perde o texto do colega |
+| `test26.py` | exclusão aceita na mesclagem deixa lápide e não volta |
+| `test27.py` | exclusão de relatório inteiro sobrevive e alcança os outros |
+| `test28.py` | nada sai do computador; CSV sem fórmula para o Excel |
+| `test29.py` | convergência no empate de carimbo; busca nos cinco blocos |
+| `test30.py` | acessibilidade WCAG 2.2 AA na tela carregada |
 
-Nos testes da pasta compartilhada (19, 20, 21) o seletor de pastas do Windows
+Nos testes da pasta compartilhada (19, 20, 21, 25, 26, 27) o seletor de pastas do Windows
 é substituído por um diretório OPFS — mesma interface
 `FileSystemDirectoryHandle` que a pasta de rede entrega, então o caminho
 exercitado é o de verdade.

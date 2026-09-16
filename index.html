@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Nada sai do computador: sem origem externa para script, estilo, imagem ou
+     conexão. Vale também para o arquivo único aberto de file://. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <title>Waiver Request — Gerador de Relatórios de Derrogação</title>
 <meta name="description" content="Editor de relatórios de derrogação de NCR com exportação em PDF no padrão Waiver Request.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%234B0082'/><text y='72' x='50' text-anchor='middle' font-size='60' fill='white' font-family='Arial'>W</text></svg>">
@@ -91,13 +94,13 @@
   </div>
 
   <div class="topbar-status">
-    <span id="saveState" data-state="saved">salvo no navegador</span>
+    <span id="saveState" data-state="saved" role="status" aria-live="polite" aria-atomic="true">salvo no navegador</span>
     <span id="editedBy" class="edited-by"></span>
   </div>
   </div>
 </header>
 
-<div class="notice" id="backupNotice" hidden>
+<div class="notice" id="backupNotice" role="status" aria-live="polite" hidden>
   <span id="backupNoticeText"></span>
   <button class="btn btn--sm btn--accent" id="backupNoticeBtn">★ Fazer backup total agora</button>
   <button class="btn btn--sm btn--quiet" id="backupNoticeDismiss">Depois</button>
@@ -108,13 +111,16 @@
 
   <aside class="sidebar">
     <div class="tabs" role="tablist" aria-label="Tipo de derrogação">
-      <button class="tab" role="tab" data-kind="ncr" aria-selected="true">
+      <button class="tab" role="tab" id="tabNcr" data-kind="ncr"
+              aria-selected="true" aria-controls="editorScroll" tabindex="0">
         NCR <span class="tab-count">0</span>
       </button>
-      <button class="tab" role="tab" data-kind="dev" aria-selected="false">
+      <button class="tab" role="tab" id="tabDev" data-kind="dev"
+              aria-selected="false" aria-controls="editorScroll" tabindex="-1">
         DEV <span class="tab-count">0</span>
       </button>
-      <button class="tab tab--wide" role="tab" data-kind="resumo" aria-selected="false">
+      <button class="tab tab--wide" role="tab" id="tabResumo" data-kind="resumo"
+              aria-selected="false" aria-controls="summaryScroll" tabindex="-1">
         Resumo
       </button>
     </div>
@@ -129,7 +135,8 @@
           <button class="btn btn--sm btn--danger" id="delNcrBtn" title="Excluir a NCR selecionada">Excluir</button>
         </div>
       </div>
-      <input type="search" id="ncrFilter" placeholder="Filtrar por número, sistema ou função…">
+      <input type="search" id="ncrFilter" aria-label="Filtrar a lista por número, sistema ou função"
+             placeholder="Filtrar por número, sistema ou função…">
       <div class="ordem-row">
         <label for="ordemSelect">Ordem</label>
         <select id="ordemSelect"></select>
@@ -164,8 +171,10 @@
   </aside>
 
   <main class="editor">
-    <div class="editor-scroll" id="editorScroll"></div>
-    <div class="editor-scroll summary-scroll" id="summaryScroll" hidden></div>
+    <div class="editor-scroll" id="editorScroll" role="tabpanel"
+         aria-labelledby="tabNcr" tabindex="0"></div>
+    <div class="editor-scroll summary-scroll" id="summaryScroll" role="tabpanel"
+         aria-labelledby="tabResumo" tabindex="0" hidden></div>
   </main>
 
 </div>
@@ -354,7 +363,7 @@
   </div>
 </dialog>
 
-<div class="toast" id="toast" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <!-- conteúdo montado apenas para impressão -->
 <div class="print-root" id="printRoot"></div>
