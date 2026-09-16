@@ -53,8 +53,12 @@ def embutir(doc: str) -> str:
     doc = re.sub(r'<script src="([^"?]+)[^"]*"></script>', js, doc)
 
     # O arquivo único é um arquivo só: não há manifesto nem service worker
-    # para acompanhar, e de file:// o navegador nem tentaria.
+    # para acompanhar, e de file:// o navegador nem tentaria. Sai também a
+    # diretiva da CSP que só existia para o manifesto — sem manifesto ela é
+    # permissão dada a ninguém, e a CSP do arquivo único fica mais apertada
+    # do que a da página.
     doc = re.sub(r'\s*<link rel="manifest"[^>]*>', "", doc)
+    doc = doc.replace(" manifest-src 'self';", "")
 
     if faltando:
         raise SystemExit("Arquivos não encontrados: " + ", ".join(faltando))

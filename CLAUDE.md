@@ -365,6 +365,15 @@ permissão da pasta entre sessões.
   aviso de leitura dentro de material de programa.
 - **CSV é entrada de programa, não só texto.** Campo que comece por
   `= + - @` sai com apóstrofo à frente (`csvCampo`); aspas não protegem.
+- **A CSP tem `connect-src 'none'`, e isso alcança os testes.** O programa
+  nunca chama `fetch`, então nada deve poder chamar — nem um `.json` recebido.
+  Teste que queira conferir um arquivo servido não usa `fetch()` de dentro da
+  página: usa `ctx.request.get` (de fora) ou `Page.getAppManifest` pelo CDP,
+  que é o que o navegador faz de verdade. A `test29.py` já caiu por isso.
+- **`manifest-src 'self'` não é enfeite.** Sem essa diretiva o Chrome não lê o
+  `manifest.webmanifest` (conferido: `Page.getAppManifest` volta sem dados) e o
+  Edge deixa de oferecer "instalar" — sem erro nenhum no console. No arquivo
+  único ela sai, porque lá não há manifesto para autorizar.
 - **`[hidden]` perde para `display: flex`.** Existe um
   `[hidden] { display: none !important }` global no `app.css`. Não remova.
 - **Não redesenhe o formulário durante a digitação** — perde o cursor.

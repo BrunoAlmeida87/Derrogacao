@@ -405,6 +405,21 @@ O que mudou em cada achado:
 | E8 | parcial | **inalterado.** Onze suítes seguem sem asserção; as dez novas da `main` (25–34) têm |
 | E9 | corrigido aqui | **mantido e estendido** às duas abas novas (Fluxos, Conversa): id, `aria-controls`, `role="tabpanel"` e tabindex rotativo |
 
+A CSP custou duas correções que a junção revelou, ambas apanhadas pela
+`test29.py` da `main`:
+
+- `connect-src 'none'` barra `fetch()` **também para a mesma origem** — o
+  programa nunca chama `fetch`, mas a `test29.py` chamava, para conferir o
+  manifesto. Em vez de abrir a diretiva por causa do teste (seria dar ao código
+  uma permissão que ele não usa), o teste passou a perguntar ao navegador, por
+  `Page.getAppManifest`, se ele **leu** o manifesto — que é o que o Edge faz
+  para oferecer "instalar", e portanto uma conferência mais próxima do que
+  interessa do que buscar o arquivo à mão.
+- `manifest-src 'self'` é necessário: sem ele o Chrome não lê o manifesto e
+  nada aparece no console (conferido nos dois sentidos). No arquivo único a
+  diretiva sai na geração — lá não há manifesto, e uma permissão sem
+  destinatário só afrouxa a CSP.
+
 Duas coisas que a `main` trouxe e que atacam achados desta auditoria por conta
 própria:
 

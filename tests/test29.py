@@ -25,20 +25,26 @@ try:
         pg.goto(url); pg.wait_for_timeout(1500)
 
         # --- manifesto: e o que faz o Edge oferecer "instalar" ---
-        manif = pg.evaluate("""async () => {
-          const r = await fetch('manifest.webmanifest');
-          return await r.json();
-        }""")
+        # Nao se busca com fetch() de dentro da pagina: a CSP tem
+        # connect-src 'none' (o programa nunca chama fetch, e nada deve poder
+        # chamar). O que interessa aqui e outra coisa, e mais proxima do que o
+        # Edge faz: se o NAVEGADOR leu o manifesto. Quem responde isso e o
+        # proprio Chrome, por Page.getAppManifest.
+        cdp = ctx.new_cdp_session(pg)
+        lido = cdp.send("Page.getAppManifest")
+        print("manifesto lido pelo navegador:", lido.get("url", "").split("/")[-1],
+              "| erros:", lido.get("errors") or "nenhum")
+        assert lido.get("data"), "o navegador nao leu o manifesto (CSP? caminho?)"
+        assert not lido.get("errors"), lido.get("errors")
+        manif = json.loads(lido["data"])
         print("manifesto:", manif["name"], "| icones:", [i["sizes"] for i in manif["icons"]])
         assert manif["display"] == "standalone"
         assert any(i["sizes"] == "512x512" for i in manif["icons"]), "o Edge exige um icone grande"
         for icone in manif["icons"]:
-            ok = pg.evaluate("""async (src) => {
-              const r = await fetch(src);
-              return [r.ok, r.headers.get('content-type')];
-            }""", icone["src"])
-            print("  ", icone["src"], ok)
-            assert ok[0], "icone do manifesto tem de existir"
+            # servido pelo mesmo servidor, conferido de fora da pagina
+            r = ctx.request.get(f"http://127.0.0.1:{PORTA}/" + icone["src"].lstrip("/"))
+            print("  ", icone["src"], [r.ok, r.headers.get("content-type")])
+            assert r.ok, "icone do manifesto tem de existir"
 
         # --- service worker registrado ---
         pg.wait_for_function("() => navigator.serviceWorker.controller !== null", timeout=15000)
