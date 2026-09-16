@@ -800,6 +800,7 @@
 
   global.SummaryView = {
     render: render,
+    csvCampo: csvCampo,
     blocoParados: blocoParados,
     blocoLista: blocoLista,
     colunasParados: colunasParados,

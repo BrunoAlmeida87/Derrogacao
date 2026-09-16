@@ -25,8 +25,11 @@
   var isResumo = function () { return state.kind === 'resumo'; };
   var isFluxos = function () { return state.kind === 'fluxos'; };
   var isConversa = function () { return state.kind === 'conversa'; };
+  var isTabela = function () { return state.kind === 'tabela'; };
   /* Abas que tomam a tela inteira: não têm lista lateral nem formulário. */
-  var telaCheia = function () { return isResumo() || isFluxos() || isConversa(); };
+  var telaCheia = function () {
+    return isResumo() || isFluxos() || isConversa() || isTabela();
+  };
   /** Lista de itens da aba ativa — o vetor de verdade, para alterar. */
   var items = function () {
     if (!state.project || telaCheia()) return [];
@@ -148,6 +151,7 @@
       renderBackupNotice();
       if (isResumo()) renderSummary();
       if (isFluxos()) renderFluxos(true);
+      if (isTabela()) renderTabela(true);
     }).catch(markError);
   }
 
@@ -247,6 +251,7 @@
     renderBackupNotice();
     if (isResumo()) renderSummary();
     if (isFluxos()) renderFluxos();
+    if (isTabela()) renderTabela();
     if (isConversa()) renderCanais();
     markSaved();
   }
@@ -276,11 +281,13 @@
     $('#sidebarBody').hidden = telaCheia();
     $('#sidebarResumo').hidden = !isResumo();
     $('#sidebarFluxos').hidden = !isFluxos();
+    $('#sidebarTabela').hidden = !isTabela();
     $('#sidebarConversa').hidden = !isConversa();
     $('#editorScroll').hidden = telaCheia();
     $('#editorScroll').setAttribute('aria-labelledby', isDev() ? 'tabDev' : 'tabNcr');
     $('#summaryScroll').hidden = !isResumo();
     $('#fluxosScroll').hidden = !isFluxos();
+    $('#tabelaScroll').hidden = !isTabela();
     $('#conversaScroll').hidden = !isConversa();
     $('#previewBtn').hidden = telaCheia();
     renderAoLado();     /* o item ao lado só existe onde há editor ao lado dele */
@@ -306,6 +313,7 @@
     renderTabs();
     if (isResumo()) { renderSummary(); return; }
     if (isFluxos()) { renderFluxos(); return; }
+    if (isTabela()) { renderTabela(); return; }
     if (isConversa()) { abrirCanal(canalAberto); return; }
     renderNcrList();
     renderEditor();
@@ -319,7 +327,10 @@
   var summaryFilter = '';
   var summaryFiltros = {};
   /* aba Fluxos: recorte do que está à vista */
-  var fluxosFiltro = { busca: '', soComFluxo: false };
+  var fluxosFiltro = {
+    busca: '', soComFluxo: false, marcos: [], tipo: '',
+    vista: 'lista', escopo: 'projeto'
+  };
 
   function renderSummary(semRolar) {
     SummaryView.render($('#summaryScroll'), state.projects, summaryFilter, {
@@ -479,13 +490,27 @@
   /* aba Fluxos — o caminho de cada item, tudo junto                        */
   /* ---------------------------------------------------------------------- */
 
-  /** Uma linha por item, na ordem do PDF, com o fluxo já analisado. */
+  /**
+   * Uma linha por item, na ordem do PDF, com o fluxo já analisado.
+   *
+   * O escopo escolhido decide de onde vêm os itens: só o relatório aberto
+   * (o de sempre) ou todos os marcos deste navegador — no mapa, ver o
+   * caminho de um marco só responde metade da pergunta.
+   */
   function linhasDeFluxo() {
     var out = [];
-    if (!state.project) return out;
-    ['ncr', 'dev'].forEach(function (kind) {
-      Store.ordenar(state.project, kind).forEach(function (item) {
-        out.push({ kind: kind, item: item, fluxo: Fluxo.analisar(item.historic) });
+    var alvos = fluxosFiltro.escopo === 'todos'
+      ? state.projects
+      : (state.project ? [state.project] : []);
+    alvos.forEach(function (p) {
+      ['ncr', 'dev'].forEach(function (kind) {
+        var marco = Report.marcoOf(p, kind) || p.name || 'sem marco';
+        Store.ordenar(p, kind).forEach(function (item) {
+          out.push({
+            projeto: p, projetoId: p.id, marco: marco,
+            kind: kind, item: item, fluxo: Fluxo.analisar(item.historic)
+          });
+        });
       });
     });
     return out;
@@ -493,10 +518,81 @@
 
   function passaNoFiltroDeFluxo(r) {
     if (fluxosFiltro.soComFluxo && r.fluxo.vazio) return false;
+    if (fluxosFiltro.tipo && r.kind !== fluxosFiltro.tipo) return false;
+    /* marco marcado: só passa quem tem aquele card no próprio fluxo. É o que
+       responde "o que veio do J04?" sem ler item por item. */
+    if (!Fluxo.passaPor(r.fluxo, fluxosFiltro.marcos)) return false;
     var t = (fluxosFiltro.busca || '').trim().toLowerCase();
     if (!t) return true;
     var palheiro = (Store.textoBusca(r.item) + ' ' + Fluxo.caminhoTexto(r.fluxo)).toLowerCase();
     return palheiro.indexOf(t) >= 0;
+  }
+
+  /* As três leituras da mesma coisa. A lista responde "por onde passou esta
+     NCR"; o mapa e a matriz respondem "por onde passou o trabalho deste
+     marco", que é outra pergunta e não se enxerga em trinta desenhos
+     separados. */
+  var VISTAS = [
+    { id: 'lista', nome: 'Lista', ajuda: 'Um fluxo por item, na ordem do PDF.' },
+    { id: 'mapa', nome: 'Mapa do marco', ajuda: 'Todos os fluxos somados num desenho só: a seta engorda com o número de itens que passam por ela.' },
+    { id: 'matriz', nome: 'Matriz de/para', ajuda: 'Uma linha por seta escrita, da mais usada para a menos.' }
+  ];
+
+  function vistaAtual() {
+    var v = fluxosFiltro.vista || 'lista';
+    return VISTAS.filter(function (x) { return x.id === v; })[0] || VISTAS[0];
+  }
+
+  function fluxosDe(linhas) {
+    return linhas.map(function (r) { return r.fluxo; });
+  }
+
+  /** O mapa: os fluxos dos itens à vista somados num desenho só. */
+  function blocoMapaDeFluxo(linhas, paraImpressao) {
+    var ag = Fluxo.agregado(fluxosDe(linhas));
+    var bloco = SummaryView.bloco('Mapa do marco',
+      ag.vazio
+        ? 'Nenhum dos itens à vista tem waiver anterior escrito.'
+        : ag.itens + ' item(ns) com fluxo, somados. A espessura da seta e o ' +
+          'número ao lado dizem quantos itens passam por ali.');
+    if (paraImpressao) bloco.setAttribute('data-fluido', '');
+    if (ag.vazio) return bloco;
+
+    var palco = el('div', 'fx-palco');
+    palco.appendChild(Fluxo.svg(ag, {
+      pesos: true,
+      destaque: marcoDesteRelatorio()
+    }));
+    bloco.appendChild(palco);
+    return bloco;
+  }
+
+  /** Quantos marcos cada item já atravessou — o waiver que vem se arrastando. */
+  function blocoSaltos(linhas, paraImpressao) {
+    var s = Fluxo.saltos(fluxosDe(linhas));
+    var bloco = SummaryView.bloco('Quantos marcos cada item atravessou',
+      'Um item em quatro colunas é um waiver renovado três vezes. ' +
+      s.comFluxo + ' item(ns) com fluxo escrito.');
+    if (paraImpressao) bloco.setAttribute('data-fluido', '');
+    bloco.appendChild(Summary.barras(s.linhas, { vazio: 'Nenhum fluxo escrito ainda.' }));
+    return bloco;
+  }
+
+  /** A matriz de/para: uma linha por seta, da mais usada para a menos. */
+  function blocoMatriz(linhas) {
+    var m = Fluxo.matriz(fluxosDe(linhas));
+    return SummaryView.blocoLista('Matriz de/para',
+      'Cada linha é uma seta escrita no Waiver Historic dos ' + m.itens +
+      ' item(ns) com fluxo à vista.',
+      [
+        { titulo: 'De', larg: 26, valor: function (r) { return r.de; } },
+        { titulo: 'Para', larg: 26, valor: function (r) { return r.para; } },
+        { titulo: 'Itens', larg: 14, num: true, valor: function (r) { return r.peso; } },
+        { titulo: 'Dos itens com fluxo', larg: 30, num: true, valor: function (r) {
+          return m.itens ? Math.round((r.peso / m.itens) * 100) + '%' : '—';
+        } }
+      ],
+      m.linhas, 'Nenhuma seta escrita nos itens à vista.');
   }
 
   function renderFluxos(semRolar) {
@@ -508,6 +604,8 @@
     var todas = linhasDeFluxo();
     var linhas = todas.filter(passaNoFiltroDeFluxo);
     var comFluxo = todas.filter(function (r) { return !r.fluxo.vazio; }).length;
+    var marcosDisponiveis = Fluxo.marcosCitados(fluxosDe(todas));
+    var vista = vistaAtual();
     /* um índice por categoria, montado uma vez: a lista pergunta por cada
        card de cada item, e remontar a procura a cada pergunta seria refazer
        o mesmo trabalho dezenas de vezes */
@@ -516,9 +614,11 @@
     /* --- barra: o que está à vista e como exportar --- */
     var barra = el('div', 'sm-bar');
     var info = el('div', 'fx-info');
-    info.appendChild(el('strong', null, Report.marcoOf(state.project, 'ncr') || state.project.name || 'sem marco'));
+    info.appendChild(el('strong', null, fluxosFiltro.escopo === 'todos'
+      ? 'Todos os marcos deste navegador'
+      : (Report.marcoOf(state.project, 'ncr') || state.project.name || 'sem marco')));
     info.appendChild(el('span', null, comFluxo + ' de ' + todas.length +
-      ' item(ns) com waivers anteriores escritos.'));
+      ' item(ns) com waivers anteriores escritos · ' + linhas.length + ' no recorte.'));
     /* preenchido no fim, quando os cards já estão na tela e dá para contar
        quantos acharam o mesmo item em outro relatório */
     var achou = el('span', 'fx-achou');
@@ -526,12 +626,49 @@
     barra.appendChild(info);
 
     var acoes = el('div', 'sm-bar-actions');
-    var bpdf = el('button', 'btn btn--sm btn--primary', 'Fluxos em PDF');
+    var bpdf = el('button', 'btn btn--sm btn--primary', 'Esta vista em PDF');
     bpdf.type = 'button';
+    bpdf.title = 'Gera em A4 exatamente o que está na tela: ' + vista.nome.toLowerCase() +
+      ', com o recorte aplicado.';
     bpdf.addEventListener('click', function () { exportarFluxosPdf(); });
     acoes.appendChild(bpdf);
     barra.appendChild(acoes);
     host.appendChild(barra);
+
+    /* --- escolha da vista --- */
+    var vistas = el('div', 'fx-vistas');
+    vistas.setAttribute('role', 'tablist');
+    vistas.setAttribute('aria-label', 'Como ver os fluxos');
+    VISTAS.forEach(function (v) {
+      var b = el('button', 'fx-vista' + (v.id === vista.id ? ' is-on' : ''), v.nome);
+      b.type = 'button';
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', v.id === vista.id ? 'true' : 'false');
+      b.title = v.ajuda;
+      b.addEventListener('click', function () {
+        fluxosFiltro.vista = v.id;
+        renderFluxos(true);
+      });
+      vistas.appendChild(b);
+    });
+    vistas.appendChild(el('span', 'fx-vista-ajuda', vista.ajuda));
+    host.appendChild(vistas);
+
+    /* De onde vêm os itens. O mapa de um marco só responde "por onde passou
+       este marco"; com todos, responde "por onde passa o programa". */
+    var escopo = el('div', 'fx-vistas fx-vistas--escopo');
+    escopo.appendChild(el('span', 'fx-marcos-rot', 'Itens de:'));
+    [['projeto', 'este relatório'], ['todos', 'todos os marcos']].forEach(function (o) {
+      var b = el('button', 'fx-vista' + (fluxosFiltro.escopo === o[0] ? ' is-on' : ''), o[1]);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', fluxosFiltro.escopo === o[0] ? 'true' : 'false');
+      b.addEventListener('click', function () {
+        fluxosFiltro.escopo = o[0];
+        renderFluxos(true);
+      });
+      escopo.appendChild(b);
+    });
+    host.appendChild(escopo);
 
     /* --- filtros --- */
     var fb = el('div', 'sm-filtros');
@@ -540,6 +677,9 @@
     var inp = document.createElement('input');
     inp.type = 'search';
     inp.value = fluxosFiltro.busca;
+    inp.setAttribute('aria-label', fluxosFiltro.escopo === 'todos'
+      ? 'Buscar nos itens de todos os marcos'
+      : 'Buscar nos itens deste relatório');
     inp.placeholder = 'número, função ou marco do fluxo…';
     inp.addEventListener('input', function () {
       fluxosFiltro.busca = inp.value;
@@ -549,6 +689,23 @@
     });
     busca.appendChild(inp);
     fb.appendChild(busca);
+
+    var tipo = el('div', 'sm-bar-field sm-bar-field--curto');
+    tipo.appendChild(el('label', null, 'Tipo'));
+    var selTipo = document.createElement('select');
+    selTipo.setAttribute('aria-label', 'Tipo de item');
+    [['', 'NCR e DEV'], ['ncr', 'só NCR'], ['dev', 'só DEV']].forEach(function (o) {
+      var op = document.createElement('option');
+      op.value = o[0]; op.textContent = o[1];
+      selTipo.appendChild(op);
+    });
+    selTipo.value = fluxosFiltro.tipo || '';
+    selTipo.addEventListener('change', function () {
+      fluxosFiltro.tipo = selTipo.value;
+      renderFluxos(true);
+    });
+    tipo.appendChild(selTipo);
+    fb.appendChild(tipo);
 
     var so = el('label', 'fx-check');
     var cb = document.createElement('input');
@@ -563,26 +720,68 @@
     fb.appendChild(so);
     host.appendChild(fb);
 
-    /* --- um bloco por categoria --- */
-    ['ncr', 'dev'].forEach(function (kind) {
-      var minhas = linhas.filter(function (r) { return r.kind === kind; });
-      var nome = kind === 'dev' ? 'DEV' : 'NCR';
-      var total = todas.filter(function (r) { return r.kind === kind; }).length;
-      if (!total) return;
-      var bloco = SummaryView.bloco(nome + 's', minhas.length + ' de ' + total +
-        ' item(ns), na mesma ordem do PDF.');
-      if (!minhas.length) {
-        bloco.appendChild(el('p', 'hint', 'Nada aqui com este recorte.'));
+    /* --- filtro por marco: os marcos que os próprios textos citam --------- */
+    if (marcosDisponiveis.length) {
+      var chips = el('div', 'fx-marcos');
+      chips.appendChild(el('span', 'fx-marcos-rot', 'Passa por:'));
+      marcosDisponiveis.forEach(function (m) {
+        var ligado = fluxosFiltro.marcos.indexOf(m.chave) >= 0;
+        var b = el('button', 'fx-chip' + (ligado ? ' is-on' : ''), m.rotulo);
+        b.type = 'button';
+        b.appendChild(el('span', 'fx-chip-n', String(m.n)));
+        b.setAttribute('aria-pressed', ligado ? 'true' : 'false');
+        b.title = (ligado ? 'Tirar ' : 'Mostrar só ') + 'os itens cujo fluxo passa por ' +
+          m.rotulo + ' (' + m.n + ' item(ns)).';
+        b.addEventListener('click', function () {
+          fluxosFiltro.marcos = ligado
+            ? fluxosFiltro.marcos.filter(function (c) { return c !== m.chave; })
+            : fluxosFiltro.marcos.concat([m.chave]);
+          renderFluxos(true);
+        });
+        chips.appendChild(b);
+      });
+      if (fluxosFiltro.marcos.length) {
+        var limpa = el('button', 'btn btn--sm', 'todos os marcos');
+        limpa.type = 'button';
+        limpa.addEventListener('click', function () {
+          fluxosFiltro.marcos = [];
+          renderFluxos(true);
+        });
+        chips.appendChild(limpa);
       }
-      minhas.forEach(function (r) { bloco.appendChild(linhaDeFluxo(r, false, idxs)); });
-      host.appendChild(bloco);
-    });
+      host.appendChild(chips);
+    }
+
+    /* --- o conteúdo da vista escolhida --- */
+    if (vista.id === 'mapa') {
+      host.appendChild(blocoMapaDeFluxo(linhas));
+      host.appendChild(blocoSaltos(linhas));
+    } else if (vista.id === 'matriz') {
+      host.appendChild(blocoMatriz(linhas));
+    } else {
+      /* --- um bloco por categoria --- */
+      ['ncr', 'dev'].forEach(function (kind) {
+        var minhas = linhas.filter(function (r) { return r.kind === kind; });
+        var nome = kind === 'dev' ? 'DEV' : 'NCR';
+        var total = todas.filter(function (r) { return r.kind === kind; }).length;
+        if (!total) return;
+        var bloco = SummaryView.bloco(nome + 's', minhas.length + ' de ' + total +
+          ' item(ns), na mesma ordem do PDF.');
+        if (!minhas.length) {
+          bloco.appendChild(el('p', 'hint', 'Nada aqui com este recorte.'));
+        }
+        minhas.forEach(function (r) { bloco.appendChild(linhaDeFluxo(r, false, idxs)); });
+        host.appendChild(bloco);
+      });
+    }
 
     var marcados = $$('.fx-card.is-achado', host).length;
     achou.textContent = marcados
       ? marcados + ' card(s) com ponto: o mesmo item está no relatório daquele ' +
         'marco, aqui no navegador. Passe o mouse para ler o Arch Answer de lá.'
-      : 'Nenhum card com resposta de outro marco neste navegador.';
+      : (vista.id === 'lista'
+        ? 'Nenhum card com resposta de outro marco neste navegador.'
+        : '');
 
     if (!semRolar) host.scrollTop = 0; else host.scrollTop = antes;
   }
@@ -600,6 +799,12 @@
       a.title = 'Abrir este item';
       a.addEventListener('click', function (e) {
         e.preventDefault();
+        /* com o escopo em "todos os marcos", o item pode estar em outro
+           relatório: abrir sem trocar de relatório mostraria o item errado */
+        if (r.projetoId && state.project && r.projetoId !== state.project.id) {
+          abrirDaTabela(r);
+          return;
+        }
         state.kind = r.kind;
         renderTabs();
         renderNcrList();
@@ -609,8 +814,11 @@
       num.appendChild(a);
     }
     id.appendChild(num);
-    var sub = (r.kind === 'dev' ? [r.item.func] : [r.item.systems, r.item.func])
-      .filter(Boolean).join(' | ');
+    var partes = (r.kind === 'dev' ? [r.item.func] : [r.item.systems, r.item.func]);
+    /* fora do relatório aberto, o número sozinho não identifica: a NCR-001 do
+       J06 e a do J08 são itens diferentes */
+    if (fluxosFiltro.escopo === 'todos' && r.marco) partes.unshift(r.marco);
+    var sub = partes.filter(Boolean).join(' | ');
     id.appendChild(el('div', 'fx-linha-sub', sub || '—'));
     linha.appendChild(id);
 
@@ -637,19 +845,44 @@
     var medida = Report.abrirMedida(root);
     try {
       var pg = el('section', 'rep-page rep-page--summary');
-      var marco = Report.marcoOf(state.project, 'ncr') || state.project.name || '';
+      var marco = fluxosFiltro.escopo === 'todos'
+        ? 'todos os marcos'
+        : (Report.marcoOf(state.project, 'ncr') || state.project.name || '');
       pg.appendChild(el('div', 'rep-cover-title', 'Fluxo dos waivers — ' + marco));
       pg.appendChild(el('div', 'sm-print-date',
         'Gerado em ' + new Date().toLocaleDateString('pt-BR') +
         (Store.getUser() ? ' por ' + Store.getUser() : '')));
 
       var linhas = linhasDeFluxo().filter(passaNoFiltroDeFluxo);
-      var lista = el('div', 'fx-lista');
-      lista.setAttribute('data-fluido', '');
-      lista.setAttribute('data-lista', '');
-      linhas.forEach(function (r) { lista.appendChild(linhaDeFluxo(r, true)); });
-      if (!linhas.length) lista.appendChild(el('p', null, 'Nenhum item neste recorte.'));
-      pg.appendChild(lista);
+      var vista = vistaAtual();
+
+      /* o recorte tem de estar escrito na folha: fluxo filtrado que não diz
+         que está filtrado é lido como se fosse o marco inteiro */
+      var ditos = [];
+      if (fluxosFiltro.tipo) ditos.push('tipo: ' + (fluxosFiltro.tipo === 'dev' ? 'DEV' : 'NCR'));
+      if (fluxosFiltro.marcos.length) ditos.push('passa por: ' + fluxosFiltro.marcos.join(', '));
+      if (fluxosFiltro.soComFluxo) ditos.push('só quem tem fluxo');
+      if (fluxosFiltro.busca) ditos.push('texto: \u201c' + fluxosFiltro.busca + '\u201d');
+      if (ditos.length) {
+        var av = el('div', 'sm-print-filtro',
+          'Recorte: ' + ditos.join(' \u00b7 ') + ' \u2014 ' + linhas.length + ' item(ns).');
+        av.setAttribute('data-fluido', '');
+        pg.appendChild(av);
+      }
+
+      if (vista.id === 'mapa') {
+        pg.appendChild(blocoMapaDeFluxo(linhas, true));
+        pg.appendChild(blocoSaltos(linhas, true));
+      } else if (vista.id === 'matriz') {
+        pg.appendChild(blocoMatriz(linhas));
+      } else {
+        var lista = el('div', 'fx-lista');
+        lista.setAttribute('data-fluido', '');
+        lista.setAttribute('data-lista', '');
+        linhas.forEach(function (r) { lista.appendChild(linhaDeFluxo(r, true)); });
+        if (!linhas.length) lista.appendChild(el('p', null, 'Nenhum item neste recorte.'));
+        pg.appendChild(lista);
+      }
       root.appendChild(pg);
 
       Report.paginar(pg, root, function () {
@@ -667,6 +900,169 @@
     setTimeout(function () {
       window.print();
       setTimeout(function () { document.title = titulo; }, 500);
+    }, 60);
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* aba Tabela — todos os itens, de todos os relatórios                     */
+  /* ---------------------------------------------------------------------- */
+
+  /* Colunas e ordenação vêm do navegador de quem está aqui (Tabela.lerEstado);
+     o filtro nasce vazio a cada abertura, de propósito — reabrir o programa
+     com uma busca velha aplicada esconde itens sem dizer por quê. */
+  var tabelaEstado = null;
+
+  function renderTabela(semRolar) {
+    var host = $('#tabelaScroll');
+    if (!tabelaEstado) tabelaEstado = Tabela.lerEstado();
+    var antes = host.scrollTop;
+    /* a busca redesenha a cada tecla: guarda onde estava o cursor */
+    var focado = document.activeElement;
+    var eraBusca = focado && focado.id === 'tabelaBusca';
+    var caret = eraBusca ? focado.selectionStart : 0;
+
+    Tabela.render(host, state.projects, tabelaEstado, {
+      onMudou: function () { renderTabela(true); },
+      abrir: abrirDaTabela,
+      onXlsx: exportarTabelaXlsx,
+      onCsv: exportarTabelaCsv,
+      onPdf: exportarTabelaPdf
+    });
+
+    if (eraBusca) {
+      var novo = $('#tabelaBusca');
+      if (novo) { novo.focus(); novo.setSelectionRange(caret, caret); }
+    }
+    host.scrollTop = semRolar ? antes : 0;
+  }
+
+  /**
+   * Clique numa linha: abre aquele item, mesmo que ele esteja em outro marco.
+   * Grava o que está na tela antes de sair — trocar de relatório redesenha
+   * tudo, e o que estivesse esperando os 500 ms da gravação se perderia.
+   */
+  function abrirDaTabela(r) {
+    var alvo = state.projects.filter(function (p) { return p.id === r.projetoId; })[0];
+    if (!alvo) { toast('Esse relatório não está mais neste navegador.'); return; }
+    function ir() {
+      state.kind = r.kind;
+      if (!state.project || alvo.id !== state.project.id) loadProject(alvo);
+      renderTabs();
+      renderNcrList();
+      selectNcr(r.item.id);
+      toast((r.item.ncrId || 'Item') + ' aberta no relatório ' + r.marco + '.');
+    }
+    flushSave().then(ir, ir);
+  }
+
+  function nomeDeArquivoDaTabela(ext) {
+    return 'Derrogacoes_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.' + ext;
+  }
+
+  /** As linhas do "recorte": o que estava filtrado quando o arquivo saiu. */
+  function recorteDaTabela(f, cols, quantos) {
+    var linhas = [
+      ['Gerado em', new Date().toLocaleString('pt-BR')],
+      ['Gerado por', Store.getUser() || '(sem nome)'],
+      ['Itens nesta planilha', quantos],
+      ['Recorte', Tabela.descricaoDoFiltro(f, state.projects) || 'sem filtro — todos os itens'],
+      ['Colunas', cols.map(function (c) { return c.titulo; }).join(' · ')],
+      ['Observação', 'A ordem desta planilha é a da tela. Ela não altera a ordem ' +
+        'dos itens no relatório nem no PDF.']
+    ];
+    return linhas;
+  }
+
+  /**
+   * A planilha do Excel. Vai com duas abas: os itens e o recorte que os
+   * produziu — planilha que anda pela empresa sem dizer de que filtro veio
+   * é planilha que alguém lê como se fosse o total.
+   */
+  function exportarTabelaXlsx(lista, cols, f) {
+    var planilha = {
+      nome: 'Derrogações',
+      colunas: cols.map(function (c) { return { titulo: c.titulo, larg: c.larg || 16 }; }),
+      linhas: Tabela.valores(lista, cols)
+    };
+    var recorte = {
+      nome: 'Recorte',
+      colunas: [{ titulo: 'Campo', larg: 24 }, { titulo: 'Valor', larg: 80 }],
+      linhas: recorteDaTabela(f, cols, lista.length),
+      filtros: false
+    };
+    try {
+      download(Xlsx.blob([planilha, recorte]), nomeDeArquivoDaTabela('xlsx'));
+      toast('Planilha salva em Downloads: ' + lista.length + ' item(ns).', 4000);
+    } catch (e) {
+      markError(e);
+      toast('Não foi possível gerar a planilha.');
+    }
+  }
+
+  function exportarTabelaCsv(lista, cols, f) {
+    var csv = Tabela.toCsv(lista, cols);
+    download(new Blob([csv], { type: 'text/csv;charset=utf-8' }), nomeDeArquivoDaTabela('csv'));
+    toast('CSV salvo em Downloads: ' + lista.length + ' item(ns).', 4000);
+  }
+
+  /** A mesma tabela em folhas A4, com a paginação do relatório. */
+  function exportarTabelaPdf(lista, cols, f) {
+    var root = $('#printRoot');
+    root.innerHTML = '';
+    var medida = Report.abrirMedida(root);
+    var titulo = 'Derrogações — todos os marcos';
+    /* com muita coluna, retrato parte toda palavra ao meio (medido: "MARCO"
+       saindo "MARC O"). A folha deitada é a mesma das páginas de anexo. */
+    var deitada = cols.length > 5 ? ' rep-page--landscape' : '';
+    try {
+      var pg = el('section', 'rep-page rep-page--summary' + deitada);
+      pg.appendChild(el('div', 'rep-cover-title', titulo));
+      var cab = el('div', 'sm-print-date',
+        'Gerado em ' + new Date().toLocaleDateString('pt-BR') +
+        (Store.getUser() ? ' por ' + Store.getUser() : '') +
+        ' · ' + lista.length + ' item(ns)');
+      cab.setAttribute('data-fluido', '');
+      pg.appendChild(cab);
+
+      var recorte = Tabela.descricaoDoFiltro(f, state.projects);
+      if (recorte) {
+        var av = el('div', 'sm-print-filtro', 'Recorte: ' + recorte + '.');
+        av.setAttribute('data-fluido', '');
+        pg.appendChild(av);
+      }
+
+      /* Larguras proporcionais ao que a coluna pede na planilha: sem isso,
+         "Arch Status" e "Tipo" saem com a mesma fatia da folha.
+         O rótulo entra na conta porque ele também tem de caber — uma coluna
+         estreita demais sai com "MARCO" partido em "MARC O" no cabeçalho. */
+      var peso = function (c) { return Math.max(c.larg || 16, c.titulo.length + 1); };
+      var soma = cols.reduce(function (a, c) { return a + peso(c); }, 0);
+      var colunas = cols.map(function (c) {
+        return {
+          titulo: c.titulo,
+          num: !!c.num,
+          larg: Math.max(6, Math.round((peso(c) / soma) * 100)),
+          valor: function (r) { var v = c.valor(r); return (v === '' || v == null) ? '—' : String(v); }
+        };
+      });
+      pg.appendChild(SummaryView.blocoLista('Itens', null, colunas, lista,
+        'Nenhum item neste recorte.'));
+      root.appendChild(pg);
+
+      Report.paginar(pg, root, function () {
+        var c = el('section', 'rep-page rep-page--summary rep-page--cont' + deitada);
+        c.appendChild(el('div', 'rep-cover-title', titulo + ' (cont.)'));
+        return c;
+      });
+    } finally {
+      Report.fecharMedida(medida);
+    }
+
+    var doc = document.title;
+    document.title = nomeDeArquivoDaTabela('pdf').replace(/\.pdf$/, '');
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.title = doc; }, 500);
     }, 60);
   }
 
@@ -3498,6 +3894,10 @@
   var versaoDesatualizada = false;
   var gravaTimer = null;
   var pollTimer = null;
+  /* um pedido de permissão de cada vez, e o aviso do alto some quando a
+     pessoa diz que não quer resolver isso agora */
+  var pedidoEmVoo = null;
+  var pastaNoticeFechado = false;
   var POLL_MS = 20000;
 
   /** Todas as imagens de todos os relatórios, com o item a que pertencem. */
@@ -3693,7 +4093,13 @@
         var resumo = { entraram: 0, atualizados: 0, removidos: 0, novosRelatorios: 0 };
         if (!r.dados) { mesclado = resumo; return gravarJuncao(resumo); }
 
-        if (typeof r.dados.caminho === 'string' && r.dados.caminho) pastaCaminho = r.dados.caminho;
+        if (typeof r.dados.caminho === 'string' && r.dados.caminho && r.dados.caminho !== pastaCaminho) {
+          /* a pasta diz onde ela é; guardar isso é o que faz a próxima
+             abertura já vir com o caminho certo, sem ninguém digitar */
+          pastaCaminho = r.dados.caminho;
+          Store.setDbFolder(pastaCaminho);
+          renderPastaNotice();
+        }
 
         /* Alguém gravou depois de mim: guarda o MEU estado antes de juntar.
            É o que garante poder recuperar um texto que a regra "vale quem
@@ -3788,6 +4194,7 @@
     renderUser();
     if (isResumo()) renderSummary();
     if (isFluxos()) renderFluxos(true);
+    if (isTabela()) renderTabela(true);
 
     if (!telaCheia()) {
       var agora = currentNcr();
@@ -3846,6 +4253,7 @@
     var chip = $('#pastaChip');
     var item = $('#pastaBtn');
     if (item) item.hidden = !Pasta.suportado();
+    renderPastaNotice();
     if (!chip) return;
     /* a etiqueta só existe quando há pasta: sem ela não há nada a mostrar */
     chip.hidden = !Pasta.suportado() || !Pasta.ligada();
@@ -3871,8 +4279,11 @@
 
   /** Liga (ou reata) a pasta e faz a primeira rodada. Vem sempre de um clique. */
   function conectarPasta(handleNovo) {
+    /* dois pedidos ao mesmo tempo abrem duas janelas de permissão: o clique
+       no aviso e o clique solto que arma o pedido chegam quase juntos */
+    if (pedidoEmVoo) return pedidoEmVoo;
     var passo = handleNovo ? Promise.resolve('granted') : Pasta.pedirPermissao();
-    return passo.then(function (perm) {
+    pedidoEmVoo = passo.then(function (perm) {
       if (perm !== 'granted') {
         pastaEstado = 'permissao';
         marcarPasta('permissao');
@@ -3891,6 +4302,82 @@
         }
         return r;
       });
+    });
+    var solta = function () { pedidoEmVoo = null; };
+    pedidoEmVoo.then(solta, solta);
+    return pedidoEmVoo;
+  }
+
+  /**
+   * O aviso de cima: onde fica o banco de dados e o que falta para ligá-lo.
+   *
+   * Existe porque a permissão da pasta é a única coisa que o navegador não
+   * deixa o programa resolver sozinho — e um aviso escondido no menu vira
+   * "o programa está vazio hoje".
+   */
+  function renderPastaNotice() {
+    var box = $('#pastaNotice');
+    if (!box) return;
+    var ligada = Pasta.ligada();
+    if (!Pasta.suportado() || pastaNoticeFechado || (ligada && pastaEstado === 'on')) {
+      box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+    var precisaPermissao = ligada && (pastaEstado === 'permissao' || pastaEstado === 'erro');
+    $('#pastaNoticeText').textContent = precisaPermissao
+      ? 'A pasta de dados já está escolhida neste navegador ("' + Pasta.nome() +
+        '"). O navegador precisa de um clique seu para liberar o acesso nesta sessão.'
+      : 'O banco de dados da equipe fica nesta pasta. Escolha-a uma vez: ' +
+        'daí em diante o programa reabre sozinho, sem perguntar o caminho de novo.';
+    $('#pastaNoticePath').textContent = precisaPermissao ? '' : (pastaCaminho || Store.CAMINHO_PADRAO);
+    $('#pastaNoticePath').hidden = precisaPermissao;
+    $('#pastaNoticeCopy').hidden = precisaPermissao;
+    $('#pastaNoticeBtn').textContent = precisaPermissao ? 'Permitir acesso' : 'Escolher a pasta…';
+  }
+
+  /**
+   * A permissão só pode ser pedida dentro de um gesto do usuário. Em vez de
+   * deixar o aviso esperando um clique no lugar certo, o primeiro clique em
+   * qualquer lugar serve — é o que faz a pasta voltar sozinha ao abrir.
+   *
+   * Vale por pouco tempo e uma vez só: passar do tempo é sinal de que a
+   * pessoa já está trabalhando, e aí a janela do navegador roubando o foco
+   * atrapalharia mais do que ajudaria. O aviso continua no alto.
+   */
+  var JANELA_PEDIDO = 120000;
+  function pedirPermissaoNoPrimeiroGesto() {
+    var ate = Date.now() + JANELA_PEDIDO;
+    function tentar() {
+      document.removeEventListener('click', tentar, true);
+      if (pastaEstado === 'on' || !Pasta.ligada()) return;
+      if (Date.now() > ate) return;
+      conectarPasta().then(function () {
+        if (pastaEstado === 'on') toast('Pasta de dados aberta. Sincronizando…', 3000);
+      });
+    }
+    document.addEventListener('click', tentar, true);
+  }
+
+  /**
+   * A janela do Windows. É o único caminho: nenhum navegador abre uma pasta
+   * por texto, nem com o caminho na mão — a escolha tem de ser da pessoa.
+   * O caminho combinado fica à vista (e copiável) para ela colar lá.
+   */
+  function escolherPasta() {
+    return Pasta.escolher().then(function () {
+      pastaEstado = 'on';
+      marcarPasta('on');
+      agendarPoll();
+      return sincronizar({});
+    }).then(function (r) {
+      if (r === null) return;
+      if ($('#pastaDialog').open) $('#pastaDialog').close();
+      toast('Pasta ligada: "' + Pasta.nome() + '". A partir de agora tudo vai e vem de lá.');
+    }).catch(function (e) {
+      if (e && e.name === 'AbortError') return;      /* desistiu na janela */
+      markError(e);
+      toast(e.message || 'Não foi possível abrir a pasta.');
     });
   }
 
@@ -4184,6 +4671,21 @@
     document.addEventListener('input', function () { ultimaTecla = Date.now(); }, true);
     document.addEventListener('keydown', function () { ultimaTecla = Date.now(); }, true);
 
+    $('#pastaNoticeBtn').addEventListener('click', function () {
+      if (Pasta.ligada() && pastaEstado !== 'on') { conectarPasta(); return; }
+      escolherPasta();
+    });
+    $('#pastaNoticeCopy').addEventListener('click', function () {
+      copiarTexto(pastaCaminho || Store.CAMINHO_PADRAO,
+        function () { toast('Caminho copiado. Cole na barra de endereço da janela do Windows.', 5000); },
+        function () { toast('Não foi possível copiar aqui. Selecione o texto e use Ctrl+C.'); });
+    });
+    $('#pastaNoticeDismiss').addEventListener('click', function () {
+      pastaNoticeFechado = true;
+      renderPastaNotice();
+      toast('Some por enquanto. A pasta continua em “⋯ Mais → Pasta da rede”.', 4500);
+    });
+
     $('#pastaBtn').addEventListener('click', abrirPastaDialog);
     $('#pastaChip').addEventListener('click', function () {
       if (pastaEstado !== 'on') { conectarPasta(); return; }
@@ -4197,25 +4699,24 @@
     });
     $('#pastaCaminhoInput').addEventListener('input', function () {
       pastaCaminho = this.value.trim();
-      Store.setFolder(pastaCaminho);
+      Store.setDbFolder(pastaCaminho);
+      renderPastaNotice();     /* o aviso do alto mostra este mesmo caminho */
       agendarGravacaoPasta();
     });
-    $('#pastaEscolherBtn').addEventListener('click', function () {
-      Pasta.escolher().then(function () {
-        pastaEstado = 'on';
-        marcarPasta('on');
-        agendarPoll();
-        return sincronizar({});
-      }).then(function (r) {
-        if (r === null) return;
-        $('#pastaDialog').close();
-        toast('Pasta ligada: "' + Pasta.nome() + '". A partir de agora tudo vai e vem de lá.');
-      }).catch(function (e) {
-        if (e && e.name === 'AbortError') return;      /* desistiu na janela */
-        markError(e);
-        toast(e.message || 'Não foi possível abrir a pasta.');
-      });
+    $('#pastaPadraoBtn').addEventListener('click', function () {
+      pastaCaminho = Store.CAMINHO_PADRAO;
+      Store.setDbFolder(pastaCaminho);
+      $('#pastaCaminhoInput').value = pastaCaminho;
+      renderPastaNotice();
+      agendarGravacaoPasta();
+      toast('Caminho de volta ao combinado pela equipe.');
     });
+    $('#pastaCaminhoCopiarBtn').addEventListener('click', function () {
+      copiarTexto(pastaCaminho || Store.CAMINHO_PADRAO,
+        function () { toast('Caminho copiado. Cole na barra de endereço da janela do Windows.', 5000); },
+        function () { toast('Não foi possível copiar aqui. Selecione o texto e use Ctrl+C.'); });
+    });
+    $('#pastaEscolherBtn').addEventListener('click', escolherPasta);
     $('#pastaDesligarBtn').addEventListener('click', function () {
       if (!confirm('Parar de usar a pasta como banco de dados?\n\n' +
         'Os relatórios continuam neste navegador. A pasta não é apagada.')) return;
@@ -4378,7 +4879,7 @@
    * deixamos o aviso na barra.
    */
   function iniciarPasta() {
-    pastaCaminho = Store.getFolder();
+    pastaCaminho = Store.getDbFolder();
     marcarPasta('off');
     if (!Pasta.suportado()) return Promise.resolve();
     return Pasta.retomar().then(function (h) {
@@ -4394,7 +4895,7 @@
         }
         pastaEstado = 'permissao';
         marcarPasta('permissao');
-        toast('Clique em “📁 permitir acesso”, na barra de cima, para abrir a pasta de dados.');
+        pedirPermissaoNoPrimeiroGesto();
       });
     }).catch(function (e) {
       console.warn('Pasta não pôde ser retomada:', e);

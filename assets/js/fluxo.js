@@ -140,7 +140,18 @@
 
     if (!res.nos.length) return res;
     res.vazio = false;
+    distribuirColunas(res);
+    return res;
+  }
 
+  /**
+   * Coloca os cards em colunas, da esquerda para a direita.
+   *
+   * Vale para um item e para o mapa do marco inteiro (agregado), que é por
+   * isso que a conta mora aqui e não dentro de `analisar`: são os mesmos nós
+   * e as mesmas setas, só que somados.
+   */
+  function distribuirColunas(res) {
     /* Coluna de cada card: uma a mais que a do card que aponta para ele. É o
        que faz "J04 To: J06" e "J06 To: J08" virarem J04 → J06 → J08 sozinhos,
        e faz dois marcos que vão para o mesmo lugar se juntarem numa seta só. */
@@ -176,6 +187,130 @@
       col.sort(function (a, b) { return (a.pos - b.pos) || (a.ordem - b.ordem); });
     });
     return res;
+  }
+
+  /* --- leituras do conjunto ---------------------------------------------- */
+
+  /**
+   * O mapa do marco: os fluxos de vários itens somados num desenho só.
+   *
+   * O fluxo de um item responde "por onde esta NCR passou". Com trinta itens
+   * na mão, a pergunta vira outra — "por onde passou o trabalho deste marco,
+   * e de onde vem o grosso dele" —, e trinta desenhos lado a lado não
+   * respondem isso. Aqui cada card e cada seta guardam **quantos itens**
+   * passam por ali (`peso`), e é o peso que o desenho engorda.
+   *
+   * `fluxos` é a lista de análises (uma por item). Cada item conta uma vez
+   * por card, mesmo que o escreva em duas linhas.
+   */
+  function agregado(fluxos) {
+    var res = { nos: [], arestas: [], colunas: [], linhas: [], avisos: [], vazio: true, itens: 0 };
+    var porChave = {};
+    var porSeta = {};
+
+    (fluxos || []).forEach(function (f) {
+      if (!f || f.vazio) return;
+      res.itens++;
+      f.nos.forEach(function (n) {
+        var no = porChave[n.chave];
+        if (!no) {
+          /* cópia: o nó da análise do item carrega nível e ordem daquele
+             desenho, e somar aqui por cima bagunçaria o desenho de lá */
+          no = porChave[n.chave] = {
+            chave: n.chave, rotulo: n.rotulo, num: n.num, nums: n.nums,
+            cer: n.cer, solto: n.solto, pos: n.pos, ordem: res.nos.length, peso: 0
+          };
+          res.nos.push(no);
+        }
+        no.peso++;
+      });
+      f.arestas.forEach(function (a) {
+        var k = a.de + ' ' + a.para;
+        if (!porSeta[k]) {
+          porSeta[k] = { de: a.de, para: a.para, peso: 0 };
+          res.arestas.push(porSeta[k]);
+        }
+        porSeta[k].peso++;
+      });
+    });
+
+    if (!res.nos.length) return res;
+    res.vazio = false;
+    distribuirColunas(res);
+    return res;
+  }
+
+  /** A matriz de/para: uma linha por seta, da mais usada para a menos. */
+  function matriz(fluxos) {
+    var ag = agregado(fluxos);
+    var linhas = ag.arestas.map(function (a) {
+      var de = ag.nos.filter(function (n) { return n.chave === a.de; })[0];
+      var para = ag.nos.filter(function (n) { return n.chave === a.para; })[0];
+      return {
+        de: de ? de.rotulo : a.de,
+        para: para ? para.rotulo : a.para,
+        peso: a.peso,
+        pos: de ? de.pos : 900
+      };
+    });
+    linhas.sort(function (a, b) {
+      return (b.peso - a.peso) || (a.pos - b.pos) || a.de.localeCompare(b.de);
+    });
+    return { linhas: linhas, itens: ag.itens, nos: ag.nos };
+  }
+
+  /**
+   * Quantos marcos cada item já atravessou.
+   *
+   * Um item com quatro colunas no fluxo é um waiver que já foi renovado três
+   * vezes — e isso, somado, diz de um relance quanta coisa está sendo
+   * arrastada de marco em marco em vez de resolvida.
+   */
+  function saltos(fluxos) {
+    var conta = {};
+    var maior = 0;
+    var comFluxo = 0;
+    (fluxos || []).forEach(function (f) {
+      if (!f || f.vazio) return;
+      comFluxo++;
+      var n = f.colunas.length;
+      if (n > maior) maior = n;
+      conta[n] = (conta[n] || 0) + 1;
+    });
+    var linhas = [];
+    for (var i = 1; i <= maior; i++) {
+      /* faixa que ninguém tem não vira barra vazia no gráfico */
+      if (!conta[i]) continue;
+      linhas.push({
+        marcos: i,
+        rotulo: i + (i === 1 ? ' marco' : ' marcos'),
+        valor: conta[i]
+      });
+    }
+    return { linhas: linhas, comFluxo: comFluxo };
+  }
+
+  /** Todos os marcos citados nos fluxos, para montar o filtro da aba. */
+  function marcosCitados(fluxos) {
+    var vistos = {};
+    var lista = [];
+    (fluxos || []).forEach(function (f) {
+      if (!f || f.vazio) return;
+      f.nos.forEach(function (n) {
+        if (vistos[n.chave]) { vistos[n.chave].n++; return; }
+        vistos[n.chave] = { chave: n.chave, rotulo: n.rotulo, pos: n.pos, n: 1 };
+        lista.push(vistos[n.chave]);
+      });
+    });
+    lista.sort(function (a, b) { return (a.pos - b.pos) || a.rotulo.localeCompare(b.rotulo); });
+    return lista;
+  }
+
+  /** O fluxo deste item passa por algum destes marcos? */
+  function passaPor(analise, chaves) {
+    if (!chaves || !chaves.length) return true;
+    if (!analise || analise.vazio) return false;
+    return analise.nos.some(function (n) { return chaves.indexOf(n.chave) >= 0; });
   }
 
   /** O caminho em texto: "J01 & J03 → J02 & J04 → J06". */
@@ -483,9 +618,16 @@
       return vazio;
     }
 
+    /* No mapa do marco cada card leva embaixo quantos itens passam por ele —
+       e essa linha precisa de altura própria, senão o número do card de baixo
+       encosta no de cima. */
+    var pesos = !!opts.pesos;
+    var pe = pesos ? 13 : 0;
+    var passo = altCard + pe + GAP_Y;
+
     var altura = 0;
     analise.colunas.forEach(function (col) {
-      var h = col.length * altCard + (col.length - 1) * GAP_Y;
+      var h = col.length * (altCard + pe) + (col.length - 1) * GAP_Y;
       if (h > altura) altura = h;
     });
     var largura = analise.colunas.length * largCard + (analise.colunas.length - 1) * gapX;
@@ -507,17 +649,24 @@
     /* posição de cada card, para as setas saberem onde começar e terminar */
     var onde = {};
     analise.colunas.forEach(function (col, ci) {
-      var hCol = col.length * altCard + (col.length - 1) * GAP_Y;
+      var hCol = col.length * (altCard + pe) + (col.length - 1) * GAP_Y;
       var y0 = BORDA + (altura - hCol) / 2;
       col.forEach(function (no, i) {
         onde[no.chave] = {
           x: BORDA + ci * (largCard + gapX),
-          y: y0 + i * (altCard + GAP_Y),
+          y: y0 + i * passo,
           w: largCard,
           h: altCard
         };
       });
     });
+
+    var maiorPeso = 1;
+    if (pesos) {
+      analise.arestas.forEach(function (a) {
+        if ((a.peso || 1) > maiorPeso) maiorPeso = a.peso || 1;
+      });
+    }
 
     /* setas primeiro, para ficarem por baixo dos cards */
     analise.arestas.forEach(function (a) {
@@ -529,13 +678,34 @@
       var d = (Math.abs(y1 - y2) < 0.5)
         ? 'M' + x1 + ' ' + y1 + ' L' + x2 + ' ' + y2
         : 'M' + x1 + ' ' + y1 + ' C' + meio + ' ' + y1 + ' ' + meio + ' ' + y2 + ' ' + x2 + ' ' + y2;
-      s.appendChild(sv('path', { d: d, class: 'fx-seta' }));
+      var seta = sv('path', { d: d, class: 'fx-seta' });
+      var grossura = 0;
+      if (pesos) {
+        /* a seta engorda com quantos itens passam por ela: o caminho principal
+           do marco tem de se ver antes de ler número nenhum */
+        grossura = 1.4 + 3.6 * ((a.peso || 1) / maiorPeso);
+        seta.setAttribute('stroke-width', grossura.toFixed(2));
+        var tp = sv('title', {});
+        tp.textContent = a.de + ' → ' + a.para + ': ' + (a.peso || 1) + ' item(ns)';
+        seta.appendChild(tp);
+      }
+      s.appendChild(seta);
       /* ponta desenhada à mão: <marker> com id colide quando há vários
          fluxos na mesma página */
+      var ponta = Math.max(7, grossura * 2.2);
       s.appendChild(sv('path', {
-        d: 'M' + x2 + ' ' + y2 + ' l-7 -4.5 l0 9 z',
+        d: 'M' + x2 + ' ' + y2 + ' l' + (-ponta) + ' ' + (-ponta * 0.64) +
+           ' l0 ' + (ponta * 1.28) + ' z',
         class: 'fx-ponta'
       }));
+      if (pesos && (a.peso || 0) > 1) {
+        var rot = sv('text', {
+          x: meio, y: (y1 + y2) / 2 - 4,
+          'text-anchor': 'middle', class: 'fx-seta-peso', 'font-size': 10
+        });
+        rot.textContent = a.peso;
+        s.appendChild(rot);
+      }
     });
 
     analise.colunas.forEach(function (col) {
@@ -556,6 +726,16 @@
         });
         txt.textContent = no.rotulo;
         g.appendChild(txt);
+
+        if (pesos) {
+          var qt = sv('text', {
+            x: p.x + p.w / 2, y: p.y + p.h + 10,
+            'text-anchor': 'middle', class: 'fx-card-peso', 'font-size': 10
+          });
+          var n = no.peso || 0;
+          qt.textContent = n + (n === 1 ? ' item' : ' itens');
+          g.appendChild(qt);
+        }
 
         if (achado) {
           /* o ponto no canto é o que diz que há algo a ler ali: sem ele,
@@ -581,6 +761,11 @@
     caminhoTexto: caminhoTexto,
     marco: marco,
     mesmoMarco: mesmoMarco,
+    agregado: agregado,
+    matriz: matriz,
+    saltos: saltos,
+    marcosCitados: marcosCitados,
+    passaPor: passaPor,
     indice: indice,
     anterior: anterior,
     resumoDoAchado: resumoDoAchado,

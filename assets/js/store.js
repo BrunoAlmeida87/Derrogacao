@@ -11,6 +11,19 @@
   var USER_KEY = 'derrogacao:user';
   var BACKUP_KEY = 'derrogacao:lastBackupAt';
   var FOLDER_KEY = 'derrogacao:pastaBackup';
+  var DB_FOLDER_KEY = 'derrogacao:pastaBanco';
+
+  /* Onde a equipe combinou que fica o banco de dados. Fica aqui, e não na
+     interface, porque é o valor de saída: quem abre o programa pela primeira
+     vez já vê o caminho certo no diálogo, em vez de ter de perguntar a
+     alguém. Trocar é um botão — a pasta pode mudar de lugar.
+
+     Isto é texto, e só. O navegador não abre pasta por caminho: quem escolhe
+     é sempre a pessoa, na janela do Windows (ver o cabeçalho do pasta.js).
+     O que o programa guarda depois disso é o crachá da pasta escolhida, e é
+     esse crachá que evita ter de escolher de novo a cada vez. */
+  var CAMINHO_PADRAO =
+    'G:\\DOP\\GTO\\3_INTERNO\\01_SAFE TO DIVE\\10_SISTEMA DE DERROGAÇÃO\\00_BD';
   var DB_NAME = 'derrogacao';
   var DB_VERSION = 3;
   var STORE = 'projects';
@@ -1113,6 +1126,20 @@
     try { global.localStorage.setItem(FOLDER_KEY, str(caminho).trim()); } catch (e) { /* ignora */ }
   }
 
+  /* O caminho do banco é outro campo que o da pasta de backup: são pastas
+     diferentes, e uma sobrescrevia a outra quando os dois usavam a mesma
+     chave. Em branco vale o combinado. */
+  function getDbFolder() {
+    try {
+      var v = global.localStorage.getItem(DB_FOLDER_KEY);
+      return v === null ? CAMINHO_PADRAO : v;
+    } catch (e) { return CAMINHO_PADRAO; }
+  }
+
+  function setDbFolder(caminho) {
+    try { global.localStorage.setItem(DB_FOLDER_KEY, str(caminho).trim()); } catch (e) { /* ignora */ }
+  }
+
   function getLastBackupAt() {
     try { return global.localStorage.getItem(BACKUP_KEY) || ''; } catch (e) { return ''; }
   }
@@ -1162,6 +1189,9 @@
     getUser: getUser,
     getFolder: getFolder,
     setFolder: setFolder,
+    CAMINHO_PADRAO: CAMINHO_PADRAO,
+    getDbFolder: getDbFolder,
+    setDbFolder: setDbFolder,
     setUser: setUser,
     MAX_SESSIONS: MAX_SESSIONS,
     signature: signature,

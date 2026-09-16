@@ -53,6 +53,8 @@ assets/js/report.js        monta as páginas no padrão do PDF, e as pagina
 assets/js/fluxo.js         lê o Waiver Historic, desenha o caminho do waiver e
                            acha o mesmo item no relatório do marco anterior
 assets/js/summary.js       apuração, filtros, gráficos SVG, aba Resumo
+assets/js/xlsx.js          escreve a planilha .xlsx (ZIP + XML à mão)
+assets/js/tabela.js        aba Tabela: todos os itens de todos os marcos
 assets/js/chat.js          a conversa da equipe (aba opcional), pela pasta
 assets/js/lado.js          o item preso ao lado do editor, em só leitura
 assets/js/app.js           o editor (o maior; ~3000 linhas)
@@ -63,8 +65,10 @@ exemplos/                  .json prontos para importar
 ```
 
 Ordem de carga dos scripts (importa: cada um usa o anterior):
-`store.js → pasta.js → report.js → fluxo.js → summary.js → chat.js → lado.js →
-app.js`.
+`store.js → pasta.js → report.js → fluxo.js → summary.js → xlsx.js →
+tabela.js → chat.js → lado.js → app.js`.
+(`tabela.js` usa `Summary`, `Fluxo`, `Report` e `SummaryView.csvCampo`;
+`xlsx.js` não usa ninguém.)
 
 ## 4. Modelo de dados
 
@@ -248,6 +252,28 @@ colunas; `Fluxo.svg` desenha. O texto nunca é alterado — o desenho é leitura
 - A aba **Fluxos** (`renderFluxos` em `app.js`) é o compilado do relatório
   aberto, e o PDF dela usa `Report.paginar` — a mesma paginação do relatório.
 
+### As três leituras do fluxo (`Fluxo.agregado`, `matriz`, `saltos`)
+A lista responde "por onde passou esta NCR". Com trinta itens na mão a pergunta
+vira outra — "por onde passa o trabalho deste marco" —, e trinta desenhos lado
+a lado não respondem isso.
+
+- `Fluxo.agregado(analises)` soma os fluxos: cada card e cada seta ganham
+  `peso` (quantos itens passam ali). O cálculo de colunas saiu de dentro do
+  `analisar` para `distribuirColunas`, usado pelos dois.
+- Os nós do agregado são **cópias**: o nó da análise de um item carrega o
+  `nivel` e a `ordem` daquele desenho, e somar por cima bagunçaria o desenho
+  de lá.
+- `Fluxo.svg` com `opts.pesos` engorda a seta, escreve o número em cima dela
+  (com contorno branco, senão some sobre a linha) e põe a contagem embaixo do
+  card — o que exige altura extra por card, senão o número encosta no de cima.
+- **Filtro por marco**: `Fluxo.marcosCitados` lista os marcos que os próprios
+  textos citam e `Fluxo.passaPor` recorta. Não há lista fixa de marcos aqui —
+  o texto continua sendo a verdade (§10).
+- **Escopo**: a aba passou a poder olhar todos os relatórios, não só o aberto.
+  Com isso, a linha do item tem de abrir o relatório certo antes de selecionar
+  (reaproveita `abrirDaTabela`), e o número sozinho deixa de identificar — a
+  linha mostra o marco junto.
+
 ### A resposta do marco anterior (o ponto no card)
 Cada marco é um projeto à parte e o mesmo item atravessa vários: a `NCR-001` do
 J06 vira a `NCR-001` do J08. Então a resposta que o J06 deu **já está neste
@@ -325,6 +351,36 @@ Aba opcional, desligada de saída, ligada em **Ajustes** (a escolha vive no
   canal: com o relógio de um colega adiantado, só "agora" nunca zeraria.
 - Poda em 90 dias / 1.000 mensagens, senão o arquivo vira o maior da pasta.
 
+### A aba Tabela (`tabela.js`) e a planilha (`xlsx.js`)
+Uma linha por item de **todos os relatórios**, não só do aberto — é a única
+tela que responde "onde está a NCR-018?" sem abrir marco por marco.
+
+- **Os filtros são os do Resumo** (`Summary.passa`), mais o marco. Um filtro com
+  o mesmo nome recortando coisas diferentes nas duas abas seria pior do que não
+  ter o filtro.
+- **Colunas escolhidas e reordenadas** ficam no `localStorage`
+  (`derrogacao:tabela`), com a ordenação junto: é preferência de quem está
+  sentado ali, como a Conversa e o item ao lado. **O filtro não é guardado** —
+  reabrir o programa com uma busca velha aplicada esconde itens sem dizer por
+  quê.
+- **Ordenar aqui não toca em `project.ordem`.** A tabela é leitura; quem manda
+  no PDF continua sendo a ordem do relatório. `Tabela.ordenar` trabalha numa
+  cópia justamente por isso.
+- **`.xlsx` é um ZIP com XML dentro**, e o `xlsx.js` escreve os dois à mão:
+  entradas *armazenadas* (método 0, sem compressão) dispensam escrever um
+  compressor, e o Excel abre normalmente. Sai com filtro no cabeçalho, primeira
+  linha congelada e número como número.
+- **Texto vai como `inlineStr`**, que o Excel nunca lê como fórmula — é o que
+  protege o `= + - @` sem depender do apóstrofo. No CSV a regra continua sendo
+  a do `csvCampo`, agora exportado por `SummaryView` para não haver duas cópias
+  dela.
+- **Toda exportação leva uma aba “Recorte”** dizendo data, autor, quantos itens
+  e qual filtro estava aplicado. Planilha que anda pela empresa sem dizer de que
+  recorte veio acaba lida como se fosse o total.
+- **O PDF da tabela vira paisagem acima de cinco colunas** (`rep-page--landscape`,
+  a mesma classe das páginas de anexo — `Report.limite` já conhece os 210 mm).
+  Retrato com dez colunas partia toda palavra ao meio.
+
 ### Aba Resumo (`summary.js`)
 Gráficos em **SVG escrito à mão** — sem biblioteca, imprimem em vetor e
 funcionam de `file://`. Paleta validada para daltonismo. Filtros (tipo,
@@ -335,6 +391,27 @@ tabelas, **CSV e resumo em PDF** — e o PDF filtrado diz qual foi o recorte. O
 **Parados há 30+ dias** (`Summary.DIAS_PARADO`): pendentes sem edição há um mês
 ou mais, do mais esquecido para o menos. Sai do `editedAt` que já existia — item
 aceito nunca conta, porque está pronto, não parado.
+
+### O caminho padrão da pasta
+`Store.CAMINHO_PADRAO` é o caminho combinado pela equipe
+(`G:\DOP\GTO\3_INTERNO\01_SAFE TO DIVE\10_SISTEMA DE DERROGAÇÃO\00_BD`).
+Ele é o valor de saída de `Store.getDbFolder()` e aparece no diálogo e no aviso
+do alto (`#pastaNotice`), com botão de copiar.
+
+- **Chave própria** (`derrogacao:pastaBanco`). Antes o caminho do banco e o da
+  pasta de backup dividiam a mesma chave e um sobrescrevia o outro.
+- **Isso não abre pasta nenhuma.** Nenhum navegador abre uma pasta por caminho;
+  quem escolhe é a pessoa, na janela do Windows. O que dispensa escolher de novo
+  é o crachá guardado no IndexedDB (§ a pasta da rede). O caminho é texto: serve
+  para colar na janela e para viajar com os dados.
+- **O que dava trabalho de verdade era a permissão de cada sessão**, que só pode
+  ser pedida dentro de um gesto. `pedirPermissaoNoPrimeiroGesto` usa o primeiro
+  clique em qualquer lugar, por até 2 minutos depois de abrir — passado esse
+  tempo a pessoa já está trabalhando e uma janela roubando o foco atrapalharia
+  mais do que ajudaria. `pedidoEmVoo` impede duas janelas de permissão ao mesmo
+  tempo.
+- O caminho que vier no arquivo da pasta sobrepõe o local e é gravado — é o que
+  faz a próxima abertura já vir com o caminho certo, sem ninguém digitar.
 
 ### Instalação e uso sem rede
 `manifest.webmanifest` + `sw.js`, registrados só em `https:` ou `localhost`
@@ -408,6 +485,10 @@ permissão da pasta entre sessões.
   balão sumia sem ninguém entender por quê (um teste pegou isso). Hoje a
   rolagem **reposiciona** o balão junto do card e só fecha quando o card sai
   da tela.
+- **`overflow: auto` sem altura mata o `position: sticky` de dentro.** O
+  cabeçalho da aba Tabela não grudava: quem rolava era a aba inteira, e o
+  cabeçalho não tinha a que se prender. A caixa da tabela tem `max-height` e
+  rola sozinha — conferido no navegador, não de memória.
 - **O service worker é rede-primeiro, de propósito.** Cache-primeiro traria de
   volta o problema de HTML novo com JS velho que o `?v=<sha>` existe para
   evitar. O `sw.js` também é carimbado na publicação: sem mudar de conteúdo,
@@ -481,3 +562,9 @@ desta máquina às vezes bloqueia `github.io`.
 | Lista do resumo impresso em `div`, não em `<table>` | a paginação move filhos diretos do bloco; linha de tabela mora no `<tbody>` e não migraria sem partir a tabela |
 | Empate de `editedAt` resolvido pela assinatura | `>` sozinho deixava as duas bases divergindo para sempre |
 | Reordenar também por botões ↑/↓ | arrastar sozinho exclui quem não consegue o gesto (WCAG 2.5.7) |
+| Aba Tabela olha todos os relatórios; ordenar nela não muda o PDF | a pergunta que ela responde é "em que marco está este item?"; a ordem do relatório tem dono, que é `project.ordem` |
+| Colunas e ordenação da Tabela no `localStorage`, filtro não | as colunas são de quem está sentado ali; um filtro guardado esconderia itens na abertura seguinte sem dizer por quê |
+| `.xlsx` escrito à mão, em vez de CSV ou de biblioteca | sem dependência (§2), e o CSV perde tipo, cabeçalho congelado e filtros — e trata `=` como fórmula |
+| Toda exportação leva a aba "Recorte" | planilha filtrada que não diz que está filtrada é lida como se fosse o total |
+| Caminho do banco com valor de saída e chave própria | ninguém deveria precisar perguntar onde fica a pasta; e o caminho do backup é outro campo |
+| Permissão da pasta pedida no primeiro clique, por 2 minutos | é o único jeito de atender à regra do gesto sem deixar o aviso esperando um clique no lugar certo |

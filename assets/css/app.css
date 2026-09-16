@@ -50,6 +50,7 @@ body[data-kind="dev"]    { --kind: #0e7490; --kind-sf: #e4f3f8; --kind-br: #b9dc
 body[data-kind="resumo"] { --kind: #a15c07; --kind-sf: #fdf4e3; --kind-br: #f0d8a8; }
 body[data-kind="fluxos"] { --kind: #0f7a52; --kind-sf: #e8f6f0; --kind-br: #b6e0cf; }
 body[data-kind="conversa"] { --kind: #7a4b0f; --kind-sf: #f7efe6; --kind-br: #e2c9ad; }
+body[data-kind="tabela"] { --kind: #1a4fa0; --kind-sf: #e8eefb; --kind-br: #bdcdec; }
 
 * { box-sizing: border-box; }
 
@@ -313,6 +314,7 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
 .tab[data-kind="dev"]    { --tab: #0e7490; --tab-sf: #e4f3f8; }
 .tab[data-kind="resumo"] { --tab: #a15c07; --tab-sf: #fdf4e3; }
 .tab[data-kind="fluxos"] { --tab: #0f7a52; --tab-sf: #e8f6f0; }
+.tab[data-kind="tabela"] { --tab: #1a4fa0; --tab-sf: #e8eefb; }
 .tab[data-kind="conversa"] { --tab: #7a4b0f; --tab-sf: #f7efe6; }
 .tab:hover { background: var(--tab-sf); color: var(--tab); }
 .tab[aria-selected="true"] {
@@ -871,6 +873,27 @@ a.menu-item { text-decoration: none; }
   color: #6b4400;
 }
 .notice span { flex: 1; min-width: 240px; }
+
+/* O aviso da pasta de dados não é advertência: é o caminho de onde fica o
+   banco, para ser lido e colado na janela do Windows. */
+.notice--pasta {
+  background: var(--kind-sf, #eef2fb);
+  border-bottom-color: var(--kind-br, #c7d3ec);
+  border-left-color: var(--kind, #1a4fa0);
+  color: #23324d;
+}
+.notice-caminho {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font: 600 12px/1.5 Consolas, "Courier New", monospace;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 3px 7px;
+}
+.pasta-caminho-acoes { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 
 /* --- ordem das páginas ---------------------------------------------------- */
 
@@ -1759,6 +1782,203 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .sm-bar-field label { font-size: 12px; font-weight: 600; color: #3f4550; }
 .sm-bar-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .sm-hint { font-size: 12px; color: var(--muted); }
+
+/* A tabela geral impressa vira paisagem quando tem coluna demais: são
+   folhas de conferência, e retrato com dez colunas parte todas as palavras.
+   A classe é a mesma das páginas de anexo, que já têm a @page nomeada. */
+.rep-page--landscape.rep-page--summary .sm-grade-cel { font-size: 9pt; }
+/* Com dez colunas, o rótulo em 8pt maiúsculo com espaçamento não cabia na
+   coluna e saía partido no meio da palavra ("SISTEM AS"). Menor e sem o
+   espaçamento, cabe — e o cabeçalho é o que menos precisa de destaque numa
+   folha que já é toda tabela. */
+.rep-page--landscape.rep-page--summary .sm-grade-linha--cab .sm-grade-cel {
+  font-size: 7pt;
+  letter-spacing: 0;
+}
+
+/* --- aba Tabela ----------------------------------------------------------- */
+
+/* A tabela é larga de propósito: ela existe para comparar itens de marcos
+   diferentes lado a lado. Quem rola é a caixa, não a página inteira — o
+   cabeçalho precisa ficar preso enquanto isso. */
+.tb-caixa {
+  max-width: 100%;
+  /* A caixa rola sozinha, e é isso que faz o cabeçalho ficar preso: com
+     `overflow: auto` e sem altura, quem rolava era a aba inteira e o
+     `position: sticky` do cabeçalho não tinha a que se prender (conferido no
+     navegador: o cabeçalho subia junto e sumia). */
+  max-height: calc(100vh - 330px);
+  min-height: 220px;
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--sh-1);
+}
+.tb-tabela {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: 12.5px;
+}
+.tb-tabela th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--kind-sf);
+  border-bottom: 2px solid var(--kind-br);
+  text-align: left;
+  padding: 0;
+  white-space: nowrap;
+}
+.tb-ord {
+  display: block;
+  width: 100%;
+  font: inherit;
+  font-weight: 700;
+  color: var(--kind);
+  background: none;
+  border: none;
+  padding: 9px 10px;
+  text-align: inherit;
+  cursor: pointer;
+}
+.tb-ord:hover { background: #fff; }
+.tb-ord-seta { color: var(--kind); }
+.tb-tabela th.is-num .tb-ord { text-align: right; }
+
+.tb-tabela td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+.tb-tabela td.is-num { text-align: right; white-space: nowrap; }
+/* campo comprido cortado numa linha: o texto inteiro fica na dica e no item */
+.tb-tabela td.is-longo {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tb-tabela tbody tr { cursor: pointer; }
+.tb-tabela tbody tr:hover { background: var(--kind-sf); }
+.tb-tabela tbody tr:focus { outline: 2px solid var(--kind); outline-offset: -2px; }
+.tb-tabela tbody tr.is-aceito td:first-child { border-left: 3px solid #1baf7a; }
+
+.tb-colunas {
+  max-width: 980px;
+  margin: 0 auto 12px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--sh-1);
+  font-size: 13px;
+}
+.tb-colunas > summary { cursor: pointer; font-weight: 700; color: var(--kind); }
+.tb-colunas .hint { margin: 6px 0 10px; }
+.tb-col-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 4px 14px;
+}
+.tb-col-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+}
+.tb-col-item.is-on { background: var(--kind-sf); }
+.tb-col-item label { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tb-col-setas { display: flex; gap: 2px; flex: 0 0 auto; }
+.tb-col-setas .btn { padding: 1px 6px; line-height: 1.4; }
+.tb-col-pe { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+
+/* --- fluxos: escolha da vista e filtro por marco --------------------------- */
+
+.fx-vistas {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 980px;
+  margin: 0 auto 12px;
+}
+.fx-vista {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 13px;
+  cursor: pointer;
+}
+.fx-vista:hover { border-color: var(--kind-br); color: var(--kind); }
+.fx-vista.is-on {
+  color: #fff;
+  background: var(--kind);
+  border-color: var(--kind);
+}
+.fx-vista-ajuda { font-size: 12px; color: var(--muted); flex: 1 1 220px; }
+
+.fx-marcos {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 980px;
+  margin: 0 auto 14px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--sh-1);
+}
+.fx-marcos-rot { font-size: 12px; font-weight: 700; color: #3f4550; }
+.fx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-2);
+  background: #f4f6fa;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+.fx-chip:hover { border-color: var(--kind); color: var(--kind); }
+.fx-chip.is-on { color: #fff; background: var(--kind); border-color: var(--kind); }
+.fx-chip-n {
+  font-size: 10.5px;
+  font-weight: 700;
+  background: rgba(0, 0, 0, .09);
+  border-radius: 8px;
+  padding: 0 5px;
+}
+.fx-chip.is-on .fx-chip-n { background: rgba(255, 255, 255, .28); }
+
+/* números do mapa do marco: quantos itens passam por cada card e cada seta */
+.fx-card-peso { fill: #4b515f; font-family: inherit; }
+.fx-seta-peso {
+  fill: #3f4550;
+  font-family: inherit;
+  font-weight: 700;
+  /* o número cai em cima da seta: o contorno branco é o que o mantém legível */
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
 
 /* --- filtros do resumo ---------------------------------------------------- */
 

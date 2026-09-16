@@ -102,6 +102,14 @@
   </div>
 </header>
 
+<div class="notice notice--pasta" id="pastaNotice" role="status" aria-live="polite" hidden>
+  <span id="pastaNoticeText"></span>
+  <code class="notice-caminho" id="pastaNoticePath"></code>
+  <button class="btn btn--sm btn--accent" id="pastaNoticeBtn">Escolher a pasta…</button>
+  <button class="btn btn--sm" id="pastaNoticeCopy">Copiar o caminho</button>
+  <button class="btn btn--sm btn--quiet" id="pastaNoticeDismiss">Agora não</button>
+</div>
+
 <div class="notice" id="backupNotice" role="status" aria-live="polite" hidden>
   <span id="backupNoticeText"></span>
   <button class="btn btn--sm btn--accent" id="backupNoticeBtn">★ Fazer backup total agora</button>
@@ -129,6 +137,11 @@
               aria-selected="false" aria-controls="fluxosScroll" tabindex="-1"
               title="O caminho dos waivers de cada item, lido do Waiver Historic">
         Fluxos
+      </button>
+      <button class="tab" role="tab" id="tabTabela" data-kind="tabela"
+              aria-selected="false" aria-controls="tabelaScroll" tabindex="-1"
+              title="Todos os itens de todos os relatórios, em tabela: busca, filtros e exportação">
+        Tabela
       </button>
       <button class="tab" role="tab" id="tabConversa" data-kind="conversa"
               aria-selected="false" aria-controls="conversaScroll" tabindex="-1" hidden
@@ -179,8 +192,12 @@
 
     <div class="sidebar-note" id="sidebarFluxos" hidden>
       O fluxo é lido do campo <strong>Waiver Historic</strong> de cada item:
-      cada linha <em>“J04 To: J06”</em> é uma seta. Aqui estão todos os itens
-      do <strong>relatório aberto</strong>, NCR e DEV.
+      cada linha <em>“J04 To: J06”</em> é uma seta.
+      <br><br>A <strong>lista</strong> mostra um fluxo por item; o
+      <strong>mapa</strong> soma todos num desenho só, e a
+      <strong>matriz</strong> conta cada seta. Em <em>Itens de</em> escolha
+      entre o relatório aberto e todos os marcos; em <em>Passa por</em>,
+      recorte pelos marcos citados nos próprios textos.
     </div>
 
     <div class="sidebar-conversa" id="sidebarConversa" hidden>
@@ -189,6 +206,13 @@
         servidor nem nuvem. Chega a cada sincronização, junto com os dados.
       </div>
       <div class="conv-canais" id="convCanais"></div>
+    </div>
+
+    <div class="sidebar-note" id="sidebarTabela" hidden>
+      Uma linha por item de <strong>todos os marcos</strong> deste navegador.
+      Use a busca para achar uma NCR ou DEV sem saber em que relatório ela
+      está; clique na linha para abrir o item. <strong>Ordenar aqui não muda
+      a ordem do relatório nem a do PDF.</strong>
     </div>
 
     <div class="sidebar-note" id="sidebarResumo" hidden>
@@ -205,6 +229,8 @@
          aria-labelledby="tabResumo" tabindex="0" hidden></div>
     <div class="editor-scroll summary-scroll" id="fluxosScroll" role="tabpanel"
          aria-labelledby="tabFluxos" tabindex="0" hidden></div>
+    <div class="editor-scroll summary-scroll" id="tabelaScroll" role="tabpanel"
+         aria-labelledby="tabTabela" tabindex="0" hidden></div>
     <div class="editor-scroll conversa-scroll" id="conversaScroll" role="tabpanel"
          aria-labelledby="tabConversa" tabindex="0" hidden></div>
   </main>
@@ -349,9 +375,16 @@
     <div class="field">
       <label for="pastaCaminhoInput">Caminho da pasta (para os outros saberem onde é)</label>
       <input type="text" id="pastaCaminhoInput" placeholder="ex.: Z:\Projetos\SBR3\Derrogacao">
-      <div class="hint">O navegador não deixa nenhum programa abrir uma pasta por
-        caminho — quem escolhe é sempre a pessoa, na janela do Windows. Este texto
-        viaja junto com os dados só para dizer ao próximo <em>onde</em> apontar.</div>
+      <div class="pasta-caminho-acoes">
+        <button class="btn btn--sm" id="pastaCaminhoCopiarBtn" type="button">Copiar o caminho</button>
+        <button class="btn btn--sm" id="pastaPadraoBtn" type="button"
+                title="Volta ao caminho combinado pela equipe">Usar o caminho padrão</button>
+      </div>
+      <div class="hint">Já vem preenchido com o caminho combinado pela equipe —
+        mude quando a pasta mudar de lugar. O navegador não deixa nenhum programa
+        abrir uma pasta por caminho: quem escolhe é sempre a pessoa, na janela do
+        Windows (dá para colar este texto na barra de endereço dela). Depois de
+        escolhida uma vez, o programa reabre a mesma pasta sozinho.</div>
     </div>
 
     <details class="dlg-tips">
@@ -475,6 +508,8 @@
 <script src="assets/js/report.js"></script>
 <script src="assets/js/fluxo.js"></script>
 <script src="assets/js/summary.js"></script>
+<script src="assets/js/xlsx.js"></script>
+<script src="assets/js/tabela.js"></script>
 <script src="assets/js/chat.js"></script>
 <script src="assets/js/lado.js"></script>
 <script src="assets/js/app.js"></script>

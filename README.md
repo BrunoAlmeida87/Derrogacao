@@ -81,7 +81,11 @@ login e nenhum dado sai do computador.
   em vez de pedir a cada sessão.
 - **Uma pasta da rede como banco de dados**: o programa lê e grava direto nela,
   e quem abrir apontando para a mesma pasta vê o trabalho de todos, sem importar
-  nada. Com histórico automático de versões.
+  nada. Com histórico automático de versões. O caminho combinado pela equipe já
+  vem preenchido — escolher a pasta é uma vez por computador.
+- **Uma tabela com tudo** (aba **Tabela**): uma linha por item de todos os
+  marcos, com busca geral, filtros, colunas que você escolhe e ordena, e
+  exportação em **Excel (.xlsx)**, CSV ou PDF.
 
 ## Como usar
 
@@ -258,10 +262,23 @@ desenho é só a leitura dele.
 - Uma linha sem `To:` vira um card sozinho, e o pop-up avisa. Setas em círculo
   (`J06 To: J08` com `J08 To: J06`) também viram aviso, em vez de travar.
 
-Na aba **Fluxos** está o compilado: um fluxo por item do relatório aberto, NCR
-e DEV separados, com busca (que alcança também os marcos do fluxo), a opção de
-esconder quem não tem nada escrito e **Fluxos em PDF** — que pagina sozinho
-quando a lista passa de uma folha.
+Na aba **Fluxos** está o compilado, em três leituras da mesma coisa:
+
+- **Lista** — um fluxo por item, NCR e DEV separados, na ordem do PDF.
+- **Mapa do marco** — todos os fluxos somados num desenho só. A seta engorda
+  com o número de itens que passam por ela e cada card diz quantos itens o
+  atravessam: é o desenho que responde *de onde vem o grosso do trabalho deste
+  marco*. Abaixo dele, quantos marcos cada item já atravessou — um item em
+  quatro colunas é um waiver renovado três vezes.
+- **Matriz de/para** — uma linha por seta escrita, da mais usada para a menos,
+  com o percentual sobre os itens que têm fluxo.
+
+Em **Itens de** escolha entre o relatório aberto e **todos os marcos** deste
+navegador; em **Passa por**, clique nos marcos para ver só os itens cujo fluxo
+passa por eles (dá para marcar mais de um). Há ainda a busca, o filtro por tipo
+e a opção de esconder quem não tem nada escrito. **Esta vista em PDF** gera em
+A4 exatamente o que está na tela, com o recorte escrito na folha e a paginação
+de sempre.
 
 ### O card com um ponto: a resposta do marco anterior
 
@@ -314,6 +331,41 @@ neste navegador.
 > no item *selecionado*: dois formulários abertos gravariam os dois no mesmo
 > item. Enquanto isso não mudar, a coluna ao lado mostra e não escreve — é a
 > diferença entre consultar com segurança e perder trabalho sem perceber.
+
+## Tudo em tabela (aba Tabela)
+
+As outras abas olham para o relatório aberto. A **Tabela** olha para o conjunto:
+uma linha por item de **todos os marcos deste navegador**, NCR e DEV juntos.
+Serve para a pergunta que não tem resposta em nenhuma outra tela — *onde está a
+NCR-018?* — sem abrir marco por marco.
+
+- **Busca geral**: varre todo o texto do item, não só o número. Procurar pelo
+  certificado, por um trecho do *Arch Answer* ou pela legenda de uma foto
+  funciona igual.
+- **Filtros**: marco, tipo, situação, sistema, *Arch Status*, com ou sem anexo,
+  e só os parados há 30+ dias. São os mesmos do Resumo, para os dois contarem
+  a mesma coisa.
+- **Colunas**: em **Colunas** você marca o que quer ver (são 22 no total, do
+  número ao *Why not possible*) e usa as setas ↑ ↓ para mudar a ordem delas —
+  na tela, no Excel e no PDF. A escolha fica guardada **neste navegador**.
+- **Ordenar**: clique no título da coluna. Isso **não altera** a ordem dos itens
+  no relatório nem no PDF — a tabela é leitura.
+- **Clique numa linha** e o item abre no editor, trocando de relatório se for
+  preciso.
+
+### Exportar
+
+- **⤓ Exportar Excel** gera um `.xlsx` de verdade — filtros já armados no
+  cabeçalho, primeira linha congelada, número saindo como número. Vai com uma
+  segunda aba, *Recorte*, dizendo quando foi gerado, por quem, quantos itens e
+  qual filtro estava aplicado: planilha que anda pela empresa sem dizer de que
+  recorte veio acaba lida como se fosse o total.
+- **CSV** para quem prefere o texto cru.
+- **PDF** com a mesma tabela em folhas A4 — deitadas quando há muita coluna,
+  com o cabeçalho repetido em cada folha.
+
+> O Excel sai com o que está **à vista**: as colunas escolhidas, o recorte dos
+> filtros e a ordem da tela. Para o total, limpe os filtros antes.
 
 ## Conversa da equipe (aba opcional)
 
@@ -410,7 +462,30 @@ sua cópia e trocar arquivos, o programa **lê e grava direto numa pasta
 combinada**: quem abre apontando para a mesma pasta vê o trabalho de todos, sem
 importar nada.
 
-Em **⋯ Mais → 🗄 Pasta da rede como banco de dados**.
+Em **⋯ Mais → 🗄 Pasta da rede como banco de dados** — ou no aviso que aparece
+no alto da tela enquanto a pasta não estiver ligada.
+
+### O caminho já vem preenchido
+
+O caminho combinado pela equipe é
+
+```
+G:\DOP\GTO\3_INTERNO\01_SAFE TO DIVE\10_SISTEMA DE DERROGAÇÃO\00_BD
+```
+
+e já vem escrito na janela e no aviso do alto, com um botão **Copiar o
+caminho** para colar na barra de endereço da janela do Windows. Se a pasta
+mudar de lugar, escreva o novo caminho ali — ele viaja com os dados, então
+quem abrir depois já vê o certo — e **Usar o caminho padrão** volta ao
+combinado.
+
+> **Por que ainda é preciso clicar em “Escolher a pasta…”:** nenhum navegador
+> abre uma pasta por caminho, nem com ele digitado. Quem escolhe é sempre a
+> pessoa, na janela do Windows — é uma regra de segurança do navegador, e vale
+> para qualquer site ou programa aberto nele. O que o programa guarda depois
+> disso é a autorização daquela pasta, e é ela que dispensa escolher de novo a
+> cada vez. Instalando o programa como aplicativo, some também o pedido de
+> permissão de cada sessão.
 
 ### Como funciona
 
@@ -691,6 +766,8 @@ assets/js/lado.js        o item preso ao lado, em só leitura
 assets/js/fluxo.js       leitura do Waiver Historic, desenho do fluxo e a
                          resposta do marco anterior
 assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
+assets/js/xlsx.js        gera a planilha .xlsx (sem biblioteca)
+assets/js/tabela.js      a aba Tabela: todos os itens, filtros e exportação
 assets/js/chat.js        a conversa da equipe, dentro da pasta da rede
 assets/js/app.js         lógica do editor
 derrogacao.html          o programa inteiro num arquivo só (gerado)
