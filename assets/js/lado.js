@@ -120,6 +120,15 @@
     return box;
   }
 
+  /** A observação interna do item — não existe no relatório, só aqui e no editor. */
+  function anotacao(item, copiar) {
+    var box = el('div', 'lado-sec lado-sec--nota');
+    box.style.setProperty('--sec-color', '#E4A11B');
+    box.appendChild(cabecalho('📝 Observação interna', '#E4A11B', item.nota, copiar));
+    box.appendChild(texto(item.nota));
+    return box;
+  }
+
   function waiver(item, copiar) {
     var box = el('div', 'lado-sec lado-sec--waiver');
     box.appendChild(cabecalho('Status do waiver', '#4B0082', '', null));
@@ -202,6 +211,9 @@
     if (!item) return host;
 
     host.appendChild(identificacao(item, kind, project));
+    /* A anotação vem antes das seções do documento: quando ela existe, é o
+       que explica o estado do item, e é o primeiro que se quer ler. */
+    if (str(item.nota)) host.appendChild(anotacao(item, opts.copiar));
     SECOES.forEach(function (s) {
       host.appendChild(bloco(s[1], s[2], item[s[0]], opts.copiar));
     });

@@ -148,6 +148,26 @@ Os títulos de capa, o rodapé, a data de emissão e o marco alternativo da capa
 da DEV ficam em **⋯ Mais → Ajustes de capa e rodapé** — textos fixos que quase
 nunca mudam.
 
+## Anotação do item
+
+Cada NCR e cada DEV tem um bloco **Observação interna**, logo abaixo da
+identificação, com cara de papel de recado. Serve para o caso mais comum: o
+preenchimento está parado e o motivo precisa ficar escrito em algum lugar —
+*“esperando o certificado do fornecedor, cobrar na reunião de quinta”*.
+
+- **Não sai no relatório em PDF.** É recado interno, como a Situação do item.
+- **Vale mesmo no item aceito**, que abre travado: anotar não é editar o
+  documento. É onde se escreve “conferir o certificado na próxima revisão”.
+- **O item anotado ganha um 📝 na lista**, então dá para varrer a lateral e ver
+  onde alguém parou sem abrir um por um.
+- **A busca alcança o texto da anotação** — tanto a da lista quanto a da aba
+  Tabela, onde ela também é uma coluna (desligada por padrão) e um filtro
+  (*📝 só com observação*).
+- **Apagar anotação** limpa o campo, com **Desfazer** no aviso que aparece.
+
+A anotação viaja com o item: vai no backup, vai para a pasta da equipe e segue
+a mesma regra dos outros campos (vale a edição mais recente).
+
 ## Situação do item (controle interno)
 
 Cada NCR e cada DEV tem uma **situação de acompanhamento**, escolhida ao pé do

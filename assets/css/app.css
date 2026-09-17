@@ -1796,6 +1796,31 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   letter-spacing: 0;
 }
 
+/* --- a anotação interna do item ------------------------------------------- */
+
+/* Cara de papel de recado, de propósito: o que está aqui não é conteúdo do
+   documento e não sai no PDF — precisa parecer diferente do resto do
+   formulário à primeira vista. */
+.card--nota {
+  background: #fffdf3;
+  border-color: #eadcae;
+}
+.card--nota > h3 { background: #fdf3d4; border-bottom-color: #eadcae; }
+.card--nota .nota-aviso { margin-top: -6px; margin-bottom: 10px; }
+.card--nota textarea {
+  background: #fffdf3;
+  border-color: #e3d4a4;
+  resize: vertical;
+}
+.card--nota textarea:focus { border-color: #d9a441; }
+.nota-acoes { display: flex; gap: 6px; }
+
+/* o 📝 na lista: item com pendência escrita */
+.nota-dot { font-size: 11px; line-height: 1; }
+
+/* na coluna ao lado, o mesmo papel */
+.lado-sec--nota { background: #fffdf3; border-radius: var(--radius-sm); }
+
 /* --- aba Tabela ----------------------------------------------------------- */
 
 /* A tabela é larga de propósito: ela existe para comparar itens de marcos

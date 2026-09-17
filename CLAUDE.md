@@ -93,6 +93,7 @@ tabela.js → chat.js → lado.js → app.js`.
   certificates: [],
   evidence: [{id, ref, note, orientation,
               images:[{id, src, caption, arquivo}]}],   // arquivo: nome na pasta (§5)
+  nota,                        // anotação interna livre; NÃO sai no PDF
   status,                      // acompanhamento interno; NÃO sai no PDF
   done,                        // espelho de status === 'aceito'
   editedBy, editedAt,          // editedAt é a chave da mesclagem
@@ -109,6 +110,28 @@ entendia, e regravava a perda na pasta. Agora o que não é conhecido é copiado
 de volta intacto (`extrasDe`), e `schema` guarda o maior número já visto. A
 segunda linha de defesa está em `app.js`: vendo dados de `schema` maior que o
 seu, a sessão passa a **só ler** (`versaoDesatualizada`) até recarregar.
+
+### A anotação do item (`nota`)
+Texto livre por item, para o motivo de uma pendência ficar escrito onde o item
+está — e não na cabeça de quem parou. O campo `status` já diz *que* está
+pendente; a `nota` diz *por quê*.
+
+- **Não sai no PDF do relatório**, como o `status`. Quem monta a folha é o
+  `SECTIONS` do `report.js`: campo novo só aparece no papel se for posto lá.
+- **Vale com o item travado.** O `textarea` leva `data-livre`, que é o que
+  `aplicarTrava()` respeita. Anotar não é editar o documento, e o item aceito é
+  justamente onde se escreve "conferir na próxima revisão".
+- **Entra em `CAMPOS_VISIVEIS`**, e por isso a busca da lista e a da Tabela a
+  alcançam, e a faixa "o que mudou" da mesclagem a mostra.
+- **Fica fora de `signature()`, de propósito.** A assinatura desempata duas
+  edições com o mesmo `editedAt`, e precisa dar o mesmo resultado nesta versão
+  e nas anteriores — se cada uma desempatasse por um critério, as duas bases
+  divergiriam para sempre (§10).
+- **Não exigiu subir o `SCHEMA`.** `extrasDe` já preserva campo desconhecido,
+  então a versão antiga carrega a anotação intacta ao regravar — conferido no
+  navegador com o `derrogacao.html` anterior, e não só de memória. Subir o
+  número poria toda sessão antiga em só leitura, o que seria um preço alto por
+  um campo que ninguém perde.
 
 ### Dois campos que parecem o mesmo e não são
 
@@ -562,6 +585,9 @@ desta máquina às vezes bloqueia `github.io`.
 | Lista do resumo impresso em `div`, não em `<table>` | a paginação move filhos diretos do bloco; linha de tabela mora no `<tbody>` e não migraria sem partir a tabela |
 | Empate de `editedAt` resolvido pela assinatura | `>` sozinho deixava as duas bases divergindo para sempre |
 | Reordenar também por botões ↑/↓ | arrastar sozinho exclui quem não consegue o gesto (WCAG 2.5.7) |
+| Uma anotação por item, e não uma conversa por item | é quase sempre recado de uma pessoa só e de vida curta; um vetor de notas exigiria união por id dentro do `mergeLWW`, e o campo passaria a se comportar diferente de todos os outros (escolhido com o Bruno) |
+| A anotação não sobe o `SCHEMA` | `extrasDe` já a preserva na versão antiga (provado no navegador); subir poria a equipe inteira em só leitura até todo mundo trocar o arquivo |
+| A anotação fica fora da `signature()` | o desempate tem de ser idêntico ao das versões anteriores, senão as bases divergem |
 | Aba Tabela olha todos os relatórios; ordenar nela não muda o PDF | a pergunta que ela responde é "em que marco está este item?"; a ordem do relatório tem dono, que é `project.ordem` |
 | Colunas e ordenação da Tabela no `localStorage`, filtro não | as colunas são de quem está sentado ali; um filtro guardado esconderia itens na abertura seguinte sem dizer por quê |
 | `.xlsx` escrito à mão, em vez de CSV ou de biblioteca | sem dependência (§2), e o CSV perde tipo, cabeçalho congelado e filtros — e trata `=` como fórmula |

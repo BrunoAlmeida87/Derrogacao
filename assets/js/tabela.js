@@ -73,6 +73,7 @@
     { id: 'whyNotPossible', titulo: 'Why not possible', larg: 46, longo: true, valor: function (r) { return txt(r.item.whyNotPossible); } },
     { id: 'arguments', titulo: 'Arguments', larg: 46, longo: true, valor: function (r) { return txt(r.item.arguments); } },
     { id: 'archAnswer', titulo: 'Arch Answer', larg: 46, longo: true, valor: function (r) { return txt(r.item.archAnswer); } },
+    { id: 'nota', titulo: 'Observação interna', larg: 40, longo: true, valor: function (r) { return txt(r.item.nota); } },
     { id: 'certificates', titulo: 'Certificados', larg: 26, valor: function (r) { return (r.item.certificates || []).join(' | '); } },
     { id: 'evidencias', titulo: 'Anexos', larg: 9, num: true, valor: function (r) { return (r.item.evidence || []).length; } },
     { id: 'imagens', titulo: 'Imagens', larg: 9, num: true, valor: function (r) { return contarImagens(r.item); } },
@@ -135,18 +136,20 @@
     return out;
   }
 
-  var VAZIO = { marco: '', tipo: '', situacao: '', sistema: '', archStatus: '', evidencia: '', busca: '', parados: false };
+  var VAZIO = { marco: '', tipo: '', situacao: '', sistema: '', archStatus: '',
+                evidencia: '', busca: '', parados: false, comNota: false };
 
   function algumFiltro(f) {
     if (!f) return false;
     return !!(txt(f.marco) || txt(f.tipo) || txt(f.situacao) || txt(f.sistema) ||
-      txt(f.archStatus) || txt(f.evidencia) || txt(f.busca) || f.parados);
+      txt(f.archStatus) || txt(f.evidencia) || txt(f.busca) || f.parados || f.comNota);
   }
 
   function passa(r, f) {
     if (!f) return true;
     if (txt(f.marco) && r.projetoId !== f.marco) return false;
     if (f.parados && !Summary.estaParado(r.item)) return false;
+    if (f.comNota && !txt(r.item.nota)) return false;
     /* os demais são exatamente os do Resumo: um filtro com o mesmo nome tem
        de recortar a mesma coisa nas duas abas */
     return Summary.passa(r, f);
@@ -448,6 +451,15 @@
     par.appendChild(document.createTextNode(' só parados (' + Summary.DIAS_PARADO + '+ dias)'));
     fim.appendChild(par);
 
+    var nota = el('label', 'fx-check');
+    var cbn = document.createElement('input');
+    cbn.type = 'checkbox';
+    cbn.checked = !!f.comNota;
+    cbn.addEventListener('change', function () { f.comNota = cbn.checked; mudou(false); });
+    nota.appendChild(cbn);
+    nota.appendChild(document.createTextNode(' 📝 só com observação'));
+    fim.appendChild(nota);
+
     if (algumFiltro(f)) {
       var limpar = el('button', 'btn btn--sm', 'Limpar filtros');
       limpar.type = 'button';
@@ -535,6 +547,7 @@
     if (txt(f.archStatus)) ditos.push('arch status: ' + f.archStatus);
     if (txt(f.evidencia)) ditos.push(f.evidencia === 'com' ? 'só com anexo' : 'só sem anexo');
     if (f.parados) ditos.push('parados há ' + Summary.DIAS_PARADO + '+ dias');
+    if (f.comNota) ditos.push('só com observação interna');
     if (txt(f.busca)) ditos.push('texto: “' + txt(f.busca) + '”');
     return ditos.join(' · ');
   }

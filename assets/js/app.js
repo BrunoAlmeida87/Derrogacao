@@ -1439,6 +1439,15 @@
       var badges = el('div', 'ncr-item-badge');
       var imgCount = ncr.evidence.reduce(function (s, e) { return s + e.images.length; }, 0);
       if (imgCount) badges.appendChild(el('span', null, '🖼 ' + imgCount));
+      /* o item com anotação é o que tem pendência escrita: dá para varrer a
+         lista e achar onde alguém parou, sem abrir um por um */
+      var anot = (ncr.nota || '').trim();
+      if (anot) {
+        var nb = el('span', 'nota-dot', '📝');
+        nb.title = 'Observação interna: ' +
+          (anot.length > 160 ? anot.slice(0, 160) + '…' : anot);
+        badges.appendChild(nb);
+      }
       if (ncr.done) {
         li.classList.add('is-done');
         badges.appendChild(el('span', 'done-tick', '✓'));
@@ -1697,6 +1706,86 @@
     return n;
   }
 
+  /**
+   * O bloco de anotação do item.
+   *
+   * Existe para o caso mais comum do dia a dia: o preenchimento está parado e
+   * o motivo mora na cabeça de quem parou. O campo Situação já diz *que* está
+   * pendente ("Em preenchimento", "Improve justification"); aqui fica o *por
+   * quê* — o que falta, o que foi combinado, de quem se espera resposta.
+   *
+   * Duas regras que valem sempre:
+   * - **Não sai no PDF.** É recado interno, como o campo Situação (§4). Quem
+   *   monta a folha é o SECTIONS do report.js, e a nota não está lá.
+   * - **Vale com o item travado.** Anotar não é editar o documento: um waiver
+   *   aceito continua aceito, e é justamente nele que se anota "conferir o
+   *   certificado na próxima revisão". Daí o `data-livre`.
+   */
+  function cardDeAnotacao(ncr) {
+    var c = card('Observação interna', '#E4A11B');
+    c.classList.add('card--nota');
+
+    var acoes = el('div', 'nota-acoes');
+    acoes.style.marginLeft = 'auto';
+    var limpar = el('button', 'btn btn--sm', 'Apagar anotação');
+    limpar.type = 'button';
+    limpar.setAttribute('data-livre', '');
+    limpar.title = 'Tira a anotação do item — dá para desfazer logo depois';
+    limpar.hidden = !(ncr.nota || '').trim();
+    acoes.appendChild(limpar);
+    $('h3', c).appendChild(acoes);
+
+    c.appendChild(el('div', 'hint nota-aviso',
+      'Fica só aqui e na pasta da equipe: não entra no relatório em PDF. ' +
+      'A busca da lista e a aba Tabela alcançam este texto.'));
+
+    var campo = field('O que está pendente, e por quê', 'nota', {
+      rows: 3,
+      placeholder: 'esperando o certificado do fornecedor — cobrar na reunião de 5ª'
+    });
+    var ta = $('#f-nota', campo);
+    /* a anotação continua editável no item aceito: ver o comentário acima */
+    ta.setAttribute('data-livre', '');
+
+    /* Só redesenha a lista quando o 📝 aparece ou some — refazer a lateral a
+       cada tecla de um texto comprido é trabalho à toa. */
+    var tinha = !!(ncr.nota || '').trim();
+    ta.addEventListener('input', function () {
+      var agora = !!ta.value.trim();
+      limpar.hidden = !agora;
+      if (agora === tinha) return;
+      tinha = agora;
+      renderNcrList();
+    });
+
+    limpar.addEventListener('click', function () {
+      var n = currentNcr();
+      if (!n) return;
+      var antes = n.nota || '';
+      if (!antes.trim()) return;
+      n.nota = '';
+      touch(n);
+      renderNcrList();
+      renderEditor();
+      scheduleSave();
+      toast('Anotação apagada.', 6000, {
+        rotulo: 'Desfazer',
+        fn: function () {
+          var alvo = currentNcr();
+          if (!alvo) return;
+          alvo.nota = antes;
+          touch(alvo);
+          renderNcrList();
+          renderEditor();
+          scheduleSave();
+        }
+      });
+    });
+
+    c.appendChild(campo);
+    return c;
+  }
+
   /** Campo de texto ligado a uma propriedade da NCR. */
   function field(label, key, opts) {
     opts = opts || {};
@@ -1822,6 +1911,9 @@
       });
     });
     host.appendChild(idCard);
+
+    /* --- a anotação, antes do conteúdo do documento --- */
+    host.appendChild(cardDeAnotacao(ncr));
 
     /* --- seções textuais, na ordem e nas cores do relatório --- */
     var textCard = card('Conteúdo da derrogação');

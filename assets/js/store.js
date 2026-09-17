@@ -97,6 +97,7 @@
       historic: '',
       certificates: [],
       evidence: [],
+      nota: '',              // anotação interna livre; NÃO sai no PDF (§4)
       status: STATUS_PADRAO, // acompanhamento interno; não sai no PDF
       done: false,           // espelho de status === 'aceito', para filtros e contagens
       editedBy: '',          // quem mexeu nele por último
@@ -163,7 +164,7 @@
   var CAMPOS_EVIDENCIA = ['id', 'ref', 'note', 'orientation', 'images'];
   var CAMPOS_ITEM = ['id', 'ncrId', 'systems', 'func', 'description', 'currentSituation',
     'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
-    'approvedExpiry', 'historic', 'certificates', 'evidence', 'status', 'done',
+    'approvedExpiry', 'historic', 'certificates', 'evidence', 'nota', 'status', 'done',
     'editedBy', 'editedAt', 'syncBase'];
   var CAMPOS_PROJETO = ['id', 'schema', 'name', 'marco', 'marcoDev', 'lastEditedBy',
     'lastEditedAt', 'lastBackupBy', 'lastBackupAt', 'coverTitle', 'coverTitleDev',
@@ -234,6 +235,7 @@
       historic: str(raw.historic),
       certificates: certs,
       evidence: Array.isArray(raw.evidence) ? raw.evidence.map(normalizeEvidence) : [],
+      nota: str(raw.nota),
       status: status,
       done: status === STATUS_CONCLUIDO,
       editedBy: str(raw.editedBy),
@@ -331,6 +333,10 @@
    * imagem gera um id novo, então a diferença é detectada sem comparar os
    * megabytes do base64.
    */
+  /* Note que a `nota` fica de fora: a assinatura é o critério de desempate
+     quando duas edições têm o carimbo de tempo idêntico, e ele tem de dar o
+     mesmo resultado nesta versão e nas anteriores — senão as duas bases
+     desempatam diferente e divergem para sempre (§10). */
   function signature(item) {
     return JSON.stringify([
       item.ncrId, item.systems, item.func,
@@ -360,7 +366,12 @@
     ['requestExpiry', 'Waiver Request Expiry'],
     ['archStatus', 'Arch Status Waiver'],
     ['approvedExpiry', 'Waiver Approved Expiry'],
-    ['historic', 'Waiver Historic']
+    ['historic', 'Waiver Historic'],
+    /* A anotação não é do documento — é recado interno. Entra aqui porque
+       esta lista serve a duas coisas que ela precisa: a busca (procurar pelo
+       motivo da pendência tem de achar o item) e o "o que mudou" da faixa de
+       mesclagem. Quem manda no PDF é o SECTIONS do report.js, não esta lista. */
+    ['nota', 'Observação interna']
   ];
 
   function resumoEvidencia(item) {
