@@ -34,17 +34,58 @@ login e nenhum dado sai do computador.
   em retrato, à sua escolha.
 - **Reaproveitamento entre marcos.** **Copiar de…** traz NCRs já escritas de
   outro relatório, com ou sem as imagens, como cópias independentes.
+- **Duplicar.** O botão **Duplicar** cria, ao lado do item aberto, uma cópia
+  independente dele — anexos incluídos — com o número marcado como `(cópia)`
+  para você trocar. É o caminho mais curto quando várias NCRs do mesmo sistema
+  se repetem quase iguais.
+- **O caminho do waiver, em fluxo.** Cada item tem, embaixo do *Waiver
+  Historic*, o desenho do que aquelas linhas dizem: `J04 To: J06` mais
+  `J06 To: J08` viram **J04 → J06 → J08**. Os cards aparecem conforme o campo
+  é preenchido, e o botão **⤳ Ver fluxo** abre o desenho em tamanho grande. A
+  aba **Fluxos** reúne todos os itens do relatório aberto, NCR e DEV, e sai em
+  PDF.
+- **O que o marco anterior respondeu.** Se a mesma NCR (ou DEV) também está no
+  relatório de um marco que aparece no fluxo, aquele card ganha um ponto:
+  passe o mouse e leia o *Arch Answer* de lá, sem sair do que está fazendo.
+  Clicando, o item de lá abre.
+- **Ver outra NCR ao lado enquanto escreve.** Uma coluna à direita mostra
+  qualquer item — deste relatório ou de outro marco — em **só leitura**,
+  enquanto você preenche o da esquerda normalmente. Cada bloco tem
+  **copiar**.
+- **Busca em todo o texto.** O campo da lista lateral procura no número, no
+  sistema e na função, mas também dentro das descrições, do *Arch Status*, dos
+  certificados e até nas legendas das fotos.
+- **Item aceito abre travado.** Quem chegou em *Waiver accepted* é documento
+  fechado: os campos ficam em somente leitura até você clicar em **Editar
+  mesmo assim**. Evita que um clique distraído sobrescreva — e se espalhe para
+  todo mundo pela pasta compartilhada.
+- **Desfazer a exclusão.** Excluiu sem querer? O aviso que aparece no pé da
+  tela traz **↩ Desfazer** por alguns segundos, e o item volta inteiro.
 - **Conferência antes de exportar.** A janela de exportação lista as NCRs com
   campos essenciais em branco, com link direto para corrigir.
 - **Exportação em PDF** no mesmo padrão do relatório original: capa com o índice
   de NCRs (`NCR-…|HP|FV09 - …|WAIVER ACCEPTED`), páginas A4 retrato para as
   NCRs, páginas A4 paisagem para as evidências, mesmas cores de faixa e mesmo
   rodapé.
+- **Texto que não cabe na folha continua na seguinte.** O layout é de uma
+  folha por item, mas quando o texto passa disso a página continua numa folha
+  de continuação de verdade — com as mesmas margens, o mesmo rodapé e o
+  título repetido com `(cont.)`. A janela de exportação diz, antes de gerar,
+  quantas folhas sairão e quais itens passaram de uma.
 - **Backup e restauração** em arquivo `.json`, para levar o trabalho a outro
   computador ou passar para outra pessoa.
+- **Instalar como aplicativo e usar sem rede.** No Edge ou no Chrome, o menu do
+  navegador oferece **Instalar**: o programa ganha ícone próprio, abre em
+  janela separada, funciona com a rede fora do ar e — o que mais importa no
+  dia a dia — o navegador passa a guardar a permissão da pasta compartilhada,
+  em vez de pedir a cada sessão.
 - **Uma pasta da rede como banco de dados**: o programa lê e grava direto nela,
   e quem abrir apontando para a mesma pasta vê o trabalho de todos, sem importar
-  nada. Com histórico automático de versões.
+  nada. Com histórico automático de versões. O caminho combinado pela equipe já
+  vem preenchido — escolher a pasta é uma vez por computador.
+- **Uma tabela com tudo** (aba **Tabela**): uma linha por item de todos os
+  marcos, com busca geral, filtros, colunas que você escolhe e ordena, e
+  exportação em **Excel (.xlsx)**, CSV ou PDF.
 
 ## Como usar
 
@@ -106,6 +147,26 @@ mesmo o valor usado quando o campo fica em branco.
 Os títulos de capa, o rodapé, a data de emissão e o marco alternativo da capa
 da DEV ficam em **⋯ Mais → Ajustes de capa e rodapé** — textos fixos que quase
 nunca mudam.
+
+## Anotação do item
+
+Cada NCR e cada DEV tem um bloco **Observação interna**, logo abaixo da
+identificação, com cara de papel de recado. Serve para o caso mais comum: o
+preenchimento está parado e o motivo precisa ficar escrito em algum lugar —
+*“esperando o certificado do fornecedor, cobrar na reunião de quinta”*.
+
+- **Não sai no relatório em PDF.** É recado interno, como a Situação do item.
+- **Vale mesmo no item aceito**, que abre travado: anotar não é editar o
+  documento. É onde se escreve “conferir o certificado na próxima revisão”.
+- **O item anotado ganha um 📝 na lista**, então dá para varrer a lateral e ver
+  onde alguém parou sem abrir um por um.
+- **A busca alcança o texto da anotação** — tanto a da lista quanto a da aba
+  Tabela, onde ela também é uma coluna (desligada por padrão) e um filtro
+  (*📝 só com observação*).
+- **Apagar anotação** limpa o campo, com **Desfazer** no aviso que aparece.
+
+A anotação viaja com o item: vai no backup, vai para a pasta da equipe e segue
+a mesma regra dos outros campos (vale a edição mais recente).
 
 ## Situação do item (controle interno)
 
@@ -178,6 +239,9 @@ JavaScript embutidos:
 **https://brunoalmeida87.github.io/Derrogacao/derrogacao.html**
 (ou pelo menu **⋯ Mais → ⤓ Baixar para usar sem internet**)
 
+O mesmo arquivo está no repositório, na raiz — `derrogacao.html`. Quem baixa
+o projeto inteiro já leva o programa pronto, sem precisar publicar nada.
+
 Salve o arquivo e abra com dois cliques. Não precisa de servidor, instalação
 nem conexão — funciona inclusive numa pasta de rede, onde cada pessoa abre a
 sua cópia.
@@ -188,8 +252,173 @@ sua cópia.
 > máquina. Para levar o trabalho de um para o outro, use **★ Salvar backup de
 > tudo** de um lado e **Abrir arquivo…** do outro.
 
-O arquivo é gerado a cada publicação por `tools/build-standalone.py`, então
-acompanha sempre a versão do site.
+O arquivo é gerado por `tools/build-standalone.py`: a publicação o refaz a
+cada commit, carimbado com a versão do site, e a cópia versionada na raiz é
+conferida a cada envio (`--conferir`), para não envelhecer em silêncio.
+
+## O caminho do waiver (aba Fluxos)
+
+O campo **Waiver Historic** é escrito à mão, uma entrada por linha, no formato
+do relatório. Cada linha é uma seta:
+
+```
+J01 & J03 To: J02 & J04
+J02 & J04 To: J06
+J06Cer To: J06
+```
+
+Juntando as setas aparece o caminho: **J01 & J03 → J02 & J04 → J06**, com o
+`J06Cer` desembocando no mesmo J06. Nada é inventado — um marco que ninguém
+escreveu não aparece — e nada é alterado: o texto continua sendo a verdade, o
+desenho é só a leitura dele.
+
+- **`J01 & J03` é um card só.** Os números do mesmo lado da seta andam juntos,
+  como no relatório.
+- **`J1`, `J01` e `J 01` são o mesmo marco**, e `RANAE J06` também é J06.
+- **`J06Cer` é o certificado**, e fica logo antes do J06 dele.
+- **O card do marco deste relatório sai destacado**, para se achar de relance.
+- Quando as setas não dizem quem vem antes, vale a ordem do programa:
+  J01 & J03 · J02 & J04 · J05 · J06 · J07 · J08 · J09 · J10 · J11 · J12.
+- Uma linha sem `To:` vira um card sozinho, e o pop-up avisa. Setas em círculo
+  (`J06 To: J08` com `J08 To: J06`) também viram aviso, em vez de travar.
+
+Na aba **Fluxos** está o compilado, em três leituras da mesma coisa:
+
+- **Lista** — um fluxo por item, NCR e DEV separados, na ordem do PDF.
+- **Mapa do marco** — todos os fluxos somados num desenho só. A seta engorda
+  com o número de itens que passam por ela e cada card diz quantos itens o
+  atravessam: é o desenho que responde *de onde vem o grosso do trabalho deste
+  marco*. Abaixo dele, quantos marcos cada item já atravessou — um item em
+  quatro colunas é um waiver renovado três vezes.
+- **Matriz de/para** — uma linha por seta escrita, da mais usada para a menos,
+  com o percentual sobre os itens que têm fluxo.
+
+Em **Itens de** escolha entre o relatório aberto e **todos os marcos** deste
+navegador; em **Passa por**, clique nos marcos para ver só os itens cujo fluxo
+passa por eles (dá para marcar mais de um). Há ainda a busca, o filtro por tipo
+e a opção de esconder quem não tem nada escrito. **Esta vista em PDF** gera em
+A4 exatamente o que está na tela, com o recorte escrito na folha e a paginação
+de sempre.
+
+### O card com um ponto: a resposta do marco anterior
+
+Cada marco é um relatório à parte, e o mesmo item costuma atravessar vários — a
+`NCR-001` do J06 vira a `NCR-001` do J08. Quando o card de um marco do fluxo
+tem, **neste navegador**, um relatório daquele marco com o mesmo número, o card
+ganha um **ponto no canto**:
+
+- **Passe o mouse** (ou chegue nele pelo Tab) e aparece o que aquele relatório
+  diz sobre este item: *Arch Answer*, *Arch Status*, *Approved Expiry*, quem
+  escreveu e quando. Um texto muito comprido vem cortado, com o aviso.
+- **Clique no card** e o item de lá abre — o relatório troca junto, e o que
+  você estava escrevendo é gravado antes.
+- **Sem ponto, não há nada a ver**: ou aquele marco não tem relatório neste
+  computador, ou o relatório dele não tem este número. Nada é adivinhado.
+
+O pareamento é o mesmo do resto do programa: o marco pelo texto (`RANAE J06`,
+`J06` e `J 6` são o mesmo; `J06Cer` não é o J06) e o item pelo número, sem
+ligar para maiúsculas e espaços. É leitura, só leitura: abrir o balão não
+escreve nada no outro relatório.
+
+Como a busca só enxerga o que está neste navegador, ela funciona melhor com a
+**pasta da rede ligada** — é ela que traz os relatórios dos outros marcos para
+cá.
+
+## Ver uma NCR ao lado da outra
+
+Escrever a `NCR-001` do J08 olhando a do J06 é o caso mais comum — e trocar de
+relatório para consultar, e voltar, perde o fio. O botão **⇥ Ver outra ao
+lado**, no alto do cartão *Identificação*, abre uma coluna à direita com o item
+que você escolher: **deste relatório ou de qualquer outro marco** que esteja
+neste navegador.
+
+- A coluna mostra o item **inteiro**: as cinco seções nas cores do relatório, o
+  bloco do waiver (com o fluxo desenhado), certificados e evidências, mais a
+  situação interna e quem editou por último.
+- **É só leitura, e a tela diz isso.** Para escrever no item de lá, clique em
+  **abrir** no alto da coluna — aí ele passa a ser o item aberto. Para trazer
+  um texto para cá, use **copiar** no bloco e cole no campo.
+- **Atalho pelo fluxo**: no card com ponto (acima), **Shift+clique** deixa
+  aquele item na coluna em vez de trocar de tela.
+- **trocar** escolhe outro item, **✕** fecha a coluna. A escolha fica guardada
+  neste navegador: ao reabrir o programa, a coluna volta como estava.
+- Nas abas **Resumo**, **Fluxos** e **Conversa** a coluna se recolhe — ali não
+  há editor ao lado de quê —, e volta ao entrar na NCR ou na DEV.
+- Ela não sai no PDF nem no backup: é uma janela de consulta, não parte do
+  documento.
+
+> **Por que não dois editores?** Porque hoje cada campo do formulário escreve
+> no item *selecionado*: dois formulários abertos gravariam os dois no mesmo
+> item. Enquanto isso não mudar, a coluna ao lado mostra e não escreve — é a
+> diferença entre consultar com segurança e perder trabalho sem perceber.
+
+## Tudo em tabela (aba Tabela)
+
+As outras abas olham para o relatório aberto. A **Tabela** olha para o conjunto:
+uma linha por item de **todos os marcos deste navegador**, NCR e DEV juntos.
+Serve para a pergunta que não tem resposta em nenhuma outra tela — *onde está a
+NCR-018?* — sem abrir marco por marco.
+
+- **Busca geral**: varre todo o texto do item, não só o número. Procurar pelo
+  certificado, por um trecho do *Arch Answer* ou pela legenda de uma foto
+  funciona igual.
+- **Filtros**: marco, tipo, situação, sistema, *Arch Status*, com ou sem anexo,
+  e só os parados há 30+ dias. São os mesmos do Resumo, para os dois contarem
+  a mesma coisa.
+- **Colunas**: em **Colunas** você marca o que quer ver (são 22 no total, do
+  número ao *Why not possible*) e usa as setas ↑ ↓ para mudar a ordem delas —
+  na tela, no Excel e no PDF. A escolha fica guardada **neste navegador**.
+- **Ordenar**: clique no título da coluna. Isso **não altera** a ordem dos itens
+  no relatório nem no PDF — a tabela é leitura.
+- **Clique numa linha** e o item abre no editor, trocando de relatório se for
+  preciso.
+
+### Exportar
+
+- **⤓ Exportar Excel** gera um `.xlsx` de verdade — filtros já armados no
+  cabeçalho, primeira linha congelada, número saindo como número. Vai com uma
+  segunda aba, *Recorte*, dizendo quando foi gerado, por quem, quantos itens e
+  qual filtro estava aplicado: planilha que anda pela empresa sem dizer de que
+  recorte veio acaba lida como se fosse o total.
+- **CSV** para quem prefere o texto cru.
+- **PDF** com a mesma tabela em folhas A4 — deitadas quando há muita coluna,
+  com o cabeçalho repetido em cada folha.
+
+> O Excel sai com o que está **à vista**: as colunas escolhidas, o recorte dos
+> filtros e a ordem da tela. Para o total, limpe os filtros antes.
+
+## Conversa da equipe (aba opcional)
+
+Recados entre quem trabalha no mesmo marco, **sem servidor e sem nuvem**: a
+conversa é um arquivo (`conversas.json`) dentro da mesma pasta da rede que já
+guarda os dados. Cada um escreve no seu navegador, o recado vai para o arquivo
+e volta para os outros na sincronização seguinte.
+
+**Vem desligada.** Para ligar: **⋯ Mais → Ajustes de capa e rodapé →
+Conversa da equipe → Mostrar a aba Conversa**. Ligar vale só para o seu
+navegador: cada pessoa liga o seu.
+
+Na aba há dois tipos de conversa:
+
+- **Geral** — todo mundo que abre a pasta.
+- **Conversa direta** — você e mais uma pessoa. A lista de pessoas sai de quem
+  já assinou alguma coisa na pasta (editou um item, escreveu no geral).
+
+Três coisas que precisam ficar claras antes de usar:
+
+- **Sem a pasta da rede não há conversa.** O que você escrever fica só neste
+  navegador, e ninguém recebe.
+- **Não é canal seguro.** Tudo fica no mesmo arquivo, inclusive as conversas
+  diretas: quem abre a pasta pode ler o que não é endereçado a ele. Serve para
+  organizar o assunto, não para esconder. Assunto que não pode ser lido por
+  quem tem acesso à pasta não vai aqui.
+- **O nome é o que cada um digitou**, como no resto do programa. Não há senha,
+  então não há como provar quem escreveu.
+
+Detalhes de uso: **Enter** envia e **Shift+Enter** quebra a linha; o ✕ no seu
+próprio recado apaga para todo mundo; um ponto no alto da aba avisa que chegou
+coisa nova. Os recados ficam **90 dias** (ou os 1.000 últimos) e não entram no
+backup nem em nenhuma página do PDF — relatório é relatório.
 
 ## Aba Resumo
 
@@ -204,6 +433,10 @@ aberto:
 - **Itens por sistema** — um item que cita vários sistemas (`BX,BQ,BD`) conta em
   cada um; acima de dez sistemas o excedente vira "Outros".
 - **Tabela de marcos**, com percentual aceito e quem editou por último.
+- **Parados há 30+ dias** — os itens pendentes em que ninguém toca há um mês ou
+  mais, do mais esquecido para o menos, com o número de dias e quem mexeu por
+  último. Waiver aceito não conta: está pronto, não parado. O bloco sai também
+  no **Resumo em PDF**, e o CSV ganha a coluna *Dias sem edição*.
 
 ### Filtros
 
@@ -216,7 +449,7 @@ Abaixo do seletor de marco há uma linha de filtros, que se somam:
 | **Sistema** | um sistema específico (`HP`, `EX`, `BF`…), com a contagem de cada um |
 | **Arch Status** | o texto que vai impresso no relatório, inclusive `(em branco)` |
 | **Evidência** | só itens com anexo, ou só os sem |
-| **Buscar no texto** | procura no número, sistema, função, nos blocos de texto e nos certificados |
+| **Buscar no texto** | procura em todo o texto do item: número, sistema, função, os cinco blocos, *Arch Status*, certificados e legendas das evidências |
 
 Os números, os gráficos e as tabelas passam a contar **só o que está
 filtrado** — e é isso que sai no **Resumo em PDF** (que traz uma linha dizendo
@@ -229,9 +462,13 @@ contagem por certificado impactado. Nesse modo aparecem três exportações:
 
 | Botão | O que sai |
 | --- | --- |
-| **Resumo em PDF** | Uma folha A4 com os números, os gráficos e a tabela de itens |
+| **Resumo em PDF** | Folhas A4 com os números, os gráficos e a lista de itens — com quantas folhas forem precisas, o título repetido e as mesmas margens em todas |
 | **Planilha (CSV)** | Uma linha por NCR/DEV, com todos os campos — abre no Excel |
 | **Backup deste marco** | O `.json` só desse marco, para enviar a alguém |
+
+Um texto que comece por `=`, `+`, `-` ou `@` sai da planilha com um apóstrofo à
+frente: sem isso o Excel o trataria como fórmula. O apóstrofo não aparece na
+célula.
 
 Os gráficos são SVG escrito à mão — sem biblioteca externa, imprimem em vetor e
 funcionam com o arquivo aberto direto do disco. A paleta foi validada para
@@ -245,7 +482,30 @@ sua cópia e trocar arquivos, o programa **lê e grava direto numa pasta
 combinada**: quem abre apontando para a mesma pasta vê o trabalho de todos, sem
 importar nada.
 
-Em **⋯ Mais → 🗄 Pasta da rede como banco de dados**.
+Em **⋯ Mais → 🗄 Pasta da rede como banco de dados** — ou no aviso que aparece
+no alto da tela enquanto a pasta não estiver ligada.
+
+### O caminho já vem preenchido
+
+O caminho combinado pela equipe é
+
+```
+G:\DOP\GTO\3_INTERNO\01_SAFE TO DIVE\10_SISTEMA DE DERROGAÇÃO\00_BD
+```
+
+e já vem escrito na janela e no aviso do alto, com um botão **Copiar o
+caminho** para colar na barra de endereço da janela do Windows. Se a pasta
+mudar de lugar, escreva o novo caminho ali — ele viaja com os dados, então
+quem abrir depois já vê o certo — e **Usar o caminho padrão** volta ao
+combinado.
+
+> **Por que ainda é preciso clicar em “Escolher a pasta…”:** nenhum navegador
+> abre uma pasta por caminho, nem com ele digitado. Quem escolhe é sempre a
+> pessoa, na janela do Windows — é uma regra de segurança do navegador, e vale
+> para qualquer site ou programa aberto nele. O que o programa guarda depois
+> disso é a autorização daquela pasta, e é ela que dispensa escolher de novo a
+> cada vez. Instalando o programa como aplicativo, some também o pedido de
+> permissão de cada sessão.
 
 ### Como funciona
 
@@ -254,10 +514,22 @@ A pasta guarda:
 ```
 Derrogacao\
   derrogacao-dados.json     <- o banco: todos os marcos, NCRs e DEVs
+  imagens\
+    3f2a...-9c1.jpg                 <- as fotos das evidências, uma por arquivo
+    ...
   historico\
     2026-09-11_14h32_bruno.json     <- versões datadas, automáticas
     ...
 ```
+
+As **fotos ficam em arquivos próprios**, e o `derrogacao-dados.json` guarda só o
+nome de cada uma. Cada foto sobe uma vez; dali em diante o que vai e vem pela
+rede é o texto, que é pequeno. As versões do histórico apontam para os mesmos
+arquivos, em vez de carregar uma cópia das imagens cada uma. Uma foto só é
+apagada da pasta quando **nenhum item e nenhuma versão guardada** a citam mais —
+e, ainda assim, nunca antes de sete dias, para nunca competir com a gravação de
+outra pessoa. A janela **🗄 Pasta da rede…** mostra quanto a pasta está
+ocupando, dividido entre dados, imagens e histórico.
 
 - **Ao abrir**, o programa lê a pasta e junta com o que está aqui.
 - **Ao salvar** (poucos segundos depois de parar de digitar), ele relê a pasta,
@@ -267,12 +539,23 @@ Derrogacao\
   traz. Duas pessoas com o programa aberto se enxergam sem recarregar nada.
 - Tudo continua salvo **também neste navegador**, então a pasta cair não
   interrompe o trabalho de ninguém.
+- **Se os dados tiverem sido gravados por uma versão mais nova do programa**,
+  esta página passa a só ler: ela mostra o trabalho de todos, mas não regrava a
+  pasta — senão apagaria, em silêncio, os campos que ainda não conhece. O aviso
+  aparece na tela e na janela da pasta, e basta recarregar a página (Ctrl+F5)
+  para voltar ao normal.
 
 ### A regra de quem vence
 
 Item a item, **vale a edição mais recente**. Não há tela de conflito aqui, ao
 contrário da importação manual de arquivo: a gravação acontece sozinha, e
 ninguém pode ficar parado esperando outra pessoa decidir.
+
+Quando isso acontece com um item seu, o programa não deixa passar em branco: o
+item ganha a marca **⇄** na lista e, ao abri-lo, uma faixa diz quem mexeu e
+quando, com **Ver o que mudou** — os campos substituídos lado a lado, *estava
+aqui* × *passou a ser*. Se algo de seu se perdeu, está ali para copiar de
+volta.
 
 A regra **converge**: mesmo que duas gravações se atropelem, a sincronização
 seguinte de cada lado traz de volta o que faltou, porque cada um ainda tem os
@@ -287,6 +570,7 @@ Na prática:
 | Duas pessoas no **mesmo item** | fica a edição mais recente; a outra versão está no histórico |
 | O item aberto na sua tela muda por fora | a tela é redesenhada e um aviso diz quem alterou |
 | O item aberto é excluído por outra pessoa | a lista volta para o primeiro item, com aviso |
+| O **relatório** aberto é excluído por outra pessoa | a tela passa ao primeiro relatório, com aviso |
 
 O caso que realmente custa trabalho é o segundo, e ele é raro quando as NCRs
 estão divididas entre as pessoas. Mesmo assim: **antes de juntar qualquer
@@ -296,7 +580,11 @@ substituído nunca desaparece sem deixar cópia.
 **Exclusões deixam lápide.** Sem isso, o item apagado por uma pessoa voltaria na
 próxima sincronização, vindo do computador de quem ainda não soube. A lápide é
 sempre carimbada depois da versão que apagou, mesmo que o relógio da máquina
-esteja adiantado.
+esteja adiantado. Vale para as três formas de excluir: o botão **Excluir** da
+lateral, o grupo *Excluídos pelo colega* da tela de mesclagem e o
+**Excluir este relatório** do menu — este último deixa lápide de relatório
+inteiro, que também viaja na pasta. Restaurar uma versão do histórico desfaz
+a lápide do que voltar.
 
 ### O histórico é a rede de proteção
 
@@ -486,15 +774,24 @@ O site é servido pela branch `gh-pages`, publicada pelo workflow
 
 ```
 index.html               interface
+manifest.webmanifest     instalação como aplicativo
+sw.js                    service worker: abre sem rede
+assets/icons/            ícones do aplicativo instalado
 assets/css/app.css       estilos do editor
 assets/css/report.css    layout do relatório (tela e impressão A4)
 assets/js/store.js       modelo de dados, persistência (IndexedDB) e mesclagem
 assets/js/pasta.js       a pasta da rede como banco de dados
-assets/js/report.js      montagem das páginas no padrão do PDF
+assets/js/report.js      montagem das páginas no padrão do PDF, com paginação
+assets/js/lado.js        o item preso ao lado, em só leitura
+assets/js/fluxo.js       leitura do Waiver Historic, desenho do fluxo e a
+                         resposta do marco anterior
 assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
-tools/build-standalone.py  gera a versão de arquivo único
+assets/js/xlsx.js        gera a planilha .xlsx (sem biblioteca)
+assets/js/tabela.js      a aba Tabela: todos os itens, filtros e exportação
+assets/js/chat.js        a conversa da equipe, dentro da pasta da rede
 assets/js/app.js         lógica do editor
-tests/                   24 suítes de ponta a ponta (Playwright)
+derrogacao.html          o programa inteiro num arquivo só (gerado)
+tools/build-standalone.py  gera a versão de arquivo único
 exemplos/                relatórios .json prontos para importar
 CLAUDE.md                notas de manutenção: decisões, armadilhas, porquês
 ```
