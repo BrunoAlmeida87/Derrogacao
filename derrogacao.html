@@ -1727,6 +1727,116 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   overflow-y: auto;
 }
 
+/* o caso grave: os dois escreveram no mesmo campo */
+.mudou--conflito {
+  background: var(--danger-sf, #fff1f0);
+  border-color: var(--danger-br, #ffccc7);
+  border-left-color: var(--danger);
+  color: #7a1c14;
+}
+.dif-campo--conflito {
+  border: 1px solid var(--danger-br, #ffccc7);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  background: var(--danger-sf, #fff1f0);
+}
+
+/* a pasta parou de responder: o aviso deixa de ser convite e vira alarme */
+.notice--parada {
+  background: var(--danger-sf, #fff1f0);
+  border-color: var(--danger-br, #ffccc7);
+  color: #7a1c14;
+}
+
+/* --- histórico de alterações -------------------------------------------- */
+
+.rev-barra {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+}
+.rev-escopo { display: flex; gap: 6px; flex-wrap: wrap; }
+.rev-escopo .is-on {
+  background: var(--accent-sf);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+.rev-busca {
+  flex: 1;
+  min-width: 200px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 13px;
+}
+.rev-box { max-height: 56vh; overflow-y: auto; }
+.rev-linha {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+.rev-linha[data-origem="substituido"] { border-left-color: var(--danger); }
+.rev-linha[data-origem="restaurou"]   { border-left-color: var(--ok); }
+.rev-linha[data-origem="criou"]       { border-left-color: var(--accent); }
+.rev-cab {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.rev-quem { font-weight: 700; color: var(--ink); }
+.rev-campo {
+  font-weight: 600;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: .04em;
+}
+.rev-item { color: var(--muted); }
+.rev-tag {
+  margin-left: auto;
+  background: var(--line-2);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.rev-linha[data-origem="substituido"] .rev-tag {
+  background: var(--danger-sf, #fff1f0);
+  color: var(--danger);
+}
+.rev-rotulo {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--danger);
+  margin-bottom: 4px;
+}
+.rev-txt {
+  margin: 0;
+  padding: 8px;
+  background: var(--line-2);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.rev-txt--antes { margin-top: 8px; opacity: .85; }
+.rev-acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
 /* --- folhas e tamanho da pasta ------------------------------------------ */
 
 .dlg-folhas { font-size: 13px; color: var(--muted); margin: 0 0 10px !important; }
@@ -3171,14 +3281,35 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 <dialog id="difDialog" class="dlg--wide">
   <div class="dlg-body">
     <h3>O que mudou neste item</h3>
-    <p>A pasta compartilhada segue a regra “vale a edição mais recente”. Isto é
-       o que o texto de outra pessoa substituiu aqui — para você conferir, e
-       reescrever se algo se perdeu.</p>
+    <p>Os campos em que só uma pessoa mexeu são juntados sem escolha nenhuma.
+       Isto é o que chegou de fora — e, se houver, o campo em que os dois
+       escreveram ao mesmo tempo, que é o único em que um texto teve de sair.
+       Nada some sem ficar no histórico do item.</p>
     <p class="dif-quem" id="difQuem"></p>
     <div id="difBody" class="dif-box"></div>
   </div>
   <div class="dlg-actions">
     <button class="btn btn--primary" id="difCloseBtn">Fechar</button>
+  </div>
+</dialog>
+
+<dialog id="revDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>Histórico do texto</h3>
+    <p>Quem escreveu o quê, campo a campo, com o texto de antes guardado.
+       Serve para achar de novo um texto que foi substituído — inclusive um
+       que a sincronização tenha escrito por cima.</p>
+    <div class="rev-barra">
+      <div class="rev-escopo" id="revEscopo"></div>
+      <input type="search" id="revBusca" class="rev-busca"
+             aria-label="Procurar no histórico"
+             placeholder="procurar no texto, no campo ou no nome">
+    </div>
+    <p class="dif-quem" id="revResumo"></p>
+    <div id="revBody" class="rev-box"></div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn btn--primary" id="revCloseBtn">Fechar</button>
   </div>
 </dialog>
 
@@ -3595,6 +3726,147 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     return out;
   }
 
+  /* --- a base da mesclagem: o texto que os dois lados tinham em comum -----
+     "Vale quem editou por último" decide o item inteiro, e o item inteiro é
+     grande demais para ser a unidade: duas pessoas mexendo em campos
+     diferentes da mesma NCR não estão em conflito nenhum, mas uma delas
+     perdia tudo. O que faltava era a terceira ponta — o que os dois tinham
+     antes de se separarem. Guardando esse retrato dá para dizer, campo a
+     campo, quem mudou o quê; e só quando os dois mudaram o MESMO campo é que
+     alguém precisa ganhar. */
+
+  /* Os campos que se mesclam um a um. As evidências ficam de fora de
+     propósito: são listas com imagens, e juntar meia lista de anexos daria
+     um item que ninguém montou. Elas seguem o item inteiro, como antes. */
+  var CAMPOS_MESCLA = ['ncrId', 'systems', 'func', 'description', 'currentSituation',
+    'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
+    'approvedExpiry', 'historic', 'nota', 'certificates', 'status'];
+
+  function rotuloCampo(campo) {
+    var achado = '';
+    CAMPOS_VISIVEIS.forEach(function (c) { if (c[0] === campo) achado = c[1]; });
+    if (achado) return achado;
+    if (campo === 'certificates') return 'Certificate Impacted';
+    if (campo === 'status') return 'Situação do item';
+    return campo;
+  }
+
+  /** O valor de um campo como texto — é assim que ele é comparado e guardado. */
+  function valorCampo(item, campo) {
+    if (!item) return '';
+    if (campo === 'certificates') return (item.certificates || []).join('\n');
+    if (campo === 'status') return statusInfo(item.status).id;
+    return str(item[campo]);
+  }
+
+  /** O caminho de volta: escreve no item o valor que veio como texto. */
+  function porCampo(item, campo, valor) {
+    valor = str(valor);
+    if (campo === 'certificates') {
+      item.certificates = valor ? valor.split('\n') : [];
+      return;
+    }
+    if (campo === 'status') {
+      item.status = statusInfo(valor).id;
+      item.done = item.status === STATUS_CONCLUIDO;
+      return;
+    }
+    item[campo] = valor;
+  }
+
+  /* As evidências não se mesclam campo a campo, mas precisam saber se
+     mudaram: sem isso, quem ganhasse o desempate levaria consigo a lista de
+     anexos do outro. A chave é a mesma que a assinatura usa — id e legenda,
+     nunca os megabytes da foto. */
+  function evidChave(item) {
+    return JSON.stringify(((item && item.evidence) || []).map(function (ev) {
+      return [ev.id, ev.ref, ev.note, ev.orientation,
+        (ev.images || []).map(function (im) { return [im.id, im.caption]; })];
+    }));
+  }
+
+  function retratoItem(item) {
+    var out = {};
+    CAMPOS_MESCLA.forEach(function (c) { out[c] = valorCampo(item, c); });
+    out.evid = evidChave(item);
+    return out;
+  }
+
+  /**
+   * O retrato compacto de tudo o que está aqui, para servir de base na
+   * próxima junção. Só texto: nem imagem, nem evidência, nem carimbo — cabe
+   * no armazenamento do navegador mesmo com centenas de itens.
+   */
+  function baseDe(projects) {
+    var mapa = {};
+    (projects || []).forEach(function (p) {
+      if (!p || !p.id) return;
+      var itens = {};
+      ['ncrs', 'devs'].forEach(function (k) {
+        (p[k] || []).forEach(function (n) { if (n && n.id) itens[n.id] = retratoItem(n); });
+      });
+      mapa[p.id] = itens;
+    });
+    return mapa;
+  }
+
+  /**
+   * Junta dois retratos do mesmo item campo a campo, tendo `base` como o que
+   * os dois tinham em comum.
+   *
+   * Devolve { item, perdidos, recebi, mantive }. `perdidos` só tem coisa
+   * quando os dois escreveram no MESMO campo — o único caso em que ainda é
+   * preciso escolher, e o único em que o relógio ainda decide. O texto que
+   * perdeu sai daqui inteiro para o histórico poder oferecê-lo de volta.
+   */
+  function mesclarCampos(meu, dele, base, venceDele) {
+    var out = normalizeNcr(venceDele ? dele : meu);
+    var res = { item: out, perdidos: [], recebi: 0, mantive: 0 };
+    CAMPOS_MESCLA.forEach(function (campo) {
+      var vm = valorCampo(meu, campo);
+      var vd = valorCampo(dele, campo);
+      var vb = str(base[campo]);
+      if (vm === vd) { porCampo(out, campo, vm); return; }
+      if (vd === vb) { porCampo(out, campo, vm); res.mantive++; return; }   /* só eu mexi */
+      if (vm === vb) { porCampo(out, campo, vd); res.recebi++; return; }    /* só ele mexeu */
+      porCampo(out, campo, venceDele ? vd : vm);
+      res.perdidos.push({
+        campo: campo,
+        rotulo: rotuloCampo(campo),
+        perdeu: venceDele ? vm : vd,
+        ficou: venceDele ? vd : vm,
+        de: str((venceDele ? meu : dele).editedBy)
+      });
+    });
+    /* Os anexos vão inteiros, mas para o lado certo: quem mexeu neles desde
+       a base leva. Só quando os dois mexeram é que um deles sai — e fica
+       anotado, porque uma foto não se recupera de um histórico de texto. */
+    var em = evidChave(meu), ed = evidChave(dele), eb = str(base.evid);
+    if (em !== ed && typeof base.evid === 'string') {
+      var deEv = ed === eb ? meu : (em === eb ? dele : null);
+      if (deEv) {
+        out.evidence = normalizeNcr(deEv).evidence;
+        if (deEv === meu) res.mantive++; else res.recebi++;
+      } else {
+        var perdedor = venceDele ? meu : dele;
+        res.perdidos.push({
+          campo: 'evidence',
+          rotulo: 'Evidências',
+          perdeu: resumoEvidencia(perdedor),
+          ficou: resumoEvidencia(venceDele ? dele : meu),
+          de: str(perdedor.editedBy),
+          semTexto: true          /* não dá para restaurar com um clique */
+        });
+      }
+    }
+
+    /* O resultado é mais novo do que os dois lados: ele carrega o trabalho
+       dos dois. A assinatura de quem ganhou o desempate fica como autoria. */
+    out.editedAt = maisRecente(str(meu.editedAt), str(dele.editedAt));
+    out.editedBy = str((venceDele ? dele : meu).editedBy);
+    return res;
+  }
+
   /**
    * Todo o texto do item, para a busca. Inclui o que está dentro das
    * evidências: procurar "latch" tem de achar a legenda da foto também.
@@ -3905,13 +4177,20 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
    * próxima sincronização de cada lado traz de volta o que faltava, porque
    * cada um ainda tem os seus itens com a sua hora de edição.
    *
+   * `base` é o retrato do que este computador viu na pasta da última vez
+   * (`Store.baseDe`), por id de item. Com ela a junção é campo a campo, e
+   * "vale quem editou por último" fica restrito ao caso em que os dois
+   * escreveram no mesmo campo. Sem ela — item novo, primeira sincronização,
+   * navegador recém-instalado — vale o item inteiro, como antes.
+   *
    * Altera `local` no lugar e devolve o que mudou aqui.
    */
-  function mergeLWW(local, remoto) {
+  function mergeLWW(local, remoto, base) {
     /* `substituidos` guarda o que o texto de outra pessoa apagou aqui: é a
        única pista de que a regra "vale a edição mais recente" passou por
        cima de alguma coisa, e o editor usa isso para mostrar o antes. */
-    var res = { entraram: 0, atualizados: 0, removidos: 0, substituidos: [] };
+    var res = { entraram: 0, atualizados: 0, removidos: 0, substituidos: [], conflitos: 0 };
+    base = base || null;
 
     /* a lápide mais recente de cada item, vinda de qualquer um dos lados */
     var lapides = {};
@@ -3954,21 +4233,35 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
                encontrariam. A assinatura decide — e decide igual aqui e lá. */
             novo = assDele > assMeu;
           }
-          var trocado = novo ? normalizeNcr(dele) : meu;
-          if (novo && assMeu !== assDele) {
+          var oBase = base ? base[id] : null;
+          var trocado, perdidos = [];
+          if (oBase && assMeu !== assDele) {
+            /* há terceira ponta: junta campo a campo */
+            var junto = mesclarCampos(meu, dele, oBase, novo);
+            trocado = junto.item;
+            perdidos = junto.perdidos;
+          } else {
+            trocado = novo ? normalizeNcr(dele) : meu;
+          }
+          var assFim = signature(trocado);
+          if (assFim !== assMeu) {
             res.atualizados++;
             var campos = difCampos(meu, trocado);
-            if (campos.length) {
+            if (campos.length || perdidos.length) {
               res.substituidos.push({
                 kind: key === 'devs' ? 'dev' : 'ncr',
                 id: id,
                 ncrId: str(trocado.ncrId) || str(meu.ncrId),
-                quem: str(trocado.editedBy),
-                quando: str(trocado.editedAt),
-                campos: campos
+                quem: str(dele.editedBy),
+                quando: str(dele.editedAt),
+                campos: campos,
+                /* só o que foi realmente escrito por cima: os dois mexeram
+                   no mesmo campo e um dos textos teve de sair */
+                perdidos: perdidos
               });
             }
           }
+          if (perdidos.length) res.conflitos += perdidos.length;
           saida.push(trocado);
         } else if (dele) {
           res.entraram++;
@@ -4076,9 +4369,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
    * identificador e, na falta, pelo marco. Devolve a lista resultante e um
    * resumo do que mudou deste lado.
    */
-  function mergeListas(locais, recebidos, lapidesRecebidas) {
+  function mergeListas(locais, recebidos, lapidesRecebidas, base) {
     var res = { entraram: 0, atualizados: 0, removidos: 0, novosRelatorios: 0,
-                relatoriosRemovidos: 0, substituidos: [] };
+                relatoriosRemovidos: 0, substituidos: [], conflitos: 0 };
 
     /* a lápide de relatório mais recente de cada lado */
     var tumbas = {};
@@ -4129,10 +4422,13 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         res.entraram += novo.ncrs.length + novo.devs.length;
         return;
       }
-      var um = mergeLWW(alvo, normalizeProject(r));
+      /* a base é a do relatório de cá: é com o que ESTE computador viu que
+         se compara o que voltou da pasta */
+      var um = mergeLWW(alvo, normalizeProject(r), base ? base[alvo.id] : null);
       res.entraram += um.entraram;
       res.atualizados += um.atualizados;
       res.removidos += um.removidos;
+      res.conflitos += um.conflitos || 0;
       um.substituidos.forEach(function (sub) {
         sub.projeto = alvo.id;
         res.substituidos.push(sub);
@@ -4265,6 +4561,53 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       return new Promise(function (resolve, reject) {
         var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).get('last');
         req.onsuccess = function () { resolve(req.result || null); };
+        req.onerror = function () { reject(req.error); };
+      });
+    }).catch(function () { return null; });
+  }
+
+  /* --- a base da última troca com a pasta ---------------------------------
+     Mora no mesmo armazém do retrato ("snapshots"), com outra chave, de
+     propósito: criar uma prateleira nova obrigaria a subir a versão do
+     IndexedDB, e uma página da versão anterior abrindo o mesmo navegador
+     depois disso não conseguiria mais abrir o banco. */
+
+  var BASE_ID = 'mesclaBase';
+
+  /**
+   * Dois retratos, e não um, porque eles andam em ritmos diferentes:
+   *
+   * - `base` é o que já foi para a pasta. Só avança quando a gravação dá
+   *   certo — avançá-la antes disso faria a junção seguinte tomar o meu
+   *   trabalho ainda não gravado por "coisa que o outro escreveu", e aí a
+   *   regra que deveria salvar o texto seria a que o apagaria.
+   * - `diario` é o que o histórico de alterações já contou. Avança a cada
+   *   captura, com ou sem pasta, para a mesma escrita não virar vinte linhas.
+   */
+  function saveBase(mapa, diario) {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(SNAP_STORE, 'readwrite');
+        tx.objectStore(SNAP_STORE).put({
+          id: BASE_ID, at: nowIso(), base: mapa || {}, diario: diario || {}
+        });
+        tx.oncomplete = function () { resolve(true); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    }).catch(function (e) {
+      console.warn('Não foi possível guardar a base da mesclagem.', e);
+      return false;
+    });
+  }
+
+  function getBase() {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).get(BASE_ID);
+        req.onsuccess = function () {
+          var r = req.result;
+          resolve(r ? { base: r.base || null, diario: r.diario || null } : null);
+        };
         req.onerror = function () { reject(req.error); };
       });
     }).catch(function () { return null; });
@@ -4419,6 +4762,14 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     saveSnapshot: saveSnapshot,
     getSnapshot: getSnapshot,
     clearSnapshot: clearSnapshot,
+    saveBase: saveBase,
+    getBase: getBase,
+    baseDe: baseDe,
+    retratoItem: retratoItem,
+    CAMPOS_MESCLA: CAMPOS_MESCLA,
+    rotuloCampo: rotuloCampo,
+    valorCampo: valorCampo,
+    porCampo: porCampo,
 
     /**
      * Anota, na sessão corrente do projeto, que um item foi criado, editado
@@ -4510,6 +4861,310 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 
 </script>
 <script>
+/* assets/js/revisoes.js */
+/* ==========================================================================
+   revisoes.js — o histórico do que cada pessoa escreveu, campo a campo
+   --------------------------------------------------------------------------
+   A pasta já guardava versões inteiras do banco (historico/), que servem
+   para o estrago grande: voltar tudo a como estava às 14h. Faltava o
+   contrário — a pergunta miúda, que é a que aparece no dia a dia:
+
+       "quem apagou o meu texto do Arch Answer, e o que estava escrito lá?"
+
+   Para isso, versão inteira é um instrumento ruim: são 40 arquivos que
+   ninguém abre, e achar o texto certo dentro deles é trabalho manual. Aqui
+   cada alteração de campo vira uma linha: quem, quando, qual campo, o que
+   estava e o que passou a estar. Com isso o texto de ontem volta num clique.
+
+   De onde saem as linhas: da mesma base que a mesclagem usa
+   (`Store.baseDe`). O que este computador tem hoje, comparado com o que ele
+   viu na pasta da última vez, é exatamente o que esta pessoa escreveu — sem
+   precisar gravar nada a cada tecla.
+
+   Decisões que valem a pena ficarem ditas:
+
+   - **Arquivo próprio na pasta** (revisoes.json), ao lado dos dados e da
+     conversa. O derrogacao-dados.json é reescrito inteiro a cada gravação e
+     copiado em cada versão do histórico; um diário que só cresce não tem por
+     que viajar junto (é o mesmo motivo da conversa).
+   - **União pelo id, nunca "vale o mais recente"**: uma alteração que
+     aconteceu não deixa de ter acontecido. O que pode mudar é o texto final
+     de uma linha ainda aberta (ver `acrescentar`), e aí vale o carimbo maior.
+   - **Cada um anota o que escreveu**, e só isso. Anotar também o que chegou
+     dos outros duplicaria a mesma linha em cada computador, com ids
+     diferentes, e o diário viraria uma sala de eco.
+   - **Não vai para o PDF nem para o backup.** É registro de trabalho, não
+     documento.
+   ========================================================================== */
+
+(function (global) {
+  'use strict';
+
+  var CHAVE = 'derrogacao:revisoes';
+  /* Os tetos existem por causa do armazenamento do navegador, que é de uns
+     5 MB para TODAS as chaves do programa — a conversa já ocupa parte dele.
+     1500 linhas de até 4 000 caracteres dão algo em torno de meio mega. */
+  var MAX_REGS = 1500;
+  var DIAS_GUARDA = 365;      // um ano cobre a vida de um marco
+  var MAX_TEXTO = 4000;       // por campo guardado
+  var JANELA = 10 * 60 * 1000; // tecla a tecla vira uma linha só (ver acrescentar)
+
+  function str(v) { return (v == null ? '' : String(v)); }
+  function agora() { return new Date().toISOString(); }
+
+  function uid() {
+    if (global.Store && Store.uid) return Store.uid();
+    return 'r-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+
+  function corta(t) {
+    t = str(t);
+    return t.length > MAX_TEXTO ? t.slice(0, MAX_TEXTO) + '…' : t;
+  }
+
+  /* --- um registro -------------------------------------------------------- */
+
+  function normalizar(r) {
+    if (!r || typeof r !== 'object' || !r.id || !r.campo) return null;
+    return {
+      id: str(r.id),
+      em: str(r.em) || agora(),
+      por: str(r.por),
+      projeto: str(r.projeto),
+      marco: str(r.marco),
+      kind: str(r.kind) === 'dev' ? 'dev' : 'ncr',
+      item: str(r.item),
+      ncrId: str(r.ncrId),
+      campo: str(r.campo),
+      rotulo: str(r.rotulo) || str(r.campo),
+      de: corta(r.de),
+      para: corta(r.para),
+      /* edicao · criou · substituido · restaurou · excluiu */
+      origem: str(r.origem) || 'edicao',
+      semTexto: !!r.semTexto
+    };
+  }
+
+  function porTempo(a, b) {
+    return String(a.em).localeCompare(String(b.em)) || String(a.id).localeCompare(String(b.id));
+  }
+
+  /**
+   * União pelo id. Quando o mesmo id aparece dos dois lados vale o carimbo
+   * maior: é a linha que continuou sendo escrita (ver `acrescentar`), e a
+   * cópia mais nova dela contém a mais velha.
+   */
+  function juntar(a, b) {
+    var porId = {};
+    [a || [], b || []].forEach(function (lista) {
+      (lista || []).forEach(function (bruto) {
+        var r = normalizar(bruto);
+        if (!r) return;
+        var tem = porId[r.id];
+        if (!tem || String(r.em) > String(tem.em)) porId[r.id] = r;
+      });
+    });
+    var out = [];
+    for (var k in porId) if (Object.prototype.hasOwnProperty.call(porId, k)) out.push(porId[k]);
+    return podar(out.sort(porTempo));
+  }
+
+  function podar(lista) {
+    var corteData = new Date(Date.now() - DIAS_GUARDA * 86400000).toISOString();
+    var viva = lista.filter(function (r) { return String(r.em) >= corteData; });
+    if (!viva.length) viva = lista.slice(-200);
+    return viva.length > MAX_REGS ? viva.slice(-MAX_REGS) : viva;
+  }
+
+  /**
+   * Acrescenta registros novos, juntando o que é continuação.
+   *
+   * Quem escreve um parágrafo passa por várias sincronizações, e cada uma
+   * veria um pedaço do texto: vinte linhas para uma edição só. Se a última
+   * linha for da mesma pessoa, no mesmo campo, dentro de dez minutos, ela é
+   * esticada em vez de nascer outra — o "de" continua sendo o texto do
+   * começo, que é o que interessa para voltar atrás.
+   */
+  function acrescentar(lista, novos) {
+    var out = (lista || []).slice();
+    var limite = Date.now() - JANELA;
+    (novos || []).forEach(function (bruto) {
+      var r = normalizar(bruto);
+      if (!r) return;
+      if (r.origem === 'edicao') {
+        for (var i = out.length - 1; i >= 0; i--) {
+          var v = out[i];
+          if (v.item !== r.item || v.campo !== r.campo) continue;
+          if (v.origem !== 'edicao' || v.por !== r.por) break;
+          if (Date.parse(v.em) < limite) break;
+          /* mesma escrita, ainda em curso */
+          v.para = r.para;
+          v.em = r.em;
+          return;
+        }
+      }
+      out.push(r);
+    });
+    return podar(out.sort(porTempo));
+  }
+
+  /* --- o que esta pessoa escreveu desde a última troca --------------------- */
+
+  /**
+   * Compara o que está aqui com a base (o retrato da última conversa com a
+   * pasta) e devolve uma linha por campo alterado.
+   *
+   * Sem base — primeira sincronização deste navegador — devolve nada: seriam
+   * centenas de linhas dizendo que tudo "mudou de vazio para o que já
+   * estava", e nenhuma delas seria verdade.
+   */
+  function calcular(base, projects, quem) {
+    var out = [];
+    if (!base || !projects) return out;
+    projects.forEach(function (p) {
+      var doProjeto = base[p.id];
+      if (!doProjeto) return;         /* relatório novo: nada com que comparar */
+      ['ncrs', 'devs'].forEach(function (key) {
+        (p[key] || []).forEach(function (n) {
+          var antes = doProjeto[n.id];
+          var novo = !antes;
+          if (novo) antes = {};
+          Store.CAMPOS_MESCLA.forEach(function (campo) {
+            var de = str(antes[campo]);
+            var para = Store.valorCampo(n, campo);
+            if (de === para) return;
+            out.push({
+              id: uid(), em: agora(), por: str(quem),
+              projeto: p.id, marco: str(p.marco) || str(p.name),
+              kind: key === 'devs' ? 'dev' : 'ncr',
+              item: n.id, ncrId: str(n.ncrId),
+              campo: campo, rotulo: Store.rotuloCampo(campo),
+              de: de, para: para,
+              origem: novo ? 'criou' : 'edicao'
+            });
+          });
+        });
+      });
+    });
+    return out;
+  }
+
+  /**
+   * As linhas de um atropelamento: os dois escreveram no mesmo campo e um
+   * dos textos saiu. É a linha mais importante do diário — é ela que devolve
+   * o que se perdeu.
+   */
+  function deConflito(subs, projects, quem) {
+    var out = [];
+    var marcos = {};
+    (projects || []).forEach(function (p) { marcos[p.id] = str(p.marco) || str(p.name); });
+    (subs || []).forEach(function (s) {
+      (s.perdidos || []).forEach(function (x) {
+        out.push({
+          id: uid(), em: agora(), por: str(x.de) || str(quem),
+          projeto: str(s.projeto), marco: marcos[s.projeto] || '',
+          kind: s.kind, item: str(s.id), ncrId: str(s.ncrId),
+          campo: x.campo, rotulo: x.rotulo,
+          de: x.perdeu, para: x.ficou,
+          origem: 'substituido', semTexto: !!x.semTexto
+        });
+      });
+    });
+    return out;
+  }
+
+  /** Uma linha avulsa, para o que não sai de uma comparação (restaurar, excluir). */
+  function registro(dados) {
+    var r = normalizar({
+      id: uid(), em: agora(), por: str(dados.por),
+      projeto: str(dados.projeto), marco: str(dados.marco),
+      kind: dados.kind, item: str(dados.item), ncrId: str(dados.ncrId),
+      campo: str(dados.campo) || '-', rotulo: str(dados.rotulo),
+      de: dados.de, para: dados.para, origem: str(dados.origem) || 'edicao'
+    });
+    return r;
+  }
+
+  /* --- consultas ---------------------------------------------------------- */
+
+  /** As linhas de um item, da mais nova para a mais velha. */
+  function doItem(lista, itemId) {
+    return (lista || []).filter(function (r) { return r.item === itemId; })
+      .sort(porTempo).reverse();
+  }
+
+  function doProjeto(lista, projetoId) {
+    return (lista || []).filter(function (r) { return r.projeto === projetoId; })
+      .sort(porTempo).reverse();
+  }
+
+  function todas(lista) {
+    return (lista || []).slice().sort(porTempo).reverse();
+  }
+
+  /** Quantas linhas de conflito ainda não foram vistas por esta pessoa. */
+  function conflitos(lista) {
+    return (lista || []).filter(function (r) { return r.origem === 'substituido'; });
+  }
+
+  /** Tem aqui alguma coisa que o arquivo da pasta ainda não tem? */
+  function faltamLa(minhas, remotas) {
+    var la = {};
+    (remotas || []).forEach(function (r) { if (r && r.id) la[r.id] = r; });
+    return (minhas || []).some(function (r) {
+      var outra = la[r.id];
+      return !outra || String(outra.em) < String(r.em);
+    });
+  }
+
+  /* --- cópia local --------------------------------------------------------
+     Para o histórico existir mesmo para quem nunca ligou a pasta, e para o
+     que foi escrito hoje não se perder se a pasta estiver fora do ar. */
+
+  function locais() {
+    try {
+      var cru = global.localStorage.getItem(CHAVE);
+      var lista = cru ? JSON.parse(cru) : [];
+      return Array.isArray(lista) ? juntar(lista, []) : [];
+    } catch (e) { return []; }
+  }
+
+  function gravarLocais(lista) {
+    try { global.localStorage.setItem(CHAVE, JSON.stringify(lista || [])); }
+    catch (e) { /* cheio: a pasta continua sendo a cópia que vale */ }
+  }
+
+  function envelope(lista) {
+    return {
+      format: 'derrogacao-revisoes',
+      schema: 1,
+      atualizadoEm: agora(),
+      revisoes: lista || []
+    };
+  }
+
+  global.Revisoes = {
+    MAX_REGS: MAX_REGS,
+    DIAS_GUARDA: DIAS_GUARDA,
+    normalizar: normalizar,
+    juntar: juntar,
+    acrescentar: acrescentar,
+    calcular: calcular,
+    deConflito: deConflito,
+    registro: registro,
+    doItem: doItem,
+    doProjeto: doProjeto,
+    todas: todas,
+    conflitos: conflitos,
+    faltamLa: faltamLa,
+    locais: locais,
+    gravarLocais: gravarLocais,
+    envelope: envelope
+  };
+})(window);
+
+</script>
+<script>
 /* assets/js/pasta.js */
 /* ==========================================================================
    pasta.js — a pasta da rede como banco de dados
@@ -4534,6 +5189,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 
   var ARQUIVO = 'derrogacao-dados.json';
   var CONVERSAS = 'conversas.json';
+  var REVISOES = 'revisoes.json';
   var HISTORICO = 'historico';
   var IMAGENS = 'imagens';
   var MAX_HISTORICO = 40;
@@ -4828,6 +5484,30 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       .then(function () { return true; });
   }
 
+  /* --- diário de alterações ------------------------------------------------
+     Arquivo próprio, pela mesma razão da conversa: o arquivo de dados é
+     reescrito e copiado inteiro a cada gravação, e um diário que só cresce
+     não tem por que ser copiado junto. */
+
+  function lerRevisoes() {
+    if (!handle) return Promise.resolve(null);
+    return handle.getFileHandle(REVISOES, { create: false })
+      .then(function (fh) { return fh.getFile(); })
+      .then(function (f) { return f.text(); })
+      .then(function (t) { return t ? JSON.parse(t) : null; })
+      .catch(function () { return null; });   /* ainda não existe: primeira alteração */
+  }
+
+  function gravarRevisoes(payload) {
+    if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
+    return handle.getFileHandle(REVISOES, { create: true })
+      .then(function (fh) { return fh.createWritable(); })
+      .then(function (w) {
+        return w.write(JSON.stringify(payload, null, 1)).then(function () { return w.close(); });
+      })
+      .then(function () { return true; });
+  }
+
   /* --- histórico automático ------------------------------------------------ */
 
   function carimbo(d) {
@@ -4937,7 +5617,10 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     lerHistorico: lerHistorico,
     lerConversas: lerConversas,
     gravarConversas: gravarConversas,
+    lerRevisoes: lerRevisoes,
+    gravarRevisoes: gravarRevisoes,
     CONVERSAS: CONVERSAS,
+    REVISOES: REVISOES,
     gravarImagem: gravarImagem,
     lerImagem: lerImagem,
     podarImagens: podarImagens,
@@ -8690,6 +9373,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   }
 
   var saveTimer = null;
+  var ultimaCaptura = 0;
   function markSaving() {
     var s = $('#saveState');
     s.dataset.state = 'saving';
@@ -8749,6 +9433,12 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     if (!state.project) return Promise.resolve();
     return Store.save(state.project).then(function () {
       agendarGravacaoPasta();
+      /* O diário também vale para quem trabalha sem a pasta — mas não a cada
+         tecla: de minuto em minuto a escrita já virou um parágrafo. */
+      if (Date.now() - ultimaCaptura > 60000) {
+        ultimaCaptura = Date.now();
+        capturarRevisoes();
+      }
       markSaved();
       refreshProjectSelect();
       refreshSuggestions();
@@ -10500,11 +11190,22 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
        `data-livre` porque só mostra: vale mesmo com o item travado. */
     var ladoBtn = el('button', 'btn btn--sm', '⇥ Ver outra ao lado');
     ladoBtn.type = 'button';
-    ladoBtn.style.marginLeft = 'auto';
     ladoBtn.title = 'Mostra outro item numa coluna à direita, em só leitura';
     ladoBtn.setAttribute('data-livre', '');
     ladoBtn.addEventListener('click', abrirEscolhaDoLado);
-    $('h3', idCard).appendChild(ladoBtn);
+
+    /* Também só mostra — por isso `data-livre`, que o vale no item travado. */
+    var histBtn = el('button', 'btn btn--sm', '🕘 Histórico do texto');
+    histBtn.type = 'button';
+    histBtn.title = 'Quem escreveu o quê neste item, campo a campo — e como trazer um texto de volta';
+    histBtn.setAttribute('data-livre', '');
+    histBtn.addEventListener('click', function () { abrirHistorico('item'); });
+
+    var acoesId = el('div', 'nota-acoes');
+    acoesId.style.marginLeft = 'auto';
+    acoesId.appendChild(histBtn);
+    acoesId.appendChild(ladoBtn);
+    $('h3', idCard).appendChild(acoesId);
 
     var prev = el('div', 'hint');
     prev.style.marginTop = '10px';
@@ -10666,11 +11367,23 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 
   function barraMudouPorFora(sub) {
     var bar = el('div', 'mudou');
+    var perdidos = (sub.perdidos || []).length;
     var txt = 'Este item foi alterado' +
       (sub.quem ? ' por ' + sub.quem : ' em outro computador') +
       (sub.quando ? ', ' + shortDate(sub.quando) : '') +
       ' — ' + sub.campos.length + ' campo(s).';
+    if (perdidos) {
+      bar.classList.add('mudou--conflito');
+      txt += ' Em ' + perdidos + ' deles os dois escreveram ao mesmo tempo, e um ' +
+        'texto teve de sair — ele está guardado no histórico.';
+    }
     bar.appendChild(el('span', 'mudou-txt', txt));
+    if (perdidos) {
+      var hist = el('button', 'btn btn--sm btn--accent', 'Ver o texto que saiu');
+      hist.type = 'button';
+      hist.addEventListener('click', function () { abrirHistorico('item'); });
+      bar.appendChild(hist);
+    }
     var ver = el('button', 'btn btn--sm btn--accent', 'Ver o que mudou');
     ver.type = 'button';
     ver.addEventListener('click', function () { abrirDif(sub); });
@@ -10692,6 +11405,20 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     $('#difQuem').textContent = (sub.quem || 'Outro computador') +
       (sub.quando ? ' · ' + shortDate(sub.quando) : '') +
       ' · ' + (sub.ncrId || 'sem número');
+    (sub.perdidos || []).forEach(function (x) {
+      var aviso = el('div', 'dif-campo dif-campo--conflito');
+      aviso.appendChild(el('div', 'dif-rotulo', x.rotulo + ' — os dois escreveram ao mesmo tempo'));
+      var par = el('div', 'dif-par');
+      var saiu = el('div', 'dif-lado dif-lado--antes');
+      saiu.appendChild(el('div', 'dif-cab', 'Saiu daqui' + (x.de ? ' (' + x.de + ')' : '')));
+      saiu.appendChild(el('pre', 'dif-txt', x.perdeu || '(em branco)'));
+      var ficou = el('div', 'dif-lado dif-lado--depois');
+      ficou.appendChild(el('div', 'dif-cab', 'Ficou'));
+      ficou.appendChild(el('pre', 'dif-txt', x.ficou || '(em branco)'));
+      par.appendChild(saiu); par.appendChild(ficou);
+      aviso.appendChild(par);
+      body.appendChild(aviso);
+    });
     sub.campos.forEach(function (c) {
       var bloco = el('div', 'dif-campo');
       bloco.appendChild(el('div', 'dif-rotulo', c.rotulo));
@@ -10708,6 +11435,201 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       body.appendChild(bloco);
     });
     $('#difDialog').showModal();
+  }
+
+  /* --- o histórico de alterações do item ---------------------------------
+     A pergunta que a versão inteira do histórico da pasta responde mal:
+     "quem apagou o meu texto, e o que estava escrito?". Aqui cada linha é
+     uma alteração de campo, com o texto de antes guardado — e um botão que
+     o traz de volta. */
+
+  var revEstado = { escopo: 'item', item: '', busca: '' };
+
+  function abrirHistorico(escopo) {
+    var ncr = currentNcr();
+    revEstado.escopo = escopo || (ncr ? 'item' : 'projeto');
+    revEstado.item = ncr ? ncr.id : '';
+    revEstado.busca = '';
+    var busca = $('#revBusca');
+    if (busca) busca.value = '';
+    renderHistorico();
+    $('#revDialog').showModal();
+  }
+
+  function linhasDoHistorico() {
+    var lista;
+    if (revEstado.escopo === 'item' && revEstado.item) lista = Revisoes.doItem(revisoes, revEstado.item);
+    else if (revEstado.escopo === 'projeto' && state.project) lista = Revisoes.doProjeto(revisoes, state.project.id);
+    else lista = Revisoes.todas(revisoes);
+    var t = revEstado.busca.trim().toLowerCase();
+    if (!t) return lista;
+    return lista.filter(function (r) {
+      return (r.de + ' ' + r.para + ' ' + r.rotulo + ' ' + r.por + ' ' + r.ncrId)
+        .toLowerCase().indexOf(t) >= 0;
+    });
+  }
+
+  /* O texto de que a linha trata: no atropelamento é o que SAIU — é ele que
+     a pessoa veio procurar. Nas demais, o que foi escrito. */
+  function textoDaLinha(r) {
+    return r.origem === 'substituido' ? r.de : r.para;
+  }
+
+  function renderHistorico() {
+    var host = $('#revBody');
+    var escopos = $('#revEscopo');
+    host.innerHTML = '';
+    escopos.innerHTML = '';
+
+    var ncr = currentNcr();
+    [['item', ncr ? (ncr.ncrId || 'este item') : 'este item', !!ncr],
+     ['projeto', 'este relatório', !!state.project],
+     ['tudo', 'todos os relatórios', true]].forEach(function (o) {
+      if (!o[2]) return;
+      var b = el('button', 'btn btn--sm' + (revEstado.escopo === o[0] ? ' is-on' : ''), o[1]);
+      b.type = 'button';
+      b.addEventListener('click', function () {
+        revEstado.escopo = o[0];
+        renderHistorico();
+      });
+      escopos.appendChild(b);
+    });
+
+    var lista = linhasDoHistorico();
+    var conflitos = lista.filter(function (r) { return r.origem === 'substituido'; }).length;
+    $('#revResumo').textContent = lista.length
+      ? lista.length + ' alteração(ões)' +
+        (conflitos ? ' · ' + conflitos + ' escrita(s) por cima' : '') +
+        ' · a mais recente primeiro'
+      : '';
+
+    if (!lista.length) {
+      var vazio = el('p', 'hint');
+      vazio.textContent = revEstado.busca
+        ? 'Nada no histórico com esse texto.'
+        : 'Ainda não há alterações registradas aqui. O histórico começa a ' +
+          'contar a partir desta versão do programa: o que foi escrito antes ' +
+          'dela não tem linha.';
+      host.appendChild(vazio);
+      return;
+    }
+
+    lista.slice(0, 300).forEach(function (r) {
+      host.appendChild(linhaDeHistorico(r));
+    });
+    if (lista.length > 300) {
+      host.appendChild(el('p', 'hint', 'Mostrando as 300 mais recentes de ' + lista.length + '.'));
+    }
+  }
+
+  var ROTULO_ORIGEM = {
+    substituido: 'escrito por cima',
+    criou: 'item novo',
+    restaurou: 'restaurado',
+    excluiu: 'excluído'
+  };
+
+  function linhaDeHistorico(r) {
+    var linha = el('div', 'rev-linha');
+    linha.dataset.origem = r.origem;
+
+    var cab = el('div', 'rev-cab');
+    cab.appendChild(el('span', 'rev-quem', r.por || '(sem nome)'));
+    cab.appendChild(el('span', 'rev-quando', shortDate(r.em)));
+    cab.appendChild(el('span', 'rev-campo', r.rotulo));
+    if (revEstado.escopo !== 'item') {
+      cab.appendChild(el('span', 'rev-item',
+        (r.ncrId || 'sem número') + (r.marco ? ' · ' + r.marco : '')));
+    }
+    if (ROTULO_ORIGEM[r.origem]) {
+      cab.appendChild(el('span', 'rev-tag', ROTULO_ORIGEM[r.origem]));
+    }
+    linha.appendChild(cab);
+
+    var texto = textoDaLinha(r);
+    if (r.origem === 'substituido') {
+      linha.appendChild(el('div', 'rev-rotulo', r.semTexto
+        ? 'O que saiu (não dá para trazer de volta por aqui)'
+        : 'O texto que saiu daqui'));
+    }
+    linha.appendChild(el('pre', 'rev-txt', texto || '(em branco)'));
+
+    var acoes = el('div', 'rev-acoes');
+    var outro = r.origem === 'substituido' ? r.para : r.de;
+    if (outro) {
+      var verBtn = el('button', 'btn btn--sm btn--quiet',
+        r.origem === 'substituido' ? 'Ver o que ficou' : 'Ver como estava antes');
+      verBtn.type = 'button';
+      var caixa = el('pre', 'rev-txt rev-txt--antes', outro);
+      caixa.hidden = true;
+      verBtn.addEventListener('click', function () {
+        caixa.hidden = !caixa.hidden;
+        verBtn.textContent = caixa.hidden
+          ? (r.origem === 'substituido' ? 'Ver o que ficou' : 'Ver como estava antes')
+          : 'Esconder';
+      });
+      acoes.appendChild(verBtn);
+      linha.appendChild(acoes);
+      linha.appendChild(caixa);
+    } else {
+      linha.appendChild(acoes);
+    }
+
+    if (!r.semTexto) {
+      var por = el('button', 'btn btn--sm btn--accent', 'Pôr este texto de volta');
+      por.type = 'button';
+      por.title = 'Escreve este texto no campo ' + r.rotulo + ' da ' + (r.ncrId || 'item');
+      por.addEventListener('click', function () { restaurarTexto(r, texto); });
+      acoes.appendChild(por);
+    }
+    return linha;
+  }
+
+  /**
+   * Devolve um texto do histórico ao campo de onde ele saiu.
+   *
+   * É uma edição como outra qualquer — e por isso ela viaja: a hora nova faz
+   * o texto restaurado valer também no computador dos outros, em vez de ser
+   * apagado de volta na sincronização seguinte.
+   */
+  function restaurarTexto(r, texto) {
+    var alvo = state.projects.filter(function (p) { return p.id === r.projeto; })[0];
+    if (!alvo) { toast('O relatório dessa alteração não está mais neste navegador.'); return; }
+    var lista = alvo[Store.itemsKey(r.kind)] || [];
+    var item = lista.filter(function (n) { return n.id === r.item; })[0];
+    if (!item) { toast('Esse item não existe mais — foi excluído depois dessa alteração.'); return; }
+
+    var antes = Store.valorCampo(item, r.campo);
+    if (antes === texto) { toast('Esse texto já é o que está no campo.'); return; }
+
+    function aplicar(valor, aviso) {
+      Store.porCampo(item, r.campo, valor);
+      state.kind = r.kind;
+      if (!state.project || state.project.id !== alvo.id) loadProject(alvo);
+      selectNcr(item.id);
+      touch(item);
+      revisoes = Revisoes.acrescentar(revisoes, [Revisoes.registro({
+        por: Store.getUser(), projeto: alvo.id, marco: alvo.marco || alvo.name,
+        kind: r.kind, item: item.id, ncrId: item.ncrId,
+        campo: r.campo, rotulo: r.rotulo,
+        de: antes, para: valor, origem: 'restaurou'
+      })]);
+      Revisoes.gravarLocais(revisoes);
+      baseDiario = Store.baseDe(state.projects);
+      guardarBases();
+      renderNcrList();
+      renderEditor();
+      scheduleSave();
+      if (aviso) toast(aviso, 8000, {
+        rotulo: 'Desfazer',
+        fn: function () { aplicar(antes, ''); }
+      });
+    }
+
+    $('#revDialog').close();
+    flushSave().then(function () {
+      aplicar(texto, r.rotulo + ' da ' + (item.ncrId || 'item') + ' voltou a este texto.');
+    });
   }
 
   /* --- o caminho do waiver, dentro do item ------------------------------- */
@@ -12587,9 +13509,17 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   var ultimaTecla = 0;
   var ultimaVersao = 0;
   var ultimaPoda = 0;
+  var ultimoSucesso = 0;        // última vez que a pasta respondeu
   /* Dados gravados por uma versão mais nova da página: daqui para a frente
      esta sessão só lê, para não apagar campos que ainda não conhece. */
   var versaoDesatualizada = false;
+  /* As duas bases de comparação (ver Store.saveBase): `mesclaBase` é o que
+     já está na pasta, `baseDiario` é o que o histórico já registrou. */
+  var mesclaBase = null;
+  var baseDiario = null;
+  var revisoes = [];
+  var sincronizandoRevisoes = false;
+  var avisouRelogio = false;
   var gravaTimer = null;
   var pollTimer = null;
   /* um pedido de permissão de cada vez, e o aviso do alto some quando a
@@ -12728,6 +13658,86 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       .catch(function () { return 0; });
   }
 
+  /* --- o diário de alterações ---------------------------------------------
+     Quem escreveu o quê, campo a campo. Sai da comparação entre o que está
+     aqui e o retrato da última captura: não custa uma tecla sequer, e não
+     depende de ninguém lembrar de registrar nada. */
+
+  /** Anota no diário o que esta pessoa escreveu desde a última captura. */
+  function capturarRevisoes() {
+    if (!baseDiario) {
+      /* primeira vez neste navegador: não há com o que comparar, e inventar
+         uma linha "mudou de vazio para o que já estava" seria mentira */
+      baseDiario = Store.baseDe(state.projects);
+      return guardarBases();
+    }
+    var novas = Revisoes.calcular(baseDiario, state.projects, Store.getUser());
+    baseDiario = Store.baseDe(state.projects);
+    if (novas.length) {
+      revisoes = Revisoes.acrescentar(revisoes, novas);
+      Revisoes.gravarLocais(revisoes);
+    }
+    return guardarBases();
+  }
+
+  /** As linhas do que foi escrito por cima numa junção — as que mais valem. */
+  function registrarConflitos(resumo) {
+    if (!resumo || !resumo.substituidos || !resumo.substituidos.length) return;
+    var novas = Revisoes.deConflito(resumo.substituidos, state.projects, Store.getUser());
+    if (!novas.length) return;
+    revisoes = Revisoes.acrescentar(revisoes, novas);
+    Revisoes.gravarLocais(revisoes);
+  }
+
+  function guardarBases() {
+    return Store.saveBase(mesclaBase || {}, baseDiario || {});
+  }
+
+  /** Troca o diário com a pasta: união pelo id, como a conversa. */
+  function sincronizarRevisoes() {
+    if (!Pasta.ligada() || sincronizandoRevisoes) return Promise.resolve(null);
+    sincronizandoRevisoes = true;
+    return Pasta.lerRevisoes()
+      .then(function (dados) {
+        var remotas = (dados && Array.isArray(dados.revisoes)) ? dados.revisoes : [];
+        revisoes = Revisoes.juntar(revisoes, remotas);
+        Revisoes.gravarLocais(revisoes);
+        /* página velha diante de um diário mais novo: lê, não regrava */
+        if (versaoDesatualizada) return false;
+        if (dados && Number(dados.schema) > 1) return false;
+        if (!Revisoes.faltamLa(revisoes, remotas)) return false;
+        return Pasta.gravarRevisoes(Revisoes.envelope(revisoes));
+      })
+      .then(function (r) { sincronizandoRevisoes = false; return r; })
+      .catch(function (e) {
+        sincronizandoRevisoes = false;
+        /* o diário é desejável, não essencial: nunca derruba a gravação */
+        console.warn('Não foi possível trocar o histórico de alterações:', e);
+        return null;
+      });
+  }
+
+  /**
+   * Avisa quando o relógio daqui está atrasado em relação ao de quem gravou.
+   *
+   * Só essa direção é conclusiva: um carimbo no futuro não tem como ser
+   * legítimo, enquanto um carimbo velho pode ser só alguém que não mexe no
+   * arquivo desde ontem. E importa porque o relógio ainda é o desempate
+   * quando duas pessoas escrevem no mesmo campo.
+   */
+  function conferirRelogio(dados) {
+    if (avisouRelogio || !dados || !dados.updatedAt) return;
+    var deles = Date.parse(dados.updatedAt);
+    if (isNaN(deles)) return;
+    var dif = deles - Date.now();
+    if (dif < 5 * 60 * 1000) return;
+    avisouRelogio = true;
+    toast('O relógio deste computador está cerca de ' + Math.round(dif / 60000) +
+      ' min atrasado em relação ao de quem gravou na pasta. ' +
+      'Quando duas pessoas escrevem no mesmo campo, quem tem o relógio adiantado ganha — ' +
+      'vale acertar a hora do Windows.', 10000);
+  }
+
   /**
    * Uma rodada completa: lê a pasta, junta com o que está aqui, grava de
    * volta o resultado e guarda uma versão no histórico.
@@ -12744,6 +13754,10 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     }
     sincronizando = true;
     marcarPasta('sincronizando');
+
+    /* Antes de qualquer coisa: o que foi escrito aqui desde a última vez vira
+       linha de histórico enquanto ainda dá para saber que foi esta pessoa. */
+    capturarRevisoes();
 
     /* Para saber se o item que está na tela mudou por fora — nesse caso a
        tela precisa ser redesenhada e a pessoa avisada, em vez de continuar
@@ -12776,6 +13790,14 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       return externalizarImagens()
         .then(function () { return Pasta.gravar(montaPayload()); })
         .then(function () {
+          /* Gravou: o que está aqui é agora o que está na pasta, e passa a
+             ser a base de comparação da próxima junção. */
+          mesclaBase = Store.baseDe(state.projects);
+          baseDiario = mesclaBase;
+          return guardarBases();
+        })
+        .then(function () { return sincronizarRevisoes(); })
+        .then(function () {
           /* além do retrato feito antes de cada junção, uma linha do tempo a
              cada dez minutos — sem transformar a pasta num depósito */
           if (Date.now() - ultimaVersao < 10 * 60 * 1000) return null;
@@ -12790,6 +13812,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       .then(function (r) {
         var resumo = { entraram: 0, atualizados: 0, removidos: 0, novosRelatorios: 0 };
         if (!r.dados) { mesclado = resumo; return gravarJuncao(resumo); }
+
+        conferirRelogio(r.dados);
 
         if (typeof r.dados.caminho === 'string' && r.dados.caminho && r.dados.caminho !== pastaCaminho) {
           /* a pasta diz onde ela é; guardar isso é o que faz a próxima
@@ -12818,13 +13842,18 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
           .then(function () { return hidratarImagens(r.dados); })
           .then(function () {
             resumo = Store.mergeListas(state.projects, r.dados.projects || [],
-                                       r.dados.relatoriosExcluidos);
+                                       r.dados.relatoriosExcluidos, mesclaBase);
+            registrarConflitos(resumo);
+            /* o que chegou dos outros já está aqui: não é edição minha, e o
+               diário não deve contá-la como se fosse */
+            baseDiario = Store.baseDe(state.projects);
             mesclado = resumo;
             return gravarJuncao(resumo);
           });
       })
       .then(function (resumo) {
         pastaEstado = 'on';
+        ultimoSucesso = Date.now();
         /* salva localmente o que veio, para funcionar mesmo sem a pasta */
         return adotar(resumo).then(function () {
           sincronizando = false;
@@ -13013,25 +14042,44 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
    * deixa o programa resolver sozinho — e um aviso escondido no menu vira
    * "o programa está vazio hoje".
    */
+  /** Há quanto tempo a pasta não responde, em palavras. */
+  function desdeUltimaTroca() {
+    if (!ultimoSucesso) return '';
+    var min = Math.floor((Date.now() - ultimoSucesso) / 60000);
+    if (min < 2) return '';
+    if (min < 60) return 'há ' + min + ' minutos';
+    var h = Math.floor(min / 60);
+    return 'há ' + h + (h === 1 ? ' hora' : ' horas');
+  }
+
   function renderPastaNotice() {
     var box = $('#pastaNotice');
     if (!box) return;
     var ligada = Pasta.ligada();
-    if (!Pasta.suportado() || pastaNoticeFechado || (ligada && pastaEstado === 'on')) {
+    var desligada = ligada && (pastaEstado === 'erro' || pastaEstado === 'permissao');
+    /* "Agora não" cala o convite para escolher a pasta — nunca o alarme de
+       que ela parou de responder. Trabalhar horas sem saber que ninguém está
+       vendo o que você escreve é exatamente o que dá errado depois. */
+    if (!Pasta.suportado() || (ligada && pastaEstado === 'on') ||
+        (pastaNoticeFechado && !desligada)) {
       box.hidden = true;
       return;
     }
     box.hidden = false;
-    var precisaPermissao = ligada && (pastaEstado === 'permissao' || pastaEstado === 'erro');
-    $('#pastaNoticeText').textContent = precisaPermissao
-      ? 'A pasta de dados já está escolhida neste navegador ("' + Pasta.nome() +
-        '"). O navegador precisa de um clique seu para liberar o acesso nesta sessão.'
+    box.classList.toggle('notice--parada', !!desligada);
+    var tempo = desdeUltimaTroca();
+    $('#pastaNoticeText').textContent = desligada
+      ? 'O programa não está trocando dados com a pasta da equipe' +
+        (tempo ? ' ' + tempo : '') + '. O seu trabalho continua salvo neste ' +
+        'computador, mas ninguém mais o está vendo — e quanto mais tempo assim, ' +
+        'maior a chance de alguém escrever no mesmo campo que você.'
       : 'O banco de dados da equipe fica nesta pasta. Escolha-a uma vez: ' +
         'daí em diante o programa reabre sozinho, sem perguntar o caminho de novo.';
-    $('#pastaNoticePath').textContent = precisaPermissao ? '' : (pastaCaminho || Store.CAMINHO_PADRAO);
-    $('#pastaNoticePath').hidden = precisaPermissao;
-    $('#pastaNoticeCopy').hidden = precisaPermissao;
-    $('#pastaNoticeBtn').textContent = precisaPermissao ? 'Permitir acesso' : 'Escolher a pasta…';
+    $('#pastaNoticePath').textContent = desligada ? '' : (pastaCaminho || Store.CAMINHO_PADRAO);
+    $('#pastaNoticePath').hidden = desligada;
+    $('#pastaNoticeCopy').hidden = desligada;
+    $('#pastaNoticeDismiss').hidden = desligada;
+    $('#pastaNoticeBtn').textContent = desligada ? 'Religar a pasta agora' : 'Escolher a pasta…';
   }
 
   /**
@@ -13433,6 +14481,11 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     $('#copyNcrBtn').addEventListener('click', openCopyDialog);
     $('#dupNcrBtn').addEventListener('click', duplicarNcr);
     $('#difCloseBtn').addEventListener('click', function () { $('#difDialog').close(); });
+    $('#revCloseBtn').addEventListener('click', function () { $('#revDialog').close(); });
+    $('#revBusca').addEventListener('input', function () {
+      revEstado.busca = this.value;
+      renderHistorico();
+    });
     $('#fluxoCloseBtn').addEventListener('click', function () { $('#fluxoDialog').close(); });
     $('#copyCancelBtn').addEventListener('click', function () { $('#copyDialog').close(); });
     $('#zoomRange').addEventListener('input', applyZoom);
@@ -13559,6 +14612,13 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         });
       }
       loadProject(list[0]);
+    }).then(function () {
+      revisoes = Revisoes.locais();
+      return Store.getBase().then(function (b) {
+        mesclaBase = b ? b.base : null;
+        baseDiario = b ? b.diario : null;
+        if (!baseDiario) return capturarRevisoes();   /* só semeia o retrato */
+      });
     }).then(function () {
       iniciarConversa();
       return iniciarPasta();

@@ -1712,6 +1712,116 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   overflow-y: auto;
 }
 
+/* o caso grave: os dois escreveram no mesmo campo */
+.mudou--conflito {
+  background: var(--danger-sf, #fff1f0);
+  border-color: var(--danger-br, #ffccc7);
+  border-left-color: var(--danger);
+  color: #7a1c14;
+}
+.dif-campo--conflito {
+  border: 1px solid var(--danger-br, #ffccc7);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  background: var(--danger-sf, #fff1f0);
+}
+
+/* a pasta parou de responder: o aviso deixa de ser convite e vira alarme */
+.notice--parada {
+  background: var(--danger-sf, #fff1f0);
+  border-color: var(--danger-br, #ffccc7);
+  color: #7a1c14;
+}
+
+/* --- histórico de alterações -------------------------------------------- */
+
+.rev-barra {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+}
+.rev-escopo { display: flex; gap: 6px; flex-wrap: wrap; }
+.rev-escopo .is-on {
+  background: var(--accent-sf);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+.rev-busca {
+  flex: 1;
+  min-width: 200px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 13px;
+}
+.rev-box { max-height: 56vh; overflow-y: auto; }
+.rev-linha {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+.rev-linha[data-origem="substituido"] { border-left-color: var(--danger); }
+.rev-linha[data-origem="restaurou"]   { border-left-color: var(--ok); }
+.rev-linha[data-origem="criou"]       { border-left-color: var(--accent); }
+.rev-cab {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.rev-quem { font-weight: 700; color: var(--ink); }
+.rev-campo {
+  font-weight: 600;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: .04em;
+}
+.rev-item { color: var(--muted); }
+.rev-tag {
+  margin-left: auto;
+  background: var(--line-2);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.rev-linha[data-origem="substituido"] .rev-tag {
+  background: var(--danger-sf, #fff1f0);
+  color: var(--danger);
+}
+.rev-rotulo {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--danger);
+  margin-bottom: 4px;
+}
+.rev-txt {
+  margin: 0;
+  padding: 8px;
+  background: var(--line-2);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.rev-txt--antes { margin-top: 8px; opacity: .85; }
+.rev-acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
 /* --- folhas e tamanho da pasta ------------------------------------------ */
 
 .dlg-folhas { font-size: 13px; color: var(--muted); margin: 0 0 10px !important; }

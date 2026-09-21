@@ -404,6 +404,147 @@
     return out;
   }
 
+  /* --- a base da mesclagem: o texto que os dois lados tinham em comum -----
+     "Vale quem editou por último" decide o item inteiro, e o item inteiro é
+     grande demais para ser a unidade: duas pessoas mexendo em campos
+     diferentes da mesma NCR não estão em conflito nenhum, mas uma delas
+     perdia tudo. O que faltava era a terceira ponta — o que os dois tinham
+     antes de se separarem. Guardando esse retrato dá para dizer, campo a
+     campo, quem mudou o quê; e só quando os dois mudaram o MESMO campo é que
+     alguém precisa ganhar. */
+
+  /* Os campos que se mesclam um a um. As evidências ficam de fora de
+     propósito: são listas com imagens, e juntar meia lista de anexos daria
+     um item que ninguém montou. Elas seguem o item inteiro, como antes. */
+  var CAMPOS_MESCLA = ['ncrId', 'systems', 'func', 'description', 'currentSituation',
+    'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
+    'approvedExpiry', 'historic', 'nota', 'certificates', 'status'];
+
+  function rotuloCampo(campo) {
+    var achado = '';
+    CAMPOS_VISIVEIS.forEach(function (c) { if (c[0] === campo) achado = c[1]; });
+    if (achado) return achado;
+    if (campo === 'certificates') return 'Certificate Impacted';
+    if (campo === 'status') return 'Situação do item';
+    return campo;
+  }
+
+  /** O valor de um campo como texto — é assim que ele é comparado e guardado. */
+  function valorCampo(item, campo) {
+    if (!item) return '';
+    if (campo === 'certificates') return (item.certificates || []).join('\n');
+    if (campo === 'status') return statusInfo(item.status).id;
+    return str(item[campo]);
+  }
+
+  /** O caminho de volta: escreve no item o valor que veio como texto. */
+  function porCampo(item, campo, valor) {
+    valor = str(valor);
+    if (campo === 'certificates') {
+      item.certificates = valor ? valor.split('\n') : [];
+      return;
+    }
+    if (campo === 'status') {
+      item.status = statusInfo(valor).id;
+      item.done = item.status === STATUS_CONCLUIDO;
+      return;
+    }
+    item[campo] = valor;
+  }
+
+  /* As evidências não se mesclam campo a campo, mas precisam saber se
+     mudaram: sem isso, quem ganhasse o desempate levaria consigo a lista de
+     anexos do outro. A chave é a mesma que a assinatura usa — id e legenda,
+     nunca os megabytes da foto. */
+  function evidChave(item) {
+    return JSON.stringify(((item && item.evidence) || []).map(function (ev) {
+      return [ev.id, ev.ref, ev.note, ev.orientation,
+        (ev.images || []).map(function (im) { return [im.id, im.caption]; })];
+    }));
+  }
+
+  function retratoItem(item) {
+    var out = {};
+    CAMPOS_MESCLA.forEach(function (c) { out[c] = valorCampo(item, c); });
+    out.evid = evidChave(item);
+    return out;
+  }
+
+  /**
+   * O retrato compacto de tudo o que está aqui, para servir de base na
+   * próxima junção. Só texto: nem imagem, nem evidência, nem carimbo — cabe
+   * no armazenamento do navegador mesmo com centenas de itens.
+   */
+  function baseDe(projects) {
+    var mapa = {};
+    (projects || []).forEach(function (p) {
+      if (!p || !p.id) return;
+      var itens = {};
+      ['ncrs', 'devs'].forEach(function (k) {
+        (p[k] || []).forEach(function (n) { if (n && n.id) itens[n.id] = retratoItem(n); });
+      });
+      mapa[p.id] = itens;
+    });
+    return mapa;
+  }
+
+  /**
+   * Junta dois retratos do mesmo item campo a campo, tendo `base` como o que
+   * os dois tinham em comum.
+   *
+   * Devolve { item, perdidos, recebi, mantive }. `perdidos` só tem coisa
+   * quando os dois escreveram no MESMO campo — o único caso em que ainda é
+   * preciso escolher, e o único em que o relógio ainda decide. O texto que
+   * perdeu sai daqui inteiro para o histórico poder oferecê-lo de volta.
+   */
+  function mesclarCampos(meu, dele, base, venceDele) {
+    var out = normalizeNcr(venceDele ? dele : meu);
+    var res = { item: out, perdidos: [], recebi: 0, mantive: 0 };
+    CAMPOS_MESCLA.forEach(function (campo) {
+      var vm = valorCampo(meu, campo);
+      var vd = valorCampo(dele, campo);
+      var vb = str(base[campo]);
+      if (vm === vd) { porCampo(out, campo, vm); return; }
+      if (vd === vb) { porCampo(out, campo, vm); res.mantive++; return; }   /* só eu mexi */
+      if (vm === vb) { porCampo(out, campo, vd); res.recebi++; return; }    /* só ele mexeu */
+      porCampo(out, campo, venceDele ? vd : vm);
+      res.perdidos.push({
+        campo: campo,
+        rotulo: rotuloCampo(campo),
+        perdeu: venceDele ? vm : vd,
+        ficou: venceDele ? vd : vm,
+        de: str((venceDele ? meu : dele).editedBy)
+      });
+    });
+    /* Os anexos vão inteiros, mas para o lado certo: quem mexeu neles desde
+       a base leva. Só quando os dois mexeram é que um deles sai — e fica
+       anotado, porque uma foto não se recupera de um histórico de texto. */
+    var em = evidChave(meu), ed = evidChave(dele), eb = str(base.evid);
+    if (em !== ed && typeof base.evid === 'string') {
+      var deEv = ed === eb ? meu : (em === eb ? dele : null);
+      if (deEv) {
+        out.evidence = normalizeNcr(deEv).evidence;
+        if (deEv === meu) res.mantive++; else res.recebi++;
+      } else {
+        var perdedor = venceDele ? meu : dele;
+        res.perdidos.push({
+          campo: 'evidence',
+          rotulo: 'Evidências',
+          perdeu: resumoEvidencia(perdedor),
+          ficou: resumoEvidencia(venceDele ? dele : meu),
+          de: str(perdedor.editedBy),
+          semTexto: true          /* não dá para restaurar com um clique */
+        });
+      }
+    }
+
+    /* O resultado é mais novo do que os dois lados: ele carrega o trabalho
+       dos dois. A assinatura de quem ganhou o desempate fica como autoria. */
+    out.editedAt = maisRecente(str(meu.editedAt), str(dele.editedAt));
+    out.editedBy = str((venceDele ? dele : meu).editedBy);
+    return res;
+  }
+
   /**
    * Todo o texto do item, para a busca. Inclui o que está dentro das
    * evidências: procurar "latch" tem de achar a legenda da foto também.
@@ -714,13 +855,20 @@
    * próxima sincronização de cada lado traz de volta o que faltava, porque
    * cada um ainda tem os seus itens com a sua hora de edição.
    *
+   * `base` é o retrato do que este computador viu na pasta da última vez
+   * (`Store.baseDe`), por id de item. Com ela a junção é campo a campo, e
+   * "vale quem editou por último" fica restrito ao caso em que os dois
+   * escreveram no mesmo campo. Sem ela — item novo, primeira sincronização,
+   * navegador recém-instalado — vale o item inteiro, como antes.
+   *
    * Altera `local` no lugar e devolve o que mudou aqui.
    */
-  function mergeLWW(local, remoto) {
+  function mergeLWW(local, remoto, base) {
     /* `substituidos` guarda o que o texto de outra pessoa apagou aqui: é a
        única pista de que a regra "vale a edição mais recente" passou por
        cima de alguma coisa, e o editor usa isso para mostrar o antes. */
-    var res = { entraram: 0, atualizados: 0, removidos: 0, substituidos: [] };
+    var res = { entraram: 0, atualizados: 0, removidos: 0, substituidos: [], conflitos: 0 };
+    base = base || null;
 
     /* a lápide mais recente de cada item, vinda de qualquer um dos lados */
     var lapides = {};
@@ -763,21 +911,35 @@
                encontrariam. A assinatura decide — e decide igual aqui e lá. */
             novo = assDele > assMeu;
           }
-          var trocado = novo ? normalizeNcr(dele) : meu;
-          if (novo && assMeu !== assDele) {
+          var oBase = base ? base[id] : null;
+          var trocado, perdidos = [];
+          if (oBase && assMeu !== assDele) {
+            /* há terceira ponta: junta campo a campo */
+            var junto = mesclarCampos(meu, dele, oBase, novo);
+            trocado = junto.item;
+            perdidos = junto.perdidos;
+          } else {
+            trocado = novo ? normalizeNcr(dele) : meu;
+          }
+          var assFim = signature(trocado);
+          if (assFim !== assMeu) {
             res.atualizados++;
             var campos = difCampos(meu, trocado);
-            if (campos.length) {
+            if (campos.length || perdidos.length) {
               res.substituidos.push({
                 kind: key === 'devs' ? 'dev' : 'ncr',
                 id: id,
                 ncrId: str(trocado.ncrId) || str(meu.ncrId),
-                quem: str(trocado.editedBy),
-                quando: str(trocado.editedAt),
-                campos: campos
+                quem: str(dele.editedBy),
+                quando: str(dele.editedAt),
+                campos: campos,
+                /* só o que foi realmente escrito por cima: os dois mexeram
+                   no mesmo campo e um dos textos teve de sair */
+                perdidos: perdidos
               });
             }
           }
+          if (perdidos.length) res.conflitos += perdidos.length;
           saida.push(trocado);
         } else if (dele) {
           res.entraram++;
@@ -885,9 +1047,9 @@
    * identificador e, na falta, pelo marco. Devolve a lista resultante e um
    * resumo do que mudou deste lado.
    */
-  function mergeListas(locais, recebidos, lapidesRecebidas) {
+  function mergeListas(locais, recebidos, lapidesRecebidas, base) {
     var res = { entraram: 0, atualizados: 0, removidos: 0, novosRelatorios: 0,
-                relatoriosRemovidos: 0, substituidos: [] };
+                relatoriosRemovidos: 0, substituidos: [], conflitos: 0 };
 
     /* a lápide de relatório mais recente de cada lado */
     var tumbas = {};
@@ -938,10 +1100,13 @@
         res.entraram += novo.ncrs.length + novo.devs.length;
         return;
       }
-      var um = mergeLWW(alvo, normalizeProject(r));
+      /* a base é a do relatório de cá: é com o que ESTE computador viu que
+         se compara o que voltou da pasta */
+      var um = mergeLWW(alvo, normalizeProject(r), base ? base[alvo.id] : null);
       res.entraram += um.entraram;
       res.atualizados += um.atualizados;
       res.removidos += um.removidos;
+      res.conflitos += um.conflitos || 0;
       um.substituidos.forEach(function (sub) {
         sub.projeto = alvo.id;
         res.substituidos.push(sub);
@@ -1074,6 +1239,53 @@
       return new Promise(function (resolve, reject) {
         var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).get('last');
         req.onsuccess = function () { resolve(req.result || null); };
+        req.onerror = function () { reject(req.error); };
+      });
+    }).catch(function () { return null; });
+  }
+
+  /* --- a base da última troca com a pasta ---------------------------------
+     Mora no mesmo armazém do retrato ("snapshots"), com outra chave, de
+     propósito: criar uma prateleira nova obrigaria a subir a versão do
+     IndexedDB, e uma página da versão anterior abrindo o mesmo navegador
+     depois disso não conseguiria mais abrir o banco. */
+
+  var BASE_ID = 'mesclaBase';
+
+  /**
+   * Dois retratos, e não um, porque eles andam em ritmos diferentes:
+   *
+   * - `base` é o que já foi para a pasta. Só avança quando a gravação dá
+   *   certo — avançá-la antes disso faria a junção seguinte tomar o meu
+   *   trabalho ainda não gravado por "coisa que o outro escreveu", e aí a
+   *   regra que deveria salvar o texto seria a que o apagaria.
+   * - `diario` é o que o histórico de alterações já contou. Avança a cada
+   *   captura, com ou sem pasta, para a mesma escrita não virar vinte linhas.
+   */
+  function saveBase(mapa, diario) {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(SNAP_STORE, 'readwrite');
+        tx.objectStore(SNAP_STORE).put({
+          id: BASE_ID, at: nowIso(), base: mapa || {}, diario: diario || {}
+        });
+        tx.oncomplete = function () { resolve(true); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    }).catch(function (e) {
+      console.warn('Não foi possível guardar a base da mesclagem.', e);
+      return false;
+    });
+  }
+
+  function getBase() {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).get(BASE_ID);
+        req.onsuccess = function () {
+          var r = req.result;
+          resolve(r ? { base: r.base || null, diario: r.diario || null } : null);
+        };
         req.onerror = function () { reject(req.error); };
       });
     }).catch(function () { return null; });
@@ -1228,6 +1440,14 @@
     saveSnapshot: saveSnapshot,
     getSnapshot: getSnapshot,
     clearSnapshot: clearSnapshot,
+    saveBase: saveBase,
+    getBase: getBase,
+    baseDe: baseDe,
+    retratoItem: retratoItem,
+    CAMPOS_MESCLA: CAMPOS_MESCLA,
+    rotuloCampo: rotuloCampo,
+    valorCampo: valorCampo,
+    porCampo: porCampo,
 
     /**
      * Anota, na sessão corrente do projeto, que um item foi criado, editado

@@ -48,6 +48,7 @@ assets/icons/              ícones do aplicativo instalado
 assets/css/app.css         estilos do editor
 assets/css/report.css      layout do relatório — tela e impressão A4
 assets/js/store.js         modelo, persistência, mesclagem, ordenação
+assets/js/revisoes.js      o diário: quem escreveu o quê, campo a campo
 assets/js/pasta.js         a pasta da rede como banco de dados (e as imagens)
 assets/js/report.js        monta as páginas no padrão do PDF, e as pagina
 assets/js/fluxo.js         lê o Waiver Historic, desenha o caminho do waiver e
@@ -65,9 +66,10 @@ exemplos/                  .json prontos para importar
 ```
 
 Ordem de carga dos scripts (importa: cada um usa o anterior):
-`store.js → pasta.js → report.js → fluxo.js → summary.js → xlsx.js →
-tabela.js → chat.js → lado.js → app.js`.
+`store.js → revisoes.js → pasta.js → report.js → fluxo.js → summary.js →
+xlsx.js → tabela.js → chat.js → lado.js → app.js`.
 (`tabela.js` usa `Summary`, `Fluxo`, `Report` e `SummaryView.csvCampo`;
+`revisoes.js` usa `Store.CAMPOS_MESCLA`, `valorCampo` e `rotuloCampo`;
 `xlsx.js` não usa ninguém.)
 
 ## 4. Modelo de dados
@@ -189,6 +191,83 @@ passe do fim da folha continuaria na seguinte **colado na borda do papel**
 perder nada. Arrastar um item fixa a ordem à vista como manual. `report.js`
 usa `Store.ordenar`, e por isso a capa, as páginas e as evidências saem na
 mesma sequência.
+
+### A mesclagem é campo a campo (e por que ela não era)
+
+Era o item inteiro, e o item inteiro é grande demais para ser a unidade. Duas
+pessoas mexendo em campos diferentes da mesma NCR não estão em conflito
+nenhum — mas uma delas perdia tudo, em silêncio. Foi o que o Bruno relatou:
+alguém fica horas sem sincronizar, volta, e o texto que já estava escrito
+some. Não precisa nem de relógio errado para acontecer: basta a pessoa ter
+mexido no item depois de o colega ter gravado.
+
+O que faltava era a **terceira ponta**: o texto que os dois tinham antes de
+se separarem. `Store.baseDe(projects)` guarda esse retrato — só texto, campo
+a campo, sem imagem nem carimbo — e `mergeLWW` o recebe. Com ele:
+
+- campo que só eu mudei → fica o meu;
+- campo que só o outro mudou → entra o dele;
+- campo que os dois mudaram → **aí sim** alguém ganha, pelo `editedAt` (com
+  a assinatura no empate), e o texto que perdeu vai inteiro para o diário,
+  com um botão que o traz de volta;
+- campo que ninguém mudou → não se mexe.
+
+Sem base — item recém-criado, navegador que nunca sincronizou — vale o item
+inteiro, como antes. É degradação segura, não caso especial.
+
+**As evidências não se mesclam campo a campo**, porque são listas com
+imagens e meia lista de anexos seria um item que ninguém montou. Mas o
+retrato guarda uma chave delas (`evidChave`, a mesma do `signature`), então
+elas vão para o lado de quem mexeu nelas, em vez de acompanharem o vencedor
+do desempate.
+
+**Duas bases, não uma** (`Store.saveBase(base, diario)`, na prateleira
+`snapshots` do IndexedDB, com a chave `mesclaBase`):
+
+- `base` só avança **depois de a gravação na pasta dar certo**. Avançá-la
+  antes faria a junção seguinte ler o meu trabalho ainda não gravado como
+  "coisa que o outro escreveu" — e a regra que existe para salvar o texto
+  seria a que o apagaria.
+- `diario` avança a cada captura do histórico, com ou sem pasta.
+
+E elas moram na prateleira que já existia, de propósito: criar outra
+obrigaria a subir a versão do IndexedDB, e a página da versão anterior
+abrindo o mesmo navegador depois disso não conseguiria mais abrir o banco.
+
+O relógio ainda decide **um** caso — os dois no mesmo campo. Por isso a
+sessão avisa quando o `updatedAt` do arquivo está no futuro em relação ao
+relógio daqui (`conferirRelogio`): só essa direção é conclusiva, porque um
+carimbo velho pode ser só alguém que não mexe no arquivo desde ontem.
+
+### O diário de alterações (`revisoes.js`)
+
+A pasta já guardava versões inteiras (`historico/`), que servem para o
+estrago grande: voltar tudo a como estava às 14h. Elas respondem mal a
+pergunta miúda, que é a que aparece no dia a dia — *"quem apagou o meu texto
+do Arch Answer, e o que estava escrito lá?"*. Aqui cada alteração de campo é
+uma linha: quem, quando, qual campo, o que estava, o que passou a estar.
+
+- **Sai da mesma base da mesclagem.** O que está aqui, comparado com o
+  retrato da última captura, é exatamente o que esta pessoa escreveu — sem
+  gravar nada a cada tecla.
+- **Cada um anota só o que escreveu.** Anotar também o que chegou dos outros
+  duplicaria a linha em cada computador, com ids diferentes.
+- **Arquivo próprio na pasta** (`revisoes.json`), pelo motivo da conversa: o
+  arquivo de dados é reescrito e copiado inteiro a cada gravação. Não entra
+  no backup nem no PDF.
+- **União pelo id**, nunca "vale o mais recente": uma alteração que
+  aconteceu não deixa de ter acontecido. O que pode mudar é o texto final de
+  uma linha ainda aberta — teclas seguidas da mesma pessoa no mesmo campo,
+  dentro de dez minutos, esticam a linha em vez de criar outra, e aí vale o
+  carimbo maior.
+- **Pôr um texto de volta é uma edição como outra qualquer**, com hora nova:
+  é isso que faz o texto restaurado valer também no computador dos outros,
+  em vez de ser apagado de volta na sincronização seguinte.
+- **Os tetos** (1500 linhas, um ano, 4 000 caracteres por campo) existem por
+  causa dos ~5 MB de `localStorage` que o programa inteiro divide — a
+  conversa já ocupa parte deles.
+- **O histórico começa quando esta versão começa.** O que foi escrito antes
+  dela não tem linha, e a tela diz isso em vez de fingir um passado.
 
 ### Duas mesclagens diferentes, de propósito
 1. **Arquivo aberto à mão** (`Store.diffProject`) → mesclagem a três pontas
@@ -436,6 +515,15 @@ do alto (`#pastaNotice`), com botão de copiar.
 - O caminho que vier no arquivo da pasta sobrepõe o local e é gravado — é o que
   faz a próxima abertura já vir com o caminho certo, sem ninguém digitar.
 
+### O aviso de pasta parada
+Perder a pasta em silêncio é o começo do problema que a mesclagem campo a
+campo resolve no fim: quem trabalha horas sem saber que está sozinho produz
+os dois textos no mesmo campo. Por isso o `#pastaNotice` tem um segundo
+papel — com `pastaEstado` em `erro` ou `permissao` ele vira alarme
+(`.notice--parada`), diz **há quanto tempo** a pasta não responde
+(`ultimoSucesso`) e **ignora o "Agora não"**: aquele botão cala o convite
+para escolher a pasta, nunca o alarme de que ela parou.
+
 ### Instalação e uso sem rede
 `manifest.webmanifest` + `sw.js`, registrados só em `https:` ou `localhost`
 (de `file://` a API nem existe, e o arquivo único não acompanha manifesto — o
@@ -512,6 +600,12 @@ permissão da pasta entre sessões.
   cabeçalho da aba Tabela não grudava: quem rolava era a aba inteira, e o
   cabeçalho não tinha a que se prender. A caixa da tabela tem `max-height` e
   rola sozinha — conferido no navegador, não de memória.
+- **A base da mesclagem não pode avançar antes da gravação.** É o erro que
+  transformaria a proteção em destruição: com `base` igual ao meu estado
+  ainda não gravado, todo campo em que eu difiro do arquivo vira "campo que
+  só o outro mexeu", e a junção seguinte apaga o meu trabalho inteiro. Por
+  isso são duas bases, e por isso a de mesclagem só avança dentro do `then`
+  da gravação.
 - **O service worker é rede-primeiro, de propósito.** Cache-primeiro traria de
   volta o problema de HTML novo com JS velho que o `?v=<sha>` existe para
   evitar. O `sw.js` também é carimbado na publicação: sem mudar de conteúdo,
@@ -593,4 +687,11 @@ desta máquina às vezes bloqueia `github.io`.
 | `.xlsx` escrito à mão, em vez de CSV ou de biblioteca | sem dependência (§2), e o CSV perde tipo, cabeçalho congelado e filtros — e trata `=` como fórmula |
 | Toda exportação leva a aba "Recorte" | planilha filtrada que não diz que está filtrada é lida como se fosse o total |
 | Caminho do banco com valor de saída e chave própria | ninguém deveria precisar perguntar onde fica a pasta; e o caminho do backup é outro campo |
+| Mesclagem campo a campo, com base guardada, em vez de item inteiro | dois campos diferentes do mesmo item nunca foram conflito; tratá-los como se fossem era perder texto em silêncio |
+| A base de mesclagem só avança depois da gravação dar certo | avançá-la antes faz a junção seguinte ler o meu trabalho como sendo do outro, e apagá-lo |
+| Duas bases (mesclagem e diário) na mesma prateleira do IndexedDB | criar prateleira nova obriga a subir a versão do banco, e a versão anterior do programa deixaria de abrir o mesmo navegador |
+| O relógio só decide quando os dois escreveram no MESMO campo | é o único caso que sobra sem base comum; e nele o texto perdedor é guardado, não descartado |
+| Diário de alterações em arquivo próprio, fora do backup e do PDF | mesma razão da conversa: os dados são reescritos e versionados a cada gravação |
+| Cada computador anota só o que ele escreveu | anotar o que chega dos outros duplicaria cada linha em cada máquina |
+| Restaurar um texto é uma edição nova, com hora nova | só assim ele vale também no computador dos outros, em vez de voltar apagado |
 | Permissão da pasta pedida no primeiro clique, por 2 minutos | é o único jeito de atender à regra do gesto sem deixar o aviso esperando um clique no lugar certo |

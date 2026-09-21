@@ -547,35 +547,58 @@ ocupando, dividido entre dados, imagens e histórico.
 
 ### A regra de quem vence
 
-Item a item, **vale a edição mais recente**. Não há tela de conflito aqui, ao
-contrário da importação manual de arquivo: a gravação acontece sozinha, e
-ninguém pode ficar parado esperando outra pessoa decidir.
+A junção é **campo a campo**, não item a item. O programa guarda um retrato do
+que o seu computador viu na pasta da última vez, e é com ele que compara:
 
-Quando isso acontece com um item seu, o programa não deixa passar em branco: o
-item ganha a marca **⇄** na lista e, ao abri-lo, uma faixa diz quem mexeu e
-quando, com **Ver o que mudou** — os campos substituídos lado a lado, *estava
-aqui* × *passou a ser*. Se algo de seu se perdeu, está ali para copiar de
-volta.
+- campo que **só você** mexeu → fica o seu;
+- campo que **só o outro** mexeu → entra o dele;
+- campo que **ninguém** mexeu → não se toca nele;
+- campo em que **os dois escreveram** → aí sim vale a edição mais recente, e o
+  texto que saiu vai inteiro para o histórico do item, com um botão que o traz
+  de volta.
+
+É isso que resolve o caso de quem fica horas sem sincronizar: você escreveu o
+*Arch Answer*, o colega estava fora e mexeu na *Description*, ele volta — e os
+dois textos ficam. Antes o item inteiro de quem tivesse a hora mais recente
+ganhava, e o outro sumia sem aviso.
+
+Não há tela de conflito aqui, ao contrário da importação manual de arquivo: a
+gravação acontece sozinha, e ninguém pode ficar parado esperando outra pessoa
+decidir.
+
+Quando alguma coisa sua for realmente substituída, o programa não deixa passar
+em branco: o item ganha a marca **⇄** na lista e, ao abri-lo, uma faixa
+vermelha diz em quantos campos os dois escreveram ao mesmo tempo, com **Ver o
+texto que saiu**. Ele está guardado, não perdido.
 
 A regra **converge**: mesmo que duas gravações se atropelem, a sincronização
-seguinte de cada lado traz de volta o que faltou, porque cada um ainda tem os
-seus itens com a sua hora de edição. Não há trava de arquivo — o que torna isso
-seguro não é uma trava, é a mesclagem convergir.
+seguinte de cada lado traz de volta o que faltou. Não há trava de arquivo — o
+que torna isso seguro não é uma trava, é a junção convergir.
 
 Na prática:
 
 | Situação | O que acontece |
 | --- | --- |
-| Duas pessoas em **itens diferentes** (o caso comum) | nada se perde: as duas edições sobrevivem |
-| Duas pessoas no **mesmo item** | fica a edição mais recente; a outra versão está no histórico |
+| Duas pessoas em **itens diferentes** (o caso comum) | nada se perde |
+| Duas pessoas no **mesmo item**, em **campos diferentes** | nada se perde: os dois textos ficam |
+| Duas pessoas no **mesmo campo** | fica a edição mais recente; a outra fica no histórico do item, a um clique de voltar |
+| Alguém fica **horas sem sincronizar** e volta | só os campos que ele mexeu entram; o resto do seu trabalho continua |
 | O item aberto na sua tela muda por fora | a tela é redesenhada e um aviso diz quem alterou |
 | O item aberto é excluído por outra pessoa | a lista volta para o primeiro item, com aviso |
 | O **relatório** aberto é excluído por outra pessoa | a tela passa ao primeiro relatório, com aviso |
 
-O caso que realmente custa trabalho é o segundo, e ele é raro quando as NCRs
-estão divididas entre as pessoas. Mesmo assim: **antes de juntar qualquer
-mudança vinda de fora, o programa guarda o seu estado no histórico** — o texto
-substituído nunca desaparece sem deixar cópia.
+Um detalhe que continua valendo: **os anexos não se juntam pela metade**. Se os
+dois mexeram nas evidências do mesmo item, fica a lista de quem editou por
+último — e o histórico registra que a outra existiu, ainda que uma foto não
+volte por um clique.
+
+E como o relógio ainda decide o empate de um mesmo campo, o programa avisa
+quando o relógio deste computador está atrasado em relação ao de quem gravou na
+pasta. Vale acertar a hora do Windows quando esse aviso aparecer.
+
+Mesmo assim: **antes de juntar qualquer mudança vinda de fora, o programa
+guarda o seu estado no histórico** — o texto substituído nunca desaparece sem
+deixar cópia.
 
 **Exclusões deixam lápide.** Sem isso, o item apagado por uma pessoa voltaria na
 próxima sincronização, vindo do computador de quem ainda não soube. A lápide é
@@ -586,7 +609,38 @@ lateral, o grupo *Excluídos pelo colega* da tela de mesclagem e o
 inteiro, que também viaja na pasta. Restaurar uma versão do histórico desfaz
 a lápide do que voltar.
 
-### O histórico é a rede de proteção
+### Histórico do texto: quem escreveu o quê
+
+Não confunda com o **⋯ Mais → Histórico de alterações**, que lista *sessões*
+(quem mexeu em quais itens). Este aqui é o texto em si, campo a campo.
+
+No cartão de identificação de cada NCR ou DEV há o botão **🕘 Histórico do
+texto**. Ele
+abre a lista das alterações daquele item, da mais recente para a mais antiga:
+
+- **quem** escreveu, **quando** e **em qual campo**;
+- o texto que a pessoa escreveu, e **Ver como estava antes**;
+- **Pôr este texto de volta**, que escreve o texto de volta no campo (com
+  *Desfazer* logo em seguida, caso tenha sido engano).
+
+As linhas em vermelho, marcadas **escrito por cima**, são as importantes: é
+quando duas pessoas escreveram no mesmo campo e um dos textos teve de sair. O
+que saiu está ali inteiro.
+
+Dá para olhar só **este item**, **este relatório** ou **todos os relatórios**, e
+há uma busca que procura no texto, no nome do campo e em quem escreveu — é
+assim que se acha de novo um parágrafo que alguém lembra de ter escrito e não
+sabe mais onde.
+
+O histórico viaja pela pasta, num arquivo `revisoes.json` ao lado dos dados,
+então você vê também o que os outros escreveram. Ele **não entra no PDF nem no
+backup**: é registro de trabalho, não documento.
+
+Duas honestidades: ele **começa a contar a partir desta versão do programa** —
+o que foi escrito antes não tem linha — e guarda as últimas 1500 alterações de
+até um ano, que é o que cabe no armazenamento do navegador.
+
+### O histórico completo é a rede de proteção
 
 Fica **dentro da própria pasta**, numa subpasta `historico\` criada sozinha — não
 é uma segunda pasta a configurar. O motivo é o mesmo de sempre: o navegador só
@@ -606,6 +660,16 @@ Em **🗄 Pasta da rede…** as versões aparecem listadas, com **Restaurar**.
 Restaurar **só traz de volta o que sumiu** — o que está em uso agora não é
 tocado nem substituído. A volta é registrada como uma edição sua, que é o que
 faz o item sobreviver também no computador dos outros.
+
+### Quando a pasta para de responder
+
+Se a rede cair, se a pasta for renomeada ou se o navegador perder a permissão,
+o programa **não fica calado**: aparece uma faixa vermelha no alto dizendo que
+o seu trabalho continua salvo no computador, mas que ninguém mais o está vendo
+— com **há quanto tempo** isso dura e um botão **Religar a pasta agora**.
+
+Esse aviso não some com "Agora não": ficar horas escrevendo sem saber que se
+está sozinho é justamente o que produz, depois, dois textos no mesmo campo.
 
 ### O que cada pessoa precisa fazer
 

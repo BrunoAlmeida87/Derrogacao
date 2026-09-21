@@ -21,6 +21,7 @@
 
   var ARQUIVO = 'derrogacao-dados.json';
   var CONVERSAS = 'conversas.json';
+  var REVISOES = 'revisoes.json';
   var HISTORICO = 'historico';
   var IMAGENS = 'imagens';
   var MAX_HISTORICO = 40;
@@ -315,6 +316,30 @@
       .then(function () { return true; });
   }
 
+  /* --- diário de alterações ------------------------------------------------
+     Arquivo próprio, pela mesma razão da conversa: o arquivo de dados é
+     reescrito e copiado inteiro a cada gravação, e um diário que só cresce
+     não tem por que ser copiado junto. */
+
+  function lerRevisoes() {
+    if (!handle) return Promise.resolve(null);
+    return handle.getFileHandle(REVISOES, { create: false })
+      .then(function (fh) { return fh.getFile(); })
+      .then(function (f) { return f.text(); })
+      .then(function (t) { return t ? JSON.parse(t) : null; })
+      .catch(function () { return null; });   /* ainda não existe: primeira alteração */
+  }
+
+  function gravarRevisoes(payload) {
+    if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
+    return handle.getFileHandle(REVISOES, { create: true })
+      .then(function (fh) { return fh.createWritable(); })
+      .then(function (w) {
+        return w.write(JSON.stringify(payload, null, 1)).then(function () { return w.close(); });
+      })
+      .then(function () { return true; });
+  }
+
   /* --- histórico automático ------------------------------------------------ */
 
   function carimbo(d) {
@@ -424,7 +449,10 @@
     lerHistorico: lerHistorico,
     lerConversas: lerConversas,
     gravarConversas: gravarConversas,
+    lerRevisoes: lerRevisoes,
+    gravarRevisoes: gravarRevisoes,
     CONVERSAS: CONVERSAS,
+    REVISOES: REVISOES,
     gravarImagem: gravarImagem,
     lerImagem: lerImagem,
     podarImagens: podarImagens,
