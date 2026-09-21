@@ -34,13 +34,17 @@ jobs:
         run: |
           SHA="${GITHUB_SHA:0:7}"
           sed -i -E "s#(assets/(css|js)/[A-Za-z0-9._-]+\.(css|js))\"#\1?v=${SHA}\"#g" index.html
+          # O service worker só se atualiza quando o próprio arquivo muda de
+          # conteúdo: sem o carimbo, o navegador serviria o cache antigo.
+          sed -i -E "s#^var VERSAO = '[^']*';#var VERSAO = '${SHA}';#" sw.js
           echo "--- referências carimbadas ---"
           grep -nE 'assets/(css|js)/' index.html
+          grep -n "var VERSAO" sw.js
 
       - name: Publicar em gh-pages
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f index.html derrogacao.html
+          git add -f index.html derrogacao.html sw.js
           git commit -m "Publica ${GITHUB_SHA:0:7}"
           git push --force origin HEAD:refs/heads/gh-pages

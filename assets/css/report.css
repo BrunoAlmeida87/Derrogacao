@@ -43,6 +43,12 @@
   min-height: 210mm;
 }
 
+/* Enquanto a paginação faz as contas, a área útil encolhe um pouco: é a
+   margem de segurança contra o arredondamento da impressão, sem a qual um
+   texto que fecha exatamente no fim da folha pode escorregar para a
+   seguinte na hora de imprimir. A classe só existe durante a medição. */
+.rep-page.rep-medindo { padding-bottom: calc(var(--rep-pad-bottom) + 1.5mm); }
+
 /* páginas de anexo têm margens menores, para caber mais imagem */
 .rep-page--evidence {
   --rep-pad-x: 12mm;
@@ -91,6 +97,17 @@
 .rep-index-item a {
   color: var(--rep-link);
   text-decoration: underline;
+}
+
+/* Aviso de recorte — só aparece quando a exportação foi filtrada por
+   situação. Sem filtro a capa sai exatamente como sempre saiu (§2). */
+.rep-cover-recorte {
+  margin: 0 0 4mm;
+  padding: 1.5mm 2.5mm;
+  border-left: 1mm solid #d9a441;
+  background: #fdf4e3;
+  font-size: 9pt;
+  color: #6b4400;
 }
 
 /* data de emissão, no pé da capa */
