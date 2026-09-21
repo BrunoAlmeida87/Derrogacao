@@ -1244,7 +1244,11 @@
         tx.oncomplete = function () { resolve(); };
         tx.onerror = function () { reject(tx.error); };
       });
-    }).catch(function (e) { console.warn('Não foi possível guardar o retrato.', e); });
+    }).catch(function (e) {
+      Log.aviso('armazenamento', 'não consegui guardar o retrato de desfazer',
+        'a última mesclagem não vai poder ser desfeita; o resto funciona normalmente.',
+        { erro: e && e.name });
+    });
   }
 
   function getSnapshot() {
@@ -1286,7 +1290,10 @@
         tx.onerror = function () { reject(tx.error); };
       });
     }).catch(function (e) {
-      console.warn('Não foi possível guardar a base da mesclagem.', e);
+      Log.aviso('armazenamento', 'não consegui guardar a base da mesclagem',
+        'a próxima junção com a pasta vai comparar item inteiro em vez de campo a ' +
+        'campo. Funciona, mas protege menos — recarregue a página quando puder.',
+        { erro: e && e.name });
       return false;
     });
   }
@@ -1390,7 +1397,10 @@
 
   function fallback(err) {
     useIdb = false;
-    console.warn('IndexedDB indisponível, usando localStorage.', err);
+    Log.aviso('armazenamento', 'o banco do navegador (IndexedDB) não abriu — ' +
+      'usando o armazenamento simples',
+      'funciona, mas cabe bem menos (uns 5 MB no total). Com muitas imagens isto ' +
+      'vai encher: faça backups com mais frequência.', { erro: err && err.name });
   }
 
   var Store = {

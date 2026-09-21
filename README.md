@@ -244,6 +244,33 @@ Backups gravados antes desta versão continuam abrindo normalmente — o que
 estava marcado como concluído entra como *Waiver accepted*, e o resto como
 *Em preenchimento*.
 
+## Ver o que o programa está fazendo (console)
+
+Aperte **F12** e abra a aba **Console**. O programa escreve ali, em português,
+cada etapa do que está acontecendo: a abertura, cada conversa com a pasta da
+equipe, o que a mesclagem trouxe, a exportação em PDF. Quando algo dá errado,
+a linha vem em três partes — **o que falhou**, **o que isso significa** e **o
+que fazer**.
+
+O que dá para digitar no console:
+
+| Comando | O que faz |
+| --- | --- |
+| `Derrogacao.ajuda()` | esta lista, dentro do console |
+| `Derrogacao.tudo()` | mostra também o miúdo: cada gravação, cada tempo |
+| `Derrogacao.normal()` | o padrão: abertura, pasta, mesclagem, problemas |
+| `Derrogacao.silencio()` | só o que der errado |
+| `Derrogacao.diagnostico()` | retrato de agora: quantos relatórios, itens, a pasta |
+| `Derrogacao.diario()` | as últimas linhas, de uma vez |
+| `Derrogacao.copiar()` | copia o diagnóstico + as linhas, para colar num e-mail |
+
+A escolha do nível fica **neste navegador**. **Nada disso sai do computador** —
+é console e só. E **o texto das NCRs nunca é registrado**: vão nomes de campo,
+contagens e números, nunca o que está escrito dentro do campo.
+
+Quando algo estiver estranho, o caminho mais curto é: `Derrogacao.copiar()` e
+colar num e-mail. Vem tudo o que se precisaria perguntar.
+
 ## Backup, cache e trabalho compartilhado
 
 Os relatórios ficam no **IndexedDB do navegador** (com `localStorage` como
@@ -949,6 +976,7 @@ sw.js                    service worker: abre sem rede
 assets/icons/            ícones do aplicativo instalado
 assets/css/app.css       estilos do editor
 assets/css/report.css    layout do relatório (tela e impressão A4)
+assets/js/log.js         o diário do console, em português
 assets/js/store.js       modelo de dados, persistência (IndexedDB) e mesclagem
 assets/js/revisoes.js    o histórico do texto: quem escreveu o quê, campo a campo
 assets/js/pasta.js       a pasta da rede como banco de dados

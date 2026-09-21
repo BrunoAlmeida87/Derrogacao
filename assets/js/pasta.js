@@ -125,11 +125,51 @@
    * fora repetiria o retrato velho, que é justamente o que o navegador
    * recusou.
    */
-  function comSegundaChance(tarefa) {
+  function comSegundaChance(tarefa, oQue) {
     return tarefa().catch(function (e) {
       if (!passageiro(e)) throw e;
-      return daquiAPouco(600).then(tarefa);
+      /* Este aviso é o que faltava no console do Bruno: a pasta tropeçou,
+         mas o programa vai tentar de novo. Ver dois destes seguidos no mesmo
+         arquivo já é sinal de outra pessoa gravando no mesmo segundo — ou de
+         antivírus no meio do caminho. */
+      Log.aviso('pasta', 'a pasta recusou gravar ' + (oQue || 'um arquivo') +
+        ' — tentando de novo em 0,6 s', explicar(e), { erro: e && e.name });
+      return daquiAPouco(600).then(function () {
+        return tarefa().then(function (r) {
+          Log.ok('pasta', 'deu certo na segunda tentativa: ' + (oQue || 'arquivo'));
+          return r;
+        });
+      });
     });
+  }
+
+  /**
+   * O erro do navegador, em português, com o que ele quer dizer aqui.
+   * Fica neste arquivo porque é aqui que esses erros nascem — e porque a
+   * frase certa depende de a pasta ser de rede, que é o caso da equipe.
+   */
+  function explicar(e) {
+    var n = (e && e.name) || '';
+    if (n === 'InvalidStateError') {
+      return 'o arquivo mudou no disco depois que o navegador o abriu — quase ' +
+        'sempre outra pessoa da equipe gravando no mesmo segundo, ou o antivírus ' +
+        'segurando o arquivo temporário da pasta de rede.';
+    }
+    if (n === 'NoModificationAllowedError') {
+      return 'o arquivo está preso por outro programa (Excel aberto? antivírus?).';
+    }
+    if (n === 'NotAllowedError') {
+      return 'a permissão da pasta não está valendo nesta sessão — clique em ' +
+        '“Pasta” na barra de cima e confirme.';
+    }
+    if (n === 'NotFoundError') {
+      return 'o arquivo ou a pasta não estão mais onde estavam (o G: caiu? a ' +
+        'pasta foi movida?).';
+    }
+    if (n === 'NotReadableError' || n === 'AbortError') {
+      return 'a leitura foi interrompida no meio — rede instável, na maioria das vezes.';
+    }
+    return 'o navegador não explicou o motivo.';
   }
 
   /** Escreve um JSON da pasta, com a segunda chance. */
@@ -142,7 +182,10 @@
         .then(function (w) {
           return w.write(texto).then(function () { return w.close(); });
         });
-    }).then(function () { return true; });
+    }, nomeArq).then(function () {
+      Log.detalhe('pasta', 'gravado ' + nomeArq, { bytes: texto.length });
+      return true;
+    });
   }
 
   function arquivoDados(criar) {
@@ -168,10 +211,11 @@
           };
         });
       });
-    })
+    }, ARQUIVO)
       .catch(function (e) {
         /* pasta ainda sem o arquivo: é o primeiro uso, não é erro */
         if (e && (e.name === 'NotFoundError' || e.name === 'NotFound')) {
+          Log.passo('pasta', 'a pasta ainda não tem ' + ARQUIVO + ' — primeiro uso');
           return { dados: null, lastModified: 0, externo: false };
         }
         throw e;
@@ -197,8 +241,12 @@
             return w.write(texto).then(function () { return w.close(); });
           }).then(function () { return fh.getFile(); });
         });
-    })
-      .then(function (file) { ultimaLeitura = file.lastModified; return true; });
+    }, ARQUIVO)
+      .then(function (file) {
+        ultimaLeitura = file.lastModified;
+        Log.detalhe('pasta', 'gravado ' + ARQUIVO, { bytes: texto.length });
+        return true;
+      });
   }
 
   /* --- imagens em arquivos próprios ----------------------------------------
@@ -270,7 +318,10 @@
         .then(function (dir) { return dir.getFileHandle(nome, { create: true }); })
         .then(function (fh) { return fh.createWritable(); })
         .then(function (w) { return w.write(bytes).then(function () { return w.close(); }); });
-    }).then(function () { return IMAGENS + '/' + nome; });
+    }, 'a imagem ' + nome).then(function () {
+      Log.detalhe('pasta', 'imagem gravada', { arquivo: nome, bytes: bytes.length });
+      return IMAGENS + '/' + nome;
+    });
   }
 
   /** Lê uma imagem gravada e devolve de volta em data URL. */
@@ -421,11 +472,16 @@
             })
             .then(function () { return podar(dir); });
         });
-    })
-      .then(function () { return true; })
+    }, 'a versão ' + nomeArq)
+      .then(function () {
+        Log.passo('pasta', 'versão guardada em ' + HISTORICO + '/', { arquivo: nomeArq });
+        return true;
+      })
       .catch(function (e) {
         /* histórico é desejável, não essencial: nunca derruba a gravação */
-        console.warn('Não foi possível gravar o histórico:', e);
+        Log.erro('pasta', 'não consegui guardar a versão datada em ' + HISTORICO + '/',
+          e, explicar(e) + ' Os dados foram gravados assim mesmo; o que falta é a ' +
+          'cópia de segurança desta rodada.');
         return false;
       });
   }
@@ -505,6 +561,7 @@
     lerHistorico: lerHistorico,
     lerConversas: lerConversas,
     gravarConversas: gravarConversas,
+    explicar: explicar,
     lerRevisoes: lerRevisoes,
     gravarRevisoes: gravarRevisoes,
     CONVERSAS: CONVERSAS,

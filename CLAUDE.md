@@ -47,6 +47,8 @@ sw.js                      service worker: rede primeiro, cache como reserva
 assets/icons/              ícones do aplicativo instalado
 assets/css/app.css         estilos do editor
 assets/css/report.css      layout do relatório — tela e impressão A4
+assets/js/log.js           o diário do console: o que está acontecendo, e o
+                           que fazer quando dá errado (carrega primeiro)
 assets/js/store.js         modelo, persistência, mesclagem, ordenação
 assets/js/revisoes.js      o diário: quem escreveu o quê, campo a campo
 assets/js/pasta.js         a pasta da rede como banco de dados (e as imagens)
@@ -69,8 +71,11 @@ exemplos/                  .json prontos para importar
 ```
 
 Ordem de carga dos scripts (importa: cada um usa o anterior):
-`store.js → revisoes.js → pasta.js → report.js → fluxo.js → herdar.js →
-summary.js → painel.js → xlsx.js → tabela.js → chat.js → lado.js → app.js`.
+`log.js → store.js → revisoes.js → pasta.js → report.js → fluxo.js →
+herdar.js → summary.js → painel.js → xlsx.js → tabela.js → chat.js →
+lado.js → app.js`.
+(`log.js` vem primeiro porque todo mundo o usa — e **por isso mesmo não usa
+ninguém**: ele não conhece `Store`, `Pasta` nem `app`.)
 (`tabela.js` usa `Summary`, `Fluxo`, `Report` e `SummaryView.csvCampo`;
 `revisoes.js` usa `Store.CAMPOS_MESCLA`, `valorCampo` e `rotuloCampo`;
 `herdar.js` usa `Store`, `Fluxo` e `Report`; `painel.js` usa esses três mais
@@ -632,6 +637,41 @@ do alto (`#pastaNotice`), com botão de copiar.
   tempo.
 - O caminho que vier no arquivo da pasta sobrepõe o local e é gravado — é o que
   faz a próxima abertura já vir com o caminho certo, sem ninguém digitar.
+
+### O diário do console (`log.js`)
+Pedido do Bruno depois do `InvalidStateError`: ver o processamento acontecendo
+e ser avisado quando algo dá errado, em vez de descobrir por acaso numa linha
+vermelha que ninguém sabe ler.
+
+- **Três níveis**, guardados em `derrogacao:log`: `silencio` (só o que deu
+  errado), `normal` (o padrão) e `tudo` (mais cada gravação local e cada
+  tempo). Erro aparece **em qualquer nível**, inclusive no silêncio: o nível
+  existe para calar o que deu certo.
+- **O texto das NCRs nunca é registrado.** É material de programa de defesa e
+  o console fica aberto ao lado de quem passa. Vão nomes de campo, contagens,
+  tamanhos e ids — nunca o conteúdo. Vale para o `relatarMesclagem` (só os
+  rótulos dos campos atropelados) e para o `capturarRevisoes` (só os nomes).
+  Há um teste que semeia um texto marcado e reprova se ele aparecer em
+  qualquer lugar do diário.
+- **Toda falha sai em três partes**: o que falhou, o que isso significa e o
+  que a pessoa pode fazer. `Pasta.explicar(e)` traduz os erros do File System
+  Access para o caso real — pasta de rede, equipe gravando junto.
+- **A mensagem vai como argumento à parte do `console`**, nunca dentro do
+  texto de formato: ela pode carregar coisa digitada (o número de uma NCR, o
+  nome de um arquivo), e um `%s` perdido faria o console comer a linha
+  seguinte. Só a hora e a área, que são escritas no código, entram no `%c`.
+- **`Log.etapa`** abre e fecha com o tempo decorrido. Etapa que abre e não
+  fecha é exatamente o que se quer enxergar.
+- **`Log.vigiar()`** captura `error` e `unhandledrejection`, para nada passar
+  em branco.
+- **`Derrogacao.*`** é o que a pessoa digita: `ajuda()`, `tudo()`, `normal()`,
+  `silencio()`, `diagnostico()`, `diario()`, `copiar()`. `copiar()` junta o
+  diagnóstico com as últimas linhas e põe na área de transferência (com a
+  reserva do `execCommand`, porque em `file://` não há `navigator.clipboard`).
+- **A troca de situação da pasta é notícia; a repetição não.** `pastaDita`
+  guarda a última anunciada: `sincronizando` passa a cada 20 s e `off` é só
+  "ainda não escolheram pasta" — nenhum dos dois vira linha. A **volta ao
+  normal** vira, porque quem viu o vermelho precisa saber que passou.
 
 ### O aviso de pasta parada
 Perder a pasta em silêncio é o começo do problema que a mesclagem campo a

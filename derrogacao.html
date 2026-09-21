@@ -3472,6 +3472,326 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 <div class="print-root" id="printRoot"></div>
 
 <script>
+/* assets/js/log.js */
+/* ==========================================================================
+   log.js — o diário do console: o que o programa está fazendo, ao vivo
+   --------------------------------------------------------------------------
+   Pedido do Bruno depois do InvalidStateError: ver o processamento acontecer,
+   e ser avisado quando algo dá errado — em vez de descobrir por acaso numa
+   linha vermelha que ninguém sabe ler.
+
+   O que este arquivo é, e o que ele não é:
+
+   - **É console, e só.** Nada é enviado, nada é gravado em arquivo, nada sai
+     do computador (§2). As últimas linhas ficam numa lista na memória para a
+     pessoa poder copiar e mandar por e-mail, e essa lista morre ao fechar a
+     aba.
+   - **Não registra o texto das NCRs.** Isto é material de programa de defesa:
+     o console fica aberto ao lado de quem passa, e o Windows guarda o que se
+     copia. Então aqui vão **nomes de campo, contagens, tamanhos e ids** —
+     nunca o que está escrito dentro do campo. É regra, não preferência: se
+     for preciso saber o conteúdo, ele está na tela, no item.
+   - **Fala português e diz o que fazer.** Um erro do navegador sozinho
+     ("InvalidStateError") não ajuda ninguém. Toda falha sai com três partes:
+     o que falhou, o que isso significa, e o que a pessoa pode fazer.
+
+   Três níveis, guardados neste navegador (`derrogacao:log`):
+
+     silencio  só o que deu errado
+     normal    (padrão) abertura, pasta, mesclagem, exportação, problemas
+     tudo      mais o miúdo: cada gravação local, cada desenho, tempos
+
+   Na primeira posição da ordem de carga, porque todo mundo usa — e por isso
+   não pode usar ninguém: este arquivo não conhece Store, Pasta nem app.
+   ========================================================================== */
+
+(function (global) {
+  'use strict';
+
+  var CHAVE = 'derrogacao:log';
+  var NIVEIS = ['silencio', 'normal', 'tudo'];
+  var MAX_LINHAS = 500;      /* o suficiente para uma manhã de trabalho */
+
+  var linhas = [];           /* as últimas, para copiar e mandar */
+  var fontes = [];           /* quem sabe contar o estado, para o diagnóstico */
+  var contas = { avisos: 0, erros: 0 };
+
+  function lerNivel() {
+    try {
+      var v = global.localStorage.getItem(CHAVE);
+      return NIVEIS.indexOf(v) >= 0 ? v : 'normal';
+    } catch (e) { return 'normal'; }
+  }
+
+  var nivelAtual = lerNivel();
+
+  function mostra(minimo) {
+    return NIVEIS.indexOf(nivelAtual) >= NIVEIS.indexOf(minimo);
+  }
+
+  /* --- formatação --------------------------------------------------------- */
+
+  function dd(n) { return (n < 10 ? '0' : '') + n; }
+
+  function hora() {
+    var d = new Date();
+    var ms = String(d.getMilliseconds());
+    while (ms.length < 3) ms = '0' + ms;
+    return dd(d.getHours()) + ':' + dd(d.getMinutes()) + ':' + dd(d.getSeconds()) + '.' + ms;
+  }
+
+  /**
+   * Um valor de apoio vira texto curto. Objeto vira "a=1 b=2", que se lê numa
+   * linha só — o console dobra objeto de verdade num triângulo que ninguém
+   * abre, e a linha some no meio das outras.
+   */
+  function resumir(v) {
+    if (v == null) return '';
+    if (typeof v !== 'object') return String(v);
+    if (Object.prototype.toString.call(v) === '[object Array]') {
+      return v.length > 8 ? v.slice(0, 8).join(', ') + '… (' + v.length + ')' : v.join(', ');
+    }
+    var partes = [];
+    for (var k in v) {
+      if (!Object.prototype.hasOwnProperty.call(v, k)) continue;
+      var x = v[k];
+      if (x == null || x === '' || x === false) continue;
+      partes.push(k + '=' + (typeof x === 'object' ? resumir(x) : String(x)));
+    }
+    return partes.join(' · ');
+  }
+
+  var CORES = {
+    passo:    'color:#2a78d6',
+    ok:       'color:#1baf7a',
+    aviso:    'color:#b8791f',
+    erro:     'color:#c2402a;font-weight:700',
+    detalhe:  'color:#8a909c'
+  };
+
+  function guardar(tipo, area, msg, extra) {
+    linhas.push(hora() + '  [' + area + '] ' + msg + (extra ? '  ' + extra : ''));
+    if (linhas.length > MAX_LINHAS) linhas.shift();
+  }
+
+  function escrever(tipo, area, msg, dados) {
+    var extra = resumir(dados);
+    guardar(tipo, area, msg, extra);
+    if (tipo !== 'erro' && !mostra(tipo === 'detalhe' ? 'tudo' : 'normal')) return;
+    var alvo = tipo === 'erro' ? 'error' : (tipo === 'aviso' ? 'warn' : 'log');
+    /* Só o carimbo de hora e a área entram no texto de formato — eles são
+       escritos no código. A mensagem vai como argumento à parte porque pode
+       carregar coisa digitada pela pessoa (o número de uma NCR, o nome de um
+       arquivo), e um "%s" perdido lá dentro faria o console comer a linha
+       seguinte. */
+    var corpo = msg + (extra ? '  ' + extra : '');
+    try {
+      global.console[alvo]('%c' + hora() + ' ' + area, CORES[tipo] || CORES.passo, corpo);
+    } catch (e) {
+      global.console.log(hora() + ' ' + area + ' ' + corpo);
+    }
+  }
+
+  /* --- a interface que o resto do programa usa ---------------------------- */
+
+  function passo(area, msg, dados) { escrever('passo', area, msg, dados); }
+  function ok(area, msg, dados) { escrever('ok', area, msg, dados); }
+  function detalhe(area, msg, dados) { escrever('detalhe', area, msg, dados); }
+
+  /**
+   * Algo não saiu como devia, mas o programa segue.
+   * `porque` é a frase que explica, em português, o que aquilo significa.
+   */
+  function aviso(area, msg, porque, dados) {
+    contas.avisos++;
+    escrever('aviso', area, msg, dados);
+    if (porque) escrever('aviso', area, '   ↳ ' + porque);
+  }
+
+  /**
+   * Algo falhou. Sempre visível, em qualquer nível — inclusive no silêncio:
+   * o nível existe para calar o que deu certo, nunca o que deu errado.
+   * `oQueFazer` é o que a pessoa pode fazer agora; sem isso, um erro é só
+   * susto.
+   */
+  function erro(area, msg, e, oQueFazer) {
+    contas.erros++;
+    var nome = (e && e.name) || '';
+    var dito = (e && e.message) || (e ? String(e) : '');
+    escrever('erro', area, msg, nome ? { erro: nome } : null);
+    if (dito && dito !== nome) escrever('erro', area, '   ↳ ' + dito);
+    if (oQueFazer) escrever('erro', area, '   ↳ o que fazer: ' + oQueFazer);
+    /* a pilha só no nível "tudo": ela é útil para mim, não para quem usa */
+    if (e && e.stack && mostra('tudo')) {
+      try { global.console.groupCollapsed('pilha'); global.console.log(e.stack); global.console.groupEnd(); }
+      catch (x) { /* console sem group: a linha acima já basta */ }
+    }
+  }
+
+  /**
+   * Marca o começo de uma etapa e devolve quem a fecha, com o tempo.
+   * `fim(msg, dados)` escreve a linha de conclusão; `falhou(msg, e, oQue)`
+   * fecha com erro. Sempre um dos dois — etapa que abre e não fecha é
+   * exatamente o que se quer enxergar no console.
+   */
+  function etapa(area, msg, dados) {
+    var t0 = (global.performance && global.performance.now) ? performance.now() : Date.now();
+    passo(area, '▸ ' + msg, dados);
+    function ms() {
+      var t1 = (global.performance && global.performance.now) ? performance.now() : Date.now();
+      return Math.round(t1 - t0) + ' ms';
+    }
+    return {
+      fim: function (m, d) {
+        var extra = resumir(d);
+        ok(area, '✓ ' + (m || msg) + '  (' + ms() + ')' + (extra ? '  ' + extra : ''));
+      },
+      falhou: function (m, e, oQue) {
+        erro(area, '✗ ' + (m || msg) + '  (' + ms() + ')', e, oQue);
+      },
+      nada: function (m) { detalhe(area, '· ' + (m || msg) + '  (' + ms() + ')'); }
+    };
+  }
+
+  /* --- diagnóstico --------------------------------------------------------- */
+
+  /** Quem sabe contar alguma coisa do estado se registra aqui. */
+  function fonte(nome, fn) { fontes.push({ nome: nome, fn: fn }); }
+
+  /**
+   * O retrato de agora, para a pessoa colar num e-mail quando algo estiver
+   * estranho. É o que eu pediria por escrito, montado sozinho.
+   */
+  function diagnostico() {
+    var out = ['=== Derrogação — diagnóstico de ' + new Date().toLocaleString('pt-BR') + ' ==='];
+    out.push('endereço: ' + String(global.location && global.location.href).slice(0, 160));
+    out.push('navegador: ' + String(global.navigator && global.navigator.userAgent).slice(0, 160));
+    out.push('nível do diário: ' + nivelAtual +
+      ' · avisos nesta sessão: ' + contas.avisos + ' · erros: ' + contas.erros);
+    fontes.forEach(function (f) {
+      var v;
+      try { v = f.fn(); } catch (e) { v = { falhou: (e && e.message) || 'erro' }; }
+      out.push(f.nome + ': ' + resumir(v));
+    });
+    var texto = out.join('\n');
+    /* sem %c aqui: o texto traz endereço e navegador, que podem ter % dentro */
+    global.console.log(texto);
+    return texto;
+  }
+
+  /** As últimas linhas, em texto, para copiar e mandar. */
+  function historico() { return linhas.join('\n'); }
+
+  function nivel(v) {
+    if (v == null) return nivelAtual;
+    if (NIVEIS.indexOf(v) < 0) {
+      global.console.log('Níveis: ' + NIVEIS.join(', '));
+      return nivelAtual;
+    }
+    nivelAtual = v;
+    try { global.localStorage.setItem(CHAVE, v); } catch (e) { /* segue na memória */ }
+    escrever('passo', 'diário', 'nível agora é "' + v + '"');
+    return nivelAtual;
+  }
+
+  /* --- nada passa em branco ------------------------------------------------
+     Qualquer erro solto do programa — inclusive de promessa sem catch — vira
+     uma linha explicada, em vez da mancha vermelha crua do navegador. */
+
+  function vigiar() {
+    global.addEventListener('error', function (ev) {
+      if (!ev) return;
+      erro('programa', 'erro inesperado em ' +
+        (String(ev.filename || '').split('/').pop() || 'algum lugar') +
+        ':' + (ev.lineno || '?'), ev.error || { message: ev.message },
+        'copie o diário com Derrogacao.copiar() e mande para quem cuida do programa; ' +
+        'o seu trabalho continua salvo neste navegador.');
+    });
+    global.addEventListener('unhandledrejection', function (ev) {
+      erro('programa', 'uma tarefa terminou em erro sem ninguém tratar',
+        (ev && ev.reason) || null,
+        'se isso se repetir, copie o diário com Derrogacao.copiar() e mande junto.');
+    });
+  }
+
+  global.Log = {
+    passo: passo,
+    ok: ok,
+    detalhe: detalhe,
+    aviso: aviso,
+    erro: erro,
+    etapa: etapa,
+    fonte: fonte,
+    nivel: nivel,
+    diagnostico: diagnostico,
+    historico: historico,
+    contas: function () { return { avisos: contas.avisos, erros: contas.erros }; },
+    vigiar: vigiar,
+    mostra: mostra,
+    NIVEIS: NIVEIS
+  };
+
+  /* O que a pessoa digita no console. Nome fácil de lembrar e de escrever: é
+     para o Bruno usar às 8 da manhã com a equipe esperando. */
+  global.Derrogacao = {
+    diagnostico: diagnostico,
+    copiar: function () {
+      var t = diagnostico() + '\n\n--- últimas ' + linhas.length + ' linhas ---\n' + historico();
+      copiar(t);
+      return 'Copiado. Cole num e-mail (' + linhas.length + ' linhas).';
+    },
+    diario: function () { global.console.log(historico()); return linhas.length + ' linha(s).'; },
+    tudo: function () { return nivel('tudo'); },
+    normal: function () { return nivel('normal'); },
+    silencio: function () { return nivel('silencio'); },
+    ajuda: ajuda
+  };
+
+  /* `navigator.clipboard` não existe em file:// — a reserva é a mesma do
+     resto do programa, um textarea com execCommand (§6). */
+  function copiar(texto) {
+    try {
+      if (global.navigator.clipboard && global.navigator.clipboard.writeText) {
+        global.navigator.clipboard.writeText(texto);
+        return true;
+      }
+    } catch (e) { /* cai na reserva */ }
+    try {
+      var ta = global.document.createElement('textarea');
+      ta.value = texto;
+      ta.style.cssText = 'position:fixed;left:-9999px;top:0';
+      global.document.body.appendChild(ta);
+      ta.select();
+      global.document.execCommand('copy');
+      global.document.body.removeChild(ta);
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function ajuda() {
+    var t = [
+      'Diário do console — o que dá para digitar aqui:',
+      '',
+      '  Derrogacao.tudo()        mostra também o miúdo (cada gravação, tempos)',
+      '  Derrogacao.normal()      o padrão: abertura, pasta, mesclagem, problemas',
+      '  Derrogacao.silencio()    só o que der errado',
+      '',
+      '  Derrogacao.diagnostico() retrato de agora: quantos relatórios, itens, pasta',
+      '  Derrogacao.diario()      as últimas linhas, de uma vez',
+      '  Derrogacao.copiar()      copia tudo isso para colar num e-mail',
+      '',
+      'A escolha do nível fica neste navegador. Nada daqui sai do computador,',
+      'e o texto das NCRs nunca é registrado — só nomes de campo e contagens.'
+    ].join('\n');
+    global.console.log(t);
+    return '';
+  }
+
+  global.Log.ajuda = ajuda;
+})(window);
+
+</script>
+<script>
 /* assets/js/store.js */
 /* ==========================================================================
    store.js — modelo de dados e persistência local
@@ -4719,7 +5039,11 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         tx.oncomplete = function () { resolve(); };
         tx.onerror = function () { reject(tx.error); };
       });
-    }).catch(function (e) { console.warn('Não foi possível guardar o retrato.', e); });
+    }).catch(function (e) {
+      Log.aviso('armazenamento', 'não consegui guardar o retrato de desfazer',
+        'a última mesclagem não vai poder ser desfeita; o resto funciona normalmente.',
+        { erro: e && e.name });
+    });
   }
 
   function getSnapshot() {
@@ -4761,7 +5085,10 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         tx.onerror = function () { reject(tx.error); };
       });
     }).catch(function (e) {
-      console.warn('Não foi possível guardar a base da mesclagem.', e);
+      Log.aviso('armazenamento', 'não consegui guardar a base da mesclagem',
+        'a próxima junção com a pasta vai comparar item inteiro em vez de campo a ' +
+        'campo. Funciona, mas protege menos — recarregue a página quando puder.',
+        { erro: e && e.name });
       return false;
     });
   }
@@ -4865,7 +5192,10 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 
   function fallback(err) {
     useIdb = false;
-    console.warn('IndexedDB indisponível, usando localStorage.', err);
+    Log.aviso('armazenamento', 'o banco do navegador (IndexedDB) não abriu — ' +
+      'usando o armazenamento simples',
+      'funciona, mas cabe bem menos (uns 5 MB no total). Com muitas imagens isto ' +
+      'vai encher: faça backups com mais frequência.', { erro: err && err.name });
   }
 
   var Store = {
@@ -5459,11 +5789,51 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
    * fora repetiria o retrato velho, que é justamente o que o navegador
    * recusou.
    */
-  function comSegundaChance(tarefa) {
+  function comSegundaChance(tarefa, oQue) {
     return tarefa().catch(function (e) {
       if (!passageiro(e)) throw e;
-      return daquiAPouco(600).then(tarefa);
+      /* Este aviso é o que faltava no console do Bruno: a pasta tropeçou,
+         mas o programa vai tentar de novo. Ver dois destes seguidos no mesmo
+         arquivo já é sinal de outra pessoa gravando no mesmo segundo — ou de
+         antivírus no meio do caminho. */
+      Log.aviso('pasta', 'a pasta recusou gravar ' + (oQue || 'um arquivo') +
+        ' — tentando de novo em 0,6 s', explicar(e), { erro: e && e.name });
+      return daquiAPouco(600).then(function () {
+        return tarefa().then(function (r) {
+          Log.ok('pasta', 'deu certo na segunda tentativa: ' + (oQue || 'arquivo'));
+          return r;
+        });
+      });
     });
+  }
+
+  /**
+   * O erro do navegador, em português, com o que ele quer dizer aqui.
+   * Fica neste arquivo porque é aqui que esses erros nascem — e porque a
+   * frase certa depende de a pasta ser de rede, que é o caso da equipe.
+   */
+  function explicar(e) {
+    var n = (e && e.name) || '';
+    if (n === 'InvalidStateError') {
+      return 'o arquivo mudou no disco depois que o navegador o abriu — quase ' +
+        'sempre outra pessoa da equipe gravando no mesmo segundo, ou o antivírus ' +
+        'segurando o arquivo temporário da pasta de rede.';
+    }
+    if (n === 'NoModificationAllowedError') {
+      return 'o arquivo está preso por outro programa (Excel aberto? antivírus?).';
+    }
+    if (n === 'NotAllowedError') {
+      return 'a permissão da pasta não está valendo nesta sessão — clique em ' +
+        '“Pasta” na barra de cima e confirme.';
+    }
+    if (n === 'NotFoundError') {
+      return 'o arquivo ou a pasta não estão mais onde estavam (o G: caiu? a ' +
+        'pasta foi movida?).';
+    }
+    if (n === 'NotReadableError' || n === 'AbortError') {
+      return 'a leitura foi interrompida no meio — rede instável, na maioria das vezes.';
+    }
+    return 'o navegador não explicou o motivo.';
   }
 
   /** Escreve um JSON da pasta, com a segunda chance. */
@@ -5476,7 +5846,10 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         .then(function (w) {
           return w.write(texto).then(function () { return w.close(); });
         });
-    }).then(function () { return true; });
+    }, nomeArq).then(function () {
+      Log.detalhe('pasta', 'gravado ' + nomeArq, { bytes: texto.length });
+      return true;
+    });
   }
 
   function arquivoDados(criar) {
@@ -5502,10 +5875,11 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
           };
         });
       });
-    })
+    }, ARQUIVO)
       .catch(function (e) {
         /* pasta ainda sem o arquivo: é o primeiro uso, não é erro */
         if (e && (e.name === 'NotFoundError' || e.name === 'NotFound')) {
+          Log.passo('pasta', 'a pasta ainda não tem ' + ARQUIVO + ' — primeiro uso');
           return { dados: null, lastModified: 0, externo: false };
         }
         throw e;
@@ -5531,8 +5905,12 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
             return w.write(texto).then(function () { return w.close(); });
           }).then(function () { return fh.getFile(); });
         });
-    })
-      .then(function (file) { ultimaLeitura = file.lastModified; return true; });
+    }, ARQUIVO)
+      .then(function (file) {
+        ultimaLeitura = file.lastModified;
+        Log.detalhe('pasta', 'gravado ' + ARQUIVO, { bytes: texto.length });
+        return true;
+      });
   }
 
   /* --- imagens em arquivos próprios ----------------------------------------
@@ -5604,7 +5982,10 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         .then(function (dir) { return dir.getFileHandle(nome, { create: true }); })
         .then(function (fh) { return fh.createWritable(); })
         .then(function (w) { return w.write(bytes).then(function () { return w.close(); }); });
-    }).then(function () { return IMAGENS + '/' + nome; });
+    }, 'a imagem ' + nome).then(function () {
+      Log.detalhe('pasta', 'imagem gravada', { arquivo: nome, bytes: bytes.length });
+      return IMAGENS + '/' + nome;
+    });
   }
 
   /** Lê uma imagem gravada e devolve de volta em data URL. */
@@ -5755,11 +6136,16 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
             })
             .then(function () { return podar(dir); });
         });
-    })
-      .then(function () { return true; })
+    }, 'a versão ' + nomeArq)
+      .then(function () {
+        Log.passo('pasta', 'versão guardada em ' + HISTORICO + '/', { arquivo: nomeArq });
+        return true;
+      })
       .catch(function (e) {
         /* histórico é desejável, não essencial: nunca derruba a gravação */
-        console.warn('Não foi possível gravar o histórico:', e);
+        Log.erro('pasta', 'não consegui guardar a versão datada em ' + HISTORICO + '/',
+          e, explicar(e) + ' Os dados foram gravados assim mesmo; o que falta é a ' +
+          'cópia de segurança desta rodada.');
         return false;
       });
   }
@@ -5839,6 +6225,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     lerHistorico: lerHistorico,
     lerConversas: lerConversas,
     gravarConversas: gravarConversas,
+    explicar: explicar,
     lerRevisoes: lerRevisoes,
     gravarRevisoes: gravarRevisoes,
     CONVERSAS: CONVERSAS,
@@ -10436,7 +10823,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     var s = $('#saveState');
     s.dataset.state = 'error';
     s.textContent = 'erro ao salvar';
-    console.error(e);
+    Log.erro('salvar', 'não consegui gravar neste navegador', e,
+      'o armazenamento do navegador pode estar cheio ou bloqueado. Faça um backup ' +
+      '(⋯ Mais → Salvar backup de tudo) AGORA, antes de escrever mais.');
   }
 
   /** Grava o projeto atual com atraso, para não escrever a cada tecla. */
@@ -10458,6 +10847,10 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     clearTimeout(saveTimer);
     if (!state.project) return Promise.resolve();
     return Store.save(state.project).then(function () {
+      Log.detalhe('salvar', 'gravado neste navegador', {
+        relatorio: state.project.marco || state.project.name,
+        itens: (state.project.ncrs || []).length + (state.project.devs || []).length
+      });
       agendarGravacaoPasta();
       /* O diário também vale para quem trabalha sem a pasta — mas não a cada
          tecla: de minuto em minuto a escrita já virou um parágrafo. */
@@ -11812,7 +12205,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       })
       .catch(function (e) {
         sincronizandoConversa = false;
-        console.warn('Conversa: não foi possível sincronizar com a pasta.', e);
+        Log.aviso('conversa', 'os recados não foram trocados com a pasta desta vez',
+          Pasta.explicar(e) + ' As suas mensagens continuam aqui e vão na próxima.',
+          { erro: e && e.name });
         return null;
       });
   }
@@ -12952,6 +13347,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         Herdar.resumo(av) + '\n\n' +
         'O item deste marco não muda em nada.')) return;
 
+    Log.passo('herdar', 'levando ' + (ncr.ncrId || 'o item') + ' para o ' +
+      av.destino.rotulo, { de: av.origem ? av.origem.rotulo : '(sem marco)' });
     var copia = Herdar.copiaPara(ncr, av.origem, av.destino);
     var destino = av.projetoDestino;
     var kind = state.kind;
@@ -12965,6 +13362,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       renderNcrList();
       renderEditor();
       agendarGravacaoPasta();
+      Log.ok('herdar', (ncr.ncrId || 'item') + ' copiada para o ' + av.destino.rotulo,
+        { situacao: 'Em preenchimento', historic: 'linha acrescentada' });
       toast((ncr.ncrId || 'Item') + ' copiada para o ' + av.destino.rotulo +
         ', em “Em preenchimento”.', 12000, {
         rotulo: 'Abrir lá',
@@ -12973,7 +13372,12 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
             marco: Report.marcoOf(destino, kind) || destino.name });
         }
       });
-    }).catch(markError);
+    }).catch(function (e) {
+      Log.erro('herdar', 'não consegui gravar a cópia no relatório de destino', e,
+        'o item de origem não foi tocado. Tente de novo; se insistir, faça um backup ' +
+        'antes de continuar.');
+      markError(e);
+    });
   }
 
   /**
@@ -13367,7 +13771,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         renderNcrList();
         scheduleSave();
       }).catch(function (e) {
-        console.error(e);
+        Log.erro('imagens', 'não consegui ler alguma imagem que você soltou aqui', e,
+          'confira se o arquivo é mesmo uma imagem (.jpg, .png) e se não está aberto ' +
+          'em outro programa.');
         drop.textContent = 'Não foi possível ler alguma imagem. Tente novamente.';
         toast('Falha ao carregar imagem.');
       });
@@ -14351,7 +14757,18 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   function doPrint() {
     var picked = pickedReports();
     if (!picked.length) return;
+    var imp = Log.etapa('PDF', 'montando as folhas do relatório',
+      { relatorios: picked.length });
     buildPrintRoot(picked);
+    var folhas = $$('#printRoot .rep-page').length;
+    var longos = Report.itensLongos();
+    imp.fim('folhas prontas — a janela de impressão é do navegador',
+      { folhas: folhas, itensEmMaisDeUmaFolha: longos.length });
+    if (!folhas) {
+      Log.erro('PDF', 'nenhuma folha foi montada', null,
+        'isto não devia acontecer: confira se o relatório tem itens e mande ' +
+        'Derrogacao.copiar() para quem cuida do programa.');
+    }
     $('#pdfDialog').close();
 
     /* O nome do arquivo vem do título da página, que o Chrome usa como
@@ -14831,7 +15248,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         }).catch(function (e) {
           /* sem arquivo, a imagem continua viajando dentro do JSON: o
              relatório do colega não pode ficar sem a foto por causa disto */
-          console.warn('Não foi possível gravar a imagem na pasta:', e);
+          Log.erro('imagens', 'não consegui gravar uma imagem na pasta', e,
+            Pasta.explicar(e) + ' A imagem continua aqui no seu navegador; ela vai ' +
+            'para a pasta na próxima sincronização que der certo.');
         });
       });
     }, Promise.resolve()).then(function () { return feito; });
@@ -14860,7 +15279,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         }).catch(function (e) {
           /* o arquivo pode ainda estar sendo gravado do outro lado: fica o
              ponteiro, e a próxima sincronização tenta de novo */
-          console.warn('Imagem ainda não disponível na pasta:', im.arquivo, e);
+          Log.detalhe('imagens', 'imagem ainda não chegou da pasta',
+            { arquivo: im.arquivo, erro: e && e.name });
         });
       });
     }, Promise.resolve()).then(function () { return payload; });
@@ -14944,11 +15364,43 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     if (novas.length) {
       revisoes = Revisoes.acrescentar(revisoes, novas);
       Revisoes.gravarLocais(revisoes);
+      /* só os NOMES dos campos: o que foi escrito dentro deles não vai para o
+         console (ver o topo de log.js) */
+      var campos = {};
+      novas.forEach(function (r) { campos[r.rotulo] = (campos[r.rotulo] || 0) + 1; });
+      Log.detalhe('histórico', 'anotei o que você escreveu desde a última troca',
+        { linhas: novas.length, campos: Object.keys(campos).join(', ') });
     }
     return guardarBases();
   }
 
   /** As linhas do que foi escrito por cima numa junção — as que mais valem. */
+  /**
+   * O que a junção fez, em linguagem de gente. É a linha que responde "o que
+   * mudou agora?" sem abrir item por item — e a que mostra, na hora, quando
+   * alguém escreveu por cima de alguém.
+   *
+   * Nomes de campo e números; nunca o texto do campo (ver o topo de log.js).
+   */
+  function relatarMesclagem(resumo) {
+    if (!resumo) return;
+    var mexeu = resumo.entraram || resumo.atualizados || resumo.removidos ||
+      resumo.novosRelatorios;
+    if (!mexeu) { Log.detalhe('mesclagem', 'nada mudou do lado de lá'); return; }
+    Log.passo('mesclagem', 'trouxe o trabalho dos outros', {
+      itensNovos: resumo.entraram, itensAtualizados: resumo.atualizados,
+      excluidos: resumo.removidos, relatoriosNovos: resumo.novosRelatorios
+    });
+    (resumo.substituidos || []).forEach(function (sub) {
+      var campos = (sub.perdidos || []).map(function (x) { return x.rotulo; });
+      if (!campos.length) return;
+      Log.aviso('mesclagem', 'escreveram por cima do seu texto em ' +
+        (sub.ncrId || 'um item') + ': ' + campos.join(', '),
+        'os dois mexeram no mesmo campo. O texto que saiu NÃO se perdeu: abra o ' +
+        'item e use “Histórico do texto” para pôr de volta.');
+    });
+  }
+
   function registrarConflitos(resumo) {
     if (!resumo || !resumo.substituidos || !resumo.substituidos.length) return;
     var novas = Revisoes.deConflito(resumo.substituidos, state.projects, Store.getUser());
@@ -14985,8 +15437,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
            a sincronização seguinte leva de novo o que faltar lá.
            `pasta.js` já tentou duas vezes; chegar aqui é a pasta ter
            recusado as duas. */
-        console.warn('O histórico do texto não foi trocado com a pasta desta vez ' +
-          '(as linhas continuam salvas aqui e vão na próxima sincronização):', e);
+        Log.aviso('histórico', 'o histórico do texto não foi trocado com a pasta desta vez',
+          Pasta.explicar(e) + ' As linhas continuam salvas neste navegador e vão na ' +
+          'próxima sincronização — nada se perdeu.', { erro: e && e.name });
         return null;
       });
   }
@@ -15023,11 +15476,15 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   function sincronizar(opts) {
     opts = opts || {};
     if (!Pasta.ligada() || sincronizando) {
-      if (sincronizando) gravarPendente = true;
+      if (sincronizando) {
+        gravarPendente = true;
+        Log.detalhe('pasta', 'já tem uma sincronização em curso — esta fica na fila');
+      }
       return Promise.resolve(null);
     }
     sincronizando = true;
     marcarPasta('sincronizando');
+    var ciclo = Log.etapa('pasta', 'sincronizando com a pasta da equipe');
 
     /* Antes de qualquer coisa: o que foi escrito aqui desde a última vez vira
        linha de histórico enquanto ainda dá para saber que foi esta pessoa. */
@@ -15060,9 +15517,17 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     function gravarJuncao(resumo) {
       /* Página velha diante de dados novos: junta para ver o trabalho dos
          outros, mas não regrava — o que ela não entende seria apagado. */
-      if (versaoDesatualizada) return Promise.resolve(resumo);
+      if (versaoDesatualizada) {
+        Log.aviso('pasta', 'não vou gravar: esta página é mais antiga que os dados',
+          'outra pessoa já está com uma versão mais nova do programa. Recarregue ' +
+          'com Ctrl+F5. Até lá dá para ler e escrever aqui, mas nada vai para a pasta.');
+        return Promise.resolve(resumo);
+      }
       return externalizarImagens()
-        .then(function () { return Pasta.gravar(montaPayload()); })
+        .then(function () {
+          Log.detalhe('pasta', 'gravando o arquivo de dados');
+          return Pasta.gravar(montaPayload());
+        })
         .then(function () {
           /* Gravou: o que está aqui é agora o que está na pasta, e passa a
              ser a base de comparação da próxima junção. */
@@ -15085,7 +15550,18 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     return Pasta.ler()
       .then(function (r) {
         var resumo = { entraram: 0, atualizados: 0, removidos: 0, novosRelatorios: 0 };
-        if (!r.dados) { mesclado = resumo; return gravarJuncao(resumo); }
+        if (!r.dados) {
+          Log.passo('pasta', 'a pasta está vazia — vou gravar o que está aqui');
+          mesclado = resumo;
+          return gravarJuncao(resumo);
+        }
+        Log.detalhe('pasta', 'arquivo lido', {
+          relatorios: (r.dados.projects || []).length,
+          mexidoPorOutraPessoa: r.externo
+        });
+        if (r.externo) {
+          Log.passo('pasta', 'alguém gravou depois de mim — guardando o meu estado antes de juntar');
+        }
 
         conferirRelogio(r.dados);
 
@@ -15118,6 +15594,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
             resumo = Store.mergeListas(state.projects, r.dados.projects || [],
                                        r.dados.relatoriosExcluidos, mesclaBase);
             registrarConflitos(resumo);
+            relatarMesclagem(resumo);
             /* o que chegou dos outros já está aqui: não é edição minha, e o
                diário não deve contá-la como se fosse */
             baseDiario = Store.baseDe(state.projects);
@@ -15132,16 +15609,27 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         return adotar(resumo).then(function () {
           sincronizando = false;
           marcarPasta('on');
+          ciclo.fim('sincronizado', resumo ? {
+            recebidos: resumo.entraram, atualizados: resumo.atualizados,
+            removidos: resumo.removidos, relatoriosNovos: resumo.novosRelatorios
+          } : null);
           return resumo;
         });
       })
       .catch(function (e) {
         pastaEstado = (e && e.name === 'NotAllowedError') ? 'permissao' : 'erro';
-        console.warn('Sincronização com a pasta falhou:', e);
+        ciclo.falhou('a sincronização com a pasta não completou', e,
+          Pasta.explicar(e) + ' O seu trabalho continua salvo neste navegador e a ' +
+          'próxima tentativa leva tudo junto — nada se perdeu aqui. Se isto se ' +
+          'repetir, confira se o G: está acessível e mande Derrogacao.copiar().');
         /* A junção já está na memória: deixá-la sem salvar e sem redesenhar
            seria pior do que a falha em si — ver o comentário de `mesclado`. */
         var fim = mesclado
-          ? adotar(mesclado).catch(function (e2) { console.warn('Não foi possível salvar a junção.', e2); })
+          ? adotar(mesclado).catch(function (e2) {
+              Log.erro('pasta', 'a junção não pôde nem ser salva aqui', e2,
+                'isto é sério: recarregue a página (Ctrl+F5) antes de continuar ' +
+                'escrevendo, para a tela voltar a mostrar o que está gravado.');
+            })
           : Promise.resolve();
         return fim.then(function () {
           sincronizando = false;
@@ -15250,7 +15738,31 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 
   /* --- interface ---------------------------------------------------------- */
 
+  /* Só para o diário: a última situação anunciada, para anunciar a troca e
+     não a repetição — "sincronizando" passa por aqui a cada 20 segundos. */
+  var pastaDita = '';
+
   function marcarPasta(estado) {
+    /* Trocar de situação é a notícia. Em especial a volta ao normal: sem uma
+       linha dizendo isso, quem viu o vermelho fica sem saber se voltou. */
+    /* "sincronizando" passa por aqui a cada 20 segundos e "off" é só "ainda
+       não escolheram pasta" — nenhum dos dois é notícia. */
+    if (estado !== 'sincronizando' && estado !== 'off') {
+      if (estado !== pastaDita) {
+        if (estado === 'on') {
+          Log.ok('pasta', pastaDita === 'permissao' || pastaDita === 'erro'
+            ? 'a pasta voltou a responder — o que ficou para trás vai agora'
+            : 'pasta funcionando normalmente');
+        } else {
+          Log.aviso('pasta', estado === 'permissao'
+            ? 'a pasta está pedindo permissão — clique em “Pasta” na barra de cima'
+            : 'a pasta parou de responder',
+            'enquanto isso durar, o que você escrever fica só neste navegador — e vai ' +
+            'inteiro para a equipe assim que a pasta voltar. Nada se perde.');
+        }
+      }
+      pastaDita = estado;
+    }
     var chip = $('#pastaChip');
     var item = $('#pastaBtn');
     if (item) item.hidden = !Pasta.suportado();
@@ -15288,9 +15800,14 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       if (perm !== 'granted') {
         pastaEstado = 'permissao';
         marcarPasta('permissao');
+        Log.aviso('pasta', 'a permissão da pasta não foi concedida',
+          'sem ela o programa trabalha só neste navegador: nada vai para a equipe e ' +
+          'nada vem dela. Clique em “Pasta” na barra de cima e confirme na janela ' +
+          'do Windows.');
         toast('Sem permissão para abrir a pasta.');
         return null;
       }
+      Log.ok('pasta', 'pasta ligada', { nome: Pasta.nome() });
       pastaEstado = 'on';
       agendarPoll();
       sincronizarConversas({});
@@ -15865,17 +16382,54 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     var local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if (location.protocol !== 'https:' && !local) return;
     navigator.serviceWorker.register('sw.js').catch(function (e) {
-      console.warn('Service worker não registrado:', e);
+      Log.detalhe('instalação', 'service worker não registrado', { erro: e && e.name });
     });
   }
 
+  /* O que o diagnóstico conta quando a pessoa pede. Cada fonte responde uma
+     pergunta que eu faria por e-mail se algo estivesse estranho. */
+  function registrarFontes() {
+    Log.fonte('relatórios', function () {
+      var itens = 0, aceitos = 0;
+      state.projects.forEach(function (p) {
+        ['ncrs', 'devs'].forEach(function (k) {
+          (p[k] || []).forEach(function (n) { itens++; if (n.done) aceitos++; });
+        });
+      });
+      return { quantos: state.projects.length, itens: itens, aceitos: aceitos,
+               aberto: state.project ? (state.project.marco || state.project.name) : '(nenhum)',
+               aba: state.kind };
+    });
+    Log.fonte('pasta', function () {
+      return { ligada: Pasta.ligada(), estado: pastaEstado,
+               nome: Pasta.nome() || '(nenhuma)',
+               ultimoSucesso: ultimoSucesso ? desdeUltimaTroca() : 'nunca nesta sessão',
+               soLeitura: versaoDesatualizada };
+    });
+    Log.fonte('histórico do texto', function () {
+      return { linhas: (revisoes || []).length,
+               base: mesclaBase ? 'guardada' : 'ainda não',
+               diario: baseDiario ? 'guardado' : 'ainda não' };
+    });
+    Log.fonte('quem', function () { return { nome: Store.getUser() || '(sem nome)' }; });
+  }
+
   function boot() {
+    Log.passo('abertura', 'Waiver Request — diário do console ligado. ' +
+      'Digite Derrogacao.ajuda() para ver o que dá para fazer aqui.');
+    Log.detalhe('abertura', 'onde estou', {
+      origem: location.protocol === 'file:' ? 'arquivo no disco (file://)' : location.protocol,
+      pastaSuportada: Pasta.suportado()
+    });
+    Log.vigiar();
+    registrarFontes();
     wire();
     aoLado = lerAoLado();
     registrarServiceWorker();
     requestPersistentStorage();
     refreshUndo();
     renderVersion();
+    var abrindo = Log.etapa('abertura', 'lendo o que está guardado neste navegador');
     Store.list().then(function (list) {
       state.projects = list;
       if (!list.length) {
@@ -15887,6 +16441,11 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       }
       loadProject(list[0]);
     }).then(function () {
+      var itens = 0;
+      state.projects.forEach(function (p) {
+        itens += (p.ncrs || []).length + (p.devs || []).length;
+      });
+      abrindo.fim('relatórios abertos', { relatorios: state.projects.length, itens: itens });
       revisoes = Revisoes.locais();
       return Store.getBase().then(function (b) {
         mesclaBase = b ? b.base : null;
@@ -15894,9 +16453,13 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         if (!baseDiario) return capturarRevisoes();   /* só semeia o retrato */
       });
     }).then(function () {
+      Log.detalhe('abertura', 'histórico do texto carregado', { linhas: (revisoes || []).length });
       iniciarConversa();
       return iniciarPasta();
     }).catch(function (e) {
+      abrindo.falhou('não consegui ler o armazenamento deste navegador', e,
+        'o programa vai começar com um relatório em branco. NÃO grave nada por cima ' +
+        'até entender: se você já tinha relatórios aqui, abra um backup .json antes.');
       markError(e);
       var p = Store.newProject('');
       state.projects = [p];
@@ -15930,7 +16493,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         pedirPermissaoNoPrimeiroGesto();
       });
     }).catch(function (e) {
-      console.warn('Pasta não pôde ser retomada:', e);
+      Log.aviso('pasta', 'não consegui reabrir a pasta guardada deste navegador',
+        Pasta.explicar(e) + ' Clique em “Pasta” na barra de cima para escolher de novo.',
+        { erro: e && e.name });
       pastaEstado = 'erro';
       marcarPasta('erro');
     });

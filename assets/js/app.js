@@ -121,7 +121,9 @@
     var s = $('#saveState');
     s.dataset.state = 'error';
     s.textContent = 'erro ao salvar';
-    console.error(e);
+    Log.erro('salvar', 'não consegui gravar neste navegador', e,
+      'o armazenamento do navegador pode estar cheio ou bloqueado. Faça um backup ' +
+      '(⋯ Mais → Salvar backup de tudo) AGORA, antes de escrever mais.');
   }
 
   /** Grava o projeto atual com atraso, para não escrever a cada tecla. */
@@ -143,6 +145,10 @@
     clearTimeout(saveTimer);
     if (!state.project) return Promise.resolve();
     return Store.save(state.project).then(function () {
+      Log.detalhe('salvar', 'gravado neste navegador', {
+        relatorio: state.project.marco || state.project.name,
+        itens: (state.project.ncrs || []).length + (state.project.devs || []).length
+      });
       agendarGravacaoPasta();
       /* O diário também vale para quem trabalha sem a pasta — mas não a cada
          tecla: de minuto em minuto a escrita já virou um parágrafo. */
@@ -1497,7 +1503,9 @@
       })
       .catch(function (e) {
         sincronizandoConversa = false;
-        console.warn('Conversa: não foi possível sincronizar com a pasta.', e);
+        Log.aviso('conversa', 'os recados não foram trocados com a pasta desta vez',
+          Pasta.explicar(e) + ' As suas mensagens continuam aqui e vão na próxima.',
+          { erro: e && e.name });
         return null;
       });
   }
@@ -2637,6 +2645,8 @@
         Herdar.resumo(av) + '\n\n' +
         'O item deste marco não muda em nada.')) return;
 
+    Log.passo('herdar', 'levando ' + (ncr.ncrId || 'o item') + ' para o ' +
+      av.destino.rotulo, { de: av.origem ? av.origem.rotulo : '(sem marco)' });
     var copia = Herdar.copiaPara(ncr, av.origem, av.destino);
     var destino = av.projetoDestino;
     var kind = state.kind;
@@ -2650,6 +2660,8 @@
       renderNcrList();
       renderEditor();
       agendarGravacaoPasta();
+      Log.ok('herdar', (ncr.ncrId || 'item') + ' copiada para o ' + av.destino.rotulo,
+        { situacao: 'Em preenchimento', historic: 'linha acrescentada' });
       toast((ncr.ncrId || 'Item') + ' copiada para o ' + av.destino.rotulo +
         ', em “Em preenchimento”.', 12000, {
         rotulo: 'Abrir lá',
@@ -2658,7 +2670,12 @@
             marco: Report.marcoOf(destino, kind) || destino.name });
         }
       });
-    }).catch(markError);
+    }).catch(function (e) {
+      Log.erro('herdar', 'não consegui gravar a cópia no relatório de destino', e,
+        'o item de origem não foi tocado. Tente de novo; se insistir, faça um backup ' +
+        'antes de continuar.');
+      markError(e);
+    });
   }
 
   /**
@@ -3052,7 +3069,9 @@
         renderNcrList();
         scheduleSave();
       }).catch(function (e) {
-        console.error(e);
+        Log.erro('imagens', 'não consegui ler alguma imagem que você soltou aqui', e,
+          'confira se o arquivo é mesmo uma imagem (.jpg, .png) e se não está aberto ' +
+          'em outro programa.');
         drop.textContent = 'Não foi possível ler alguma imagem. Tente novamente.';
         toast('Falha ao carregar imagem.');
       });
@@ -4036,7 +4055,18 @@
   function doPrint() {
     var picked = pickedReports();
     if (!picked.length) return;
+    var imp = Log.etapa('PDF', 'montando as folhas do relatório',
+      { relatorios: picked.length });
     buildPrintRoot(picked);
+    var folhas = $$('#printRoot .rep-page').length;
+    var longos = Report.itensLongos();
+    imp.fim('folhas prontas — a janela de impressão é do navegador',
+      { folhas: folhas, itensEmMaisDeUmaFolha: longos.length });
+    if (!folhas) {
+      Log.erro('PDF', 'nenhuma folha foi montada', null,
+        'isto não devia acontecer: confira se o relatório tem itens e mande ' +
+        'Derrogacao.copiar() para quem cuida do programa.');
+    }
     $('#pdfDialog').close();
 
     /* O nome do arquivo vem do título da página, que o Chrome usa como
@@ -4516,7 +4546,9 @@
         }).catch(function (e) {
           /* sem arquivo, a imagem continua viajando dentro do JSON: o
              relatório do colega não pode ficar sem a foto por causa disto */
-          console.warn('Não foi possível gravar a imagem na pasta:', e);
+          Log.erro('imagens', 'não consegui gravar uma imagem na pasta', e,
+            Pasta.explicar(e) + ' A imagem continua aqui no seu navegador; ela vai ' +
+            'para a pasta na próxima sincronização que der certo.');
         });
       });
     }, Promise.resolve()).then(function () { return feito; });
@@ -4545,7 +4577,8 @@
         }).catch(function (e) {
           /* o arquivo pode ainda estar sendo gravado do outro lado: fica o
              ponteiro, e a próxima sincronização tenta de novo */
-          console.warn('Imagem ainda não disponível na pasta:', im.arquivo, e);
+          Log.detalhe('imagens', 'imagem ainda não chegou da pasta',
+            { arquivo: im.arquivo, erro: e && e.name });
         });
       });
     }, Promise.resolve()).then(function () { return payload; });
@@ -4629,11 +4662,43 @@
     if (novas.length) {
       revisoes = Revisoes.acrescentar(revisoes, novas);
       Revisoes.gravarLocais(revisoes);
+      /* só os NOMES dos campos: o que foi escrito dentro deles não vai para o
+         console (ver o topo de log.js) */
+      var campos = {};
+      novas.forEach(function (r) { campos[r.rotulo] = (campos[r.rotulo] || 0) + 1; });
+      Log.detalhe('histórico', 'anotei o que você escreveu desde a última troca',
+        { linhas: novas.length, campos: Object.keys(campos).join(', ') });
     }
     return guardarBases();
   }
 
   /** As linhas do que foi escrito por cima numa junção — as que mais valem. */
+  /**
+   * O que a junção fez, em linguagem de gente. É a linha que responde "o que
+   * mudou agora?" sem abrir item por item — e a que mostra, na hora, quando
+   * alguém escreveu por cima de alguém.
+   *
+   * Nomes de campo e números; nunca o texto do campo (ver o topo de log.js).
+   */
+  function relatarMesclagem(resumo) {
+    if (!resumo) return;
+    var mexeu = resumo.entraram || resumo.atualizados || resumo.removidos ||
+      resumo.novosRelatorios;
+    if (!mexeu) { Log.detalhe('mesclagem', 'nada mudou do lado de lá'); return; }
+    Log.passo('mesclagem', 'trouxe o trabalho dos outros', {
+      itensNovos: resumo.entraram, itensAtualizados: resumo.atualizados,
+      excluidos: resumo.removidos, relatoriosNovos: resumo.novosRelatorios
+    });
+    (resumo.substituidos || []).forEach(function (sub) {
+      var campos = (sub.perdidos || []).map(function (x) { return x.rotulo; });
+      if (!campos.length) return;
+      Log.aviso('mesclagem', 'escreveram por cima do seu texto em ' +
+        (sub.ncrId || 'um item') + ': ' + campos.join(', '),
+        'os dois mexeram no mesmo campo. O texto que saiu NÃO se perdeu: abra o ' +
+        'item e use “Histórico do texto” para pôr de volta.');
+    });
+  }
+
   function registrarConflitos(resumo) {
     if (!resumo || !resumo.substituidos || !resumo.substituidos.length) return;
     var novas = Revisoes.deConflito(resumo.substituidos, state.projects, Store.getUser());
@@ -4670,8 +4735,9 @@
            a sincronização seguinte leva de novo o que faltar lá.
            `pasta.js` já tentou duas vezes; chegar aqui é a pasta ter
            recusado as duas. */
-        console.warn('O histórico do texto não foi trocado com a pasta desta vez ' +
-          '(as linhas continuam salvas aqui e vão na próxima sincronização):', e);
+        Log.aviso('histórico', 'o histórico do texto não foi trocado com a pasta desta vez',
+          Pasta.explicar(e) + ' As linhas continuam salvas neste navegador e vão na ' +
+          'próxima sincronização — nada se perdeu.', { erro: e && e.name });
         return null;
       });
   }
@@ -4708,11 +4774,15 @@
   function sincronizar(opts) {
     opts = opts || {};
     if (!Pasta.ligada() || sincronizando) {
-      if (sincronizando) gravarPendente = true;
+      if (sincronizando) {
+        gravarPendente = true;
+        Log.detalhe('pasta', 'já tem uma sincronização em curso — esta fica na fila');
+      }
       return Promise.resolve(null);
     }
     sincronizando = true;
     marcarPasta('sincronizando');
+    var ciclo = Log.etapa('pasta', 'sincronizando com a pasta da equipe');
 
     /* Antes de qualquer coisa: o que foi escrito aqui desde a última vez vira
        linha de histórico enquanto ainda dá para saber que foi esta pessoa. */
@@ -4745,9 +4815,17 @@
     function gravarJuncao(resumo) {
       /* Página velha diante de dados novos: junta para ver o trabalho dos
          outros, mas não regrava — o que ela não entende seria apagado. */
-      if (versaoDesatualizada) return Promise.resolve(resumo);
+      if (versaoDesatualizada) {
+        Log.aviso('pasta', 'não vou gravar: esta página é mais antiga que os dados',
+          'outra pessoa já está com uma versão mais nova do programa. Recarregue ' +
+          'com Ctrl+F5. Até lá dá para ler e escrever aqui, mas nada vai para a pasta.');
+        return Promise.resolve(resumo);
+      }
       return externalizarImagens()
-        .then(function () { return Pasta.gravar(montaPayload()); })
+        .then(function () {
+          Log.detalhe('pasta', 'gravando o arquivo de dados');
+          return Pasta.gravar(montaPayload());
+        })
         .then(function () {
           /* Gravou: o que está aqui é agora o que está na pasta, e passa a
              ser a base de comparação da próxima junção. */
@@ -4770,7 +4848,18 @@
     return Pasta.ler()
       .then(function (r) {
         var resumo = { entraram: 0, atualizados: 0, removidos: 0, novosRelatorios: 0 };
-        if (!r.dados) { mesclado = resumo; return gravarJuncao(resumo); }
+        if (!r.dados) {
+          Log.passo('pasta', 'a pasta está vazia — vou gravar o que está aqui');
+          mesclado = resumo;
+          return gravarJuncao(resumo);
+        }
+        Log.detalhe('pasta', 'arquivo lido', {
+          relatorios: (r.dados.projects || []).length,
+          mexidoPorOutraPessoa: r.externo
+        });
+        if (r.externo) {
+          Log.passo('pasta', 'alguém gravou depois de mim — guardando o meu estado antes de juntar');
+        }
 
         conferirRelogio(r.dados);
 
@@ -4803,6 +4892,7 @@
             resumo = Store.mergeListas(state.projects, r.dados.projects || [],
                                        r.dados.relatoriosExcluidos, mesclaBase);
             registrarConflitos(resumo);
+            relatarMesclagem(resumo);
             /* o que chegou dos outros já está aqui: não é edição minha, e o
                diário não deve contá-la como se fosse */
             baseDiario = Store.baseDe(state.projects);
@@ -4817,16 +4907,27 @@
         return adotar(resumo).then(function () {
           sincronizando = false;
           marcarPasta('on');
+          ciclo.fim('sincronizado', resumo ? {
+            recebidos: resumo.entraram, atualizados: resumo.atualizados,
+            removidos: resumo.removidos, relatoriosNovos: resumo.novosRelatorios
+          } : null);
           return resumo;
         });
       })
       .catch(function (e) {
         pastaEstado = (e && e.name === 'NotAllowedError') ? 'permissao' : 'erro';
-        console.warn('Sincronização com a pasta falhou:', e);
+        ciclo.falhou('a sincronização com a pasta não completou', e,
+          Pasta.explicar(e) + ' O seu trabalho continua salvo neste navegador e a ' +
+          'próxima tentativa leva tudo junto — nada se perdeu aqui. Se isto se ' +
+          'repetir, confira se o G: está acessível e mande Derrogacao.copiar().');
         /* A junção já está na memória: deixá-la sem salvar e sem redesenhar
            seria pior do que a falha em si — ver o comentário de `mesclado`. */
         var fim = mesclado
-          ? adotar(mesclado).catch(function (e2) { console.warn('Não foi possível salvar a junção.', e2); })
+          ? adotar(mesclado).catch(function (e2) {
+              Log.erro('pasta', 'a junção não pôde nem ser salva aqui', e2,
+                'isto é sério: recarregue a página (Ctrl+F5) antes de continuar ' +
+                'escrevendo, para a tela voltar a mostrar o que está gravado.');
+            })
           : Promise.resolve();
         return fim.then(function () {
           sincronizando = false;
@@ -4935,7 +5036,31 @@
 
   /* --- interface ---------------------------------------------------------- */
 
+  /* Só para o diário: a última situação anunciada, para anunciar a troca e
+     não a repetição — "sincronizando" passa por aqui a cada 20 segundos. */
+  var pastaDita = '';
+
   function marcarPasta(estado) {
+    /* Trocar de situação é a notícia. Em especial a volta ao normal: sem uma
+       linha dizendo isso, quem viu o vermelho fica sem saber se voltou. */
+    /* "sincronizando" passa por aqui a cada 20 segundos e "off" é só "ainda
+       não escolheram pasta" — nenhum dos dois é notícia. */
+    if (estado !== 'sincronizando' && estado !== 'off') {
+      if (estado !== pastaDita) {
+        if (estado === 'on') {
+          Log.ok('pasta', pastaDita === 'permissao' || pastaDita === 'erro'
+            ? 'a pasta voltou a responder — o que ficou para trás vai agora'
+            : 'pasta funcionando normalmente');
+        } else {
+          Log.aviso('pasta', estado === 'permissao'
+            ? 'a pasta está pedindo permissão — clique em “Pasta” na barra de cima'
+            : 'a pasta parou de responder',
+            'enquanto isso durar, o que você escrever fica só neste navegador — e vai ' +
+            'inteiro para a equipe assim que a pasta voltar. Nada se perde.');
+        }
+      }
+      pastaDita = estado;
+    }
     var chip = $('#pastaChip');
     var item = $('#pastaBtn');
     if (item) item.hidden = !Pasta.suportado();
@@ -4973,9 +5098,14 @@
       if (perm !== 'granted') {
         pastaEstado = 'permissao';
         marcarPasta('permissao');
+        Log.aviso('pasta', 'a permissão da pasta não foi concedida',
+          'sem ela o programa trabalha só neste navegador: nada vai para a equipe e ' +
+          'nada vem dela. Clique em “Pasta” na barra de cima e confirme na janela ' +
+          'do Windows.');
         toast('Sem permissão para abrir a pasta.');
         return null;
       }
+      Log.ok('pasta', 'pasta ligada', { nome: Pasta.nome() });
       pastaEstado = 'on';
       agendarPoll();
       sincronizarConversas({});
@@ -5550,17 +5680,54 @@
     var local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if (location.protocol !== 'https:' && !local) return;
     navigator.serviceWorker.register('sw.js').catch(function (e) {
-      console.warn('Service worker não registrado:', e);
+      Log.detalhe('instalação', 'service worker não registrado', { erro: e && e.name });
     });
   }
 
+  /* O que o diagnóstico conta quando a pessoa pede. Cada fonte responde uma
+     pergunta que eu faria por e-mail se algo estivesse estranho. */
+  function registrarFontes() {
+    Log.fonte('relatórios', function () {
+      var itens = 0, aceitos = 0;
+      state.projects.forEach(function (p) {
+        ['ncrs', 'devs'].forEach(function (k) {
+          (p[k] || []).forEach(function (n) { itens++; if (n.done) aceitos++; });
+        });
+      });
+      return { quantos: state.projects.length, itens: itens, aceitos: aceitos,
+               aberto: state.project ? (state.project.marco || state.project.name) : '(nenhum)',
+               aba: state.kind };
+    });
+    Log.fonte('pasta', function () {
+      return { ligada: Pasta.ligada(), estado: pastaEstado,
+               nome: Pasta.nome() || '(nenhuma)',
+               ultimoSucesso: ultimoSucesso ? desdeUltimaTroca() : 'nunca nesta sessão',
+               soLeitura: versaoDesatualizada };
+    });
+    Log.fonte('histórico do texto', function () {
+      return { linhas: (revisoes || []).length,
+               base: mesclaBase ? 'guardada' : 'ainda não',
+               diario: baseDiario ? 'guardado' : 'ainda não' };
+    });
+    Log.fonte('quem', function () { return { nome: Store.getUser() || '(sem nome)' }; });
+  }
+
   function boot() {
+    Log.passo('abertura', 'Waiver Request — diário do console ligado. ' +
+      'Digite Derrogacao.ajuda() para ver o que dá para fazer aqui.');
+    Log.detalhe('abertura', 'onde estou', {
+      origem: location.protocol === 'file:' ? 'arquivo no disco (file://)' : location.protocol,
+      pastaSuportada: Pasta.suportado()
+    });
+    Log.vigiar();
+    registrarFontes();
     wire();
     aoLado = lerAoLado();
     registrarServiceWorker();
     requestPersistentStorage();
     refreshUndo();
     renderVersion();
+    var abrindo = Log.etapa('abertura', 'lendo o que está guardado neste navegador');
     Store.list().then(function (list) {
       state.projects = list;
       if (!list.length) {
@@ -5572,6 +5739,11 @@
       }
       loadProject(list[0]);
     }).then(function () {
+      var itens = 0;
+      state.projects.forEach(function (p) {
+        itens += (p.ncrs || []).length + (p.devs || []).length;
+      });
+      abrindo.fim('relatórios abertos', { relatorios: state.projects.length, itens: itens });
       revisoes = Revisoes.locais();
       return Store.getBase().then(function (b) {
         mesclaBase = b ? b.base : null;
@@ -5579,9 +5751,13 @@
         if (!baseDiario) return capturarRevisoes();   /* só semeia o retrato */
       });
     }).then(function () {
+      Log.detalhe('abertura', 'histórico do texto carregado', { linhas: (revisoes || []).length });
       iniciarConversa();
       return iniciarPasta();
     }).catch(function (e) {
+      abrindo.falhou('não consegui ler o armazenamento deste navegador', e,
+        'o programa vai começar com um relatório em branco. NÃO grave nada por cima ' +
+        'até entender: se você já tinha relatórios aqui, abra um backup .json antes.');
       markError(e);
       var p = Store.newProject('');
       state.projects = [p];
@@ -5615,7 +5791,9 @@
         pedirPermissaoNoPrimeiroGesto();
       });
     }).catch(function (e) {
-      console.warn('Pasta não pôde ser retomada:', e);
+      Log.aviso('pasta', 'não consegui reabrir a pasta guardada deste navegador',
+        Pasta.explicar(e) + ' Clique em “Pasta” na barra de cima para escolher de novo.',
+        { erro: e && e.name });
       pastaEstado = 'erro';
       marcarPasta('erro');
     });
