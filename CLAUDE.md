@@ -323,6 +323,21 @@ em `file://`**. A pasta guarda `derrogacao-dados.json`, `imagens/` e
   do histórico** citam, e nunca com menos de 7 dias — entre gravar a foto e
   gravar o JSON existe um instante em que ela parece órfã para quem estiver
   lendo. Roda no máximo de hora em hora (`limparImagensOrfas`).
+- **Toda escrita na pasta tem segunda chance** (`comSegundaChance`). O Chrome
+  não grava por cima: escreve num `.crswap` ao lado e renomeia no fim. Numa
+  pasta de rede esse vaivém esbarra no antivírus, no Windows e na outra pessoa
+  gravando o mesmo arquivo no mesmo segundo, e o navegador devolve
+  `InvalidStateError` ("state cached in an interface object … had changed
+  since it was read from disk"), `NoModificationAllowedError`, `AbortError` ou
+  `NotReadableError`. Nenhum quer dizer "não vai dar" — querem dizer "agora
+  não". A tarefa **pede o crachá do arquivo lá dentro**, porque o crachá
+  guarda o retrato (tamanho, data) de quando foi pedido, e é esse retrato
+  vencido que o navegador recusa; reaproveitar o de fora repetiria o erro.
+  Duas tentativas e o erro sobe — quem chamou é que sabe se era essencial.
+  Vale para os dados, as imagens, as versões do histórico, a conversa e o
+  diário. Antes disso, uma recusa dessas **perdia a rodada inteira**: nem os
+  dados, nem a versão do histórico, nem o diário chegavam na pasta (provado no
+  navegador contra a versão anterior).
 - **Guarda de versão**: lendo dados com `schema` maior que o desta página, a
   sessão para de gravar (só lê) e avisa. Sem isso, a página velha regravaria a
   pasta sem os campos que não conhece. Ver §4.
@@ -720,6 +735,11 @@ permissão da pasta entre sessões.
   inteiro de antes vai junto. Foi o que deixou meia folha do painel em branco.
   Quando a lista é longa e previsível, é melhor dar folha própria a ela do que
   esperar a paginação resolver.
+- **Teste de `file://` com `--allow-file-access-from-files` esconde erro de
+  verdade.** O Bruno abre o arquivo único do G: sem flag nenhuma, e o Chrome
+  trata cada `file:` como origem única. Os testes daqui passam essa flag para
+  a pasta de mentira funcionar; quando a dúvida for sobre o console dele,
+  rode **sem** a flag também, senão o erro que ele vê não aparece aqui.
 - **O service worker é rede-primeiro, de propósito.** Cache-primeiro traria de
   volta o problema de HTML novo com JS velho que o `?v=<sha>` existe para
   evitar. O `sw.js` também é carimbado na publicação: sem mudar de conteúdo,

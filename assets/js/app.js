@@ -4664,8 +4664,14 @@
       .then(function (r) { sincronizandoRevisoes = false; return r; })
       .catch(function (e) {
         sincronizandoRevisoes = false;
-        /* o diário é desejável, não essencial: nunca derruba a gravação */
-        console.warn('Não foi possível trocar o histórico de alterações:', e);
+        /* O diário é desejável, não essencial: nunca derruba a gravação dos
+           dados. E nada se perde aqui — as linhas já foram guardadas neste
+           navegador antes desta tentativa (Revisoes.gravarLocais, acima), e
+           a sincronização seguinte leva de novo o que faltar lá.
+           `pasta.js` já tentou duas vezes; chegar aqui é a pasta ter
+           recusado as duas. */
+        console.warn('O histórico do texto não foi trocado com a pasta desta vez ' +
+          '(as linhas continuam salvas aqui e vão na próxima sincronização):', e);
         return null;
       });
   }

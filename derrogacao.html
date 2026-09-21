@@ -5416,7 +5416,68 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     return Store.clearHandle();
   }
 
-  /* --- leitura e escrita --------------------------------------------------- */
+  /* --- leitura e escrita ---------------------------------------------------
+
+     Numa pasta de rede, mexer num arquivo falha de vez em quando por motivo
+     nenhum de código. O Chrome não grava por cima: ele escreve num arquivo
+     temporário ao lado (`.crswap`) e o renomeia no fim, e esse vaivém no G:
+     esbarra no antivírus, no próprio Windows e — principalmente — na outra
+     pessoa da equipe gravando o mesmo arquivo no mesmo segundo. Quando isso
+     acontece o navegador devolve:
+
+       InvalidStateError  "An operation that depends on state cached in an
+                           interface object was made but the state had changed
+                           since it was read from disk."
+       NoModificationAllowedError / AbortError / NotReadableError
+
+     Foi esse InvalidStateError que apareceu no console do Bruno, subindo do
+     diário de alterações. Nenhum deles quer dizer "não vai dar" — querem
+     dizer "agora não". O crachá do arquivo guarda um retrato (tamanho e data)
+     de quando foi pedido; se o arquivo mudou depois, o retrato vence e o
+     navegador recusa. Pedir o crachá **de novo** e tentar mais uma vez, meio
+     segundo depois, resolve o caso normal.
+
+     Duas tentativas, não mais: se a segunda também falhar é porque tem outra
+     coisa errada (a pasta caiu, a permissão saiu), e aí o erro tem de subir
+     para quem chamou — que é quem sabe se aquilo era essencial (os dados) ou
+     desejável (o diário, a conversa, o histórico). */
+
+  var PASSAGEIROS = ['InvalidStateError', 'NoModificationAllowedError',
+    'AbortError', 'NotReadableError'];
+
+  function passageiro(e) {
+    return !!e && PASSAGEIROS.indexOf(e.name) >= 0;
+  }
+
+  function daquiAPouco(ms) {
+    return new Promise(function (ok) { setTimeout(ok, ms); });
+  }
+
+  /**
+   * Roda `tarefa` e, se ela falhar por um desses tropeços, roda outra vez.
+   * A tarefa tem de pedir o crachá do arquivo lá dentro — reaproveitar o de
+   * fora repetiria o retrato velho, que é justamente o que o navegador
+   * recusou.
+   */
+  function comSegundaChance(tarefa) {
+    return tarefa().catch(function (e) {
+      if (!passageiro(e)) throw e;
+      return daquiAPouco(600).then(tarefa);
+    });
+  }
+
+  /** Escreve um JSON da pasta, com a segunda chance. */
+  function escreverJson(nomeArq, payload, espaco) {
+    if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
+    var texto = JSON.stringify(payload, null, espaco || 1);
+    return comSegundaChance(function () {
+      return handle.getFileHandle(nomeArq, { create: true })
+        .then(function (fh) { return fh.createWritable(); })
+        .then(function (w) {
+          return w.write(texto).then(function () { return w.close(); });
+        });
+    }).then(function () { return true; });
+  }
 
   function arquivoDados(criar) {
     return handle.getFileHandle(ARQUIVO, { create: !!criar });
@@ -5425,7 +5486,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   /** Devolve { dados, lastModified } ou { dados: null } se a pasta está vazia. */
   function ler() {
     if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
-    return arquivoDados(false)
+    return comSegundaChance(function () {
+      return arquivoDados(false)
       .then(function (fh) { return fh.getFile(); })
       .then(function (file) {
         return file.text().then(function (txt) {
@@ -5439,7 +5501,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
             externo: externo
           };
         });
-      })
+      });
+    })
       .catch(function (e) {
         /* pasta ainda sem o arquivo: é o primeiro uso, não é erro */
         if (e && (e.name === 'NotFoundError' || e.name === 'NotFound')) {
@@ -5461,12 +5524,14 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   function gravar(payload) {
     if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
     var texto = JSON.stringify(payload, null, 2);
-    return arquivoDados(true)
-      .then(function (fh) {
-        return fh.createWritable().then(function (w) {
-          return w.write(texto).then(function () { return w.close(); });
-        }).then(function () { return fh.getFile(); });
-      })
+    return comSegundaChance(function () {
+      return arquivoDados(true)
+        .then(function (fh) {
+          return fh.createWritable().then(function (w) {
+            return w.write(texto).then(function () { return w.close(); });
+          }).then(function () { return fh.getFile(); });
+        });
+    })
       .then(function (file) { ultimaLeitura = file.lastModified; return true; });
   }
 
@@ -5534,11 +5599,12 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     var nome = id + '.' + extensaoDe(dataUrl);
     var bytes = bytesDe(dataUrl);
     if (!bytes) return Promise.reject(new Error('Imagem ilegível.'));
-    return pastaImagens(true)
-      .then(function (dir) { return dir.getFileHandle(nome, { create: true }); })
-      .then(function (fh) { return fh.createWritable(); })
-      .then(function (w) { return w.write(bytes).then(function () { return w.close(); }); })
-      .then(function () { return IMAGENS + '/' + nome; });
+    return comSegundaChance(function () {
+      return pastaImagens(true)
+        .then(function (dir) { return dir.getFileHandle(nome, { create: true }); })
+        .then(function (fh) { return fh.createWritable(); })
+        .then(function (w) { return w.write(bytes).then(function () { return w.close(); }); });
+    }).then(function () { return IMAGENS + '/' + nome; });
   }
 
   /** Lê uma imagem gravada e devolve de volta em data URL. */
@@ -5641,13 +5707,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   }
 
   function gravarConversas(payload) {
-    if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
-    return handle.getFileHandle(CONVERSAS, { create: true })
-      .then(function (fh) { return fh.createWritable(); })
-      .then(function (w) {
-        return w.write(JSON.stringify(payload, null, 1)).then(function () { return w.close(); });
-      })
-      .then(function () { return true; });
+    return escreverJson(CONVERSAS, payload, 1);
   }
 
   /* --- diário de alterações ------------------------------------------------
@@ -5665,13 +5725,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   }
 
   function gravarRevisoes(payload) {
-    if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
-    return handle.getFileHandle(REVISOES, { create: true })
-      .then(function (fh) { return fh.createWritable(); })
-      .then(function (w) {
-        return w.write(JSON.stringify(payload, null, 1)).then(function () { return w.close(); });
-      })
-      .then(function () { return true; });
+    return escreverJson(REVISOES, payload, 1);
   }
 
   /* --- histórico automático ------------------------------------------------ */
@@ -5691,15 +5745,17 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     if (!handle) return Promise.resolve(false);
     var nomeArq = carimbo(new Date()) + '_' +
       ((quem || 'sem-nome').replace(/[^\w\-]+/g, '-').toLowerCase()) + '.json';
-    return handle.getDirectoryHandle(HISTORICO, { create: true })
-      .then(function (dir) {
-        return dir.getFileHandle(nomeArq, { create: true })
-          .then(function (fh) { return fh.createWritable(); })
-          .then(function (w) {
-            return w.write(JSON.stringify(payload)).then(function () { return w.close(); });
-          })
-          .then(function () { return podar(dir); });
-      })
+    return comSegundaChance(function () {
+      return handle.getDirectoryHandle(HISTORICO, { create: true })
+        .then(function (dir) {
+          return dir.getFileHandle(nomeArq, { create: true })
+            .then(function (fh) { return fh.createWritable(); })
+            .then(function (w) {
+              return w.write(JSON.stringify(payload)).then(function () { return w.close(); });
+            })
+            .then(function () { return podar(dir); });
+        });
+    })
       .then(function () { return true; })
       .catch(function (e) {
         /* histórico é desejável, não essencial: nunca derruba a gravação */
@@ -14923,8 +14979,14 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       .then(function (r) { sincronizandoRevisoes = false; return r; })
       .catch(function (e) {
         sincronizandoRevisoes = false;
-        /* o diário é desejável, não essencial: nunca derruba a gravação */
-        console.warn('Não foi possível trocar o histórico de alterações:', e);
+        /* O diário é desejável, não essencial: nunca derruba a gravação dos
+           dados. E nada se perde aqui — as linhas já foram guardadas neste
+           navegador antes desta tentativa (Revisoes.gravarLocais, acima), e
+           a sincronização seguinte leva de novo o que faltar lá.
+           `pasta.js` já tentou duas vezes; chegar aqui é a pasta ter
+           recusado as duas. */
+        console.warn('O histórico do texto não foi trocado com a pasta desta vez ' +
+          '(as linhas continuam salvas aqui e vão na próxima sincronização):', e);
         return null;
       });
   }
