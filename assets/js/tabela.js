@@ -92,16 +92,34 @@
     { id: 'requestExpiry', titulo: 'Request Expiry', larg: 16, valor: function (r) { return txt(r.item.requestExpiry); } },
     { id: 'approvedExpiry', titulo: 'Approved Expiry', larg: 16, valor: function (r) { return txt(r.item.approvedExpiry); } },
     { id: 'caminho', titulo: 'Caminho do waiver', larg: 30, valor: function (r) { return caminhoDe(r); } },
-    /* O último salto: "J08 → J09". O caminho inteiro responde por onde o
-       waiver passou; esta responde a pergunta curta, que é a que se faz
-       olhando a tabela — "para onde esta NCR está indo agora?". */
-    { id: 'salto', titulo: 'Waiver de → para', larg: 18, valor: function (r) {
+    /* As três colunas da trajetória. Lidas ao lado da coluna "Marco", elas
+       dizem a linha inteira de um relance:
+
+           Veio de   |  Marco  |  Vai para  |  Já levada?
+             J06     |   J08   |    J09     |     não
+
+       "Veio de" sai do Waiver Historic (a última seta do texto é sempre a
+       chegada neste marco). "Vai para" sai do documento — Approved Expiry, e
+       na falta dele o Request Expiry —, porque o histórico não sabe do
+       futuro. Ver o comentário grande em herdar.js. */
+    { id: 'salto', titulo: 'Veio de', larg: 14, valor: function (r) {
       var s = Fluxo.ultimoSalto(fluxoDe(r));
-      return s ? s.texto : '';
+      return s ? s.de : '';
     } },
-    { id: 'destino', titulo: 'Indo para o marco', larg: 16, valor: function (r) {
-      var s = Fluxo.ultimoSalto(fluxoDe(r));
-      return s ? s.para : '';
+    { id: 'destino', titulo: 'Vai para', larg: 14, valor: function (r) {
+      var a = avancoDe(r);
+      return a.destino ? a.destino.rotulo : '';
+    } },
+    { id: 'levada', titulo: 'Já levada?', larg: 14, valor: function (r) {
+      var a = avancoDe(r);
+      if (a.estado === 'levada') return 'sim';
+      /* "não" só quando já é hora: enquanto o waiver não foi aceito não há
+         o que levar, e um "não" ali seria cobrança de uma coisa que ainda
+         não venceu. */
+      if (!r.item.done) return '';
+      if (a.estado === 'aLevar') return 'não';
+      if (a.estado === 'semRelatorio') return 'não — falta criar o relatório';
+      return '';
     } },
     { id: 'herdadoDe', titulo: 'Herdada do marco', larg: 16, valor: function (r) { return txt(r.item.herdadoDe); } },
     { id: 'herdadoEm', titulo: 'Herdada em', larg: 14, valor: function (r) { return dataCurta(r.item.herdadoEm); },
@@ -133,7 +151,8 @@
   /* O que aparece de saída: o suficiente para achar um item e saber em que pé
      ele está. O resto está a um clique em "Colunas" — esconder é mais fácil
      de desfazer do que uma tabela que já nasce ilegível de tão larga. */
-  var PADRAO = ['marco', 'tipo', 'ncrId', 'systems', 'func', 'salto', 'situacao', 'editedAt'];
+  var PADRAO = ['marco', 'tipo', 'ncrId', 'systems', 'func',
+    'salto', 'destino', 'levada', 'situacao'];
 
   function colunaPorId(id) {
     return COLUNAS.filter(function (c) { return c.id === id; })[0] || null;
@@ -160,6 +179,15 @@
     return r.fluxo;
   }
 
+  /* Guardado na linha: três colunas perguntam a mesma coisa, e a conta varre
+     todos os relatórios atrás da cópia. */
+  function avancoDe(r) {
+    if (!r.avanco) {
+      r.avanco = Herdar.avanco(r.projeto, r.item, r.kind, r.todos || [r.projeto]);
+    }
+    return r.avanco;
+  }
+
   /* ---------------------------------------------------------------------- */
   /* linhas, filtros e ordenação                                            */
   /* ---------------------------------------------------------------------- */
@@ -171,7 +199,8 @@
       ['ncr', 'dev'].forEach(function (kind) {
         var marco = Report.marcoOf(p, kind) || p.name || 'sem marco';
         Store.ordenar(p, kind).forEach(function (item) {
-          out.push({ projeto: p, projetoId: p.id, marco: marco, kind: kind, item: item });
+          out.push({ projeto: p, projetoId: p.id, marco: marco, kind: kind,
+                     item: item, todos: projects });
         });
       });
     });
@@ -224,7 +253,7 @@
     var base = {
       colunas: PADRAO.slice(),
       ordem: { id: 'marco', dir: 'asc' },
-      novas: ['salto'],
+      novas: ['salto', 'destino', 'levada'],
       filtros: {}
     };
     try {
@@ -240,15 +269,14 @@
          a veria nunca, e reclamaria com razão que a coluna "não veio". Uma
          vez só, e anotado — quem tirar a coluna depois não a recebe de volta
          na abertura seguinte. */
-      if (!o || !o.novas || o.novas.indexOf('salto') < 0) {
-        base.novas = ((o && o.novas) || []).concat(['salto']);
-        if (base.colunas.indexOf('salto') < 0) {
-          var onde = base.colunas.indexOf('situacao');
-          base.colunas.splice(onde < 0 ? base.colunas.length : onde, 0, 'salto');
-        }
-      } else {
-        base.novas = o.novas;
-      }
+      base.novas = (o && o.novas) || [];
+      ['salto', 'destino', 'levada'].forEach(function (id) {
+        if (base.novas.indexOf(id) >= 0) return;
+        base.novas = base.novas.concat([id]);
+        if (base.colunas.indexOf(id) >= 0) return;
+        var onde = base.colunas.indexOf('situacao');
+        base.colunas.splice(onde < 0 ? base.colunas.length : onde, 0, id);
+      });
     } catch (e) { /* preferência ilegível não impede a aba de abrir */ }
     return base;
   }

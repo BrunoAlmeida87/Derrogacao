@@ -438,10 +438,15 @@ Escolha o marco em **Chegando no marco** e a folha se monta:
 
 Duas coisas a saber:
 
-- **Entra quem tem uma seta terminando neste marco.** Passar pelo marco no meio
-  do caminho não conta: quem já saiu do J08 não está indo para o J08. Se um
-  item não aparece, é porque ninguém escreveu `… To: J09` no Waiver Historic
-  dele.
+- **Entra quem já chegou ou quem está a caminho.** *Já chegou* é ter uma seta
+  terminando neste marco no *Waiver Historic*. *A caminho* é o documento dizer
+  que o waiver vale até aqui (*Approved Expiry*, ou *Request Expiry* enquanto a
+  resposta não veio) estando o item ainda em outro marco. Passar pelo marco no
+  meio do caminho não conta: quem já saiu do J08 não está indo para o J08.
+- **Por isso o painel funciona antes de o marco começar.** O Waiver Historic de
+  um item do J08 termina em J08 — ele nunca diz que vai para o J09 —, então é
+  a data de validade que põe o item no painel do J09. É o que permite planejar
+  o J09 sem ter copiado nada ainda.
 - **O painel olha todos os relatórios deste navegador e ignora os filtros da
   aba** (busca, tipo, *Passa por*, *Itens de*) — por isso eles somem quando o
   painel está aberto. Quem recorta o painel é o seletor de marco, e mais nada.
@@ -522,10 +527,22 @@ NCR-018?* — sem abrir marco por marco.
 - **Filtros**: marco, tipo, situação, sistema, *Arch Status*, com ou sem anexo,
   e só os parados há 30+ dias. São os mesmos do Resumo, para os dois contarem
   a mesma coisa.
-- **Waiver de → para**: o último salto do caminho, lido do Waiver Historic —
-  `J08 → J09`. É a coluna que responde *para onde esta NCR está indo agora*, e
-  já vem ligada. Ao lado dela, em **Colunas**, há **Indo para o marco** (só o
-  destino, boa para ordenar e agrupar) e **Herdada do marco**.
+- **A trajetória, em três colunas** — já vêm ligadas, e lidas ao lado de
+  *Marco* contam a linha inteira:
+
+  | Veio de | Marco | Vai para | Já levada? |
+  | --- | --- | --- | --- |
+  | J06 | J08 | J09 | não |
+
+  **Veio de** sai do *Waiver Historic* (a última seta do texto é a chegada
+  neste marco). **Vai para** sai do documento — *Waiver Approved Expiry*, e na
+  falta dele o *Waiver Request Expiry* —, porque o histórico não sabe do
+  futuro: no relatório do J08 ele termina em J08. **Já levada?** diz se a cópia
+  já existe no relatório do destino, e só cobra ("não") depois que o waiver foi
+  aceito.
+
+  Ordenar por **Vai para** e filtrar por *Waiver accepted* dá a lista do que
+  falta levar para o próximo marco.
 - **Colunas**: em **Colunas** você marca o que quer ver (são 30 no total, do
   número ao *Why not possible*) e usa as setas ↑ ↓ para mudar a ordem delas —
   na tela, no Excel e no PDF. A escolha fica guardada **neste navegador**.

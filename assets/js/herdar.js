@@ -46,9 +46,80 @@
    * Para onde este item vai quando o waiver for aceito: o marco escrito em
    * "Waiver Approved Expiry". É o campo que o relatório já usa para dizer
    * até quando o waiver vale — não inventamos campo novo para isso (§10).
+   *
+   * Estrito de propósito: quem **copia** o item só pode se guiar pelo que foi
+   * aprovado. Para apenas **ler** para onde o item aponta, use `paraOnde`.
    */
   function destinoDe(item) {
     return Fluxo.marco(item && item.approvedExpiry);
+  }
+
+  /* ------------------------------------------------------------------------
+     PARA ONDE O ITEM ESTÁ INDO — e por que não dá para ler isso do fluxo.
+
+     O Waiver Historic conta de onde o item VEIO: no relatório do J08 ele
+     termina em J08 ("J06 To: J08"), porque é assim que o relatório é escrito.
+     Logo, a última seta do texto é sempre a chegada neste marco — nunca a
+     saída. Era esse o engano da coluna "Waiver de → para": ela mostrava o
+     passado com cara de futuro, e a coluna "Indo para o marco" chegava a
+     repetir o próprio marco do item.
+
+     Quem sabe para onde o item vai é o documento, em dois campos:
+
+       Waiver Approved Expiry  → até onde o arquiteto APROVOU     (vale mais)
+       Waiver Request Expiry   → até onde a equipe PEDIU          (reserva)
+
+     Ler os dois é o que faz o item que ainda está em "Waiver requested"
+     aparecer como "indo para o J09" — que é o que interessa para planejar o
+     marco antes de a resposta chegar.
+
+     Um item cujo destino é o próprio marco não está indo a lugar nenhum: o
+     waiver vale até aqui e acabou. */
+
+  function paraOnde(item) {
+    var m = Fluxo.marco(item && item.approvedExpiry);
+    if (m) return { no: m, aprovado: true };
+    m = Fluxo.marco(item && item.requestExpiry);
+    if (m) return { no: m, aprovado: false };
+    return null;
+  }
+
+  /**
+   * O quadro do avanço de um item, para a tabela e o painel lerem igual:
+   *
+   *   estado 'semDestino'   ninguém escreveu até quando o waiver vale
+   *          'aqui'         o destino é o próprio marco: não vai adiante
+   *          'levada'       já existe a cópia no relatório do destino
+   *          'aLevar'       falta levar (o relatório do destino existe)
+   *          'semRelatorio' falta levar, e o relatório do destino nem existe
+   */
+  function avanco(project, item, kind, projects) {
+    var out = { daqui: null, destino: null, aprovado: false, copia: null,
+                projetoDestino: null, estado: 'semDestino' };
+    if (!item) return out;
+    out.daqui = marcoDe(project, kind);
+    var alvo = paraOnde(item);
+    if (!alvo) return out;
+    if (out.daqui && Fluxo.mesmoMarco(out.daqui, alvo.no)) {
+      out.estado = 'aqui';
+      return out;
+    }
+    out.destino = alvo.no;
+    out.aprovado = alvo.aprovado;
+
+    var chave = Store.numeroChave(item);
+    (projects || []).forEach(function (p) {
+      if (out.projetoDestino || (project && p.id === project.id)) return;
+      var m = marcoDe(p, kind);
+      if (m && Fluxo.mesmoMarco(m, alvo.no)) out.projetoDestino = p;
+    });
+    if (!out.projetoDestino) { out.estado = 'semRelatorio'; return out; }
+
+    (out.projetoDestino[Store.itemsKey(kind)] || []).forEach(function (n) {
+      if (!out.copia && chave && Store.numeroChave(n) === chave) out.copia = n;
+    });
+    out.estado = out.copia ? 'levada' : 'aLevar';
+    return out;
   }
 
   /**
@@ -147,6 +218,8 @@
   global.Herdar = {
     DO_CICLO_ANTERIOR: DO_CICLO_ANTERIOR,
     destinoDe: destinoDe,
+    paraOnde: paraOnde,
+    avanco: avanco,
     marcoDe: marcoDe,
     avaliar: avaliar,
     copiaPara: copiaPara,

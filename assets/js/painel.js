@@ -5,11 +5,22 @@
    do balcão, e é a que se leva para a reunião: **o que está chegando no
    J09?** Quantos itens, vindos de onde, em que pé estão, e quais são.
 
-   O recorte é uma regra só: entra no painel o item cujo Waiver Historic tem
-   uma seta que **termina** no marco escolhido (`Fluxo.chegaEm`). Passar pelo
-   marco no meio do caminho não conta — quem já saiu do J08 não está indo
-   para o J08 —, e é isso que faz o painel do J09 ser o J09 e não "tudo o que
-   um dia encostou no J09".
+   O recorte tem duas portas, e as duas são a mesma pergunta vista de dois
+   lados:
+
+   1. **já chegou** — o Waiver Historic tem uma seta que **termina** neste
+      marco (`Fluxo.chegaEm`). Passar pelo marco no meio do caminho não conta:
+      quem já saiu do J08 não está indo para o J08.
+   2. **está a caminho** — o próprio documento diz que o waiver vale até este
+      marco (*Waiver Approved Expiry*, ou o *Request Expiry* enquanto a
+      resposta não veio), e o item ainda mora em outro (`Herdar.paraOnde`).
+
+   A segunda porta é a que faltava, e sem ela o painel respondia a pergunta
+   errada. O Waiver Historic de um item do J08 termina em J08 — é assim que o
+   relatório é escrito —, então o texto nunca diz que ele vai para o J09. O
+   painel do J09 só enxergava as cópias que já tinham sido levadas para lá, e
+   ficava vazio justamente quando servia para alguma coisa: **antes** de
+   copiar, na hora de planejar o marco.
 
    Os itens vêm de **todos os relatórios deste navegador**, porque é disso
    que a pergunta trata: o que chega no J09 vem do J08, do J06, do RANAE.
@@ -73,26 +84,41 @@
   }
 
   /**
-   * Os marcos que aparecem como **destino** de alguma seta escrita, com
-   * quantos itens o painel de cada um mostraria. A contagem sai da mesma
-   * função que monta a lista (descontando as repetições), senão o seletor
-   * diria "J09 (7)" e a folha abaixo mostraria seis.
+   * Os marcos que o painel sabe montar, com quantos itens cada um mostraria.
+   *
+   * Duas origens, as mesmas duas portas do recorte:
+   *   - marco que é **destino de uma seta escrita** (alguém já chegou nele);
+   *   - marco que algum item declara como **validade do waiver** (está indo).
+   *
+   * Sem a segunda, o J09 não aparecia na lista enquanto ninguém tivesse
+   * escrito "… To: J09" — ou seja, justamente antes de o marco começar, que
+   * é quando o painel serve para planejar.
+   *
+   * A contagem sai da mesma função que monta a lista (descontando as
+   * repetições), senão o seletor diria "J09 (7)" e a folha mostraria seis.
    */
   function marcosDeDestino(projects) {
     var b = base(projects);
     var vistos = {};
     var lista = [];
+    function anotar(no) {
+      if (!no || vistos[no.chave]) return;
+      vistos[no.chave] = { chave: no.chave, rotulo: no.rotulo, pos: no.pos, n: 0 };
+      lista.push(vistos[no.chave]);
+    }
     b.forEach(function (r) {
-      if (r.fluxo.vazio) return;
-      r.fluxo.arestas.forEach(function (a) {
-        var no = null;
-        r.fluxo.nos.forEach(function (n) { if (n.chave === a.para) no = n; });
-        if (!no || vistos[no.chave]) return;
-        vistos[no.chave] = { chave: no.chave, rotulo: no.rotulo, pos: no.pos, n: 0 };
-        lista.push(vistos[no.chave]);
-      });
+      if (!r.fluxo.vazio) {
+        r.fluxo.arestas.forEach(function (a) {
+          r.fluxo.nos.forEach(function (n) { if (n.chave === a.para) anotar(n); });
+        });
+      }
+      var alvo = Herdar.paraOnde(r.item);
+      if (alvo) anotar(alvo.no);
     });
     lista.forEach(function (m) { m.n = daBase(b, m.chave).length; });
+    /* marco sem nada chegando não vira opção: seletor cheio de painel vazio
+       é pior do que seletor curto */
+    lista = lista.filter(function (m) { return m.n > 0; });
     lista.sort(function (a, b2) { return (a.pos - b2.pos) || Store.cmpTexto(a.rotulo, b2.rotulo); });
     return lista;
   }
@@ -116,13 +142,25 @@
     var out = [];
     if (!chave) return out;
     b.forEach(function (r) {
+      /* o item mora no relatório do próprio marco do painel? */
+      var aqui = !!(r.daqui && r.daqui.chave === chave);
       var chega = Fluxo.chegaEm(r.fluxo, chave);
-      if (!chega) return;
+      var vai = null;
+      if (!aqui) {
+        var alvo = Herdar.paraOnde(r.item);
+        if (alvo && alvo.no.chave === chave) vai = alvo;
+      }
+      if (!chega && !vai) return;
       out.push({
         projeto: r.projeto, projetoId: r.projetoId, marco: r.marco, kind: r.kind,
-        item: r.item, fluxo: r.fluxo, veioDe: chega.de,
-        /* o item mora no relatório do próprio marco do painel? */
-        jaChegou: !!(r.daqui && r.daqui.chave === chave)
+        item: r.item, fluxo: r.fluxo,
+        /* de onde veio: a seta escrita, quando existe; senão é o marco em que
+           o item mora hoje, que é de onde ele vai sair */
+        veioDe: (chega && chega.de) || (r.daqui ? r.daqui.rotulo : r.marco),
+        /* aprovado até aqui, ou só pedido? é o que separa o waiver que já
+           tem resposta do que ainda está em análise */
+        aprovado: vai ? vai.aprovado : true,
+        jaChegou: aqui
       });
     });
     out = semRepetir(out);
@@ -167,10 +205,16 @@
       if (r.item.done) st.aceitos++;
       if (Summary.estaParado(r.item)) st.parados++;
       if (texto(r.item.herdadoDe)) st.herdados++;
-      if (r.jaChegou) st.jaChegaram++;
-      /* aceito no marco anterior e ainda não copiado para cá: é a lista de
-         tarefas do marco — o que falta trazer, um por um */
-      else if (r.item.done) st.aTrazer++;
+      /* Cuidado com a corrente de else aqui: um `if` solto enfiado no meio
+         rouba o `else` de quem estava antes. Já aconteceu — "Aceitos, falta
+         trazer" zerou porque o else passou a pertencer a outro if. */
+      if (r.jaChegou) {
+        st.jaChegaram++;
+      } else if (r.item.done) {
+        /* aceito no marco anterior e ainda não copiado para cá: é a lista de
+           tarefas do marco — o que falta trazer, um por um */
+        st.aTrazer++;
+      }
       st.porSituacao[Summary.situacao(r.item)]++;
       var o = texto(r.veioDe) || '(início do caminho)';
       st.porOrigem[o] = (st.porOrigem[o] || 0) + 1;
@@ -409,9 +453,10 @@
       { titulo: 'Está no', larg: 14, valor: function (r) {
         return r.marco + (r.jaChegou ? ' ✓' : '');
       } },
+      /* O salto que interessa é o que chega NESTE marco — não o último do
+         texto, que num item do J08 é a chegada dele no J08. */
       { titulo: 'Caminho', larg: 15, valor: function (r) {
-        var s = Fluxo.ultimoSalto(r.fluxo);
-        return s ? s.texto : '';
+        return r.veioDe ? r.veioDe + ' \u2192 ' + rotulo : rotulo;
       } },
       { titulo: 'Sistemas', larg: 13, valor: function (r) { return texto(r.item.systems); } },
       { titulo: 'Função / descrição', larg: 25, valor: function (r) { return texto(r.item.func); } },

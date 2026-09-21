@@ -7989,9 +7989,80 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
    * Para onde este item vai quando o waiver for aceito: o marco escrito em
    * "Waiver Approved Expiry". É o campo que o relatório já usa para dizer
    * até quando o waiver vale — não inventamos campo novo para isso (§10).
+   *
+   * Estrito de propósito: quem **copia** o item só pode se guiar pelo que foi
+   * aprovado. Para apenas **ler** para onde o item aponta, use `paraOnde`.
    */
   function destinoDe(item) {
     return Fluxo.marco(item && item.approvedExpiry);
+  }
+
+  /* ------------------------------------------------------------------------
+     PARA ONDE O ITEM ESTÁ INDO — e por que não dá para ler isso do fluxo.
+
+     O Waiver Historic conta de onde o item VEIO: no relatório do J08 ele
+     termina em J08 ("J06 To: J08"), porque é assim que o relatório é escrito.
+     Logo, a última seta do texto é sempre a chegada neste marco — nunca a
+     saída. Era esse o engano da coluna "Waiver de → para": ela mostrava o
+     passado com cara de futuro, e a coluna "Indo para o marco" chegava a
+     repetir o próprio marco do item.
+
+     Quem sabe para onde o item vai é o documento, em dois campos:
+
+       Waiver Approved Expiry  → até onde o arquiteto APROVOU     (vale mais)
+       Waiver Request Expiry   → até onde a equipe PEDIU          (reserva)
+
+     Ler os dois é o que faz o item que ainda está em "Waiver requested"
+     aparecer como "indo para o J09" — que é o que interessa para planejar o
+     marco antes de a resposta chegar.
+
+     Um item cujo destino é o próprio marco não está indo a lugar nenhum: o
+     waiver vale até aqui e acabou. */
+
+  function paraOnde(item) {
+    var m = Fluxo.marco(item && item.approvedExpiry);
+    if (m) return { no: m, aprovado: true };
+    m = Fluxo.marco(item && item.requestExpiry);
+    if (m) return { no: m, aprovado: false };
+    return null;
+  }
+
+  /**
+   * O quadro do avanço de um item, para a tabela e o painel lerem igual:
+   *
+   *   estado 'semDestino'   ninguém escreveu até quando o waiver vale
+   *          'aqui'         o destino é o próprio marco: não vai adiante
+   *          'levada'       já existe a cópia no relatório do destino
+   *          'aLevar'       falta levar (o relatório do destino existe)
+   *          'semRelatorio' falta levar, e o relatório do destino nem existe
+   */
+  function avanco(project, item, kind, projects) {
+    var out = { daqui: null, destino: null, aprovado: false, copia: null,
+                projetoDestino: null, estado: 'semDestino' };
+    if (!item) return out;
+    out.daqui = marcoDe(project, kind);
+    var alvo = paraOnde(item);
+    if (!alvo) return out;
+    if (out.daqui && Fluxo.mesmoMarco(out.daqui, alvo.no)) {
+      out.estado = 'aqui';
+      return out;
+    }
+    out.destino = alvo.no;
+    out.aprovado = alvo.aprovado;
+
+    var chave = Store.numeroChave(item);
+    (projects || []).forEach(function (p) {
+      if (out.projetoDestino || (project && p.id === project.id)) return;
+      var m = marcoDe(p, kind);
+      if (m && Fluxo.mesmoMarco(m, alvo.no)) out.projetoDestino = p;
+    });
+    if (!out.projetoDestino) { out.estado = 'semRelatorio'; return out; }
+
+    (out.projetoDestino[Store.itemsKey(kind)] || []).forEach(function (n) {
+      if (!out.copia && chave && Store.numeroChave(n) === chave) out.copia = n;
+    });
+    out.estado = out.copia ? 'levada' : 'aLevar';
+    return out;
   }
 
   /**
@@ -8090,6 +8161,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   global.Herdar = {
     DO_CICLO_ANTERIOR: DO_CICLO_ANTERIOR,
     destinoDe: destinoDe,
+    paraOnde: paraOnde,
+    avanco: avanco,
     marcoDe: marcoDe,
     avaliar: avaliar,
     copiaPara: copiaPara,
@@ -8935,11 +9008,22 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
    do balcão, e é a que se leva para a reunião: **o que está chegando no
    J09?** Quantos itens, vindos de onde, em que pé estão, e quais são.
 
-   O recorte é uma regra só: entra no painel o item cujo Waiver Historic tem
-   uma seta que **termina** no marco escolhido (`Fluxo.chegaEm`). Passar pelo
-   marco no meio do caminho não conta — quem já saiu do J08 não está indo
-   para o J08 —, e é isso que faz o painel do J09 ser o J09 e não "tudo o que
-   um dia encostou no J09".
+   O recorte tem duas portas, e as duas são a mesma pergunta vista de dois
+   lados:
+
+   1. **já chegou** — o Waiver Historic tem uma seta que **termina** neste
+      marco (`Fluxo.chegaEm`). Passar pelo marco no meio do caminho não conta:
+      quem já saiu do J08 não está indo para o J08.
+   2. **está a caminho** — o próprio documento diz que o waiver vale até este
+      marco (*Waiver Approved Expiry*, ou o *Request Expiry* enquanto a
+      resposta não veio), e o item ainda mora em outro (`Herdar.paraOnde`).
+
+   A segunda porta é a que faltava, e sem ela o painel respondia a pergunta
+   errada. O Waiver Historic de um item do J08 termina em J08 — é assim que o
+   relatório é escrito —, então o texto nunca diz que ele vai para o J09. O
+   painel do J09 só enxergava as cópias que já tinham sido levadas para lá, e
+   ficava vazio justamente quando servia para alguma coisa: **antes** de
+   copiar, na hora de planejar o marco.
 
    Os itens vêm de **todos os relatórios deste navegador**, porque é disso
    que a pergunta trata: o que chega no J09 vem do J08, do J06, do RANAE.
@@ -9003,26 +9087,41 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   }
 
   /**
-   * Os marcos que aparecem como **destino** de alguma seta escrita, com
-   * quantos itens o painel de cada um mostraria. A contagem sai da mesma
-   * função que monta a lista (descontando as repetições), senão o seletor
-   * diria "J09 (7)" e a folha abaixo mostraria seis.
+   * Os marcos que o painel sabe montar, com quantos itens cada um mostraria.
+   *
+   * Duas origens, as mesmas duas portas do recorte:
+   *   - marco que é **destino de uma seta escrita** (alguém já chegou nele);
+   *   - marco que algum item declara como **validade do waiver** (está indo).
+   *
+   * Sem a segunda, o J09 não aparecia na lista enquanto ninguém tivesse
+   * escrito "… To: J09" — ou seja, justamente antes de o marco começar, que
+   * é quando o painel serve para planejar.
+   *
+   * A contagem sai da mesma função que monta a lista (descontando as
+   * repetições), senão o seletor diria "J09 (7)" e a folha mostraria seis.
    */
   function marcosDeDestino(projects) {
     var b = base(projects);
     var vistos = {};
     var lista = [];
+    function anotar(no) {
+      if (!no || vistos[no.chave]) return;
+      vistos[no.chave] = { chave: no.chave, rotulo: no.rotulo, pos: no.pos, n: 0 };
+      lista.push(vistos[no.chave]);
+    }
     b.forEach(function (r) {
-      if (r.fluxo.vazio) return;
-      r.fluxo.arestas.forEach(function (a) {
-        var no = null;
-        r.fluxo.nos.forEach(function (n) { if (n.chave === a.para) no = n; });
-        if (!no || vistos[no.chave]) return;
-        vistos[no.chave] = { chave: no.chave, rotulo: no.rotulo, pos: no.pos, n: 0 };
-        lista.push(vistos[no.chave]);
-      });
+      if (!r.fluxo.vazio) {
+        r.fluxo.arestas.forEach(function (a) {
+          r.fluxo.nos.forEach(function (n) { if (n.chave === a.para) anotar(n); });
+        });
+      }
+      var alvo = Herdar.paraOnde(r.item);
+      if (alvo) anotar(alvo.no);
     });
     lista.forEach(function (m) { m.n = daBase(b, m.chave).length; });
+    /* marco sem nada chegando não vira opção: seletor cheio de painel vazio
+       é pior do que seletor curto */
+    lista = lista.filter(function (m) { return m.n > 0; });
     lista.sort(function (a, b2) { return (a.pos - b2.pos) || Store.cmpTexto(a.rotulo, b2.rotulo); });
     return lista;
   }
@@ -9046,13 +9145,25 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     var out = [];
     if (!chave) return out;
     b.forEach(function (r) {
+      /* o item mora no relatório do próprio marco do painel? */
+      var aqui = !!(r.daqui && r.daqui.chave === chave);
       var chega = Fluxo.chegaEm(r.fluxo, chave);
-      if (!chega) return;
+      var vai = null;
+      if (!aqui) {
+        var alvo = Herdar.paraOnde(r.item);
+        if (alvo && alvo.no.chave === chave) vai = alvo;
+      }
+      if (!chega && !vai) return;
       out.push({
         projeto: r.projeto, projetoId: r.projetoId, marco: r.marco, kind: r.kind,
-        item: r.item, fluxo: r.fluxo, veioDe: chega.de,
-        /* o item mora no relatório do próprio marco do painel? */
-        jaChegou: !!(r.daqui && r.daqui.chave === chave)
+        item: r.item, fluxo: r.fluxo,
+        /* de onde veio: a seta escrita, quando existe; senão é o marco em que
+           o item mora hoje, que é de onde ele vai sair */
+        veioDe: (chega && chega.de) || (r.daqui ? r.daqui.rotulo : r.marco),
+        /* aprovado até aqui, ou só pedido? é o que separa o waiver que já
+           tem resposta do que ainda está em análise */
+        aprovado: vai ? vai.aprovado : true,
+        jaChegou: aqui
       });
     });
     out = semRepetir(out);
@@ -9097,10 +9208,16 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       if (r.item.done) st.aceitos++;
       if (Summary.estaParado(r.item)) st.parados++;
       if (texto(r.item.herdadoDe)) st.herdados++;
-      if (r.jaChegou) st.jaChegaram++;
-      /* aceito no marco anterior e ainda não copiado para cá: é a lista de
-         tarefas do marco — o que falta trazer, um por um */
-      else if (r.item.done) st.aTrazer++;
+      /* Cuidado com a corrente de else aqui: um `if` solto enfiado no meio
+         rouba o `else` de quem estava antes. Já aconteceu — "Aceitos, falta
+         trazer" zerou porque o else passou a pertencer a outro if. */
+      if (r.jaChegou) {
+        st.jaChegaram++;
+      } else if (r.item.done) {
+        /* aceito no marco anterior e ainda não copiado para cá: é a lista de
+           tarefas do marco — o que falta trazer, um por um */
+        st.aTrazer++;
+      }
       st.porSituacao[Summary.situacao(r.item)]++;
       var o = texto(r.veioDe) || '(início do caminho)';
       st.porOrigem[o] = (st.porOrigem[o] || 0) + 1;
@@ -9339,9 +9456,10 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       { titulo: 'Está no', larg: 14, valor: function (r) {
         return r.marco + (r.jaChegou ? ' ✓' : '');
       } },
+      /* O salto que interessa é o que chega NESTE marco — não o último do
+         texto, que num item do J08 é a chegada dele no J08. */
       { titulo: 'Caminho', larg: 15, valor: function (r) {
-        var s = Fluxo.ultimoSalto(r.fluxo);
-        return s ? s.texto : '';
+        return r.veioDe ? r.veioDe + ' \u2192 ' + rotulo : rotulo;
       } },
       { titulo: 'Sistemas', larg: 13, valor: function (r) { return texto(r.item.systems); } },
       { titulo: 'Função / descrição', larg: 25, valor: function (r) { return texto(r.item.func); } },
@@ -9820,16 +9938,34 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     { id: 'requestExpiry', titulo: 'Request Expiry', larg: 16, valor: function (r) { return txt(r.item.requestExpiry); } },
     { id: 'approvedExpiry', titulo: 'Approved Expiry', larg: 16, valor: function (r) { return txt(r.item.approvedExpiry); } },
     { id: 'caminho', titulo: 'Caminho do waiver', larg: 30, valor: function (r) { return caminhoDe(r); } },
-    /* O último salto: "J08 → J09". O caminho inteiro responde por onde o
-       waiver passou; esta responde a pergunta curta, que é a que se faz
-       olhando a tabela — "para onde esta NCR está indo agora?". */
-    { id: 'salto', titulo: 'Waiver de → para', larg: 18, valor: function (r) {
+    /* As três colunas da trajetória. Lidas ao lado da coluna "Marco", elas
+       dizem a linha inteira de um relance:
+
+           Veio de   |  Marco  |  Vai para  |  Já levada?
+             J06     |   J08   |    J09     |     não
+
+       "Veio de" sai do Waiver Historic (a última seta do texto é sempre a
+       chegada neste marco). "Vai para" sai do documento — Approved Expiry, e
+       na falta dele o Request Expiry —, porque o histórico não sabe do
+       futuro. Ver o comentário grande em herdar.js. */
+    { id: 'salto', titulo: 'Veio de', larg: 14, valor: function (r) {
       var s = Fluxo.ultimoSalto(fluxoDe(r));
-      return s ? s.texto : '';
+      return s ? s.de : '';
     } },
-    { id: 'destino', titulo: 'Indo para o marco', larg: 16, valor: function (r) {
-      var s = Fluxo.ultimoSalto(fluxoDe(r));
-      return s ? s.para : '';
+    { id: 'destino', titulo: 'Vai para', larg: 14, valor: function (r) {
+      var a = avancoDe(r);
+      return a.destino ? a.destino.rotulo : '';
+    } },
+    { id: 'levada', titulo: 'Já levada?', larg: 14, valor: function (r) {
+      var a = avancoDe(r);
+      if (a.estado === 'levada') return 'sim';
+      /* "não" só quando já é hora: enquanto o waiver não foi aceito não há
+         o que levar, e um "não" ali seria cobrança de uma coisa que ainda
+         não venceu. */
+      if (!r.item.done) return '';
+      if (a.estado === 'aLevar') return 'não';
+      if (a.estado === 'semRelatorio') return 'não — falta criar o relatório';
+      return '';
     } },
     { id: 'herdadoDe', titulo: 'Herdada do marco', larg: 16, valor: function (r) { return txt(r.item.herdadoDe); } },
     { id: 'herdadoEm', titulo: 'Herdada em', larg: 14, valor: function (r) { return dataCurta(r.item.herdadoEm); },
@@ -9861,7 +9997,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   /* O que aparece de saída: o suficiente para achar um item e saber em que pé
      ele está. O resto está a um clique em "Colunas" — esconder é mais fácil
      de desfazer do que uma tabela que já nasce ilegível de tão larga. */
-  var PADRAO = ['marco', 'tipo', 'ncrId', 'systems', 'func', 'salto', 'situacao', 'editedAt'];
+  var PADRAO = ['marco', 'tipo', 'ncrId', 'systems', 'func',
+    'salto', 'destino', 'levada', 'situacao'];
 
   function colunaPorId(id) {
     return COLUNAS.filter(function (c) { return c.id === id; })[0] || null;
@@ -9888,6 +10025,15 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     return r.fluxo;
   }
 
+  /* Guardado na linha: três colunas perguntam a mesma coisa, e a conta varre
+     todos os relatórios atrás da cópia. */
+  function avancoDe(r) {
+    if (!r.avanco) {
+      r.avanco = Herdar.avanco(r.projeto, r.item, r.kind, r.todos || [r.projeto]);
+    }
+    return r.avanco;
+  }
+
   /* ---------------------------------------------------------------------- */
   /* linhas, filtros e ordenação                                            */
   /* ---------------------------------------------------------------------- */
@@ -9899,7 +10045,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       ['ncr', 'dev'].forEach(function (kind) {
         var marco = Report.marcoOf(p, kind) || p.name || 'sem marco';
         Store.ordenar(p, kind).forEach(function (item) {
-          out.push({ projeto: p, projetoId: p.id, marco: marco, kind: kind, item: item });
+          out.push({ projeto: p, projetoId: p.id, marco: marco, kind: kind,
+                     item: item, todos: projects });
         });
       });
     });
@@ -9952,7 +10099,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     var base = {
       colunas: PADRAO.slice(),
       ordem: { id: 'marco', dir: 'asc' },
-      novas: ['salto'],
+      novas: ['salto', 'destino', 'levada'],
       filtros: {}
     };
     try {
@@ -9968,15 +10115,14 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
          a veria nunca, e reclamaria com razão que a coluna "não veio". Uma
          vez só, e anotado — quem tirar a coluna depois não a recebe de volta
          na abertura seguinte. */
-      if (!o || !o.novas || o.novas.indexOf('salto') < 0) {
-        base.novas = ((o && o.novas) || []).concat(['salto']);
-        if (base.colunas.indexOf('salto') < 0) {
-          var onde = base.colunas.indexOf('situacao');
-          base.colunas.splice(onde < 0 ? base.colunas.length : onde, 0, 'salto');
-        }
-      } else {
-        base.novas = o.novas;
-      }
+      base.novas = (o && o.novas) || [];
+      ['salto', 'destino', 'levada'].forEach(function (id) {
+        if (base.novas.indexOf(id) >= 0) return;
+        base.novas = base.novas.concat([id]);
+        if (base.colunas.indexOf(id) >= 0) return;
+        var onde = base.colunas.indexOf('situacao');
+        base.colunas.splice(onde < 0 ? base.colunas.length : onde, 0, id);
+      });
     } catch (e) { /* preferência ilegível não impede a aba de abrir */ }
     return base;
   }

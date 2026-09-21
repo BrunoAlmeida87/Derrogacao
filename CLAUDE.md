@@ -499,16 +499,69 @@ Ele está em `CAMPOS_MESCLA` (converge campo a campo) e **fora** de
 `signature()` — o desempate tem de dar o mesmo resultado nas versões
 anteriores, senão as bases divergem para sempre (§10).
 
+### De onde veio × para onde vai (e por que o texto não sabe o futuro)
+
+O Waiver Historic conta **de onde o item veio**: no relatório do J08 ele
+termina em J08, porque é assim que o relatório é escrito (`J06 To: J08`). Logo
+a última seta do texto é sempre a **chegada** neste marco — nunca a saída.
+
+Isso derrubou duas coisas de uma vez, e as duas foram consertadas juntas:
+
+- a coluna "Waiver de → para" da Tabela mostrava o passado com cara de futuro,
+  e a coluna "Indo para o marco" chegava a repetir o próprio marco do item;
+- o painel do J09 só enxergava as cópias **já levadas** para lá, e ficava vazio
+  justamente antes de o marco começar — que é quando ele serve para planejar.
+
+Quem sabe para onde o item vai é o documento, em dois campos, nesta ordem:
+
+```
+Waiver Approved Expiry  → até onde o arquiteto APROVOU   (vale mais)
+Waiver Request Expiry   → até onde a equipe PEDIU        (reserva)
+```
+
+`Herdar.paraOnde(item)` lê os dois e devolve `{no, aprovado}`. Ler o segundo é
+o que faz o item ainda em "Waiver requested" aparecer como indo para o J09 —
+que é o que interessa para planejar o marco antes de a resposta chegar.
+`Herdar.destinoDe` continua estrito (só o aprovado), porque **copiar** o item
+é ação e só pode se guiar pelo que foi aprovado; `paraOnde` é leitura.
+
+Um item cujo destino é o próprio marco não está indo a lugar nenhum: o waiver
+vale até ali e acabou (`estado: 'aqui'`).
+
+`Herdar.avanco(project, item, kind, projects)` junta tudo num quadro que a
+Tabela e o painel leem igual: `semDestino · aqui · levada · aLevar ·
+semRelatorio`.
+
+Na Tabela isso virou três colunas que, ao lado de "Marco", leem a linha
+inteira de um relance:
+
+```
+Veio de  |  Marco  |  Vai para  |  Já levada?
+  J06    |   J08   |    J09     |     não
+```
+
+"Já levada?" só diz "não" quando o waiver **já foi aceito**: antes disso não
+há o que levar, e um "não" ali seria cobrança de uma coisa que ainda não
+venceu.
+
 ### O painel de um marco (`painel.js`)
 A aba Fluxos responde "por onde passou". O painel responde a pergunta do outro
 lado do balcão, que é a que se leva para a reunião: **o que está chegando no
 J09?** É a quarta vista da aba Fluxos, e sai em PDF pelo mesmo botão das
 outras.
 
-- **A regra do recorte é uma só**: entra o item cujo fluxo tem uma seta que
-  **termina** no marco escolhido (`Fluxo.chegaEm`). Passar pelo marco no meio
-  do caminho não conta — quem já saiu do J08 não está indo para o J08. É isso
-  que faz o painel do J09 ser o J09, e não "tudo o que um dia encostou nele".
+- **O recorte tem duas portas** (ver a seção anterior): **já chegou** (uma
+  seta escrita termina neste marco, `Fluxo.chegaEm`) ou **está a caminho** (o
+  documento diz que o waiver vale até aqui, `Herdar.paraOnde`, e o item mora
+  em outro marco). Passar pelo marco no meio do caminho continua não contando:
+  quem já saiu do J08 não está indo para o J08.
+- **O seletor de marcos também tem as duas portas.** Sem a segunda, o J09 nem
+  aparecia na lista enquanto ninguém tivesse escrito "… To: J09". Marco que
+  não tem nada chegando fica fora: seletor cheio de painel vazio é pior do que
+  seletor curto.
+- **A coluna "Caminho" da lista é `veio de → este marco`**, não o último salto
+  do texto — num item do J08 aquele salto é a chegada dele no J08, e no painel
+  do J09 seria confusão.
 - **Olha todos os relatórios deste navegador**, sempre: o que chega no J09 vem
   do J08, do J06, do RANAE. Por isso a vista esconde os filtros da aba (busca,
   tipo, escopo, "passa por"): eles são do fluxo por item, e oferecer botão que
@@ -884,6 +937,16 @@ permissão da pasta entre sessões.
 - **Redesenhar o editor rouba o teclado de quem está escrevendo.** Ver "O
   cursor sobrevive ao redesenho" no §5: o redesenho é obrigatório, devolver o
   foco também.
+- **Um `if` solto enfiado no meio rouba o `else` de quem estava antes.**
+  Aconteceu no `Painel.apurar`: ao acrescentar um contador entre o
+  `if (r.jaChegou)` e o `else if (r.item.done)`, o else passou a pertencer ao
+  contador novo e "Aceitos, falta trazer" zerou. Hoje aquele par está com
+  chaves, de propósito.
+- **Semente de teste tem de ser escrita como o Bruno escreve.** A primeira
+  versão do `semear_marcos.js` punha "J08 To: J09" no Waiver Historic do item
+  do J08 — o que ninguém faz —, e com isso o painel parecia funcionar e a
+  coluna parecia certa. O histórico termina no marco do próprio relatório; o
+  futuro está nas datas de validade.
 - **O service worker é rede-primeiro, de propósito.** Cache-primeiro traria de
   volta o problema de HTML novo com JS velho que o `?v=<sha>` existe para
   evitar. O `sw.js` também é carimbado na publicação: sem mudar de conteúdo,
@@ -947,7 +1010,10 @@ desta máquina às vezes bloqueia `github.io`.
 | A cópia herdada chega em "Em preenchimento", com o ciclo anterior em branco | o waiver de lá foi aceito, o daqui ainda nem foi pedido; Arch Answer, Arch Status e as datas eram a resposta do marco que terminou |
 | `herdadoDe` não sobe o `SCHEMA` e fica fora da `signature()` | mesmos motivos da `nota`: `extrasDe` já preserva, e o desempate tem de ser idêntico ao das versões anteriores |
 | RANAE e TRAP entram em `Fluxo.ORDEM` pelo nome, sem número | são os dois marcos depois do J12 e não têm "J"; sem isso cairiam como card solto no fim do desenho. "RANAE J06" continua sendo o J06 — havendo número, é o número que manda |
-| O painel recorta por "seta que termina aqui", não por "passa por aqui" | quem já saiu do J08 não está indo para o J08; senão o painel do J09 viraria "tudo o que um dia encostou no J09" |
+| O painel recorta por "seta que termina aqui" **ou** "o documento diz que vale até aqui", não por "passa por aqui" | quem já saiu do J08 não está indo para o J08; e o histórico nunca diz o futuro, então sem a segunda porta o painel do J09 ficava vazio antes de o marco começar |
+| "Vai para" sai do Approved Expiry (e do Request Expiry na falta), nunca do Waiver Historic | o histórico termina no marco do próprio relatório: a última seta dele é a chegada, não a saída |
+| `Herdar.destinoDe` é estrito (só o aprovado); `paraOnde` é generoso (aceita o pedido) | copiar o item é ação e só pode seguir o que foi aprovado; ler para onde ele aponta é leitura, e o pedido já informa |
+| "Já levada?" só cobra depois de o waiver ser aceito | antes disso não há o que levar, e o "não" seria cobrança de uma coisa que ainda não venceu |
 | O painel ignora os filtros da aba Fluxos e os esconde | eles são do fluxo por item; botão que não faz nada é pior do que botão nenhum |
 | No painel, a cópia que já chegou ganha da original | uma NCR levada adiante existe duas vezes neste navegador, e quem ainda dá trabalho é a cópia; daí "já no relatório" × "falta trazer" |
 | O painel em PDF sai em duas folhas fixas | numa só, o cabeçalho órfão da lista empurrava os gráficos para a folha seguinte e deixava meia folha em branco |
