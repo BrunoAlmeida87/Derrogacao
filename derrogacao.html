@@ -9112,6 +9112,31 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     return isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR');
   }
 
+  /* Os anexos iam para a planilha só como número — "3 anexos, 5 imagens" —, e
+     com isso o que estava escrito dentro deles (a referência, a observação, a
+     legenda de cada foto) não saía em lugar nenhum. Quem exporta a tabela
+     quer o waiver inteiro; a foto não vai, mas o texto dela pode ir. Cada
+     anexo vira um pedaço separado por " | ", na ordem em que está no item. */
+  function juntar(lista) {
+    return (lista || []).map(txt).filter(Boolean).join(' | ');
+  }
+
+  function refsDeAnexo(item) {
+    return juntar((item.evidence || []).map(function (e) { return e.ref; }));
+  }
+
+  function notasDeAnexo(item) {
+    return juntar((item.evidence || []).map(function (e) { return e.note; }));
+  }
+
+  function legendasDeImagem(item) {
+    var out = [];
+    (item.evidence || []).forEach(function (e) {
+      (e.images || []).forEach(function (im) { out.push(im.caption); });
+    });
+    return juntar(out);
+  }
+
   function contarImagens(item) {
     return (item.evidence || []).reduce(function (a, e) {
       return a + ((e.images || []).length);
@@ -9148,6 +9173,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       return s ? s.para : '';
     } },
     { id: 'herdadoDe', titulo: 'Herdada do marco', larg: 16, valor: function (r) { return txt(r.item.herdadoDe); } },
+    { id: 'herdadoEm', titulo: 'Herdada em', larg: 14, valor: function (r) { return dataCurta(r.item.herdadoEm); },
+      ordenar: function (r) { return txt(r.item.herdadoEm); } },
     { id: 'historic', titulo: 'Waiver Historic', larg: 30, longo: true, valor: function (r) { return txt(r.item.historic); } },
     { id: 'description', titulo: 'Description', larg: 46, longo: true, valor: function (r) { return txt(r.item.description); } },
     { id: 'currentSituation', titulo: 'Current Situation', larg: 46, longo: true, valor: function (r) { return txt(r.item.currentSituation); } },
@@ -9158,6 +9185,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     { id: 'certificates', titulo: 'Certificados', larg: 26, valor: function (r) { return (r.item.certificates || []).join(' | '); } },
     { id: 'evidencias', titulo: 'Anexos', larg: 9, num: true, valor: function (r) { return (r.item.evidence || []).length; } },
     { id: 'imagens', titulo: 'Imagens', larg: 9, num: true, valor: function (r) { return contarImagens(r.item); } },
+    { id: 'evidRefs', titulo: 'Anexos (referência)', larg: 30, longo: true, valor: function (r) { return refsDeAnexo(r.item); } },
+    { id: 'evidNotas', titulo: 'Anexos (observação)', larg: 40, longo: true, valor: function (r) { return notasDeAnexo(r.item); } },
+    { id: 'legendas', titulo: 'Legendas das imagens', larg: 40, longo: true, valor: function (r) { return legendasDeImagem(r.item); } },
     { id: 'editedBy', titulo: 'Alterado por', larg: 18, valor: function (r) { return txt(r.item.editedBy); } },
     /* 17 e não 14: com 14 a data 16/09/2026 partia em duas linhas na folha */
     { id: 'editedAt', titulo: 'Alterado em', larg: 17, valor: function (r) { return dataCurta(r.item.editedAt); },
@@ -9336,7 +9366,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     box.appendChild(cab);
 
     var dica = el('p', 'hint', 'Marque o que quer ver. As setas mudam a ordem das ' +
-      'colunas — na tela, no Excel e no PDF. A escolha fica neste navegador.');
+      'colunas — na tela, no Excel e no PDF. A escolha fica neste navegador. ' +
+      '“Mostrar todas” leva o waiver inteiro para o Excel; no PDF, acima de ' +
+      'umas dez colunas a folha fica apertada mesmo deitada.');
     box.appendChild(dica);
 
     var lista = el('div', 'tb-col-lista');

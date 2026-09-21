@@ -454,13 +454,30 @@ NCR-018?* — sem abrir marco por marco.
   `J08 → J09`. É a coluna que responde *para onde esta NCR está indo agora*, e
   já vem ligada. Ao lado dela, em **Colunas**, há **Indo para o marco** (só o
   destino, boa para ordenar e agrupar) e **Herdada do marco**.
-- **Colunas**: em **Colunas** você marca o que quer ver (são 25 no total, do
+- **Colunas**: em **Colunas** você marca o que quer ver (são 30 no total, do
   número ao *Why not possible*) e usa as setas ↑ ↓ para mudar a ordem delas —
   na tela, no Excel e no PDF. A escolha fica guardada **neste navegador**.
 - **Ordenar**: clique no título da coluna. Isso **não altera** a ordem dos itens
   no relatório nem no PDF — a tabela é leitura.
 - **Clique numa linha** e o item abre no editor, trocando de relatório se for
   preciso.
+
+### Levar o waiver inteiro para o Excel
+
+Em **Colunas → Mostrar todas** a tabela passa a trazer **todo o texto do
+waiver**, uma coluna por campo: Description, Current Situation, Why not
+possible, Arguments, Arch Answer, Waiver Historic, as datas, o Arch Status, os
+certificados, a observação interna, o caminho do waiver — e também **o que está
+escrito dentro dos anexos**: a referência de cada um, a observação de cada um e
+a legenda de cada imagem, separados por ` | ` na ordem em que estão no item.
+
+Nada é cortado na exportação: um *Description* de mil caracteres sai inteiro na
+célula. O que **não** vai é a foto em si — a planilha leva o texto dela, não a
+imagem; para as imagens o caminho é o PDF do relatório ou o backup `.json`.
+
+Isso vale para o Excel e para o CSV. Para o **PDF**, acima de umas dez colunas
+a folha fica apertada mesmo deitada: ali é melhor escolher as colunas que
+interessam.
 
 ### Exportar
 

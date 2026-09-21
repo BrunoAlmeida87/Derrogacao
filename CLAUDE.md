@@ -572,6 +572,13 @@ tela que responde "onde está a NCR-018?" sem abrir marco por marco.
   protege o `= + - @` sem depender do apóstrofo. No CSV a regra continua sendo
   a do `csvCampo`, agora exportado por `SummaryView` para não haver duas cópias
   dela.
+- **A exportação leva o texto dos anexos, não só a contagem.** `Anexos` e
+  `Imagens` eram números; o que estava escrito dentro deles — a referência, a
+  observação e a legenda de cada foto — não saía em lugar nenhum. Hoje são
+  três colunas (`evidRefs`, `evidNotas`, `legendas`), cada anexo separado por
+  ` | `. A foto continua fora: a planilha leva o texto dela. Com “Mostrar
+  todas”, a exportação carrega o waiver inteiro, sem corte — o `longo: true`
+  da coluna é só dica de estilo da tela, não limite de conteúdo.
 - **Toda exportação leva uma aba “Recorte”** dizendo data, autor, quantos itens
   e qual filtro estava aplicado. Planilha que anda pela empresa sem dizer de que
   recorte veio acaba lida como se fosse o total.
@@ -801,6 +808,7 @@ desta máquina às vezes bloqueia `github.io`.
 | A anotação não sobe o `SCHEMA` | `extrasDe` já a preserva na versão antiga (provado no navegador); subir poria a equipe inteira em só leitura até todo mundo trocar o arquivo |
 | A anotação fica fora da `signature()` | o desempate tem de ser idêntico ao das versões anteriores, senão as bases divergem |
 | Aba Tabela olha todos os relatórios; ordenar nela não muda o PDF | a pergunta que ela responde é "em que marco está este item?"; a ordem do relatório tem dono, que é `project.ordem` |
+| A planilha leva o texto dos anexos, nunca a imagem | o texto cabe numa célula e é o que se procura depois; a foto tem dois caminhos próprios, o PDF do relatório e o backup `.json` |
 | Colunas e ordenação da Tabela no `localStorage`, filtro não | as colunas são de quem está sentado ali; um filtro guardado esconderia itens na abertura seguinte sem dizer por quê |
 | `.xlsx` escrito à mão, em vez de CSV ou de biblioteca | sem dependência (§2), e o CSV perde tipo, cabeçalho congelado e filtros — e trata `=` como fórmula |
 | Toda exportação leva a aba "Recorte" | planilha filtrada que não diz que está filtrada é lida como se fosse o total |
