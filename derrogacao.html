@@ -2748,6 +2748,37 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 }
 .log-saida:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* Pastilhas de marco na aba Tabela — dá para marcar vários. A mesma cara das
+   pastilhas de situação do PDF e do "Passa por" da aba Fluxos. */
+.tb-marcos {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 0 0 10px;
+}
+.tb-marcos-rot {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); font-weight: 700;
+}
+.tb-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff; color: var(--ink);
+  font-size: 12px; cursor: pointer;
+}
+.tb-chip:hover { background: #f6f7f9; }
+.tb-chip.is-on {
+  background: var(--kind); border-color: var(--kind);
+  color: #fff; font-weight: 600;
+}
+.tb-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tb-chip-n {
+  font-variant-numeric: tabular-nums;
+  background: rgba(0, 0, 0, .10);
+  border-radius: 999px; padding: 0 6px; font-size: 11px;
+}
+.tb-chip.is-on .tb-chip-n { background: rgba(255, 255, 255, .28); }
+
 </style>
 <style>
 /* assets/css/report.css */
@@ -9937,7 +9968,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     { id: 'archStatus', titulo: 'Arch Status', larg: 22, valor: function (r) { return txt(r.item.archStatus); } },
     { id: 'requestExpiry', titulo: 'Request Expiry', larg: 16, valor: function (r) { return txt(r.item.requestExpiry); } },
     { id: 'approvedExpiry', titulo: 'Approved Expiry', larg: 16, valor: function (r) { return txt(r.item.approvedExpiry); } },
-    { id: 'caminho', titulo: 'Caminho do waiver', larg: 30, valor: function (r) { return caminhoDe(r); } },
+    { id: 'caminho', titulo: 'Caminho do waiver', larg: 32, valor: function (r) { return caminhoDe(r); } },
     /* As três colunas da trajetória. Lidas ao lado da coluna "Marco", elas
        dizem a linha inteira de um relance:
 
@@ -10015,9 +10046,36 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     return out.length ? out : PADRAO.map(colunaPorId);
   }
 
+  /**
+   * O caminho inteiro: por onde passou **e** para onde vai.
+   *
+   * `Fluxo.caminhoTexto` só sabe do passado — o Waiver Historic de um item do
+   * J08 termina em J08. O destino vem do documento (`Herdar.avanco`), e vai
+   * entre parênteses enquanto o item não tiver sido levado para lá:
+   *
+   *     J04 → J06 → J08 → (J09)    ainda não levada
+   *     J06 → J08 → J09            a cópia já está no J09
+   *
+   * O parêntese é o que separa "já aconteceu" de "vai acontecer". Sem ele,
+   * quem lê a planilha entende que a NCR já está no J09.
+   */
   function caminhoDe(r) {
-    if (r.caminhoTxt == null) r.caminhoTxt = Fluxo.caminhoTexto(fluxoDe(r));
+    if (r.caminhoTxt == null) {
+      var base = Fluxo.caminhoTexto(fluxoDe(r));
+      var a = avancoDe(r);
+      if (a.destino && !passaPelo(fluxoDe(r), a.destino.chave)) {
+        var alvo = '(' + a.destino.rotulo + ')';
+        base = base ? base + ' \u2192 ' + alvo : alvo;
+      }
+      r.caminhoTxt = base;
+    }
     return r.caminhoTxt;
+  }
+
+  /** O desenho do fluxo já tem este marco? */
+  function passaPelo(analise, chave) {
+    if (!analise || analise.vazio) return false;
+    return (analise.nos || []).some(function (n) { return n.chave === chave; });
   }
 
   function fluxoDe(r) {
@@ -10053,18 +10111,29 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     return out;
   }
 
-  var VAZIO = { marco: '', tipo: '', situacao: '', sistema: '', archStatus: '',
+  /* `marcos` é uma lista de ids de relatório; vazia = todos. Era um campo só
+     (`marco`), de escolha única, e comparar dois marcos exigia trocar de
+     filtro e voltar. Filtro guardado de versão antiga com `marco` preenchido
+     continua valendo — `marcosDoFiltro` entende os dois. */
+  var VAZIO = { marcos: [], tipo: '', situacao: '', sistema: '', archStatus: '',
                 evidencia: '', busca: '', parados: false, comNota: false };
+
+  function marcosDoFiltro(f) {
+    if (!f) return [];
+    if (f.marcos && f.marcos.length) return f.marcos;
+    return txt(f.marco) ? [txt(f.marco)] : [];
+  }
 
   function algumFiltro(f) {
     if (!f) return false;
-    return !!(txt(f.marco) || txt(f.tipo) || txt(f.situacao) || txt(f.sistema) ||
+    return !!(marcosDoFiltro(f).length || txt(f.tipo) || txt(f.situacao) || txt(f.sistema) ||
       txt(f.archStatus) || txt(f.evidencia) || txt(f.busca) || f.parados || f.comNota);
   }
 
   function passa(r, f) {
     if (!f) return true;
-    if (txt(f.marco) && r.projetoId !== f.marco) return false;
+    var ms = marcosDoFiltro(f);
+    if (ms.length && ms.indexOf(r.projetoId) < 0) return false;
     if (f.parados && !Summary.estaParado(r.item)) return false;
     if (f.comNota && !txt(r.item.nota)) return false;
     /* os demais são exatamente os do Resumo: um filtro com o mesmo nome tem
@@ -10316,6 +10385,46 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     host.appendChild(barra);
 
     /* --- filtros --- */
+    /* Os marcos em pastilhas, numa linha própria: são a escolha mais usada e
+       a única em que faz sentido marcar várias ("o J08 e o J09 juntos"). As
+       mesmas pastilhas do filtro de situação do PDF e do "Passa por" da aba
+       Fluxos — a mesma ideia tem de ter a mesma cara no programa inteiro. */
+    var escolhidos = marcosDoFiltro(f);
+    var chips = el('div', 'tb-marcos');
+    chips.appendChild(el('span', 'tb-marcos-rot', 'Marcos'));
+    (projects || []).forEach(function (p) {
+      var n = (p.ncrs || []).length + (p.devs || []).length;
+      var ligado = escolhidos.indexOf(p.id) >= 0;
+      var b = el('button', 'tb-chip' + (ligado ? ' is-on' : ''),
+        p.marco || p.name || 'sem marco');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', ligado ? 'true' : 'false');
+      b.title = (ligado ? 'Tirar ' : 'Acrescentar ') + (p.marco || p.name) +
+        ' (' + n + ' item(ns)). Dá para marcar vários.';
+      b.appendChild(el('span', 'tb-chip-n', String(n)));
+      b.addEventListener('click', function () {
+        /* `marco` (escolha única, das versões anteriores) sai de cena assim
+           que alguém mexe aqui, senão os dois filtrariam ao mesmo tempo */
+        f.marco = '';
+        f.marcos = ligado
+          ? escolhidos.filter(function (id) { return id !== p.id; })
+          : escolhidos.concat([p.id]);
+        mudou(false);
+      });
+      chips.appendChild(b);
+    });
+    if (escolhidos.length) {
+      var limpa = el('button', 'btn btn--sm', 'todos os marcos');
+      limpa.type = 'button';
+      limpa.addEventListener('click', function () {
+        f.marco = '';
+        f.marcos = [];
+        mudou(false);
+      });
+      chips.appendChild(limpa);
+    }
+    if ((projects || []).length > 1) host.appendChild(chips);
+
     var fb = el('div', 'sm-filtros');
 
     var busca = el('div', 'sm-bar-field');
@@ -10332,18 +10441,6 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     });
     busca.appendChild(inp);
     fb.appendChild(busca);
-
-    var marcos = [{ valor: '', nome: 'todos os marcos' }].concat(
-      (projects || []).map(function (p) {
-        return {
-          valor: p.id,
-          nome: (p.marco || p.name || 'sem marco') +
-            ' (' + (p.ncrs.length + p.devs.length) + ')'
-        };
-      }));
-    fb.appendChild(campoSelect('Marco', f.marco, marcos, function (v) {
-      f.marco = v; mudou(false);
-    }, true));
 
     fb.appendChild(campoSelect('Tipo', f.tipo, [
       { valor: '', nome: 'NCR e DEV' },
@@ -10469,9 +10566,13 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   function descricaoDoFiltro(f, projects) {
     if (!algumFiltro(f)) return '';
     var ditos = [];
-    if (txt(f.marco)) {
-      var p = (projects || []).filter(function (x) { return x.id === f.marco; })[0];
-      ditos.push('marco: ' + (p ? (p.marco || p.name) : f.marco));
+    var ms = marcosDoFiltro(f);
+    if (ms.length) {
+      var nomes = ms.map(function (id) {
+        var p = (projects || []).filter(function (x) { return x.id === id; })[0];
+        return p ? (p.marco || p.name || 'sem marco') : id;
+      });
+      ditos.push((nomes.length === 1 ? 'marco: ' : 'marcos: ') + nomes.join(', '));
     }
     if (txt(f.tipo)) ditos.push('tipo: ' + (f.tipo === 'dev' ? 'DEV' : 'NCR'));
     if (txt(f.situacao)) ditos.push('situação: ' + f.situacao);

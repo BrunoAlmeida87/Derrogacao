@@ -524,9 +524,12 @@ NCR-018?* — sem abrir marco por marco.
 - **Busca geral**: varre todo o texto do item, não só o número. Procurar pelo
   certificado, por um trecho do *Arch Answer* ou pela legenda de uma foto
   funciona igual.
-- **Filtros**: marco, tipo, situação, sistema, *Arch Status*, com ou sem anexo,
-  e só os parados há 30+ dias. São os mesmos do Resumo, para os dois contarem
-  a mesma coisa.
+- **Marcos, em pastilhas**: clique para recortar, e **dá para marcar vários** —
+  J08 e J09 juntos, por exemplo. *todos os marcos* limpa. O número na pastilha
+  é quantos itens aquele relatório tem.
+- **Filtros**: tipo, situação, sistema, *Arch Status*, com ou sem anexo, e só
+  os parados há 30+ dias. São os mesmos do Resumo, para os dois contarem a
+  mesma coisa.
 - **A trajetória, em três colunas** — já vêm ligadas, e lidas ao lado de
   *Marco* contam a linha inteira:
 
@@ -543,6 +546,13 @@ NCR-018?* — sem abrir marco por marco.
 
   Ordenar por **Vai para** e filtrar por *Waiver accepted* dá a lista do que
   falta levar para o próximo marco.
+- **Caminho do waiver**: as duas pontas numa coluna só. O que está entre
+  parênteses ainda não aconteceu:
+
+  ```
+  J04 → J06 → J08 → (J09)    ainda não foi levada para o J09
+  J06 → J08 → J09            a cópia já está no J09
+  ```
 - **Colunas**: em **Colunas** você marca o que quer ver (são 30 no total, do
   número ao *Why not possible*) e usa as setas ↑ ↓ para mudar a ordem delas —
   na tela, no Excel e no PDF. A escolha fica guardada **neste navegador**.

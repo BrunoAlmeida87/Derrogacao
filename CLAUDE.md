@@ -544,6 +544,16 @@ Veio de  |  Marco  |  Vai para  |  Já levada?
 há o que levar, e um "não" ali seria cobrança de uma coisa que ainda não
 venceu.
 
+A coluna **"Caminho do waiver"** junta as duas pontas, e o parêntese separa o
+que aconteceu do que vai acontecer:
+
+```
+J04 → J06 → J08 → (J09)    o destino ainda não foi levado para lá
+J06 → J08 → J09            a cópia já está no J09
+```
+
+Sem o parêntese, quem lê a planilha entende que a NCR já está no J09.
+
 ### O painel de um marco (`painel.js`)
 A aba Fluxos responde "por onde passou". O painel responde a pergunta do outro
 lado do balcão, que é a que se leva para a reunião: **o que está chegando no
@@ -685,9 +695,17 @@ Aba opcional, desligada de saída, ligada em **Ajustes** (a escolha vive no
 Uma linha por item de **todos os relatórios**, não só do aberto — é a única
 tela que responde "onde está a NCR-018?" sem abrir marco por marco.
 
-- **Os filtros são os do Resumo** (`Summary.passa`), mais o marco. Um filtro com
-  o mesmo nome recortando coisas diferentes nas duas abas seria pior do que não
-  ter o filtro.
+- **Os filtros são os do Resumo** (`Summary.passa`), mais os marcos. Um filtro
+  com o mesmo nome recortando coisas diferentes nas duas abas seria pior do que
+  não ter o filtro.
+- **Os marcos são pastilhas, e dá para marcar vários** (`f.marcos`, lista de
+  ids). Era um `<select>` de escolha única, e comparar dois marcos obrigava a
+  trocar de filtro e voltar. As pastilhas são as mesmas do filtro de situação
+  do PDF e do "Passa por" da aba Fluxos: a mesma ideia tem de ter a mesma cara
+  no programa inteiro. `marcosDoFiltro(f)` entende também o `f.marco` antigo,
+  de escolha única, e o primeiro clique numa pastilha o zera — senão os dois
+  filtrariam ao mesmo tempo. Relatório vazio continua na fila, com o `0` à
+  vista: esconder um marco do filtro faria a pessoa procurar por ele.
 - **Colunas escolhidas e reordenadas** ficam no `localStorage`
   (`derrogacao:tabela`), com a ordenação junto: é preferência de quem está
   sentado ali, como a Conversa e o item ao lado. **O filtro não é guardado** —
