@@ -244,6 +244,35 @@ Backups gravados antes desta versão continuam abrindo normalmente — o que
 estava marcado como concluído entra como *Waiver accepted*, e o resto como
 *Em preenchimento*.
 
+## Exportar em PDF: escolher os relatórios e recortar por situação
+
+Em **Exportar PDF…** a janela tem duas escolhas:
+
+- **Relatórios** — marque um, vários, ou clique em **Marcar todos** para gerar
+  um arquivo único com todos em sequência. **Limpar** desmarca tudo.
+- **Situação dos itens** — clique nas pastilhas para imprimir **só** os itens
+  numa situação (por exemplo, só os *Waiver requested*, para mandar ao
+  arquiteto o que está pendente). Dá para marcar mais de uma. **Todas as
+  situações** volta ao relatório inteiro, que é como a janela sempre abre.
+
+Cada pastilha mostra quantos itens existem naquela situação, e cada relatório
+passa a dizer quantos itens dele entram no recorte. Relatório que fica sem
+nenhum é desmarcado sozinho — ele não geraria folha.
+
+**Quando há recorte, a capa avisa**, em inglês, logo abaixo do subtítulo:
+
+```
+Partial list — filtered by status: Waiver accepted.
+```
+
+Isso é de propósito: um *Waiver Request* parcial que não diz que é parcial
+acaba lido como o pedido inteiro. Sem filtro, a capa sai exatamente como
+sempre saiu.
+
+**O recorte não fica guardado**: fechou a janela, na próxima vez ela abre
+outra vez com o relatório inteiro. Assim ninguém exporta meio relatório sem
+perceber.
+
 ## Ver o que o programa está fazendo (console)
 
 Aperte **F12** e abra a aba **Console**. O programa escreve ali, em português,
@@ -677,6 +706,34 @@ ocupando, dividido entre dados, imagens e histórico.
   pasta — senão apagaria, em silêncio, os campos que ainda não conhece. O aviso
   aparece na tela e na janela da pasta, e basta recarregar a página (Ctrl+F5)
   para voltar ao normal.
+
+### Duas pessoas mexendo ao mesmo tempo
+
+Isto funciona, e vale saber como — porque até esta versão havia um buraco aqui.
+
+Quando você e um colega mexem no mesmo item ao mesmo tempo:
+
+- **Campos diferentes** (você no *Arch Answer*, ele no *Current Situation*):
+  os dois textos ficam. Ninguém perde nada.
+- **O mesmo campo**: um vence pelo horário, e **o texto que saiu vai para o
+  Histórico do texto**, com um botão para pôr de volta. A tela avisa, e o
+  console também.
+- **Enquanto você digita**: a tela pode se atualizar para mostrar o que o
+  colega escreveu — mas **o cursor fica onde estava**. Antes desta versão o
+  campo era recriado e o teclado deixava de escrever nele; se você já viu isso
+  acontecer, era esse defeito.
+
+O que estava errado, e foi consertado: a pasta não tem trava de arquivo. Entre
+o programa ler a pasta e gravar nela, o colega pode gravar uma cópia que nunca
+viu o que você acabou de escrever, e o arquivo dele passa por cima. Isso, por
+si, não era grave — o seu texto continuava no seu computador. O problema é que
+o programa passava a **acreditar** que a pasta tinha o seu texto, e na rodada
+seguinte concluía "o colega apagou isso" — e apagava de vez.
+
+Agora cada gravação anota de qual versão do arquivo ela partiu, e o programa
+sabe distinguir "ele apagou" de "ele nunca viu". No segundo caso o seu texto é
+**regravado**, não apagado, e as duas máquinas voltam a convergir. Você vê no
+console: *"a cópia que chegou não viu a minha última gravação"*.
 
 ### A regra de quem vence
 

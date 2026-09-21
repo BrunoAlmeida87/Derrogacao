@@ -2617,3 +2617,44 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .rep-page--painel .pn-duplo { align-items: stretch; }
 .rep-page--painel .pn-duplo .pn-card { display: flex; flex-direction: column; }
 .rep-page--painel .pn-duplo .sm-chart { margin-top: auto; margin-bottom: auto; }
+
+/* ==========================================================================
+   Janela de exportar PDF: escolher relatórios e recortar por situação
+   ========================================================================== */
+
+.pick-head {
+  display: flex; align-items: baseline; gap: 10px;
+  margin: 14px 0 6px;
+}
+.pick-head:first-of-type { margin-top: 4px; }
+.pick-head-rot {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); font-weight: 700;
+}
+.pick-head-acoes { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+
+.pick-sit { display: flex; gap: 8px; flex-wrap: wrap; }
+/* a mesma pastilha da lista e do resumo: a cor da situação é a mesma em
+   todo o programa, senão cada tela ensina uma coisa */
+.sit-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--st, var(--line));
+  border-radius: 999px;
+  background: #fff; color: var(--ink);
+  font-size: 12px; cursor: pointer;
+}
+.sit-chip:hover { background: #f6f7f9; }
+.sit-chip.is-on {
+  background: var(--st, #eef1f6);
+  border-color: var(--st, var(--line));
+  color: #fff; font-weight: 600;
+}
+.sit-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sit-chip-n {
+  font-variant-numeric: tabular-nums;
+  background: rgba(0, 0, 0, .12);
+  border-radius: 999px; padding: 0 6px; font-size: 11px;
+}
+.sit-chip.is-on .sit-chip-n { background: rgba(255, 255, 255, .28); }

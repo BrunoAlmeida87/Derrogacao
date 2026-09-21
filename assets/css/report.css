@@ -99,6 +99,17 @@
   text-decoration: underline;
 }
 
+/* Aviso de recorte — só aparece quando a exportação foi filtrada por
+   situação. Sem filtro a capa sai exatamente como sempre saiu (§2). */
+.rep-cover-recorte {
+  margin: 0 0 4mm;
+  padding: 1.5mm 2.5mm;
+  border-left: 1mm solid #d9a441;
+  background: #fdf4e3;
+  font-size: 9pt;
+  color: #6b4400;
+}
+
 /* data de emissão, no pé da capa */
 .rep-cover-date {
   margin-top: auto;

@@ -1279,12 +1279,18 @@
    * - `diario` é o que o histórico de alterações já contou. Avança a cada
    *   captura, com ou sem pasta, para a mesma escrita não virar vinte linhas.
    */
-  function saveBase(mapa, diario) {
+  function saveBase(mapa, diario, lida, carimbo) {
     return openDb().then(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(SNAP_STORE, 'readwrite');
         tx.objectStore(SNAP_STORE).put({
-          id: BASE_ID, at: nowIso(), base: mapa || {}, diario: diario || {}
+          id: BASE_ID, at: nowIso(), base: mapa || {}, diario: diario || {},
+          /* o que a pasta TINHA quando eu li, na mesma rodada — a base que
+             vale quando a minha gravação foi atropelada (ver `sincronizar`) */
+          lida: lida || {},
+          /* lastModified da minha última gravação: é por ele que a rodada
+             seguinte sabe se o arquivo da pasta ainda é o meu */
+          carimbo: Number(carimbo) || 0
         });
         tx.oncomplete = function () { resolve(true); };
         tx.onerror = function () { reject(tx.error); };
@@ -1304,7 +1310,8 @@
         var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).get(BASE_ID);
         req.onsuccess = function () {
           var r = req.result;
-          resolve(r ? { base: r.base || null, diario: r.diario || null } : null);
+          resolve(r ? { base: r.base || null, diario: r.diario || null,
+                        lida: r.lida || null, carimbo: Number(r.carimbo) || 0 } : null);
         };
         req.onerror = function () { reject(req.error); };
       });

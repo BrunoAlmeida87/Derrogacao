@@ -35,6 +35,8 @@
   }
 
   function nome() { return handle ? handle.name : ''; }
+  /** lastModified da última leitura ou gravação feita por esta sessão. */
+  function carimbo() { return ultimaLeitura; }
   function ligada() { return !!handle; }
 
   /* --- permissão ---------------------------------------------------------- */
@@ -245,7 +247,9 @@
       .then(function (file) {
         ultimaLeitura = file.lastModified;
         Log.detalhe('pasta', 'gravado ' + ARQUIVO, { bytes: texto.length });
-        return true;
+        /* o carimbo da MINHA gravação: é com ele que a rodada seguinte sabe
+           se o arquivo que está lá ainda é o meu (ver `sincronizar`) */
+        return file.lastModified;
       });
   }
 
@@ -562,6 +566,7 @@
     lerConversas: lerConversas,
     gravarConversas: gravarConversas,
     explicar: explicar,
+    carimbo: carimbo,
     lerRevisoes: lerRevisoes,
     gravarRevisoes: gravarRevisoes,
     CONVERSAS: CONVERSAS,

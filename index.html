@@ -281,9 +281,25 @@
   <div class="dlg-body">
     <h3>Exportar para PDF</h3>
     <p>Marque os relatórios que quer gerar. Um só gera o arquivo isolado;
-       vários geram um arquivo único com todos em sequência.</p>
+       vários geram um arquivo único com todos em sequência. Em
+       <strong>Situação dos itens</strong> dá para imprimir só o que está numa
+       situação — por exemplo, só os <em>Waiver requested</em>.</p>
 
+    <div class="pick-head">
+      <span class="pick-head-rot">Relatórios</span>
+      <span class="pick-head-acoes">
+        <button class="btn btn--sm" id="pdfTodosBtn" type="button">Marcar todos</button>
+        <button class="btn btn--sm" id="pdfNenhumBtn" type="button">Limpar</button>
+      </span>
+    </div>
     <div id="pdfPick" class="pick-list"></div>
+
+    <div class="pick-head">
+      <span class="pick-head-rot">Situação dos itens</span>
+      <span class="pick-head-acoes" id="pdfSitAcoes"></span>
+    </div>
+    <div id="pdfSituacoes" class="pick-sit"></div>
+
     <p class="pick-summary" id="pdfSummary"></p>
     <p class="dlg-folhas" id="pdfFolhas" hidden></p>
     <div id="pdfGaps" class="dlg-gaps" hidden></div>

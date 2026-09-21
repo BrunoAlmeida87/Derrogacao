@@ -59,8 +59,15 @@
 
   /** Itens da aba. */
   /* A ordem escolhida no editor é a ordem das páginas: índice da capa,
-     páginas das NCRs e páginas de evidência, tudo na mesma sequência. */
-  function items(project, kind) { return Store.ordenar(project, kind); }
+     páginas das NCRs e páginas de evidência, tudo na mesma sequência.
+
+     `filtro` recorta quem entra na folha — hoje é a situação do item, escolhida
+     na janela de exportação. Ele atravessa a capa, as páginas e as evidências
+     pelo mesmo caminho, senão o índice prometeria uma página que não existe. */
+  function items(project, kind, filtro) {
+    var lista = Store.ordenar(project, kind);
+    return filtro ? lista.filter(filtro) : lista;
+  }
 
   /** Marco da aba — a DEV cai no marco geral quando não tem um próprio. */
   function marcoOf(project, kind) {
@@ -296,7 +303,7 @@
 
   /* --- capa / índice ---------------------------------------------------- */
 
-  function buildCover(project, kind, scope) {
+  function buildCover(project, kind, scope, opts) {
     var c = conf(kind);
     var p = page(false);
     p.id = anchorCover(scope);
@@ -305,11 +312,19 @@
     p.appendChild(el('div', 'rep-cover-title', (title + ' ' + marcoOf(project, kind)).trim()));
     p.appendChild(el('div', 'rep-cover-subtitle', project.coverSubtitle || 'List of Waiver Requested :'));
 
+    /* Relatório recortado tem de dizer que está recortado, na própria folha.
+       Um waiver request parcial que não se anuncia é lido como o pedido
+       inteiro — e é a mesma regra da aba "Recorte" das planilhas (§10).
+       Sem filtro, nada é acrescentado: a folha sai idêntica à de sempre. */
+    if (opts && opts.recorte) {
+      p.appendChild(el('div', 'rep-cover-recorte', opts.recorte));
+    }
+
     var list = el('div', 'rep-index');
     /* o índice é a parte que cresce: cada linha pode mudar de folha */
     list.setAttribute('data-fluido', '');
     list.setAttribute('data-lista', '');
-    var rows = items(project, kind);
+    var rows = items(project, kind, opts && opts.filtro);
     rows.forEach(function (ncr) {
       var item = el('p', 'rep-index-item');
       var a = el('a', null, (ncr.ncrId || '(sem número)'));
@@ -487,7 +502,7 @@
     var medida = abrirMedida(root);
     var folhas = [];
     try {
-      var capa = buildCover(project, kind, scope);
+      var capa = buildCover(project, kind, scope, opts);
       var fazCapa = function () { return capaContinuacao(capa.titulo); };
       root.appendChild(capa.pag);
       var pagsCapa = paginar(capa.pag, root, fazCapa);
@@ -497,7 +512,7 @@
         paginar(ultima, root, fazCapa);
       }
 
-      items(project, kind).forEach(function (ncr) {
+      items(project, kind, opts && opts.filtro).forEach(function (ncr) {
         var info = buildNcrPage(project, ncr, kind, scope);
         root.appendChild(info.pag);
         var pags = paginar(info.pag, root, function () { return itemContinuacao(info); }, info.rodape);
@@ -522,12 +537,16 @@
   function itensLongos() { return ultimaContagem.slice(); }
 
   /** Monta vários relatórios em sequência, cada um começando na sua capa. */
-  function buildMany(selection, target) {
+  function buildMany(selection, target, opts) {
     var root = target || document.createElement('div');
     root.innerHTML = '';
     zerarContagem();
     selection.forEach(function (sel) {
-      build(sel.project, root, sel.kind, { append: true });
+      build(sel.project, root, sel.kind, {
+        append: true,
+        filtro: opts && opts.filtro,
+        recorte: opts && opts.recorte
+      });
     });
     return root;
   }

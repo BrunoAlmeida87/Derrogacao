@@ -2633,6 +2633,47 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .rep-page--painel .pn-duplo .pn-card { display: flex; flex-direction: column; }
 .rep-page--painel .pn-duplo .sm-chart { margin-top: auto; margin-bottom: auto; }
 
+/* ==========================================================================
+   Janela de exportar PDF: escolher relatórios e recortar por situação
+   ========================================================================== */
+
+.pick-head {
+  display: flex; align-items: baseline; gap: 10px;
+  margin: 14px 0 6px;
+}
+.pick-head:first-of-type { margin-top: 4px; }
+.pick-head-rot {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); font-weight: 700;
+}
+.pick-head-acoes { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+
+.pick-sit { display: flex; gap: 8px; flex-wrap: wrap; }
+/* a mesma pastilha da lista e do resumo: a cor da situação é a mesma em
+   todo o programa, senão cada tela ensina uma coisa */
+.sit-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--st, var(--line));
+  border-radius: 999px;
+  background: #fff; color: var(--ink);
+  font-size: 12px; cursor: pointer;
+}
+.sit-chip:hover { background: #f6f7f9; }
+.sit-chip.is-on {
+  background: var(--st, #eef1f6);
+  border-color: var(--st, var(--line));
+  color: #fff; font-weight: 600;
+}
+.sit-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sit-chip-n {
+  font-variant-numeric: tabular-nums;
+  background: rgba(0, 0, 0, .12);
+  border-radius: 999px; padding: 0 6px; font-size: 11px;
+}
+.sit-chip.is-on .sit-chip-n { background: rgba(255, 255, 255, .28); }
+
 </style>
 <style>
 /* assets/css/report.css */
@@ -2735,6 +2776,17 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .rep-index-item a {
   color: var(--rep-link);
   text-decoration: underline;
+}
+
+/* Aviso de recorte — só aparece quando a exportação foi filtrada por
+   situação. Sem filtro a capa sai exatamente como sempre saiu (§2). */
+.rep-cover-recorte {
+  margin: 0 0 4mm;
+  padding: 1.5mm 2.5mm;
+  border-left: 1mm solid #d9a441;
+  background: #fdf4e3;
+  font-size: 9pt;
+  color: #6b4400;
 }
 
 /* data de emissão, no pé da capa */
@@ -3228,9 +3280,25 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   <div class="dlg-body">
     <h3>Exportar para PDF</h3>
     <p>Marque os relatórios que quer gerar. Um só gera o arquivo isolado;
-       vários geram um arquivo único com todos em sequência.</p>
+       vários geram um arquivo único com todos em sequência. Em
+       <strong>Situação dos itens</strong> dá para imprimir só o que está numa
+       situação — por exemplo, só os <em>Waiver requested</em>.</p>
 
+    <div class="pick-head">
+      <span class="pick-head-rot">Relatórios</span>
+      <span class="pick-head-acoes">
+        <button class="btn btn--sm" id="pdfTodosBtn" type="button">Marcar todos</button>
+        <button class="btn btn--sm" id="pdfNenhumBtn" type="button">Limpar</button>
+      </span>
+    </div>
     <div id="pdfPick" class="pick-list"></div>
+
+    <div class="pick-head">
+      <span class="pick-head-rot">Situação dos itens</span>
+      <span class="pick-head-acoes" id="pdfSitAcoes"></span>
+    </div>
+    <div id="pdfSituacoes" class="pick-sit"></div>
+
     <p class="pick-summary" id="pdfSummary"></p>
     <p class="dlg-folhas" id="pdfFolhas" hidden></p>
     <div id="pdfGaps" class="dlg-gaps" hidden></div>
@@ -5074,12 +5142,18 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
    * - `diario` é o que o histórico de alterações já contou. Avança a cada
    *   captura, com ou sem pasta, para a mesma escrita não virar vinte linhas.
    */
-  function saveBase(mapa, diario) {
+  function saveBase(mapa, diario, lida, carimbo) {
     return openDb().then(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(SNAP_STORE, 'readwrite');
         tx.objectStore(SNAP_STORE).put({
-          id: BASE_ID, at: nowIso(), base: mapa || {}, diario: diario || {}
+          id: BASE_ID, at: nowIso(), base: mapa || {}, diario: diario || {},
+          /* o que a pasta TINHA quando eu li, na mesma rodada — a base que
+             vale quando a minha gravação foi atropelada (ver `sincronizar`) */
+          lida: lida || {},
+          /* lastModified da minha última gravação: é por ele que a rodada
+             seguinte sabe se o arquivo da pasta ainda é o meu */
+          carimbo: Number(carimbo) || 0
         });
         tx.oncomplete = function () { resolve(true); };
         tx.onerror = function () { reject(tx.error); };
@@ -5099,7 +5173,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).get(BASE_ID);
         req.onsuccess = function () {
           var r = req.result;
-          resolve(r ? { base: r.base || null, diario: r.diario || null } : null);
+          resolve(r ? { base: r.base || null, diario: r.diario || null,
+                        lida: r.lida || null, carimbo: Number(r.carimbo) || 0 } : null);
         };
         req.onerror = function () { reject(req.error); };
       });
@@ -5699,6 +5774,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   }
 
   function nome() { return handle ? handle.name : ''; }
+  /** lastModified da última leitura ou gravação feita por esta sessão. */
+  function carimbo() { return ultimaLeitura; }
   function ligada() { return !!handle; }
 
   /* --- permissão ---------------------------------------------------------- */
@@ -5909,7 +5986,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       .then(function (file) {
         ultimaLeitura = file.lastModified;
         Log.detalhe('pasta', 'gravado ' + ARQUIVO, { bytes: texto.length });
-        return true;
+        /* o carimbo da MINHA gravação: é com ele que a rodada seguinte sabe
+           se o arquivo que está lá ainda é o meu (ver `sincronizar`) */
+        return file.lastModified;
       });
   }
 
@@ -6226,6 +6305,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     lerConversas: lerConversas,
     gravarConversas: gravarConversas,
     explicar: explicar,
+    carimbo: carimbo,
     lerRevisoes: lerRevisoes,
     gravarRevisoes: gravarRevisoes,
     CONVERSAS: CONVERSAS,
@@ -6304,8 +6384,15 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 
   /** Itens da aba. */
   /* A ordem escolhida no editor é a ordem das páginas: índice da capa,
-     páginas das NCRs e páginas de evidência, tudo na mesma sequência. */
-  function items(project, kind) { return Store.ordenar(project, kind); }
+     páginas das NCRs e páginas de evidência, tudo na mesma sequência.
+
+     `filtro` recorta quem entra na folha — hoje é a situação do item, escolhida
+     na janela de exportação. Ele atravessa a capa, as páginas e as evidências
+     pelo mesmo caminho, senão o índice prometeria uma página que não existe. */
+  function items(project, kind, filtro) {
+    var lista = Store.ordenar(project, kind);
+    return filtro ? lista.filter(filtro) : lista;
+  }
 
   /** Marco da aba — a DEV cai no marco geral quando não tem um próprio. */
   function marcoOf(project, kind) {
@@ -6541,7 +6628,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 
   /* --- capa / índice ---------------------------------------------------- */
 
-  function buildCover(project, kind, scope) {
+  function buildCover(project, kind, scope, opts) {
     var c = conf(kind);
     var p = page(false);
     p.id = anchorCover(scope);
@@ -6550,11 +6637,19 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     p.appendChild(el('div', 'rep-cover-title', (title + ' ' + marcoOf(project, kind)).trim()));
     p.appendChild(el('div', 'rep-cover-subtitle', project.coverSubtitle || 'List of Waiver Requested :'));
 
+    /* Relatório recortado tem de dizer que está recortado, na própria folha.
+       Um waiver request parcial que não se anuncia é lido como o pedido
+       inteiro — e é a mesma regra da aba "Recorte" das planilhas (§10).
+       Sem filtro, nada é acrescentado: a folha sai idêntica à de sempre. */
+    if (opts && opts.recorte) {
+      p.appendChild(el('div', 'rep-cover-recorte', opts.recorte));
+    }
+
     var list = el('div', 'rep-index');
     /* o índice é a parte que cresce: cada linha pode mudar de folha */
     list.setAttribute('data-fluido', '');
     list.setAttribute('data-lista', '');
-    var rows = items(project, kind);
+    var rows = items(project, kind, opts && opts.filtro);
     rows.forEach(function (ncr) {
       var item = el('p', 'rep-index-item');
       var a = el('a', null, (ncr.ncrId || '(sem número)'));
@@ -6732,7 +6827,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     var medida = abrirMedida(root);
     var folhas = [];
     try {
-      var capa = buildCover(project, kind, scope);
+      var capa = buildCover(project, kind, scope, opts);
       var fazCapa = function () { return capaContinuacao(capa.titulo); };
       root.appendChild(capa.pag);
       var pagsCapa = paginar(capa.pag, root, fazCapa);
@@ -6742,7 +6837,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         paginar(ultima, root, fazCapa);
       }
 
-      items(project, kind).forEach(function (ncr) {
+      items(project, kind, opts && opts.filtro).forEach(function (ncr) {
         var info = buildNcrPage(project, ncr, kind, scope);
         root.appendChild(info.pag);
         var pags = paginar(info.pag, root, function () { return itemContinuacao(info); }, info.rodape);
@@ -6767,12 +6862,16 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   function itensLongos() { return ultimaContagem.slice(); }
 
   /** Monta vários relatórios em sequência, cada um começando na sua capa. */
-  function buildMany(selection, target) {
+  function buildMany(selection, target, opts) {
     var root = target || document.createElement('div');
     root.innerHTML = '';
     zerarContagem();
     selection.forEach(function (sel) {
-      build(sel.project, root, sel.kind, { append: true });
+      build(sel.project, root, sel.kind, {
+        append: true,
+        filtro: opts && opts.filtro,
+        recorte: opts && opts.recorte
+      });
     });
     return root;
   }
@@ -12693,8 +12792,45 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     return c;
   }
 
+  /**
+   * Onde o cursor estava, para voltar ao mesmo lugar depois de redesenhar.
+   *
+   * Redesenhar o editor quando o colega muda o item aberto é obrigatório —
+   * deixar o texto velho à vista faria a tecla seguinte gravar por cima do
+   * que ele escreveu. O preço, até agora, era brutal: o `innerHTML = ''`
+   * destrói o campo que está em uso, o foco volta para o corpo da página e
+   * **as teclas seguintes não vão para lugar nenhum**. Quem estava escrevendo
+   * continuava escrevendo no vazio — era isto que o Bruno via como "a tela
+   * fica atualizando e às vezes perdemos dados".
+   *
+   * Os campos têm id fixo (`f-<campo>`), então dá para achar o mesmo campo no
+   * editor novo e devolver o cursor à mesma posição.
+   */
+  function guardarCursor() {
+    var a = document.activeElement;
+    if (!a || !a.id || !$('#editorScroll').contains(a)) return null;
+    var pos = null;
+    try { pos = { ini: a.selectionStart, fim: a.selectionEnd }; } catch (e) { /* não é campo de texto */ }
+    return { id: a.id, pos: pos, rolagem: $('#editorScroll').scrollTop };
+  }
+
+  function devolverCursor(marca) {
+    if (!marca) return;
+    var campo = document.getElementById(marca.id);
+    if (!campo) return;
+    $('#editorScroll').scrollTop = marca.rolagem;
+    try {
+      campo.focus({ preventScroll: true });
+      if (marca.pos && campo.setSelectionRange) {
+        var fim = campo.value.length;
+        campo.setSelectionRange(Math.min(marca.pos.ini, fim), Math.min(marca.pos.fim, fim));
+      }
+    } catch (e) { /* campo que não aceita seleção: o foco já basta */ }
+  }
+
   function renderEditor() {
     var host = $('#editorScroll');
+    var cursor = guardarCursor();
     host.innerHTML = '';
     var ncr = currentNcr();
 
@@ -12708,6 +12844,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       host.appendChild(empty);
       return;
     }
+    /* de aqui em diante o editor é montado; o cursor volta no fim */
 
     /* A faixa de herdada vem antes de tudo: é a primeira coisa a saber sobre
        um item que chegou pronto de outro marco. */
@@ -12870,6 +13007,11 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     if (travado(ncr)) aplicarTrava(host);
     var mudanca = mudancasDeFora[ncr.id];
     if (mudanca) host.insertBefore(barraMudouPorFora(mudanca), host.firstChild);
+
+    /* O cursor volta para onde estava — por último, com tudo montado e as
+       travas já aplicadas (um campo travado não aceita foco, e tentar antes
+       o deixaria no lugar errado). */
+    devolverCursor(cursor);
   }
 
   /* Item aceito é documento fechado: um clique distraído num campo dele se
@@ -14582,14 +14724,14 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 
   function buildPrintRoot(picked) {
     var root = $('#printRoot');
-    Report.buildMany(picked, root);
+    Report.buildMany(picked, root, opcoesDoPdf());
     return root;
   }
 
   function openPreview() {
     if (!state.project) return;
     var stage = $('#previewStage');
-    Report.build(state.project, stage, state.kind);
+    Report.build(state.project, stage, state.kind, opcoesDoPdf());
     $('#previewKind').textContent = 'Relatório de ' + kindName();
     $('#preview').hidden = false;
     document.body.style.overflow = 'hidden';
@@ -14635,8 +14777,117 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     return out;
   }
 
+  /* Quais situações entram no PDF. Vazio = todas, que é como a janela abre:
+     o relatório completo continua sendo o caminho de um clique, e o recorte é
+     uma escolha explícita. Não fica guardado entre aberturas, pelo mesmo
+     motivo do filtro da Tabela — reabrir e exportar sem perceber que está
+     filtrado seria mandar meio relatório para o cliente. */
+  var pdfSituacoes = [];
+
+  /** O filtro que o report.js aplica, ou null quando é o relatório inteiro. */
+  function filtroDeSituacao() {
+    if (!pdfSituacoes.length) return null;
+    var alvo = pdfSituacoes.slice();
+    return function (item) {
+      return alvo.indexOf(Store.statusInfo(item.status).id) >= 0;
+    };
+  }
+
+  /** A frase que vai impressa na capa quando há recorte. */
+  function recorteDoPdf() {
+    if (!pdfSituacoes.length) return '';
+    var nomes = Store.STATUS.filter(function (o) { return pdfSituacoes.indexOf(o.id) >= 0; })
+      .map(function (o) { return o.en || o.nome; });
+    return 'Partial list — filtered by status: ' + nomes.join(', ') + '.';
+  }
+
+  function opcoesDoPdf() {
+    return { filtro: filtroDeSituacao(), recorte: recorteDoPdf() };
+  }
+
+  /** Quantos itens de um relatório passam no filtro de situação. */
+  function quantosNoRecorte(project, kind) {
+    var f = filtroDeSituacao();
+    var lista = project[Store.itemsKey(kind)] || [];
+    return f ? lista.filter(f).length : lista.length;
+  }
+
+  function renderSituacoesDoPdf() {
+    var host = $('#pdfSituacoes');
+    host.innerHTML = '';
+    Store.STATUS.forEach(function (op) {
+      var ligado = pdfSituacoes.indexOf(op.id) >= 0;
+      var n = 0;
+      state.projects.forEach(function (p) {
+        ['ncr', 'dev'].forEach(function (k) {
+          (p[Store.itemsKey(k)] || []).forEach(function (it) {
+            if (Store.statusInfo(it.status).id === op.id) n++;
+          });
+        });
+      });
+      var b = el('button', 'sit-chip' + (ligado ? ' is-on' : ''), op.nome);
+      b.type = 'button';
+      b.style.setProperty('--st', op.cor);
+      b.setAttribute('aria-pressed', ligado ? 'true' : 'false');
+      b.title = ligado
+        ? 'Tirar “' + op.nome + '” do PDF'
+        : 'Imprimir só os itens em “' + op.nome + '” (' + n + ' no total)';
+      b.appendChild(el('span', 'sit-chip-n', String(n)));
+      b.addEventListener('click', function () {
+        pdfSituacoes = ligado
+          ? pdfSituacoes.filter(function (x) { return x !== op.id; })
+          : pdfSituacoes.concat([op.id]);
+        renderSituacoesDoPdf();
+        redesenharEscolhaDoPdf();
+        updatePickSummary();
+      });
+      host.appendChild(b);
+    });
+
+    var acoes = $('#pdfSitAcoes');
+    acoes.innerHTML = '';
+    var todas = el('button', 'btn btn--sm' + (pdfSituacoes.length ? '' : ' btn--primary'),
+      'Todas as situações');
+    todas.type = 'button';
+    todas.title = 'O relatório inteiro, como sempre foi';
+    todas.addEventListener('click', function () {
+      pdfSituacoes = [];
+      renderSituacoesDoPdf();
+      redesenharEscolhaDoPdf();
+      updatePickSummary();
+    });
+    acoes.appendChild(todas);
+  }
+
+  /** Atualiza as contagens das linhas quando o filtro muda. */
+  function redesenharEscolhaDoPdf() {
+    $$('.pick-cb').forEach(function (cb) {
+      var p = state.projects.filter(function (x) { return x.id === cb.dataset.pid; })[0];
+      if (!p) return;
+      var n = quantosNoRecorte(p, cb.dataset.kind);
+      var linha = cb.parentNode;
+      var sub = $('.pick-row-sub', linha);
+      var total = (p[Store.itemsKey(cb.dataset.kind)] || []).length;
+      if (sub) {
+        sub.textContent = !total ? 'sem itens'
+          : (pdfSituacoes.length
+            ? n + ' de ' + total + ' item(ns) neste recorte'
+            : total + (total === 1 ? ' item' : ' itens') + ' · ' + (total + 1) + ' páginas ou mais');
+      }
+      /* relatório que ficou sem nenhum item no recorte não gera folha */
+      cb.disabled = !n;
+      linha.classList.toggle('is-empty', !n);
+      if (!n) cb.checked = false;
+    });
+  }
+
   function exportPdf() {
     if (!state.project) return;
+    /* O recorte NÃO sobrevive ao fechar a janela, de propósito, e pelo mesmo
+       motivo do filtro da aba Tabela: reabrir e exportar sem perceber que
+       ainda está filtrado é mandar meio Waiver Request para o cliente. Quem
+       quer o recorte escolhe de novo — são dois cliques. */
+    pdfSituacoes = [];
     var list = availableReports();
     var body = $('#pdfPick');
     body.innerHTML = '';
@@ -14679,6 +14930,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       body.appendChild(group);
     });
 
+    renderSituacoesDoPdf();
+    redesenharEscolhaDoPdf();
     updatePickSummary();
     $$('.pick-cb', body).forEach(function (cb) {
       cb.addEventListener('change', updatePickSummary);
@@ -14702,12 +14955,24 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   function updatePickSummary() {
     var picked = pickedReports();
     var n = picked.length;
-    $('#pdfGoBtn').disabled = n === 0;
-    $('#pdfSummary').textContent = n === 0
+    var itens = 0;
+    picked.forEach(function (r) { itens += quantosNoRecorte(r.project, r.kind); });
+    $('#pdfGoBtn').disabled = n === 0 || itens === 0;
+    var base = n === 0
       ? 'Marque pelo menos um relatório.'
       : (n === 1
-        ? 'Um arquivo com o relatório escolhido.'
-        : 'Um único arquivo com os ' + n + ' relatórios, em sequência.');
+        ? 'Um arquivo com o relatório escolhido'
+        : 'Um único arquivo com os ' + n + ' relatórios, em sequência');
+    if (n === 0) {
+      $('#pdfSummary').textContent = base;
+    } else if (!pdfSituacoes.length) {
+      $('#pdfSummary').textContent = base + ' — ' + itens + ' item(ns), todos.';
+    } else {
+      $('#pdfSummary').textContent = base + ' — só os itens em ' +
+        Store.STATUS.filter(function (o) { return pdfSituacoes.indexOf(o.id) >= 0; })
+          .map(function (o) { return '“' + o.nome + '”'; }).join(' e ') +
+        ': ' + itens + ' item(ns). A capa vai dizer que é uma lista parcial.';
+    }
     renderGaps(picked);
     agendarContagemFolhas(picked);
   }
@@ -15200,8 +15465,11 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   var versaoDesatualizada = false;
   /* As duas bases de comparação (ver Store.saveBase): `mesclaBase` é o que
      já está na pasta, `baseDiario` é o que o histórico já registrou. */
-  var mesclaBase = null;
-  var baseDiario = null;
+  var mesclaBase = null;   /* o que EU gravei na pasta na última rodada */
+  var baseLida = null;     /* o que a PASTA tinha quando eu li, na mesma rodada */
+  var baseDiario = null;   /* o meu estado na última captura do histórico */
+  var meuCarimbo = 0;      /* lastModified da minha última gravação */
+  var carimboLido = 0;     /* lastModified do arquivo de que esta junção partiu */
   var revisoes = [];
   var sincronizandoRevisoes = false;
   var avisouRelogio = false;
@@ -15302,6 +15570,12 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       caminho: pastaCaminho,
       updatedAt: new Date().toISOString(),
       updatedBy: Store.getUser(),
+      /* De qual versão do arquivo esta gravação partiu (o lastModified que o
+         disco deu). É o que permite ao colega saber, na rodada dele, se a
+         minha cópia chegou a ver a gravação dele — ver `sincronizar`. Uma
+         versão antiga do programa não escreve este campo; nesse caso a regra
+         volta a ser a de antes, que é o que já existia. */
+      baseadoEm: carimboLido,
       /* sem isto a exclusão de um relatório não alcançaria os outros */
       relatoriosExcluidos: Store.lapidesProjeto(),
       projects: copia
@@ -15410,7 +15684,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   }
 
   function guardarBases() {
-    return Store.saveBase(mesclaBase || {}, baseDiario || {});
+    return Store.saveBase(mesclaBase || {}, baseDiario || {}, baseLida || {}, meuCarimbo);
   }
 
   /** Troca o diário com a pasta: união pelo id, como a conversa. */
@@ -15497,6 +15771,11 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     var assinaturaAntes = abertoAntes ? Store.signature(abertoAntes) : null;
     var idAberto = abertoAntes ? abertoAntes.id : null;
 
+    /* O retrato do que a PASTA tinha nesta leitura. Vira `baseLida` só
+       quando a gravação der certo, junto com a outra base: as duas descrevem
+       a mesma rodada e não podem andar separadas. */
+    var lidaNestaRodada = null;
+
     /* Preenchido assim que a junção é aplicada na memória. Se a gravação
        falhar depois disso, o resultado ainda precisa ser salvo aqui e posto
        na tela: abandoná-lo deixaria o formulário mostrando um texto que já
@@ -15528,11 +15807,19 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
           Log.detalhe('pasta', 'gravando o arquivo de dados');
           return Pasta.gravar(montaPayload());
         })
+        .then(function (carimbo) { meuCarimbo = Number(carimbo) || Pasta.carimbo(); })
         .then(function () {
-          /* Gravou: o que está aqui é agora o que está na pasta, e passa a
-             ser a base de comparação da próxima junção. */
+          /* Gravou: o que está aqui é o que a pasta passa a ter, e é a base
+             da junção seguinte. Isto NÃO é o erro do §6 — lá o problema era
+             avançar a base ANTES da gravação. Aqui a gravação já deu certo.
+
+             O que a gravação não garante é ter SOBREVIVIDO: sem trava de
+             arquivo, o colega pode gravar por cima um instante depois. É para
+             esse caso que existe a segunda base, `baseLida` — ver `baseUtil`
+             no store.js. */
           mesclaBase = Store.baseDe(state.projects);
           baseDiario = mesclaBase;
+          if (lidaNestaRodada) baseLida = lidaNestaRodada;
           return guardarBases();
         })
         .then(function () { return sincronizarRevisoes(); })
@@ -15591,10 +15878,63 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         return antes
           .then(function () { return hidratarImagens(r.dados); })
           .then(function () {
+            lidaNestaRodada = Store.baseDe((r.dados.projects || []).map(Store.normalizeProject));
+
+            /* ----------------------------------------------------------------
+               QUAL DAS DUAS BASES VALE NESTA RODADA.
+
+               Este é o conserto do que o Bruno relatou: duas pessoas mexendo
+               ao mesmo tempo, e alguém perdendo texto ou situação.
+
+               A terceira ponta da mesclagem é "o que os dois tinham em comum".
+               Até aqui ela era sempre `mesclaBase` — o que EU gravei na rodada
+               passada. Está certo quando a minha gravação sobreviveu. Mas não
+               há trava de arquivo: entre a minha leitura e a minha gravação, o
+               colega pode gravar uma cópia que nunca viu o meu campo, e o
+               arquivo dele passa por cima do meu. Aí a base mente:
+
+                   base = "meu texto"   (mentira: a pasta não tem isso)
+                   aqui = "meu texto"
+                   lá   = ""            (a cópia dele, que nunca viu o meu)
+                   → "só ele mexeu; ele apagou" → o meu texto sumia de vez,
+                     sem conflito, sem aviso e sem linha de histórico.
+
+               Saber QUAL base vale exige saber se a cópia que chegou viu a
+               minha gravação. Carimbo de hora do item não responde isso: ser
+               mais novo não é ter visto. Quem responde é o arquivo: cada
+               gravação anota de que versão do arquivo ela partiu
+               (`baseadoEm`, o lastModified que o disco deu), e o disco é o
+               mesmo relógio para todo mundo.
+
+                   o arquivo ainda é o meu          → vale o que eu gravei
+                   ele partiu da minha gravação     → vale o que eu gravei
+                   ele partiu de antes dela         → a cópia dele é atrasada:
+                                                      vale o que eu LI
+
+               No terceiro caso o meu campo volta a contar como "só eu mexi" —
+               é regravado na rodada seguinte em vez de apagado —, e as duas
+               máquinas convergem em vez de ficar cada uma com a sua versão.
+
+               Arquivo gravado por uma versão antiga do programa não traz
+               `baseadoEm`: aí vale a regra de antes, que é o que já existia. */
+            var baseAgora = mesclaBase;
+            if (meuCarimbo && baseLida && r.lastModified !== meuCarimbo) {
+              var partiuDe = Number(r.dados.baseadoEm || 0);
+              if (partiuDe && partiuDe < meuCarimbo) {
+                baseAgora = baseLida;
+                Log.aviso('pasta', 'a cópia que chegou não viu a minha última gravação',
+                  'o colega gravou no mesmo instante que eu e o arquivo dele passou ' +
+                  'por cima. Nada se perdeu: o que eu escrevi continua aqui e é ' +
+                  'regravado agora.');
+                gravarPendente = true;
+              }
+            }
             resumo = Store.mergeListas(state.projects, r.dados.projects || [],
-                                       r.dados.relatoriosExcluidos, mesclaBase);
+                                       r.dados.relatoriosExcluidos, baseAgora);
+            carimboLido = r.lastModified || 0;
             registrarConflitos(resumo);
             relatarMesclagem(resumo);
+
             /* o que chegou dos outros já está aqui: não é edição minha, e o
                diário não deve contá-la como se fosse */
             baseDiario = Store.baseDe(state.projects);
@@ -16286,6 +16626,16 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     $('#previewPrintBtn').addEventListener('click', function () { closePreview(); exportPdf(); });
     $('#pdfBtn').addEventListener('click', exportPdf);
     $('#pdfCancelBtn').addEventListener('click', function () { $('#pdfDialog').close(); });
+    /* "imprima todas de uma vez": um clique marca todos os relatórios que têm
+       item no recorte. Os vazios continuam de fora — eles não geram folha. */
+    $('#pdfTodosBtn').addEventListener('click', function () {
+      $$('.pick-cb').forEach(function (cb) { if (!cb.disabled) cb.checked = true; });
+      updatePickSummary();
+    });
+    $('#pdfNenhumBtn').addEventListener('click', function () {
+      $$('.pick-cb').forEach(function (cb) { cb.checked = false; });
+      updatePickSummary();
+    });
     $('#pdfGoBtn').addEventListener('click', doPrint);
 
     $('#backupBtn').addEventListener('click', function () { exportBackup(false); });
@@ -16449,7 +16799,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       revisoes = Revisoes.locais();
       return Store.getBase().then(function (b) {
         mesclaBase = b ? b.base : null;
+        baseLida = b ? b.lida : null;
         baseDiario = b ? b.diario : null;
+        meuCarimbo = b ? (b.carimbo || 0) : 0;
         if (!baseDiario) return capturarRevisoes();   /* só semeia o retrato */
       });
     }).then(function () {

@@ -240,13 +240,72 @@ retrato guarda uma chave delas (`evidChave`, a mesma do `signature`), então
 elas vão para o lado de quem mexeu nelas, em vez de acompanharem o vencedor
 do desempate.
 
-**Duas bases, não uma** (`Store.saveBase(base, diario)`, na prateleira
+### Duas pessoas ao mesmo tempo: qual base vale (o conserto do atropelo)
+
+A mesclagem campo a campo precisa de uma terceira ponta honesta. Até aqui ela
+era sempre `mesclaBase` — **o que eu gravei** na rodada passada. Está certo
+quando a minha gravação sobreviveu. Só que **não há trava de arquivo**: entre
+a minha leitura e a minha gravação o colega pode gravar uma cópia que nunca
+viu o meu campo, e o arquivo dele passa por cima do meu.
+
+Aí a base mentia, e o estrago era silencioso:
+
+```
+base = "meu texto"    (mentira: a pasta não tem isso)
+aqui = "meu texto"
+lá   = ""             (a cópia dele, que nunca viu o meu)
+→ "só ele mexeu; ele apagou" → o meu texto sumia de vez,
+  sem conflito, sem aviso e sem linha de histórico.
+```
+
+Era exatamente o que o Bruno relatou: *"as vezes perdemos dados ou status que
+havíamos modificado"*. Reproduzido no navegador com duas abas numa pasta
+compartilhada de verdade (`juntos.py`), e as duas máquinas chegavam a ficar
+com **situações diferentes** para o mesmo item, sem convergir nunca.
+
+**A resposta não é escolher outra base fixa.** Duas tentativas falharam antes
+da certa, e vale registrar as duas para ninguém repetir:
+
+1. *Base = o que eu reli logo depois de gravar.* Fecha nada: o atropelo
+   acontece depois da releitura.
+2. *Base = o que a pasta tinha quando eu li.* Conserta o atropelo e **quebra o
+   "pôr de volta"**: o colega que restaura um texto exatamente no valor que eu
+   tinha lido passa a parecer "não mexeu", e a restauração nunca me alcança
+   (o `duas_maquinas.py` pegou isso).
+
+O que decide é saber **se a cópia que chegou viu a minha gravação** — e isso é
+causalidade, não relógio: uma cópia mais nova não é uma cópia que viu. Quem
+responde é o próprio arquivo. Cada gravação anota de que versão do arquivo ela
+partiu (`baseadoEm`, o `lastModified` que o disco deu), e o disco é o mesmo
+relógio para todo mundo:
+
+| o arquivo que chegou | base que vale |
+| --- | --- |
+| ainda é o meu (`lastModified` igual ao da minha gravação) | o que eu **gravei** |
+| partiu da minha gravação (`baseadoEm >= meuCarimbo`) | o que eu **gravei** |
+| partiu de antes dela | o que eu **li** |
+
+No terceiro caso o meu campo volta a contar como "só eu mexi" — é regravado na
+rodada seguinte em vez de apagado — e as duas máquinas convergem. O console
+diz isso na hora ("a cópia que chegou não viu a minha última gravação") e a
+gravação é repetida (`gravarPendente`).
+
+Arquivo gravado por uma versão antiga do programa não traz `baseadoEm`: aí
+vale a regra de antes, que é o que já existia. Não foi preciso subir o
+`SCHEMA` — o campo vive no envelope do arquivo da pasta, não no item.
+
+**Três bases, então** (`Store.saveBase(base, diario, lida, carimbo)`, na prateleira
 `snapshots` do IndexedDB, com a chave `mesclaBase`):
 
 - `base` só avança **depois de a gravação na pasta dar certo**. Avançá-la
   antes faria a junção seguinte ler o meu trabalho ainda não gravado como
   "coisa que o outro escreveu" — e a regra que existe para salvar o texto
   seria a que o apagaria.
+- `lida` é o retrato da pasta **na leitura daquela mesma rodada**, e avança
+  junto com `base`: as duas descrevem a mesma rodada e não podem andar
+  separadas.
+- `carimbo` é o `lastModified` da minha última gravação, que é o que faz a
+  tabela acima funcionar.
 - `diario` avança a cada captura do histórico, com ou sem pasta.
 
 E elas moram na prateleira que já existia, de propósito: criar outra
@@ -638,6 +697,37 @@ do alto (`#pastaNotice`), com botão de copiar.
 - O caminho que vier no arquivo da pasta sobrepõe o local e é gravado — é o que
   faz a próxima abertura já vir com o caminho certo, sem ninguém digitar.
 
+### O cursor sobrevive ao redesenho do editor
+Redesenhar o editor quando o colega muda o item aberto é obrigatório (§6).
+O preço, até agora, era brutal: o `innerHTML = ''` destrói o campo em uso, o
+foco volta para o corpo da página e **as teclas seguintes não vão para lugar
+nenhum**. Quem estava escrevendo continuava escrevendo no vazio — era isto o
+"a tela fica atualizando e às vezes perdemos dados".
+
+`guardarCursor()` anota o id do campo focado e a posição da seleção;
+`devolverCursor()` os devolve **no fim** do `renderEditor()`, com tudo montado
+e as travas já aplicadas (campo travado não aceita foco, e tentar antes o
+deixaria no lugar errado). Os ids são fixos (`f-<campo>`), que é o que torna
+isso possível.
+
+### Filtrar o PDF por situação
+A janela de exportação recorta por situação do item (pastilhas com a mesma cor
+do resto do programa) e traz **Marcar todos / Limpar** para os relatórios.
+`Report.build`/`buildMany` recebem `opts.filtro`, que atravessa a capa, as
+páginas e as evidências pelo mesmo caminho — senão o índice prometeria uma
+página que não existe.
+
+- **A capa diz que é recorte** (`rep-cover-recorte`, em inglês, como o resto da
+  folha). É a mesma regra da aba "Recorte" das planilhas (§10): um Waiver
+  Request parcial que não se anuncia é lido como o pedido inteiro. Sem filtro
+  nada é acrescentado — a folha sai idêntica à de sempre, e o PDF continua
+  sagrado.
+- **O recorte não sobrevive ao fechar a janela**, pelo mesmo motivo do filtro
+  da aba Tabela: reabrir e exportar sem perceber que ainda está filtrado é
+  mandar meio relatório para o cliente.
+- Relatório que fica sem nenhum item no recorte é desmarcado e desabilitado:
+  ele não geraria folha.
+
 ### O diário do console (`log.js`)
 Pedido do Bruno depois do `InvalidStateError`: ver o processamento acontecendo
 e ser avisado quando algo dá errado, em vez de descobrir por acaso numa linha
@@ -780,6 +870,14 @@ permissão da pasta entre sessões.
   trata cada `file:` como origem única. Os testes daqui passam essa flag para
   a pasta de mentira funcionar; quando a dúvida for sobre o console dele,
   rode **sem** a flag também, senão o erro que ele vê não aparece aqui.
+- **Pasta compartilhada não se testa copiando um lado no outro.** Isso é
+  "um está com a pasta velha do outro", que é outro caso. Duas pessoas ao
+  mesmo tempo só aparece com uma pasta de verdade entre as abas — os arquivos
+  bombeados nos dois sentidos, valendo o mais recente (`rede.py`). Foi só com
+  isso que o atropelo apareceu.
+- **Redesenhar o editor rouba o teclado de quem está escrevendo.** Ver "O
+  cursor sobrevive ao redesenho" no §5: o redesenho é obrigatório, devolver o
+  foco também.
 - **O service worker é rede-primeiro, de propósito.** Cache-primeiro traria de
   volta o problema de HTML novo com JS velho que o `?v=<sha>` existe para
   evitar. O `sw.js` também é carimbado na publicação: sem mudar de conteúdo,
@@ -876,6 +974,9 @@ desta máquina às vezes bloqueia `github.io`.
 | Mesclagem campo a campo, com base guardada, em vez de item inteiro | dois campos diferentes do mesmo item nunca foram conflito; tratá-los como se fossem era perder texto em silêncio |
 | A base de mesclagem só avança depois da gravação dar certo | avançá-la antes faz a junção seguinte ler o meu trabalho como sendo do outro, e apagá-lo |
 | Duas bases (mesclagem e diário) na mesma prateleira do IndexedDB | criar prateleira nova obriga a subir a versão do banco, e a versão anterior do programa deixaria de abrir o mesmo navegador |
+| A base que vale é decidida pelo `baseadoEm` do arquivo, não pelo relógio do item | ser mais novo não é ter visto: só o carimbo do arquivo diz se a cópia que chegou partiu da minha gravação ou de antes dela |
+| O recorte do PDF não fica guardado entre aberturas | exportar meio Waiver Request sem perceber é pior do que escolher o filtro de novo |
+| A capa avisa quando o PDF é parcial | mesma regra da aba "Recorte": lista filtrada que não diz que é filtrada é lida como o total |
 | O relógio só decide quando os dois escreveram no MESMO campo | é o único caso que sobra sem base comum; e nele o texto perdedor é guardado, não descartado |
 | Diário de alterações em arquivo próprio, fora do backup e do PDF | mesma razão da conversa: os dados são reescritos e versionados a cada gravação |
 | Cada computador anota só o que ele escreveu | anotar o que chega dos outros duplicaria cada linha em cada máquina |
