@@ -281,7 +281,23 @@ equipe, o que a mesclagem trouxe, a exportação em PDF. Quando algo dá errado,
 a linha vem em três partes — **o que falhou**, **o que isso significa** e **o
 que fazer**.
 
-O que dá para digitar no console:
+**Não precisa decorar nada.** Em **⋯ Mais → 🩺 Diagnóstico e diário do
+console** há uma janela com tudo isso em botões, e cada um explica o que faz
+antes de você clicar:
+
+- **Quanto detalhe você quer ver** — *Só problemas*, *Normal* (o padrão) ou
+  *Tudo*. Problema aparece em qualquer nível, inclusive no silêncio: o nível
+  cala o que deu certo, nunca o que deu errado.
+- **Ver o diagnóstico** — o retrato de agora: quantos relatórios e itens
+  existem aqui, qual está aberto, como está a pasta, quantos avisos e erros
+  houve nesta sessão.
+- **Ver as últimas linhas** — o que o programa registrou desde que você abriu.
+- **Copiar para um e-mail** — junta os dois e põe na área de transferência.
+
+A mesma janela mostra ali embaixo o que foi registrado, sem precisar do F12.
+
+Quem preferir digitar, os comandos continuam valendo (e estão escritos ao lado
+de cada botão):
 
 | Comando | O que faz |
 | --- | --- |

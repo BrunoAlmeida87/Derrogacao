@@ -5824,6 +5824,14 @@
     $('#closePreviewBtn').addEventListener('click', closePreview);
     $('#previewPrintBtn').addEventListener('click', function () { closePreview(); exportPdf(); });
     $('#pdfBtn').addEventListener('click', exportPdf);
+    $('#logBtn').addEventListener('click', function () {
+      $('#menuPop').hidden = true;
+      $('#menuBtn').setAttribute('aria-expanded', 'false');
+      abrirDiarioDialog();
+    });
+    $('#logCloseBtn').addEventListener('click', function () { $('#logDialog').close(); });
+    $('#logCopiarBtn').addEventListener('click', function () { mostrarNoDiario(copiarODiario()); });
+
     $('#pdfCancelBtn').addEventListener('click', function () { $('#pdfDialog').close(); });
     /* "imprima todas de uma vez": um clique marca todos os relatórios que têm
        item no recorte. Os vazios continuam de fora — eles não geram folha. */
@@ -5903,6 +5911,114 @@
      permite conferir, em segundos, se o navegador está com a versão certa —
      um index.html novo servido junto de um app.js velho do cache já causou
      erros difíceis de entender. */
+  /* ---------------------------------------------------------------------- */
+  /* a janela do diário do console                                           */
+  /* ---------------------------------------------------------------------- */
+
+  /* Os comandos existem e continuam valendo — mas decorar comando não é
+     trabalho de quem usa o programa. Aqui cada um vira um botão que faz a
+     coisa, com o comando escrito ao lado para quem preferir digitar. É o §9:
+     nada de opção escondida. */
+  var NIVEIS_DO_DIARIO = [
+    { id: 'silencio', nome: 'Só problemas',
+      ajuda: 'O console fica quieto e só fala quando algo dá errado.' },
+    { id: 'normal', nome: 'Normal',
+      ajuda: 'A abertura, cada conversa com a pasta, o que a mesclagem trouxe, ' +
+        'as exportações — e os problemas. É o padrão.' },
+    { id: 'tudo', nome: 'Tudo',
+      ajuda: 'Mais o miúdo: cada gravação neste navegador, cada imagem, os ' +
+        'tempos de cada etapa. Útil quando algo está estranho e não se sabe onde.' }
+  ];
+
+  var ACOES_DO_DIARIO = [
+    { rotulo: 'Ver o diagnóstico', comando: 'Derrogacao.diagnostico()',
+      ajuda: 'O retrato de agora: quantos relatórios e itens existem aqui, qual ' +
+        'está aberto, como está a pasta da equipe, quantos avisos e erros houve ' +
+        'nesta sessão, e quem você é para o programa.',
+      fn: function () { return Log.diagnostico(); } },
+    { rotulo: 'Ver as últimas linhas', comando: 'Derrogacao.diario()',
+      ajuda: 'O que o programa registrou desde que você abriu — as últimas 500 ' +
+        'linhas. É onde se vê a hora em que a pasta parou de responder, por exemplo.',
+      fn: function () { return Log.historico() || '(ainda não há linhas.)'; } },
+    { rotulo: 'Copiar para um e-mail', comando: 'Derrogacao.copiar()',
+      ajuda: 'Junta o diagnóstico com as últimas linhas e põe na área de ' +
+        'transferência. É exatamente o que eu pediria por escrito se algo ' +
+        'estivesse estranho — é só colar.',
+      fn: function () { return copiarODiario(); } }
+  ];
+
+  function copiarODiario() {
+    var texto = Log.diagnostico() + '\n\n--- diário do console ---\n' + Log.historico();
+    copiarTexto(texto,
+      function () { toast('Copiado. Cole num e-mail.'); },
+      function () { toast('Não consegui copiar — selecione o texto abaixo e copie à mão.', 9000); });
+    return texto;
+  }
+
+  function mostrarNoDiario(texto) {
+    var saida = $('#logSaida');
+    saida.textContent = texto || '';
+    saida.scrollTop = 0;
+  }
+
+  function renderDiarioDialog() {
+    var atual = Log.nivel();
+
+    var niveis = $('#logNiveis');
+    niveis.innerHTML = '';
+    NIVEIS_DO_DIARIO.forEach(function (n) {
+      var b = el('button', 'log-nivel' + (n.id === atual ? ' is-on' : ''));
+      b.type = 'button';
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', n.id === atual ? 'true' : 'false');
+      b.appendChild(el('span', 'log-nivel-nome', n.nome));
+      b.appendChild(el('span', 'log-nivel-ajuda', n.ajuda));
+      b.appendChild(el('code', 'log-cmd', 'Derrogacao.' +
+        (n.id === 'silencio' ? 'silencio' : n.id) + '()'));
+      b.addEventListener('click', function () {
+        Log.nivel(n.id);
+        renderDiarioDialog();
+        toast('Diário: ' + n.nome.toLowerCase() + '.');
+      });
+      niveis.appendChild(b);
+    });
+
+    var acoes = $('#logAcoes');
+    acoes.innerHTML = '';
+    ACOES_DO_DIARIO.forEach(function (a) {
+      var linha = el('div', 'log-acao');
+      var b = el('button', 'btn btn--sm btn--accent', a.rotulo);
+      b.type = 'button';
+      b.addEventListener('click', function () {
+        mostrarNoDiario(a.fn());
+        renderContasDoDiario();
+      });
+      linha.appendChild(b);
+      var txt = el('div', 'log-acao-txt');
+      txt.appendChild(el('span', null, a.ajuda));
+      txt.appendChild(el('code', 'log-cmd', a.comando));
+      linha.appendChild(txt);
+      acoes.appendChild(linha);
+    });
+
+    renderContasDoDiario();
+    mostrarNoDiario(Log.diagnostico());
+  }
+
+  function renderContasDoDiario() {
+    var c = Log.contas();
+    var n = $('#logContas');
+    n.textContent = c.erros || c.avisos
+      ? '· ' + c.erros + ' erro(s) e ' + c.avisos + ' aviso(s) desde que você abriu'
+      : '· nenhum problema desde que você abriu';
+    n.classList.toggle('is-ruim', !!c.erros);
+  }
+
+  function abrirDiarioDialog() {
+    renderDiarioDialog();
+    $('#logDialog').showModal();
+  }
+
   function renderVersion() {
     /* no site, a versão vem do carimbo no src; no arquivo único, da meta */
     var tag = document.querySelector('script[src*="app.js"]');

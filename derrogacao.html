@@ -2674,6 +2674,80 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 }
 .sit-chip.is-on .sit-chip-n { background: rgba(255, 255, 255, .28); }
 
+/* ==========================================================================
+   Janela do diário do console (⋯ Mais → Diagnóstico e diário)
+   --------------------------------------------------------------------------
+   Os comandos continuam valendo no console, mas aqui cada um é um botão que
+   faz a coisa — com o comando escrito ao lado para quem preferir digitar.
+   ========================================================================== */
+
+.log-privacidade {
+  background: #eef6f1;
+  border-left: 3px solid var(--ok, #1baf7a);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #2a4a3b;
+  margin: 0 0 4px;
+}
+
+.log-niveis { display: flex; gap: 10px; flex-wrap: wrap; }
+.log-nivel {
+  /* 150 px de base para os três caberem lado a lado na largura do diálogo:
+     com 200 o terceiro caía sozinho numa segunda linha */
+  flex: 1 1 150px;
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+  text-align: left;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff; cursor: pointer;
+}
+.log-nivel:hover { background: #f6f7f9; }
+.log-nivel.is-on { border-top-color: var(--kind); background: #f7f5ff; }
+.log-nivel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.log-nivel-nome { font-weight: 700; font-size: 13px; color: var(--ink); }
+.log-nivel.is-on .log-nivel-nome { color: var(--kind); }
+.log-nivel-ajuda { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+
+.log-acoes { display: flex; flex-direction: column; gap: 10px; }
+.log-acao { display: flex; gap: 12px; align-items: flex-start; }
+.log-acao .btn { flex: 0 0 auto; min-width: 160px; }
+.log-acao-txt { display: flex; flex-direction: column; gap: 3px; }
+.log-acao-txt span { font-size: 12px; color: var(--muted); line-height: 1.45; }
+
+.log-cmd {
+  align-self: flex-start;
+  font-family: ui-monospace, Consolas, "Courier New", monospace;
+  font-size: 11px;
+  background: #f2f3f6;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 6px;
+  color: #3f4550;
+}
+
+.log-contas { font-weight: 400; font-size: 12px; color: var(--muted); }
+.log-contas.is-ruim { color: #c2402a; font-weight: 600; }
+
+.log-saida {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  background: #1a1c20;
+  color: #e6e8ec;
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-family: ui-monospace, Consolas, "Courier New", monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log-saida:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 </style>
 <style>
 /* assets/css/report.css */
@@ -3084,6 +3158,11 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
           Excluir este relatório
         </button>
 
+        <div class="menu-title">Este programa <small>vale para tudo, não só para o marco aberto</small></div>
+        <button class="menu-item" id="logBtn">
+          🩺 Diagnóstico e diário do console <small id="logBtnSub">ver o que o programa está fazendo e o que deu errado</small>
+        </button>
+
 
         <button class="menu-foot" id="userBtn">
           <span class="menu-foot-who" id="userBtnLabel">Definir meu nome</span>
@@ -3316,6 +3395,44 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   <div class="dlg-actions">
     <button class="btn" id="pdfCancelBtn">Cancelar</button>
     <button class="btn btn--primary" id="pdfGoBtn">Gerar PDF</button>
+  </div>
+</dialog>
+
+<dialog id="logDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>Diagnóstico e diário do console</h3>
+    <p>O programa escreve, em português, cada etapa do que está fazendo — e,
+       quando algo dá errado, o que aconteceu, o que significa e o que fazer.
+       Para ver ao vivo, aperte <kbd>F12</kbd> e abra a aba <strong>Console</strong>.</p>
+
+    <p class="log-privacidade">
+      Isto é só console: <strong>nada sai do computador</strong>, nada é enviado e
+      nada é gravado em arquivo. O <strong>texto das NCRs nunca é registrado</strong> —
+      vão nomes de campo, contagens e números, nunca o que está escrito dentro do campo.
+    </p>
+
+    <div class="dlg-sec">
+      <div class="dlg-sec-tit">Quanto detalhe você quer ver</div>
+      <div class="log-niveis" id="logNiveis" role="radiogroup" aria-label="Nível do diário"></div>
+      <p class="hint">A escolha fica neste navegador. Problema aparece em qualquer
+         nível, inclusive no silêncio: o nível cala o que deu certo, nunca o que deu errado.</p>
+    </div>
+
+    <div class="dlg-sec">
+      <div class="dlg-sec-tit">O que dá para fazer</div>
+      <div class="log-acoes" id="logAcoes"></div>
+      <p class="hint">Cada um destes também pode ser digitado no console —
+         o comando está escrito ao lado do botão.</p>
+    </div>
+
+    <div class="dlg-sec">
+      <div class="dlg-sec-tit">Agora <span class="log-contas" id="logContas"></span></div>
+      <pre class="log-saida" id="logSaida" tabindex="0"></pre>
+    </div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="logCloseBtn">Fechar</button>
+    <button class="btn btn--primary" id="logCopiarBtn">Copiar tudo para um e-mail</button>
   </div>
 </dialog>
 
@@ -16625,6 +16742,14 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     $('#closePreviewBtn').addEventListener('click', closePreview);
     $('#previewPrintBtn').addEventListener('click', function () { closePreview(); exportPdf(); });
     $('#pdfBtn').addEventListener('click', exportPdf);
+    $('#logBtn').addEventListener('click', function () {
+      $('#menuPop').hidden = true;
+      $('#menuBtn').setAttribute('aria-expanded', 'false');
+      abrirDiarioDialog();
+    });
+    $('#logCloseBtn').addEventListener('click', function () { $('#logDialog').close(); });
+    $('#logCopiarBtn').addEventListener('click', function () { mostrarNoDiario(copiarODiario()); });
+
     $('#pdfCancelBtn').addEventListener('click', function () { $('#pdfDialog').close(); });
     /* "imprima todas de uma vez": um clique marca todos os relatórios que têm
        item no recorte. Os vazios continuam de fora — eles não geram folha. */
@@ -16704,6 +16829,114 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
      permite conferir, em segundos, se o navegador está com a versão certa —
      um index.html novo servido junto de um app.js velho do cache já causou
      erros difíceis de entender. */
+  /* ---------------------------------------------------------------------- */
+  /* a janela do diário do console                                           */
+  /* ---------------------------------------------------------------------- */
+
+  /* Os comandos existem e continuam valendo — mas decorar comando não é
+     trabalho de quem usa o programa. Aqui cada um vira um botão que faz a
+     coisa, com o comando escrito ao lado para quem preferir digitar. É o §9:
+     nada de opção escondida. */
+  var NIVEIS_DO_DIARIO = [
+    { id: 'silencio', nome: 'Só problemas',
+      ajuda: 'O console fica quieto e só fala quando algo dá errado.' },
+    { id: 'normal', nome: 'Normal',
+      ajuda: 'A abertura, cada conversa com a pasta, o que a mesclagem trouxe, ' +
+        'as exportações — e os problemas. É o padrão.' },
+    { id: 'tudo', nome: 'Tudo',
+      ajuda: 'Mais o miúdo: cada gravação neste navegador, cada imagem, os ' +
+        'tempos de cada etapa. Útil quando algo está estranho e não se sabe onde.' }
+  ];
+
+  var ACOES_DO_DIARIO = [
+    { rotulo: 'Ver o diagnóstico', comando: 'Derrogacao.diagnostico()',
+      ajuda: 'O retrato de agora: quantos relatórios e itens existem aqui, qual ' +
+        'está aberto, como está a pasta da equipe, quantos avisos e erros houve ' +
+        'nesta sessão, e quem você é para o programa.',
+      fn: function () { return Log.diagnostico(); } },
+    { rotulo: 'Ver as últimas linhas', comando: 'Derrogacao.diario()',
+      ajuda: 'O que o programa registrou desde que você abriu — as últimas 500 ' +
+        'linhas. É onde se vê a hora em que a pasta parou de responder, por exemplo.',
+      fn: function () { return Log.historico() || '(ainda não há linhas.)'; } },
+    { rotulo: 'Copiar para um e-mail', comando: 'Derrogacao.copiar()',
+      ajuda: 'Junta o diagnóstico com as últimas linhas e põe na área de ' +
+        'transferência. É exatamente o que eu pediria por escrito se algo ' +
+        'estivesse estranho — é só colar.',
+      fn: function () { return copiarODiario(); } }
+  ];
+
+  function copiarODiario() {
+    var texto = Log.diagnostico() + '\n\n--- diário do console ---\n' + Log.historico();
+    copiarTexto(texto,
+      function () { toast('Copiado. Cole num e-mail.'); },
+      function () { toast('Não consegui copiar — selecione o texto abaixo e copie à mão.', 9000); });
+    return texto;
+  }
+
+  function mostrarNoDiario(texto) {
+    var saida = $('#logSaida');
+    saida.textContent = texto || '';
+    saida.scrollTop = 0;
+  }
+
+  function renderDiarioDialog() {
+    var atual = Log.nivel();
+
+    var niveis = $('#logNiveis');
+    niveis.innerHTML = '';
+    NIVEIS_DO_DIARIO.forEach(function (n) {
+      var b = el('button', 'log-nivel' + (n.id === atual ? ' is-on' : ''));
+      b.type = 'button';
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', n.id === atual ? 'true' : 'false');
+      b.appendChild(el('span', 'log-nivel-nome', n.nome));
+      b.appendChild(el('span', 'log-nivel-ajuda', n.ajuda));
+      b.appendChild(el('code', 'log-cmd', 'Derrogacao.' +
+        (n.id === 'silencio' ? 'silencio' : n.id) + '()'));
+      b.addEventListener('click', function () {
+        Log.nivel(n.id);
+        renderDiarioDialog();
+        toast('Diário: ' + n.nome.toLowerCase() + '.');
+      });
+      niveis.appendChild(b);
+    });
+
+    var acoes = $('#logAcoes');
+    acoes.innerHTML = '';
+    ACOES_DO_DIARIO.forEach(function (a) {
+      var linha = el('div', 'log-acao');
+      var b = el('button', 'btn btn--sm btn--accent', a.rotulo);
+      b.type = 'button';
+      b.addEventListener('click', function () {
+        mostrarNoDiario(a.fn());
+        renderContasDoDiario();
+      });
+      linha.appendChild(b);
+      var txt = el('div', 'log-acao-txt');
+      txt.appendChild(el('span', null, a.ajuda));
+      txt.appendChild(el('code', 'log-cmd', a.comando));
+      linha.appendChild(txt);
+      acoes.appendChild(linha);
+    });
+
+    renderContasDoDiario();
+    mostrarNoDiario(Log.diagnostico());
+  }
+
+  function renderContasDoDiario() {
+    var c = Log.contas();
+    var n = $('#logContas');
+    n.textContent = c.erros || c.avisos
+      ? '· ' + c.erros + ' erro(s) e ' + c.avisos + ' aviso(s) desde que você abriu'
+      : '· nenhum problema desde que você abriu';
+    n.classList.toggle('is-ruim', !!c.erros);
+  }
+
+  function abrirDiarioDialog() {
+    renderDiarioDialog();
+    $('#logDialog').showModal();
+  }
+
   function renderVersion() {
     /* no site, a versão vem do carimbo no src; no arquivo único, da meta */
     var tag = document.querySelector('script[src*="app.js"]');

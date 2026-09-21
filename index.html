@@ -85,6 +85,11 @@
           Excluir este relatório
         </button>
 
+        <div class="menu-title">Este programa <small>vale para tudo, não só para o marco aberto</small></div>
+        <button class="menu-item" id="logBtn">
+          🩺 Diagnóstico e diário do console <small id="logBtnSub">ver o que o programa está fazendo e o que deu errado</small>
+        </button>
+
 
         <button class="menu-foot" id="userBtn">
           <span class="menu-foot-who" id="userBtnLabel">Definir meu nome</span>
@@ -317,6 +322,44 @@
   <div class="dlg-actions">
     <button class="btn" id="pdfCancelBtn">Cancelar</button>
     <button class="btn btn--primary" id="pdfGoBtn">Gerar PDF</button>
+  </div>
+</dialog>
+
+<dialog id="logDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>Diagnóstico e diário do console</h3>
+    <p>O programa escreve, em português, cada etapa do que está fazendo — e,
+       quando algo dá errado, o que aconteceu, o que significa e o que fazer.
+       Para ver ao vivo, aperte <kbd>F12</kbd> e abra a aba <strong>Console</strong>.</p>
+
+    <p class="log-privacidade">
+      Isto é só console: <strong>nada sai do computador</strong>, nada é enviado e
+      nada é gravado em arquivo. O <strong>texto das NCRs nunca é registrado</strong> —
+      vão nomes de campo, contagens e números, nunca o que está escrito dentro do campo.
+    </p>
+
+    <div class="dlg-sec">
+      <div class="dlg-sec-tit">Quanto detalhe você quer ver</div>
+      <div class="log-niveis" id="logNiveis" role="radiogroup" aria-label="Nível do diário"></div>
+      <p class="hint">A escolha fica neste navegador. Problema aparece em qualquer
+         nível, inclusive no silêncio: o nível cala o que deu certo, nunca o que deu errado.</p>
+    </div>
+
+    <div class="dlg-sec">
+      <div class="dlg-sec-tit">O que dá para fazer</div>
+      <div class="log-acoes" id="logAcoes"></div>
+      <p class="hint">Cada um destes também pode ser digitado no console —
+         o comando está escrito ao lado do botão.</p>
+    </div>
+
+    <div class="dlg-sec">
+      <div class="dlg-sec-tit">Agora <span class="log-contas" id="logContas"></span></div>
+      <pre class="log-saida" id="logSaida" tabindex="0"></pre>
+    </div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="logCloseBtn">Fechar</button>
+    <button class="btn btn--primary" id="logCopiarBtn">Copiar tudo para um e-mail</button>
   </div>
 </dialog>
 

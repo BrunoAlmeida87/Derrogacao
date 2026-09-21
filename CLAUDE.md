@@ -754,6 +754,12 @@ vermelha que ninguém sabe ler.
   fecha é exatamente o que se quer enxergar.
 - **`Log.vigiar()`** captura `error` e `unhandledrejection`, para nada passar
   em branco.
+- **Tem janela, não só comando** (⋯ Mais → *Diagnóstico e diário do console*,
+  em seção própria do menu: não é do relatório aberto, é do programa). Cada
+  comando vira um botão que faz a coisa, com o comando escrito ao lado para
+  quem preferir digitar, e a saída aparece ali mesmo — decorar comando não é
+  trabalho de quem usa o programa (§9). O aviso de privacidade fica à vista na
+  janela, não escondido.
 - **`Derrogacao.*`** é o que a pessoa digita: `ajuda()`, `tudo()`, `normal()`,
   `silencio()`, `diagnostico()`, `diario()`, `copiar()`. `copiar()` junta o
   diagnóstico com as últimas linhas e põe na área de transferência (com a
