@@ -11,7 +11,7 @@
    rede, que o service worker não enxerga.
    ========================================================================== */
 
-var VERSAO = 'local';               /* trocado pelo SHA na publicação */
+var VERSAO = '3a25d65';               /* trocado pelo SHA na publicação */
 var CACHE = 'derrogacao-' + VERSAO;
 var ESSENCIAIS = ['./', 'index.html'];
 
