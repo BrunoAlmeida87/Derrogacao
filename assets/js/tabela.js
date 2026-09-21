@@ -67,6 +67,18 @@
     { id: 'requestExpiry', titulo: 'Request Expiry', larg: 16, valor: function (r) { return txt(r.item.requestExpiry); } },
     { id: 'approvedExpiry', titulo: 'Approved Expiry', larg: 16, valor: function (r) { return txt(r.item.approvedExpiry); } },
     { id: 'caminho', titulo: 'Caminho do waiver', larg: 30, valor: function (r) { return caminhoDe(r); } },
+    /* O último salto: "J08 → J09". O caminho inteiro responde por onde o
+       waiver passou; esta responde a pergunta curta, que é a que se faz
+       olhando a tabela — "para onde esta NCR está indo agora?". */
+    { id: 'salto', titulo: 'Waiver de → para', larg: 18, valor: function (r) {
+      var s = Fluxo.ultimoSalto(fluxoDe(r));
+      return s ? s.texto : '';
+    } },
+    { id: 'destino', titulo: 'Indo para o marco', larg: 16, valor: function (r) {
+      var s = Fluxo.ultimoSalto(fluxoDe(r));
+      return s ? s.para : '';
+    } },
+    { id: 'herdadoDe', titulo: 'Herdada do marco', larg: 16, valor: function (r) { return txt(r.item.herdadoDe); } },
     { id: 'historic', titulo: 'Waiver Historic', larg: 30, longo: true, valor: function (r) { return txt(r.item.historic); } },
     { id: 'description', titulo: 'Description', larg: 46, longo: true, valor: function (r) { return txt(r.item.description); } },
     { id: 'currentSituation', titulo: 'Current Situation', larg: 46, longo: true, valor: function (r) { return txt(r.item.currentSituation); } },
@@ -91,7 +103,7 @@
   /* O que aparece de saída: o suficiente para achar um item e saber em que pé
      ele está. O resto está a um clique em "Colunas" — esconder é mais fácil
      de desfazer do que uma tabela que já nasce ilegível de tão larga. */
-  var PADRAO = ['marco', 'tipo', 'ncrId', 'systems', 'func', 'situacao', 'archStatus', 'editedAt'];
+  var PADRAO = ['marco', 'tipo', 'ncrId', 'systems', 'func', 'salto', 'situacao', 'editedAt'];
 
   function colunaPorId(id) {
     return COLUNAS.filter(function (c) { return c.id === id; })[0] || null;
@@ -182,6 +194,7 @@
     var base = {
       colunas: PADRAO.slice(),
       ordem: { id: 'marco', dir: 'asc' },
+      novas: ['salto'],
       filtros: {}
     };
     try {
@@ -193,6 +206,19 @@
         if (!base.colunas.length) base.colunas = PADRAO.slice();
       }
       if (o && o.ordem && colunaPorId(o.ordem.id)) base.ordem = o.ordem;
+      /* Coluna nova numa versão nova: quem já tinha uma escolha guardada não
+         a veria nunca, e reclamaria com razão que a coluna "não veio". Uma
+         vez só, e anotado — quem tirar a coluna depois não a recebe de volta
+         na abertura seguinte. */
+      if (!o || !o.novas || o.novas.indexOf('salto') < 0) {
+        base.novas = ((o && o.novas) || []).concat(['salto']);
+        if (base.colunas.indexOf('salto') < 0) {
+          var onde = base.colunas.indexOf('situacao');
+          base.colunas.splice(onde < 0 ? base.colunas.length : onde, 0, 'salto');
+        }
+      } else {
+        base.novas = o.novas;
+      }
     } catch (e) { /* preferência ilegível não impede a aba de abrir */ }
     return base;
   }
@@ -202,7 +228,7 @@
   function gravarEstado(estado) {
     try {
       global.localStorage.setItem(CHAVE, JSON.stringify({
-        colunas: estado.colunas, ordem: estado.ordem
+        colunas: estado.colunas, ordem: estado.ordem, novas: estado.novas || []
       }));
     } catch (e) { /* sem espaço: a aba funciona igual, só não lembra */ }
   }

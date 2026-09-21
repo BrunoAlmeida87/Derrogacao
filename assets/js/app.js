@@ -336,7 +336,9 @@
   /* aba Fluxos: recorte do que está à vista */
   var fluxosFiltro = {
     busca: '', soComFluxo: false, marcos: [], tipo: '',
-    vista: 'lista', escopo: 'projeto'
+    vista: 'lista', escopo: 'projeto',
+    /* o marco do painel: qual é a chegada que estamos olhando */
+    painel: ''
   };
 
   function renderSummary(semRolar) {
@@ -542,7 +544,8 @@
   var VISTAS = [
     { id: 'lista', nome: 'Lista', ajuda: 'Um fluxo por item, na ordem do PDF.' },
     { id: 'mapa', nome: 'Mapa do marco', ajuda: 'Todos os fluxos somados num desenho só: a seta engorda com o número de itens que passam por ela.' },
-    { id: 'matriz', nome: 'Matriz de/para', ajuda: 'Uma linha por seta escrita, da mais usada para a menos.' }
+    { id: 'matriz', nome: 'Matriz de/para', ajuda: 'Uma linha por seta escrita, da mais usada para a menos.' },
+    { id: 'painel', nome: 'Painel do marco', ajuda: 'Tudo o que está indo para um marco: quantos itens, de onde vêm, em que pé estão e quais são. Olha todos os relatórios deste navegador e sai em PDF.' }
   ];
 
   function vistaAtual() {
@@ -552,6 +555,30 @@
 
   function fluxosDe(linhas) {
     return linhas.map(function (r) { return r.fluxo; });
+  }
+
+  /* Os marcos que alguém escreveu como DESTINO de uma seta. O painel do J09
+     só faz sentido se alguém disse "… To: J09" em algum lugar; oferecer a
+     lista fixa dos marcos do programa encheria o seletor de painéis vazios. */
+  function marcosDoPainel() {
+    return Painel.marcosDeDestino(state.projects);
+  }
+
+  /**
+   * O marco do painel. Sem escolha guardada, vale o marco do relatório
+   * aberto — quase sempre é ele que a pessoa quer ver chegando.
+   */
+  function marcoDoPainel() {
+    var lista = marcosDoPainel();
+    if (!lista.length) return null;
+    var achado = null;
+    lista.forEach(function (m) { if (m.chave === fluxosFiltro.painel) achado = m; });
+    if (achado) return achado;
+    var meu = marcoDesteRelatorio();
+    if (meu) lista.forEach(function (m) { if (!achado && m.chave === meu.chave) achado = m; });
+    /* nada combinou: o último da fila é o marco mais adiantado que alguém
+       escreveu, e é o que costuma estar por vir */
+    return achado || lista[lista.length - 1];
   }
 
   /** O mapa: os fluxos dos itens à vista somados num desenho só. */
@@ -621,11 +648,15 @@
     /* --- barra: o que está à vista e como exportar --- */
     var barra = el('div', 'sm-bar');
     var info = el('div', 'fx-info');
-    info.appendChild(el('strong', null, fluxosFiltro.escopo === 'todos'
-      ? 'Todos os marcos deste navegador'
-      : (Report.marcoOf(state.project, 'ncr') || state.project.name || 'sem marco')));
-    info.appendChild(el('span', null, comFluxo + ' de ' + todas.length +
-      ' item(ns) com waivers anteriores escritos · ' + linhas.length + ' no recorte.'));
+    info.appendChild(el('strong', null, vista.id === 'painel'
+      ? 'Painel do marco'
+      : (fluxosFiltro.escopo === 'todos'
+        ? 'Todos os marcos deste navegador'
+        : (Report.marcoOf(state.project, 'ncr') || state.project.name || 'sem marco'))));
+    info.appendChild(el('span', null, vista.id === 'painel'
+      ? 'O painel lê o Waiver Historic de todos os relatórios deste navegador.'
+      : comFluxo + ' de ' + todas.length +
+        ' item(ns) com waivers anteriores escritos · ' + linhas.length + ' no recorte.'));
     /* preenchido no fim, quando os cards já estão na tela e dá para contar
        quantos acharam o mesmo item em outro relatório */
     var achou = el('span', 'fx-achou');
@@ -661,6 +692,12 @@
     vistas.appendChild(el('span', 'fx-vista-ajuda', vista.ajuda));
     host.appendChild(vistas);
 
+    /* O painel tem uma regra só — quem tem seta terminando no marco — e ela
+       vale para todos os relatórios. Escopo, busca, tipo e "passa por" são do
+       fluxo por item; mostrá-los aqui seria oferecer botões que não fazem
+       nada. Quem recorta o painel é o seletor de marco, logo abaixo. */
+    var soDoFluxo = vista.id !== 'painel';
+
     /* De onde vêm os itens. O mapa de um marco só responde "por onde passou
        este marco"; com todos, responde "por onde passa o programa". */
     var escopo = el('div', 'fx-vistas fx-vistas--escopo');
@@ -675,7 +712,7 @@
       });
       escopo.appendChild(b);
     });
-    host.appendChild(escopo);
+    if (soDoFluxo) host.appendChild(escopo);
 
     /* --- filtros --- */
     var fb = el('div', 'sm-filtros');
@@ -725,10 +762,10 @@
     so.appendChild(cb);
     so.appendChild(document.createTextNode(' esconder quem não tem fluxo'));
     fb.appendChild(so);
-    host.appendChild(fb);
+    if (soDoFluxo) host.appendChild(fb);
 
     /* --- filtro por marco: os marcos que os próprios textos citam --------- */
-    if (marcosDisponiveis.length) {
+    if (marcosDisponiveis.length && soDoFluxo) {
       var chips = el('div', 'fx-marcos');
       chips.appendChild(el('span', 'fx-marcos-rot', 'Passa por:'));
       marcosDisponiveis.forEach(function (m) {
@@ -760,6 +797,19 @@
     }
 
     /* --- o conteúdo da vista escolhida --- */
+    if (vista.id === 'painel') {
+      var mp = marcoDoPainel();
+      host.appendChild(escolhaDoPainel(mp));
+      var caixa = el('div', 'pn-tela');
+      if (mp) Painel.montar(caixa, state.projects, mp, { abrir: abrirDaTabela });
+      else caixa.appendChild(el('p', 'hint',
+        'Nenhuma seta escrita ainda: o painel lê o campo “Waiver Historic” ' +
+        'dos itens. Escreva “J08 To: J09” em um item e o J09 aparece aqui.'));
+      host.appendChild(caixa);
+      achou.textContent = '';
+      if (!semRolar) host.scrollTop = 0; else host.scrollTop = antes;
+      return;
+    }
     if (vista.id === 'mapa') {
       host.appendChild(blocoMapaDeFluxo(linhas));
       host.appendChild(blocoSaltos(linhas));
@@ -791,6 +841,30 @@
         : '');
 
     if (!semRolar) host.scrollTop = 0; else host.scrollTop = antes;
+  }
+
+  /** A escolha do marco do painel — a única coisa que o painel filtra. */
+  function escolhaDoPainel(atual) {
+    var box = el('div', 'fx-vistas fx-vistas--escopo pn-escolha');
+    box.appendChild(el('span', 'fx-marcos-rot', 'Chegando no marco:'));
+    var sel = document.createElement('select');
+    sel.setAttribute('aria-label', 'Marco do painel');
+    marcosDoPainel().forEach(function (m) {
+      var op = document.createElement('option');
+      op.value = m.chave;
+      op.textContent = m.rotulo + ' (' + m.n + ')';
+      sel.appendChild(op);
+    });
+    if (atual) sel.value = atual.chave;
+    sel.addEventListener('change', function () {
+      fluxosFiltro.painel = sel.value;
+      renderFluxos(true);
+    });
+    box.appendChild(sel);
+    box.appendChild(el('span', 'fx-vista-ajuda',
+      'O painel olha todos os relatórios deste navegador e ignora os filtros ' +
+      'acima: a regra dele é uma só — entra quem tem uma seta terminando neste marco.'));
+    return box;
   }
 
   /** A linha de um item: identificação à esquerda, fluxo à direita. */
@@ -847,6 +921,7 @@
    * comprida não pode terminar no fim da folha e continuar na borda do papel.
    */
   function exportarFluxosPdf() {
+    if (vistaAtual().id === 'painel') { exportarPainelPdf(); return; }
     var root = $('#printRoot');
     root.innerHTML = '';
     var medida = Report.abrirMedida(root);
@@ -904,6 +979,54 @@
     var titulo = document.title;
     document.title = Report.suggestedFileName(state.project, 'pdf', 'ncr')
       .replace('WaiverRequest_', 'Fluxos_').replace(/\.pdf$/, '');
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.title = titulo; }, 500);
+    }, 60);
+  }
+
+  /**
+   * O painel do marco em A4. Mesma montagem da tela — é o mesmo
+   * `Painel.montar` —, só que sem os links e com os blocos marcados para a
+   * paginação poder levá-los à folha seguinte.
+   */
+  function exportarPainelPdf() {
+    var mp = marcoDoPainel();
+    if (!mp) { toast('Não há marco de destino escrito em nenhum item.'); return; }
+    var root = $('#printRoot');
+    root.innerHTML = '';
+    var medida = Report.abrirMedida(root);
+    try {
+      /* duas folhas de propósito: os números e os gráficos numa, a lista na
+         outra (ver o comentário de Painel.montar). Cada uma é paginada por
+         conta própria, então a lista comprida continua atravessando folhas
+         com o cabeçalho repetido. */
+      var cont = function (titulo) {
+        return function () {
+          var c = el('section', 'rep-page rep-page--summary rep-page--painel rep-page--cont');
+          c.appendChild(el('div', 'rep-cover-title', titulo + ' (cont.)'));
+          return c;
+        };
+      };
+      var titulo = 'Painel do marco ' + mp.rotulo;
+
+      var folha = el('section', 'rep-page rep-page--summary rep-page--painel');
+      var res = Painel.montar(folha, state.projects, mp, { impressao: true, parte: 'painel' });
+      root.appendChild(folha);
+      Report.paginar(folha, root, cont(titulo));
+
+      if (res.st.total) {
+        var lista = el('section', 'rep-page rep-page--summary rep-page--painel');
+        lista.appendChild(el('div', 'rep-cover-title', titulo));
+        Painel.montar(lista, state.projects, mp, { impressao: true, parte: 'lista' });
+        root.appendChild(lista);
+        Report.paginar(lista, root, cont(titulo));
+      }
+    } finally {
+      Report.fecharMedida(medida);
+    }
+    var titulo = document.title;
+    document.title = 'Painel_' + mp.rotulo.replace(/[^\w]+/g, '_') + '_' + Report.timeStamp();
     setTimeout(function () {
       window.print();
       setTimeout(function () { document.title = titulo; }, 500);
@@ -1448,6 +1571,14 @@
       if (imgCount) badges.appendChild(el('span', null, '🖼 ' + imgCount));
       /* o item com anotação é o que tem pendência escrita: dá para varrer a
          lista e achar onde alguém parou, sem abrir um por um */
+      /* veio do marco anterior e ainda não foi conferido: é o lembrete que
+         o Bruno pediu — "algumas informações terão que ser alteradas" */
+      var herd = (ncr.herdadoDe || '').trim();
+      if (herd) {
+        var hb = el('span', 'herd-dot', '⤵');
+        hb.title = 'Herdada do ' + herd + ' — confira o que precisa mudar neste marco.';
+        badges.appendChild(hb);
+      }
       var anot = (ncr.nota || '').trim();
       if (anot) {
         var nb = el('span', 'nota-dot', '📝');
@@ -1867,6 +1998,11 @@
       host.appendChild(empty);
       return;
     }
+
+    /* A faixa de herdada vem antes de tudo: é a primeira coisa a saber sobre
+       um item que chegou pronto de outro marco. */
+    var herd = cardDeHerdada(ncr);
+    if (herd) host.appendChild(herd);
 
     /* --- identificação --- */
     var idCard = card('Identificação da ' + kindName(), '#4B0082');
@@ -2485,9 +2621,98 @@
     $('#fluxoDialog').showModal();
   }
 
-  /* Situação de acompanhamento: controle interno, não sai no PDF. Substitui o
-     antigo botão "Concluir" — o item passa a contar como concluído quando, e
-     só quando, chega em "Waiver accepted". */
+  /**
+   * Leva o item aceito para o relatório do marco em que o waiver foi
+   * aprovado. O item de origem não é tocado: ele é o registro do que
+   * aconteceu no marco dele, e é dele que o ponto no card do fluxo lê o
+   * Arch Answer do marco anterior.
+   */
+  function levarAdiante() {
+    var ncr = currentNcr();
+    if (!ncr) return;
+    var av = Herdar.avaliar(state.project, ncr, state.kind, state.projects);
+    if (!av.pode) { toast(av.motivo, 9000); return; }
+
+    if (!confirm('Levar a ' + (ncr.ncrId || 'NCR') + ' para o ' + av.destino.rotulo + '?\n\n' +
+        Herdar.resumo(av) + '\n\n' +
+        'O item deste marco não muda em nada.')) return;
+
+    var copia = Herdar.copiaPara(ncr, av.origem, av.destino);
+    var destino = av.projetoDestino;
+    var kind = state.kind;
+    destino[Store.itemsKey(kind)].push(copia);
+    /* a autoria tem de ficar no relatório de destino, senão o item chega lá
+       sem dono e sem hora — e a mesclagem do colega não sabe que é novo */
+    Store.logChange(destino, SESSION_ID, kind, copia, 'criou');
+
+    flushSave().then(function () { return Store.save(destino); }).then(function () {
+      refreshProjectSelect();
+      renderNcrList();
+      renderEditor();
+      agendarGravacaoPasta();
+      toast((ncr.ncrId || 'Item') + ' copiada para o ' + av.destino.rotulo +
+        ', em “Em preenchimento”.', 12000, {
+        rotulo: 'Abrir lá',
+        fn: function () {
+          abrirDaTabela({ projetoId: destino.id, kind: kind, item: copia,
+            marco: Report.marcoOf(destino, kind) || destino.name });
+        }
+      });
+    }).catch(markError);
+  }
+
+  /**
+   * A faixa do item que veio de outro marco. Ela existe porque a cópia chega
+   * com o texto do marco anterior e **precisa** ser revista: o pedido do
+   * Bruno era ter onde lembrar disso. Sai quando a pessoa diz que conferiu.
+   */
+  function cardDeHerdada(ncr) {
+    var de = (ncr.herdadoDe || '').trim();
+    if (!de) return null;
+    var faixa = el('div', 'herd-faixa');
+    var txt = el('div', 'herd-faixa-txt');
+    txt.appendChild(el('strong', null, 'Herdada do ' + de));
+    txt.appendChild(el('span', null,
+      'Foi copiada de lá quando o waiver foi aceito e chegou aqui em ' +
+      '“Em preenchimento”. O Arch Answer, o Arch Status e as datas de ' +
+      'validade vieram em branco de propósito — são a resposta do marco ' +
+      'anterior. Confira o texto antes de mandar este pedido.'));
+    faixa.appendChild(txt);
+    var ok = el('button', 'btn btn--sm', 'Já conferi');
+    ok.type = 'button';
+    /* vale com o item travado: conferir não é editar o documento */
+    ok.setAttribute('data-livre', '');
+    ok.title = 'Tira a marca de herdada. O Waiver Historic continua como está.';
+    ok.addEventListener('click', function () {
+      var n = currentNcr();
+      if (!n) return;
+      n.herdadoDe = '';
+      touch(n);
+      renderNcrList();
+      renderEditor();
+      scheduleSave();
+      toast('Marca retirada.', 8000, {
+        rotulo: 'Desfazer',
+        fn: function () {
+          var alvo = currentNcr();
+          if (!alvo) return;
+          alvo.herdadoDe = de;
+          touch(alvo);
+          renderNcrList();
+          renderEditor();
+          scheduleSave();
+        }
+      });
+    });
+    faixa.appendChild(ok);
+    return faixa;
+  }
+
+  /* Situação de acompanhamento. Substituiu o antigo botão "Concluir" — o item
+     passa a contar como concluído quando, e só quando, chega em "Waiver
+     accepted". Desde o pedido do Bruno ela também fecha a linha do item no
+     índice da capa do PDF (§4 do CLAUDE.md); no resto do relatório continua
+     sem aparecer. */
   function renderStatusBar() {
     var ncr = currentNcr();
     var atual = Store.statusInfo(ncr.status);
@@ -2497,8 +2722,8 @@
     var info = el('div', 'done-bar-info');
     info.appendChild(el('strong', null, 'Situação deste item'));
     info.appendChild(el('span', null,
-      'Controle interno: não sai no PDF do relatório. O item conta como ' +
-      'concluído ao chegar em “Waiver accepted”.'));
+      'Fecha a linha deste item no índice da capa do PDF (em inglês). O item ' +
+      'conta como concluído ao chegar em “Waiver accepted”.'));
     var who = el('span', 'done-bar-who');
     who.id = 'doneBarWho';
     info.appendChild(who);
@@ -2541,10 +2766,27 @@
       });
     });
 
+    /* Levar adiante. Fica à vista sempre, mesmo quando não dá: o botão
+       apagado que explica o que falta ensina o caminho; o botão escondido
+       faz a pessoa achar que a função não existe. */
+    var av = Herdar.avaliar(state.project, ncr, state.kind, state.projects);
+    var adiante = el('button', 'btn btn--herdar',
+      av.pode ? '⤵ Levar para o ' + av.destino.rotulo : '⤵ Levar para o marco seguinte');
+    adiante.type = 'button';
+    adiante.disabled = !av.pode;
+    adiante.title = Herdar.resumo(av);
+    adiante.addEventListener('click', function () { levarAdiante(); });
+
     var linha = el('div', 'status-row');
     linha.appendChild(grupo);
+    linha.appendChild(adiante);
     linha.appendChild(next);
     bar.appendChild(linha);
+    if (!av.pode && Store.statusInfo(ncr.status).id === Store.STATUS_CONCLUIDO) {
+      /* aceito e mesmo assim não dá: o motivo é acionável (falta a data, ou
+         falta o relatório do marco), então vai escrito e não só no title */
+      bar.appendChild(el('div', 'hint status-herdar-aviso', av.motivo));
+    }
 
     return bar;
   }

@@ -321,10 +321,16 @@
       var rest = (kind === 'dev' ? [ncr.func] : [ncr.systems, ncr.func])
         .map(clean).filter(Boolean).join('|');
       if (rest) item.appendChild(document.createTextNode(c.indexSeparator + rest));
-      if (clean(ncr.archStatus)) {
-        item.appendChild(el('span', 'rep-index-status',
-          (rest ? '|' : c.indexSeparator) + clean(ncr.archStatus)));
-      }
+      /* A linha do índice fecha com a **situação do item** — o campo de
+         acompanhamento do editor —, e não mais com o Arch Status Waiver.
+         Pedido do Bruno: o Arch Status é texto livre e nem sempre está
+         escrito, enquanto a situação é sempre uma das quatro e é ela que
+         diz, de relance, em que pé o waiver está. O Arch Status continua
+         impresso na página do item, no bloco de status.
+         Vai em inglês porque o documento é em inglês (Store.STATUS.en). */
+      var sit = Store.statusInfo(ncr.status);
+      item.appendChild(el('span', 'rep-index-status',
+        (rest ? '|' : c.indexSeparator) + (sit.en || sit.nome)));
       list.appendChild(item);
     });
     if (!rows.length) {

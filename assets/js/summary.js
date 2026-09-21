@@ -280,34 +280,43 @@
     return wrap;
   }
 
-  /** Barras horizontais de uma cor só: comparação de magnitude. */
+  /**
+   * Barras horizontais de uma cor só: comparação de magnitude.
+   *
+   * `opts.larg` estreita o viewBox. Serve a quem desenha numa coluna
+   * estreita — o painel do marco: com o viewBox de 720 numa coluna de 110 mm
+   * o texto de 11 px sai com menos de meio milímetro no papel, ilegível.
+   * Menos largura de viewBox para a mesma largura em tela = letra maior.
+   */
   function barras(linhas, opts) {
     opts = opts || {};
     var max = 0;
     linhas.forEach(function (l) { if (l.valor > max) max = l.valor; });
     if (!max) return eixoVazio(opts.vazio || 'Sem dados para exibir.');
 
+    var LARGURA = opts.larg || LARG;
+    var ROT = opts.rotulo || ROTULO;
     var alt = linhas.length * (ALT_BARRA + ESPACO) + 6;
-    var largBarra = LARG - ROTULO - 60;
-    var svg = sv('svg', { viewBox: '0 0 ' + LARG + ' ' + alt, role: 'img', class: 'sm-svg' });
+    var largBarra = LARGURA - ROT - 60;
+    var svg = sv('svg', { viewBox: '0 0 ' + LARGURA + ' ' + alt, role: 'img', class: 'sm-svg' });
 
     linhas.forEach(function (l, i) {
       var y = i * (ALT_BARRA + ESPACO);
       var rot = sv('text', {
-        x: ROTULO - 10, y: y + ALT_BARRA / 2 + 4,
+        x: ROT - 10, y: y + ALT_BARRA / 2 + 4,
         'text-anchor': 'end', class: 'sm-axis-label'
       });
       rot.textContent = l.rotulo.length > 22 ? l.rotulo.slice(0, 21) + '…' : l.rotulo;
       svg.appendChild(rot);
 
       var w = Math.max((l.valor / max) * largBarra, 2);
-      var r = sv('rect', { x: ROTULO, y: y, width: w, height: ALT_BARRA, rx: 3, fill: C1 });
+      var r = sv('rect', { x: ROT, y: y, width: w, height: ALT_BARRA, rx: 3, fill: C1 });
       var t = sv('title');
       t.textContent = l.rotulo + ': ' + l.valor;
       r.appendChild(t);
       svg.appendChild(r);
 
-      var v = sv('text', { x: ROTULO + w + 8, y: y + ALT_BARRA / 2 + 4, class: 'sm-total-label' });
+      var v = sv('text', { x: ROT + w + 8, y: y + ALT_BARRA / 2 + 4, class: 'sm-total-label' });
       v.textContent = l.valor;
       svg.appendChild(v);
     });

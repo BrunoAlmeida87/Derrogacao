@@ -180,11 +180,22 @@ formulário:
 | **Improve justification** | voltou pedindo justificativa melhor |
 | **Waiver accepted** | aceito |
 
-Ela é **só para controle interno e não sai em nenhuma página do PDF do
-relatório** — aparece na lista lateral (a cor da barra à esquerda de cada item),
-na aba **Resumo** e na planilha CSV. O campo **Arch Status Waiver**, que é o que
-vai impresso no relatório, continua existindo e é independente desta situação:
-um serve para o documento, o outro para você saber onde o trabalho está.
+Ela aparece na lista lateral (a cor da barra à esquerda de cada item), na aba
+**Resumo**, na aba **Tabela** e na planilha. E, no PDF, **é ela que fecha a
+linha de cada item no índice da capa**:
+
+```
+NCR-ICN-ESC-13-1098-2023|RM|Sea water circuit integrity|Waiver accepted
+```
+
+Antes ali ia o *Arch Status Waiver*. Mudou porque o Arch Status é texto livre e
+muitas vezes está em branco, enquanto a situação é sempre uma das quatro. Na
+capa ela sai **em inglês**, porque o documento é em inglês — *Em preenchimento*
+vira *Under preparation*; as outras três já são inglês.
+
+O campo **Arch Status Waiver** continua existindo, continua independente e
+continua **impresso na página do item**, no bloco de status à direita, junto com
+as datas e o Waiver Historic. Nada mais mudou no relatório.
 
 **Um item só conta como concluído quando chega em "Waiver accepted".** É isso
 que acende o ✓ verde na lista, alimenta o contador de progresso e o filtro
@@ -192,6 +203,42 @@ que acende o ✓ verde na lista, alimenta o contador de progresso e o filtro
 
 Ao **copiar NCRs de outro relatório**, a cópia recomeça em *Em preenchimento*:
 o waiver é concedido por marco, não viaja junto com o texto.
+
+## Levar um waiver aceito para o marco seguinte
+
+Waiver aceito não acaba: ele vale até um marco à frente, e o item vai ter de
+ser reescrito lá. O programa faz essa cópia.
+
+Com o item em **Waiver accepted** e o marco escrito em **Waiver Approved
+Expiry (before)** — `J09`, por exemplo —, aparece ao pé do formulário o botão
+**⤵ Levar para o J09**. Um clique e a NCR vira uma cópia no relatório do J09:
+
+- **em *Em preenchimento***, não aceita: o waiver do J08 foi aceito, o do J09
+  ainda nem foi pedido;
+- **com o Waiver Historic já preenchido**, no formato do relatório — a linha
+  `J08 To: J09` entra sozinha, embaixo do que já estava escrito;
+- **com o mesmo número**, que é o que liga a NCR-001 do J08 à do J09 no fluxo;
+- **com o texto do pedido inteiro** (Description, Current Situation, Why is not
+  possible, Arguments, sistemas, função, certificados e anexos);
+- **com o Arch Answer, o Arch Status e as duas datas em branco** — eram a
+  resposta do J08, e o J09 ainda não respondeu nada;
+- **marcada como herdada**: um `⤵` na lista e uma faixa roxa no alto do editor
+  lembrando que há coisa para revisar. Quando você terminar de conferir, clique
+  em **Já conferi** e a marca sai.
+
+**A NCR do marco de origem não muda em nada.** Ela continua sendo o registro do
+que aconteceu no J08 — inclusive para o ponto no card do fluxo, que lê o Arch
+Answer do marco anterior direto de lá.
+
+Duas coisas que o programa recusa, e por quê:
+
+- **O relatório do marco de destino tem de existir** neste navegador. O botão
+  fica apagado e explica o que falta. Criar um marco sozinho, a partir de um
+  campo de texto, encheria a lista de marcos escritos com erro de digitação — e
+  cada um deles viajaria para a pasta da equipe.
+- **Levar duas vezes.** Se o J09 já tiver uma NCR com esse número, o botão diz
+  isso. Dois itens com o mesmo número no mesmo marco viram um só na
+  sincronização do colega.
 
 Backups gravados antes desta versão continuam abrindo normalmente — o que
 estava marcado como concluído entra como *Waiver accepted*, e o resto como
@@ -278,7 +325,11 @@ desenho é só a leitura dele.
 - **`J06Cer` é o certificado**, e fica logo antes do J06 dele.
 - **O card do marco deste relatório sai destacado**, para se achar de relance.
 - Quando as setas não dizem quem vem antes, vale a ordem do programa:
-  J01 & J03 · J02 & J04 · J05 · J06 · J07 · J08 · J09 · J10 · J11 · J12.
+  J01 & J03 · J02 & J04 · J05 · J06 · J07 · J08 · J09 · J10 · J11 · J12 ·
+  **RANAE** · **TRAP** — os dois últimos são os marcos depois do J12, e não têm
+  número. Escritos de qualquer jeito (`RANAE`, `Ranae`, `RANAE final`) são o
+  mesmo card. Atenção: `RANAE J06` continua sendo o **J06** — havendo número no
+  texto, é o número que manda.
 - Uma linha sem `To:` vira um card sozinho, e o pop-up avisa. Setas em círculo
   (`J06 To: J08` com `J08 To: J06`) também viram aviso, em vez de travar.
 
@@ -292,6 +343,40 @@ Na aba **Fluxos** está o compilado, em três leituras da mesma coisa:
   quatro colunas é um waiver renovado três vezes.
 - **Matriz de/para** — uma linha por seta escrita, da mais usada para a menos,
   com o percentual sobre os itens que têm fluxo.
+- **Painel do marco** — abaixo.
+
+### Painel do marco: o que está chegando no J09
+
+As outras três leituras respondem *por onde o waiver passou*. Esta responde a
+pergunta do outro lado do balcão, que é a que se leva para a reunião: **o que
+está vindo para este marco?**
+
+Escolha o marco em **Chegando no marco** e a folha se monta:
+
+- quantos itens vêm para ele, quantos são NCR e quantos DEV, de quantos marcos
+  diferentes;
+- quantos já estão aceitos, quantos estão parados há 30+ dias;
+- **já no relatório de J09** × **aceitos, falta trazer** — o segundo é a sua
+  lista de tarefas: itens aceitos no marco anterior que ainda não foram
+  copiados para cá (veja *Levar um waiver aceito para o marco seguinte*);
+- uma rosca com a situação de todos eles, uma barra com **de onde vêm** e outra
+  com os sistemas mais atingidos;
+- e a lista, item por item, dizendo em que relatório cada um mora hoje — com um
+  ✓ nos que já foram trazidos.
+
+Duas coisas a saber:
+
+- **Entra quem tem uma seta terminando neste marco.** Passar pelo marco no meio
+  do caminho não conta: quem já saiu do J08 não está indo para o J08. Se um
+  item não aparece, é porque ninguém escreveu `… To: J09` no Waiver Historic
+  dele.
+- **O painel olha todos os relatórios deste navegador e ignora os filtros da
+  aba** (busca, tipo, *Passa por*, *Itens de*) — por isso eles somem quando o
+  painel está aberto. Quem recorta o painel é o seletor de marco, e mais nada.
+
+**Esta vista em PDF** exporta o painel em duas folhas A4: os números e os
+gráficos numa, a lista na outra (que continua por quantas folhas precisar, com
+o cabeçalho repetido).
 
 Em **Itens de** escolha entre o relatório aberto e **todos os marcos** deste
 navegador; em **Passa por**, clique nos marcos para ver só os itens cujo fluxo
@@ -365,7 +450,11 @@ NCR-018?* — sem abrir marco por marco.
 - **Filtros**: marco, tipo, situação, sistema, *Arch Status*, com ou sem anexo,
   e só os parados há 30+ dias. São os mesmos do Resumo, para os dois contarem
   a mesma coisa.
-- **Colunas**: em **Colunas** você marca o que quer ver (são 22 no total, do
+- **Waiver de → para**: o último salto do caminho, lido do Waiver Historic —
+  `J08 → J09`. É a coluna que responde *para onde esta NCR está indo agora*, e
+  já vem ligada. Ao lado dela, em **Colunas**, há **Indo para o marco** (só o
+  destino, boa para ordenar e agrupar) e **Herdada do marco**.
+- **Colunas**: em **Colunas** você marca o que quer ver (são 25 no total, do
   número ao *Why not possible*) e usa as setas ↑ ↓ para mudar a ordem delas —
   na tela, no Excel e no PDF. A escolha fica guardada **neste navegador**.
 - **Ordenar**: clique no título da coluna. Isso **não altera** a ordem dos itens
@@ -844,12 +933,15 @@ assets/icons/            ícones do aplicativo instalado
 assets/css/app.css       estilos do editor
 assets/css/report.css    layout do relatório (tela e impressão A4)
 assets/js/store.js       modelo de dados, persistência (IndexedDB) e mesclagem
+assets/js/revisoes.js    o histórico do texto: quem escreveu o quê, campo a campo
 assets/js/pasta.js       a pasta da rede como banco de dados
 assets/js/report.js      montagem das páginas no padrão do PDF, com paginação
 assets/js/lado.js        o item preso ao lado, em só leitura
 assets/js/fluxo.js       leitura do Waiver Historic, desenho do fluxo e a
                          resposta do marco anterior
+assets/js/herdar.js      leva o item aceito para o marco seguinte
 assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
+assets/js/painel.js      o painel de um marco: o que está chegando nele
 assets/js/xlsx.js        gera a planilha .xlsx (sem biblioteca)
 assets/js/tabela.js      a aba Tabela: todos os itens, filtros e exportação
 assets/js/chat.js        a conversa da equipe, dentro da pasta da rede

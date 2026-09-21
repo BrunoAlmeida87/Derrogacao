@@ -53,7 +53,10 @@ assets/js/pasta.js         a pasta da rede como banco de dados (e as imagens)
 assets/js/report.js        monta as páginas no padrão do PDF, e as pagina
 assets/js/fluxo.js         lê o Waiver Historic, desenha o caminho do waiver e
                            acha o mesmo item no relatório do marco anterior
+assets/js/herdar.js        leva o item aceito para o marco em que o waiver
+                           foi aprovado, já preenchido
 assets/js/summary.js       apuração, filtros, gráficos SVG, aba Resumo
+assets/js/painel.js        o painel de um marco: tudo o que está indo para ele
 assets/js/xlsx.js          escreve a planilha .xlsx (ZIP + XML à mão)
 assets/js/tabela.js        aba Tabela: todos os itens de todos os marcos
 assets/js/chat.js          a conversa da equipe (aba opcional), pela pasta
@@ -66,11 +69,12 @@ exemplos/                  .json prontos para importar
 ```
 
 Ordem de carga dos scripts (importa: cada um usa o anterior):
-`store.js → revisoes.js → pasta.js → report.js → fluxo.js → summary.js →
-xlsx.js → tabela.js → chat.js → lado.js → app.js`.
+`store.js → revisoes.js → pasta.js → report.js → fluxo.js → herdar.js →
+summary.js → painel.js → xlsx.js → tabela.js → chat.js → lado.js → app.js`.
 (`tabela.js` usa `Summary`, `Fluxo`, `Report` e `SummaryView.csvCampo`;
 `revisoes.js` usa `Store.CAMPOS_MESCLA`, `valorCampo` e `rotuloCampo`;
-`xlsx.js` não usa ninguém.)
+`herdar.js` usa `Store`, `Fluxo` e `Report`; `painel.js` usa esses três mais
+`Summary` e `SummaryView.blocoLista`; `xlsx.js` não usa ninguém.)
 
 ## 4. Modelo de dados
 
@@ -96,7 +100,8 @@ xlsx.js → tabela.js → chat.js → lado.js → app.js`.
   evidence: [{id, ref, note, orientation,
               images:[{id, src, caption, arquivo}]}],   // arquivo: nome na pasta (§5)
   nota,                        // anotação interna livre; NÃO sai no PDF
-  status,                      // acompanhamento interno; NÃO sai no PDF
+  herdadoDe, herdadoEm,        // veio do marco tal, quando (§5, herdar.js)
+  status,                      // acompanhamento; fecha a linha da capa (§4)
   done,                        // espelho de status === 'aceito'
   editedBy, editedAt,          // editedAt é a chave da mesclagem
   syncBase }                   // editedAt na última troca de arquivo
@@ -137,13 +142,22 @@ pendente; a `nota` diz *por quê*.
 
 ### Dois campos que parecem o mesmo e não são
 
-- **`archStatus`** é texto livre e **vai impresso** no relatório
-  (*Arch Status Waiver*).
-- **`status`** é controle interno, **nunca** aparece no PDF do relatório. Quatro
-  valores, nesta ordem: `preenchendo`, `solicitado`, `justificar`, `aceito`
-  (Em preenchimento → Waiver requested → Improve justification → Waiver
-  accepted). **Só `aceito` conta como concluído.** Quem mexe nisso é
-  `Store.setStatus`, e só ele — `done` nunca se descola.
+- **`archStatus`** é texto livre e **vai impresso na página do item**, no
+  bloco de status (*Arch Status Waiver*). Continua ali, intocado.
+- **`status`** é o acompanhamento do editor. Quatro valores, nesta ordem:
+  `preenchendo`, `solicitado`, `justificar`, `aceito` (Em preenchimento →
+  Waiver requested → Improve justification → Waiver accepted). **Só `aceito`
+  conta como concluído.** Quem mexe nisso é `Store.setStatus`, e só ele —
+  `done` nunca se descola.
+
+**Onde o `status` aparece no PDF, e só onde:** desde o pedido do Bruno, é ele
+que **fecha a linha de cada item no índice da capa** — o lugar onde antes ia o
+`archStatus` (§10). O motivo: o Arch Status é texto livre e muitas vezes está
+em branco, enquanto a situação é sempre uma das quatro e diz de relance em que
+pé o waiver está. Vai em inglês, pelo campo `en` de `Store.STATUS`, porque a
+folha é um documento em inglês; "Em preenchimento" sai como *Under
+preparation*. Em nenhum outro lugar do PDF ele aparece — a página do item
+continua sendo o `SECTIONS` do `report.js`, e a `nota` continua fora de tudo.
 
 ## 5. Mecanismos, e por que são assim
 
@@ -353,6 +367,88 @@ colunas; `Fluxo.svg` desenha. O texto nunca é alterado — o desenho é leitura
   vez de sumir.
 - A aba **Fluxos** (`renderFluxos` em `app.js`) é o compilado do relatório
   aberto, e o PDF dela usa `Report.paginar` — a mesma paginação do relatório.
+
+### O marco depois do J12: RANAE e TRAP
+`Fluxo.ORDEM` termina em `… J11 · J12 · RANAE · TRAP`. Os dois últimos não têm
+número, e por isso cairiam como card solto no fim do desenho (posição 900) em
+vez de ficarem na fila. `SEM_NUMERO` os reconhece pelo texto, `naFilaSemNumero`
+dá a posição, e `marco()` canoniza a chave: "RANAE final", "Ranae" e "RANAE"
+viram **o mesmo card** — senão o mapa do marco contaria o mesmo caminho duas
+vezes só porque duas pessoas escreveram diferente.
+
+Cuidado com a armadilha que já existia: **"RANAE J06" continua sendo o J06.**
+Havendo número no texto, é o número que manda; o reconhecimento por nome só
+vale quando não há nenhum. É o que deixa o marco do RANAE conviver com os
+relatórios que a equipe já chama de "RANAE J06", "RANAE J08".
+
+### Levar o item aceito para o marco seguinte (`herdar.js`)
+Waiver aceito não acaba: ele vale até um marco à frente, e o item terá de ser
+reescrito lá. Era trabalho manual — copiar item por item, lembrando de trocar
+o que muda. Agora é um botão, na barra de situação do editor.
+
+- **O destino sai do `Waiver Approved Expiry`**, lido por `Fluxo.marco`. Não há
+  campo novo para isso: o campo que já diz até quando o waiver vale é o que diz
+  para onde ele vai (§10).
+- **O relatório do destino tem de existir.** Criar um marco a partir de um
+  campo de texto encheria a lista de marcos escritos com typo — e cada um
+  viajaria para a pasta da equipe. Não existindo, o botão fica apagado e diz o
+  que falta, por escrito.
+- **A cópia chega em "Em preenchimento"**, nunca aceita: o waiver do marco
+  anterior foi aceito, o deste ainda nem foi pedido.
+- **Com o Waiver Historic já escrito** (`J08 To: J09`), por `Fluxo.comLinha` —
+  a mesma função que `analisar` sabe ler de volta. Não há um segundo formato
+  de linha no programa.
+- **O número é o mesmo, de propósito.** `Store.duplicar` marca a cópia com
+  "(cópia)" porque lá o destino é o mesmo relatório; aqui o destino é outro
+  marco, e o pareamento é sempre dentro do marco (§5): a NCR-001 do J08 e a do
+  J09 são itens distintos, e precisam do mesmo número para se acharem no fluxo.
+- **O ciclo anterior vem em branco** (`archAnswer`, `archStatus`, as duas
+  datas): eram a resposta do marco que terminou. O texto do pedido —
+  description, current situation, why not possible, arguments — vai inteiro,
+  porque é o que dá trabalho de escrever.
+- **`herdadoDe`** marca a cópia. É o `⤵` na lista e a faixa roxa no alto do
+  editor, que sai quando a pessoa clica em "Já conferi" — o lembrete que o
+  Bruno pediu ("algumas informações terão que ser alteradas").
+- **Levar duas vezes é recusado**, pelo número, dentro do marco: dois itens com
+  o mesmo número virariam um só na mesclagem do colega.
+- **O item de origem não é tocado.** Ele é o registro do marco dele, e é dele
+  que o ponto no card do fluxo lê o Arch Answer do marco anterior.
+
+`herdadoDe` não subiu o `SCHEMA`, pelo mesmo motivo da `nota`: `extrasDe`
+preserva campo desconhecido, e subir poria toda sessão antiga em só leitura.
+Ele está em `CAMPOS_MESCLA` (converge campo a campo) e **fora** de
+`signature()` — o desempate tem de dar o mesmo resultado nas versões
+anteriores, senão as bases divergem para sempre (§10).
+
+### O painel de um marco (`painel.js`)
+A aba Fluxos responde "por onde passou". O painel responde a pergunta do outro
+lado do balcão, que é a que se leva para a reunião: **o que está chegando no
+J09?** É a quarta vista da aba Fluxos, e sai em PDF pelo mesmo botão das
+outras.
+
+- **A regra do recorte é uma só**: entra o item cujo fluxo tem uma seta que
+  **termina** no marco escolhido (`Fluxo.chegaEm`). Passar pelo marco no meio
+  do caminho não conta — quem já saiu do J08 não está indo para o J08. É isso
+  que faz o painel do J09 ser o J09, e não "tudo o que um dia encostou nele".
+- **Olha todos os relatórios deste navegador**, sempre: o que chega no J09 vem
+  do J08, do J06, do RANAE. Por isso a vista esconde os filtros da aba (busca,
+  tipo, escopo, "passa por"): eles são do fluxo por item, e oferecer botão que
+  não faz nada é pior do que não ter botão.
+- **Uma NCR que já foi levada adiante aparece uma vez só** (`semRepetir`): a
+  cópia que chegou ganha da original, porque é ela que ainda dá trabalho. Daí
+  os dois números que respondem ao dia a dia — *já no relatório de J09* e
+  *aceitos, falta trazer*.
+- **A contagem do seletor sai da mesma função que monta a lista.** Antes ela
+  contava setas, e o seletor dizia "J09 (7)" com seis itens na folha abaixo.
+  `Painel.base` lê o fluxo de cada item **uma vez** por desenho, e o seletor e
+  a lista comem do mesmo prato.
+- **Duas folhas, de propósito** (`opts.parte`). Numa folha só sobrava lugar
+  para duas linhas da lista, e o cabeçalho que ficava para trás empurrava o
+  gráfico inteiro para a folha seguinte: meia folha em branco e a lista
+  apertada logo depois. Separadas, cada uma enche a sua.
+- A rosca é SVG escrito à mão, com as cores de `Store.STATUS` (as mesmas do
+  trilho da lista e da pílula do resumo) e cada fatia com o número na legenda:
+  anel sem rótulo obriga a medir ângulo a olho, e isso não é leitura.
 
 ### As três leituras do fluxo (`Fluxo.agregado`, `matriz`, `saltos`)
 A lista responde "por onde passou esta NCR". Com trinta itens na mão a pergunta
@@ -606,6 +702,17 @@ permissão da pasta entre sessões.
   só o outro mexeu", e a junção seguinte apaga o meu trabalho inteiro. Por
   isso são duas bases, e por isso a de mesclagem só avança dentro do `then`
   da gravação.
+- **Gráfico estreito no papel quer viewBox estreito.** `Summary.barras` nasceu
+  com viewBox de 720 para a largura da tela. Numa coluna de 110 mm da folha,
+  os 11 px do rótulo saem com menos de meio milímetro — ilegível, e sem erro
+  nenhum. Daí o `opts.larg`/`opts.rotulo`: menos unidades de viewBox para a
+  mesma largura impressa é letra maior.
+- **Lista que quase cabe custa mais do que a que não cabe.** A paginação tira
+  unidades do fim uma a uma; quando todas as linhas de um `data-lista` saem, o
+  cabeçalho fica — e se ele ainda transbordar por três milímetros, o bloco
+  inteiro de antes vai junto. Foi o que deixou meia folha do painel em branco.
+  Quando a lista é longa e previsível, é melhor dar folha própria a ela do que
+  esperar a paginação resolver.
 - **O service worker é rede-primeiro, de propósito.** Cache-primeiro traria de
   volta o problema de HTML novo com JS velho que o `?v=<sha>` existe para
   evitar. O `sw.js` também é carimbado na publicação: sem mudar de conteúdo,
@@ -661,7 +768,18 @@ desta máquina às vezes bloqueia `github.io`.
 | LWW na pasta, três pontas no arquivo | situações diferentes |
 | Histórico dentro da pasta | o navegador só libera a pasta escolhida |
 | Situação interna separada do Arch Status | um é do documento, o outro do acompanhamento |
-| Índice da capa fecha com o Arch Status | o SBR4 traz assim (o SBR3 não trazia) |
+| Índice da capa fecha com a **situação do item**, não com o Arch Status | pedido do Bruno: o Arch Status é texto livre e muitas vezes vazio; a situação é sempre uma das quatro e diz de relance em que pé está. O Arch Status continua impresso na página do item (§4) |
+| A situação sai em inglês na capa (`Store.STATUS.en`) | a folha é um documento em inglês; "Em preenchimento" seria a única palavra em português dela |
+| O marco de destino sai do `Waiver Approved Expiry`, sem campo novo | o campo que já diz até quando o waiver vale é o que diz para onde ele vai; um campo paralelo sairia do ar na primeira vez que alguém editasse só o texto |
+| Levar adiante exige o relatório do destino já criado | criar marco a partir de um campo de texto encheria a lista de marcos com typo, e cada um viajaria para a pasta da equipe |
+| A cópia herdada mantém o mesmo número | o pareamento é sempre dentro do marco; é o número que liga a NCR-001 do J08 à do J09 no fluxo (ao contrário de `Store.duplicar`, que copia no mesmo relatório) |
+| A cópia herdada chega em "Em preenchimento", com o ciclo anterior em branco | o waiver de lá foi aceito, o daqui ainda nem foi pedido; Arch Answer, Arch Status e as datas eram a resposta do marco que terminou |
+| `herdadoDe` não sobe o `SCHEMA` e fica fora da `signature()` | mesmos motivos da `nota`: `extrasDe` já preserva, e o desempate tem de ser idêntico ao das versões anteriores |
+| RANAE e TRAP entram em `Fluxo.ORDEM` pelo nome, sem número | são os dois marcos depois do J12 e não têm "J"; sem isso cairiam como card solto no fim do desenho. "RANAE J06" continua sendo o J06 — havendo número, é o número que manda |
+| O painel recorta por "seta que termina aqui", não por "passa por aqui" | quem já saiu do J08 não está indo para o J08; senão o painel do J09 viraria "tudo o que um dia encostou no J09" |
+| O painel ignora os filtros da aba Fluxos e os esconde | eles são do fluxo por item; botão que não faz nada é pior do que botão nenhum |
+| No painel, a cópia que já chegou ganha da original | uma NCR levada adiante existe duas vezes neste navegador, e quem ainda dá trabalho é a cópia; daí "já no relatório" × "falta trazer" |
+| O painel em PDF sai em duas folhas fixas | numa só, o cabeçalho órfão da lista empurrava os gráficos para a folha seguinte e deixava meia folha em branco |
 | Paginar em vez de mudar as margens para `@page` | mover as margens para a página quebraria quem imprime com "Margens: Nenhuma", que é o que o README manda fazer |
 | Imagem em arquivo na pasta, embutida no backup | na pasta o que pesa é reescrever tudo a cada gravação; no backup o arquivo tem de viajar sozinho |
 | Item aceito abre travado, com "editar mesmo assim" | a regra da pasta espalha um clique distraído para todo mundo em 20 s |

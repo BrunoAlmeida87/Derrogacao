@@ -2464,3 +2464,156 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 }
 .ncr-move:hover { background: var(--tab-tint, #f2f3f6); color: var(--ink); }
 .ncr-move:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ==========================================================================
+   Herdar: o item que veio do marco anterior
+   ========================================================================== */
+
+/* o ⤵ na lista, ao lado do 📝 e do ⇄ */
+.herd-dot { color: #7a5cc4; font-weight: 700; }
+
+.btn--herdar { border-color: #b9a6e6; color: #4b2f8f; background: #f4f0fd; }
+.btn--herdar:hover:not(:disabled) { background: #ebe4fb; }
+.btn--herdar:disabled { opacity: .55; cursor: not-allowed; }
+.status-herdar-aviso { margin-top: 6px; }
+
+.herd-faixa {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: #f4f0fd;
+  border: 1px solid #d7cbf3;
+  border-left: 4px solid #7a5cc4;
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.herd-faixa-txt { display: flex; flex-direction: column; gap: 3px; }
+.herd-faixa-txt strong { color: #4b2f8f; font-size: 13px; }
+.herd-faixa-txt span { font-size: 12px; color: var(--muted); line-height: 1.45; }
+.herd-faixa .btn { flex: 0 0 auto; margin-left: auto; }
+
+/* ==========================================================================
+   Painel do marco — tela e folha A4
+   --------------------------------------------------------------------------
+   As medidas em px valem na tela; na folha (.rep-page--painel) o bloco é
+   reapertado, porque 210 mm não são 980 px. As media queries de tela estreita
+   não alcançam nada aqui de propósito: a folha tem largura fixa, e uma regra
+   de telefone mudando a altura da linha faria a paginação errar a conta
+   (§6 do CLAUDE.md).
+   ========================================================================== */
+
+.pn-tela { padding-bottom: 24px; }
+
+.pn-capa {
+  max-width: 980px;
+  margin: 0 auto 16px;
+  padding: 18px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--kind);
+  background: linear-gradient(180deg, #f7f5ff 0%, var(--panel) 70%);
+  box-shadow: var(--sh-1);
+}
+.pn-capa-sobre {
+  margin: 0; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .12em; color: var(--muted);
+}
+.pn-capa-marco {
+  margin: 2px 0 6px; font-size: 34px; line-height: 1.05;
+  color: var(--kind); letter-spacing: -.01em;
+}
+.pn-capa-linha { margin: 0; font-size: 14px; color: var(--ink); }
+.pn-capa-pe { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
+.pn-vazio {
+  max-width: 980px; margin: 0 auto; padding: 16px 18px;
+  border: 1px dashed var(--line); border-radius: var(--radius);
+  color: var(--muted); font-size: 13px; line-height: 1.5;
+}
+
+.pn-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  max-width: 980px;
+  margin: 0 auto 16px;
+}
+.pn-kpi {
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--kind);
+  border-radius: var(--radius);
+  box-shadow: var(--sh-1);
+  padding: 11px 13px;
+}
+.pn-kpi-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); line-height: 1.3;
+}
+.pn-kpi-value { font-size: 26px; line-height: 1.1; font-weight: 700; color: var(--kind); }
+.pn-kpi-sub { font-size: 11px; color: var(--muted); }
+
+/* os dois gráficos lado a lado; num espaço estreito eles empilham */
+.pn-duplo {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) 1fr;
+  gap: 16px;
+  max-width: 980px;
+  margin: 0 auto 16px;
+  align-items: start;
+}
+.pn-duplo .pn-card { margin: 0; max-width: none; }
+@media (max-width: 1100px) {
+  .pn-duplo { grid-template-columns: 1fr; }
+}
+
+.pn-rosca { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.pn-rosca-svg { flex: 0 0 auto; }
+.pn-rosca-num { font: 700 30px/1 Arial, sans-serif; fill: var(--ink); }
+.pn-rosca-sub { font: 11px/1 Arial, sans-serif; fill: #6b7280; }
+
+.pn-leg { list-style: none; margin: 0; padding: 0; flex: 1 1 150px; min-width: 150px; }
+.pn-leg-item {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; padding: 3px 0;
+  border-bottom: 1px solid var(--line);
+}
+.pn-leg-item:last-child { border-bottom: 0; }
+.pn-leg-item.is-zero { color: var(--muted); opacity: .6; }
+.pn-leg-dot { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto; }
+.pn-leg-nome { flex: 1 1 auto; }
+.pn-leg-n { font-variant-numeric: tabular-nums; }
+.pn-leg-pct { color: var(--muted); font-size: 11px; width: 34px; text-align: right; }
+
+.pn-escolha select { min-width: 190px; }
+
+/* --- a mesma coisa na folha ---------------------------------------------- */
+
+.rep-page--painel .pn-capa {
+  max-width: none; margin: 0 0 5mm;
+  border-radius: 0; box-shadow: none;
+  padding: 4mm 5mm;
+}
+.rep-page--painel .pn-capa-marco { font-size: 26pt; }
+.rep-page--painel .pn-capa-linha { font-size: 11pt; }
+.rep-page--painel .pn-capa-pe { font-size: 8pt; }
+.rep-page--painel .pn-kpis,
+.rep-page--painel .pn-duplo { max-width: none; margin-left: 0; margin-right: 0; gap: 3mm; }
+.rep-page--painel .pn-kpis { grid-template-columns: repeat(3, 1fr); margin-bottom: 5mm; }
+.rep-page--painel .pn-duplo { grid-template-columns: 62mm 1fr; margin-bottom: 5mm; }
+.rep-page--painel .pn-kpi,
+.rep-page--painel .pn-card {
+  border-radius: 0; box-shadow: none;
+  break-inside: avoid; page-break-inside: avoid;
+}
+.rep-page--painel .pn-kpi { padding: 2.5mm 3mm; }
+.rep-page--painel .pn-kpi-label { font-size: 7pt; }
+.rep-page--painel .pn-kpi-value { font-size: 19pt; }
+.rep-page--painel .pn-kpi-sub { font-size: 8pt; }
+.rep-page--painel .pn-leg-item { font-size: 8pt; }
+.rep-page--painel .pn-vazio { max-width: none; font-size: 10pt; }
+.rep-page--painel .sm-card { max-width: none; margin-left: 0; margin-right: 0; }
+/* na folha os dois cartões da linha ficam do mesmo tamanho: um alto e um
+   baixo lado a lado ficam com cara de bloco faltando */
+.rep-page--painel .pn-duplo { align-items: stretch; }
+.rep-page--painel .pn-duplo .pn-card { display: flex; flex-direction: column; }
+.rep-page--painel .pn-duplo .sm-chart { margin-top: auto; margin-bottom: auto; }

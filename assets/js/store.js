@@ -51,18 +51,25 @@
     };
   }
 
-  /* Situação de acompanhamento do item. É controle interno: não sai em
-     nenhuma página do PDF — quem vai para o relatório é o campo
-     "Arch Status Waiver", que segue independente deste. O item só conta como
-     concluído quando chega em "Waiver accepted". */
+  /* Situação de acompanhamento do item. Nasceu como controle interno, e
+     continua sendo o que o editor mostra e o que os filtros contam. Desde
+     que o Bruno pediu, é também **o que fecha a linha do item no índice da
+     capa** do relatório — o Arch Status Waiver, que é texto livre, continua
+     impresso no bloco de status da página do item, mas quem diz em que pé o
+     waiver está, na capa, é esta situação (§10). O item só conta como
+     concluído quando chega em "Waiver accepted".
+
+     `en` é o rótulo que vai para o papel: o relatório é um documento em
+     inglês, e "Em preenchimento" no meio da capa seria a única palavra em
+     português da folha. */
   var STATUS = [
-    { id: 'preenchendo', nome: 'Em preenchimento',     cor: '#9aa1ae',
+    { id: 'preenchendo', nome: 'Em preenchimento',     en: 'Under preparation', cor: '#9aa1ae',
       ajuda: 'Ainda sendo escrito.' },
-    { id: 'solicitado',  nome: 'Waiver requested',     cor: '#2a78d6',
+    { id: 'solicitado',  nome: 'Waiver requested',     en: 'Waiver requested', cor: '#2a78d6',
       ajuda: 'Enviado, aguardando resposta.' },
-    { id: 'justificar',  nome: 'Improve justification', cor: '#eb6834',
+    { id: 'justificar',  nome: 'Improve justification', en: 'Improve justification', cor: '#eb6834',
       ajuda: 'Voltou pedindo justificativa melhor.' },
-    { id: 'aceito',      nome: 'Waiver accepted',      cor: '#1baf7a',
+    { id: 'aceito',      nome: 'Waiver accepted',      en: 'Waiver accepted', cor: '#1baf7a',
       ajuda: 'Aceito — o item conta como concluído.' }
   ];
   var STATUS_PADRAO = 'preenchendo';
@@ -98,7 +105,9 @@
       certificates: [],
       evidence: [],
       nota: '',              // anotação interna livre; NÃO sai no PDF (§4)
-      status: STATUS_PADRAO, // acompanhamento interno; não sai no PDF
+      herdadoDe: '',         // marco de onde este item foi trazido (§5, herdar.js)
+      herdadoEm: '',         // quando foi trazido — ISO
+      status: STATUS_PADRAO, // acompanhamento do item; fecha a linha da capa
       done: false,           // espelho de status === 'aceito', para filtros e contagens
       editedBy: '',          // quem mexeu nele por último
       editedAt: '',
@@ -164,7 +173,8 @@
   var CAMPOS_EVIDENCIA = ['id', 'ref', 'note', 'orientation', 'images'];
   var CAMPOS_ITEM = ['id', 'ncrId', 'systems', 'func', 'description', 'currentSituation',
     'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
-    'approvedExpiry', 'historic', 'certificates', 'evidence', 'nota', 'status', 'done',
+    'approvedExpiry', 'historic', 'certificates', 'evidence', 'nota',
+    'herdadoDe', 'herdadoEm', 'status', 'done',
     'editedBy', 'editedAt', 'syncBase'];
   var CAMPOS_PROJETO = ['id', 'schema', 'name', 'marco', 'marcoDev', 'lastEditedBy',
     'lastEditedAt', 'lastBackupBy', 'lastBackupAt', 'coverTitle', 'coverTitleDev',
@@ -236,6 +246,8 @@
       certificates: certs,
       evidence: Array.isArray(raw.evidence) ? raw.evidence.map(normalizeEvidence) : [],
       nota: str(raw.nota),
+      herdadoDe: str(raw.herdadoDe),
+      herdadoEm: str(raw.herdadoEm),
       status: status,
       done: status === STATUS_CONCLUIDO,
       editedBy: str(raw.editedBy),
@@ -418,7 +430,7 @@
      um item que ninguém montou. Elas seguem o item inteiro, como antes. */
   var CAMPOS_MESCLA = ['ncrId', 'systems', 'func', 'description', 'currentSituation',
     'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
-    'approvedExpiry', 'historic', 'nota', 'certificates', 'status'];
+    'approvedExpiry', 'historic', 'nota', 'herdadoDe', 'certificates', 'status'];
 
   function rotuloCampo(campo) {
     var achado = '';
@@ -426,6 +438,7 @@
     if (achado) return achado;
     if (campo === 'certificates') return 'Certificate Impacted';
     if (campo === 'status') return 'Situação do item';
+    if (campo === 'herdadoDe') return 'Herdada do marco';
     return campo;
   }
 

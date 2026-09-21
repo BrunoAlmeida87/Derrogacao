@@ -20,8 +20,22 @@
   'use strict';
 
   /* Ordem dos marcos do programa. Vale para colocar os cards na fila quando o
-     texto não diz quem vem antes — as setas escritas sempre mandam mais. */
-  var ORDEM = ['J01 & J03', 'J02 & J04', 'J05', 'J06', 'J07', 'J08', 'J09', 'J10', 'J11', 'J12'];
+     texto não diz quem vem antes — as setas escritas sempre mandam mais.
+
+     Depois do J12 vêm dois marcos que não têm número: o do RANAE e, por
+     último, o TRAP. Como não têm "J", eles cairiam no fim como card solto
+     (posição 900) e apareceriam fora de ordem no desenho; entrando aqui,
+     ficam no lugar certo da fila. Cuidado: "RANAE J06" continua sendo o J06
+     — quando há número no texto, é o número que manda (ver `marco`). */
+  var ORDEM = ['J01 & J03', 'J02 & J04', 'J05', 'J06', 'J07', 'J08', 'J09', 'J10',
+    'J11', 'J12', 'RANAE', 'TRAP'];
+
+  /* Os marcos sem número da lista acima, reconhecidos pelo texto: "RANAE",
+     "RANAE final" e "Ranae" são o mesmo card. */
+  var SEM_NUMERO = [
+    { chave: 'RANAE', re: /RANAE/i },
+    { chave: 'TRAP', re: /TRAP/i }
+  ];
 
   /* "To:" é o que o relatório usa; os outros entram só para não perder o que
      alguém escrever à mão de outro jeito. */
@@ -51,7 +65,15 @@
     }
 
     if (!achados.length) {
-      /* sem marco no texto: é um destino escrito por extenso, como "RANAE" */
+      /* Sem número no texto. Pode ainda ser um marco da fila — o do RANAE e o
+         TRAP não têm número —, e aí vale a chave da fila: "RANAE final" e
+         "Ranae" têm de virar o mesmo card, senão o mapa do marco conta o
+         mesmo caminho duas vezes só porque duas pessoas escreveram diferente. */
+      var k = naFilaSemNumero(t);
+      if (k >= 0) {
+        return { chave: ORDEM[k], rotulo: ORDEM[k], num: null, nums: [], cer: false, solto: true };
+      }
+      /* o resto é um destino escrito por extenso, e entra como está */
       return { chave: t.toUpperCase(), rotulo: t, num: null, nums: [], cer: false, solto: true };
     }
 
@@ -69,9 +91,22 @@
     };
   }
 
+  /** O texto sem número é um dos marcos da fila (RANAE, TRAP)? -1 se não. */
+  function naFilaSemNumero(bruto) {
+    var t = texto(bruto);
+    for (var i = 0; i < SEM_NUMERO.length; i++) {
+      if (SEM_NUMERO[i].re.test(t)) return ORDEM.indexOf(SEM_NUMERO[i].chave);
+    }
+    return -1;
+  }
+
   /** Posição na fila dos marcos. O "Cer" vem logo antes do marco dele. */
   function posicao(no) {
-    if (no.solto) return 900;                       /* o que não é marco vai para o fim */
+    if (no.solto) {
+      /* sem número no texto: ainda pode ser um marco da fila (RANAE, TRAP) */
+      var k = naFilaSemNumero(no.rotulo);
+      return k < 0 ? 900 : k;                       /* o resto vai para o fim */
+    }
     var base = no.rotulo.replace(/Cer$/i, '');
     var i = ORDEM.indexOf(base);
     var listado = i >= 0;
@@ -319,6 +354,92 @@
     return analise.colunas.map(function (col) {
       return col.map(function (n) { return n.rotulo; }).join(' + ');
     }).join(' → ');
+  }
+
+  /* --- de onde para onde -------------------------------------------------
+
+     A lista e o mapa respondem "por onde passou". Falta a pergunta curta,
+     que é a da tabela e a do painel: "este waiver foi de qual marco para
+     qual?". É sempre o último salto do caminho — o pedaço mais novo do
+     texto, e o único que ainda está valendo. */
+
+  function noDe(analise, chave) {
+    var achado = null;
+    (analise.nos || []).forEach(function (n) { if (n.chave === chave) achado = n; });
+    return achado;
+  }
+
+  /**
+   * O último salto: { de, para, texto } com os rótulos dos cards.
+   *
+   * O destino é o card da última coluna — quem ninguém empurra para a
+   * frente. A origem é quem aponta para ele; havendo mais de um ("J05 To:
+   * J09" e "J08 To: J09"), vale o mais adiantado na fila dos marcos, que é
+   * o salto mais recente.
+   */
+  function ultimoSalto(analise) {
+    if (!analise || analise.vazio || !analise.colunas.length) return null;
+    var ultima = analise.colunas[analise.colunas.length - 1];
+    var destino = ultima[ultima.length - 1];
+    if (!destino) return null;
+    var de = null;
+    (analise.arestas || []).forEach(function (a) {
+      if (a.para !== destino.chave) return;
+      var n = noDe(analise, a.de);
+      if (n && (!de || n.pos > de.pos)) de = n;
+    });
+    return {
+      de: de ? de.rotulo : '',
+      para: destino.rotulo,
+      chaveDe: de ? de.chave : '',
+      chavePara: destino.chave,
+      texto: de ? de.rotulo + ' → ' + destino.rotulo : destino.rotulo
+    };
+  }
+
+  /**
+   * Este fluxo vai **em direção** a este marco? Isto é: existe uma seta
+   * escrita que termina nele. Passar por um marco no meio do caminho não
+   * conta — quem já saiu do J08 não está indo para o J08.
+   *
+   * Devolve o card de onde veio (ou o próprio destino, quando o marco é o
+   * começo do caminho), para o painel poder dizer "veio do J08".
+   */
+  function chegaEm(analise, chave) {
+    if (!analise || analise.vazio || !chave) return null;
+    var alvo = noDe(analise, chave);
+    if (!alvo) return null;
+    var de = null;
+    (analise.arestas || []).forEach(function (a) {
+      if (a.para !== chave) return;
+      var n = noDe(analise, a.de);
+      if (n && (!de || n.pos > de.pos)) de = n;
+    });
+    if (!de) return null;
+    return { de: de.rotulo, chaveDe: de.chave, para: alvo.rotulo, chavePara: alvo.chave };
+  }
+
+  /**
+   * Uma linha do Waiver Historic, no formato do relatório.
+   * Está aqui, e só aqui, para o texto que o programa escreve sozinho ser
+   * exatamente o que `analisar` sabe ler de volta.
+   */
+  function linhaHistorico(de, para) {
+    var a = texto(de), b = texto(para);
+    if (!a || !b) return '';
+    return a + ' To: ' + b;
+  }
+
+  /** Acrescenta a linha ao texto, sem repetir uma que já esteja escrita. */
+  function comLinha(historic, de, para) {
+    var linha = linhaHistorico(de, para);
+    if (!linha) return texto(historic);
+    var atual = texto(historic);
+    var repetida = atual.split('\n').some(function (l) {
+      return texto(l).toUpperCase() === linha.toUpperCase();
+    });
+    if (repetida) return atual;
+    return atual ? atual + '\n' + linha : linha;
   }
 
   /* --- o que o marco anterior respondeu ---------------------------------- */
@@ -766,6 +887,10 @@
     saltos: saltos,
     marcosCitados: marcosCitados,
     passaPor: passaPor,
+    ultimoSalto: ultimoSalto,
+    chegaEm: chegaEm,
+    linhaHistorico: linhaHistorico,
+    comLinha: comLinha,
     indice: indice,
     anterior: anterior,
     resumoDoAchado: resumoDoAchado,

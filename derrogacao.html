@@ -2480,6 +2480,159 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .ncr-move:hover { background: var(--tab-tint, #f2f3f6); color: var(--ink); }
 .ncr-move:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+/* ==========================================================================
+   Herdar: o item que veio do marco anterior
+   ========================================================================== */
+
+/* o ⤵ na lista, ao lado do 📝 e do ⇄ */
+.herd-dot { color: #7a5cc4; font-weight: 700; }
+
+.btn--herdar { border-color: #b9a6e6; color: #4b2f8f; background: #f4f0fd; }
+.btn--herdar:hover:not(:disabled) { background: #ebe4fb; }
+.btn--herdar:disabled { opacity: .55; cursor: not-allowed; }
+.status-herdar-aviso { margin-top: 6px; }
+
+.herd-faixa {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: #f4f0fd;
+  border: 1px solid #d7cbf3;
+  border-left: 4px solid #7a5cc4;
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.herd-faixa-txt { display: flex; flex-direction: column; gap: 3px; }
+.herd-faixa-txt strong { color: #4b2f8f; font-size: 13px; }
+.herd-faixa-txt span { font-size: 12px; color: var(--muted); line-height: 1.45; }
+.herd-faixa .btn { flex: 0 0 auto; margin-left: auto; }
+
+/* ==========================================================================
+   Painel do marco — tela e folha A4
+   --------------------------------------------------------------------------
+   As medidas em px valem na tela; na folha (.rep-page--painel) o bloco é
+   reapertado, porque 210 mm não são 980 px. As media queries de tela estreita
+   não alcançam nada aqui de propósito: a folha tem largura fixa, e uma regra
+   de telefone mudando a altura da linha faria a paginação errar a conta
+   (§6 do CLAUDE.md).
+   ========================================================================== */
+
+.pn-tela { padding-bottom: 24px; }
+
+.pn-capa {
+  max-width: 980px;
+  margin: 0 auto 16px;
+  padding: 18px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--kind);
+  background: linear-gradient(180deg, #f7f5ff 0%, var(--panel) 70%);
+  box-shadow: var(--sh-1);
+}
+.pn-capa-sobre {
+  margin: 0; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .12em; color: var(--muted);
+}
+.pn-capa-marco {
+  margin: 2px 0 6px; font-size: 34px; line-height: 1.05;
+  color: var(--kind); letter-spacing: -.01em;
+}
+.pn-capa-linha { margin: 0; font-size: 14px; color: var(--ink); }
+.pn-capa-pe { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
+.pn-vazio {
+  max-width: 980px; margin: 0 auto; padding: 16px 18px;
+  border: 1px dashed var(--line); border-radius: var(--radius);
+  color: var(--muted); font-size: 13px; line-height: 1.5;
+}
+
+.pn-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  max-width: 980px;
+  margin: 0 auto 16px;
+}
+.pn-kpi {
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--kind);
+  border-radius: var(--radius);
+  box-shadow: var(--sh-1);
+  padding: 11px 13px;
+}
+.pn-kpi-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); line-height: 1.3;
+}
+.pn-kpi-value { font-size: 26px; line-height: 1.1; font-weight: 700; color: var(--kind); }
+.pn-kpi-sub { font-size: 11px; color: var(--muted); }
+
+/* os dois gráficos lado a lado; num espaço estreito eles empilham */
+.pn-duplo {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) 1fr;
+  gap: 16px;
+  max-width: 980px;
+  margin: 0 auto 16px;
+  align-items: start;
+}
+.pn-duplo .pn-card { margin: 0; max-width: none; }
+@media (max-width: 1100px) {
+  .pn-duplo { grid-template-columns: 1fr; }
+}
+
+.pn-rosca { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.pn-rosca-svg { flex: 0 0 auto; }
+.pn-rosca-num { font: 700 30px/1 Arial, sans-serif; fill: var(--ink); }
+.pn-rosca-sub { font: 11px/1 Arial, sans-serif; fill: #6b7280; }
+
+.pn-leg { list-style: none; margin: 0; padding: 0; flex: 1 1 150px; min-width: 150px; }
+.pn-leg-item {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; padding: 3px 0;
+  border-bottom: 1px solid var(--line);
+}
+.pn-leg-item:last-child { border-bottom: 0; }
+.pn-leg-item.is-zero { color: var(--muted); opacity: .6; }
+.pn-leg-dot { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto; }
+.pn-leg-nome { flex: 1 1 auto; }
+.pn-leg-n { font-variant-numeric: tabular-nums; }
+.pn-leg-pct { color: var(--muted); font-size: 11px; width: 34px; text-align: right; }
+
+.pn-escolha select { min-width: 190px; }
+
+/* --- a mesma coisa na folha ---------------------------------------------- */
+
+.rep-page--painel .pn-capa {
+  max-width: none; margin: 0 0 5mm;
+  border-radius: 0; box-shadow: none;
+  padding: 4mm 5mm;
+}
+.rep-page--painel .pn-capa-marco { font-size: 26pt; }
+.rep-page--painel .pn-capa-linha { font-size: 11pt; }
+.rep-page--painel .pn-capa-pe { font-size: 8pt; }
+.rep-page--painel .pn-kpis,
+.rep-page--painel .pn-duplo { max-width: none; margin-left: 0; margin-right: 0; gap: 3mm; }
+.rep-page--painel .pn-kpis { grid-template-columns: repeat(3, 1fr); margin-bottom: 5mm; }
+.rep-page--painel .pn-duplo { grid-template-columns: 62mm 1fr; margin-bottom: 5mm; }
+.rep-page--painel .pn-kpi,
+.rep-page--painel .pn-card {
+  border-radius: 0; box-shadow: none;
+  break-inside: avoid; page-break-inside: avoid;
+}
+.rep-page--painel .pn-kpi { padding: 2.5mm 3mm; }
+.rep-page--painel .pn-kpi-label { font-size: 7pt; }
+.rep-page--painel .pn-kpi-value { font-size: 19pt; }
+.rep-page--painel .pn-kpi-sub { font-size: 8pt; }
+.rep-page--painel .pn-leg-item { font-size: 8pt; }
+.rep-page--painel .pn-vazio { max-width: none; font-size: 10pt; }
+.rep-page--painel .sm-card { max-width: none; margin-left: 0; margin-right: 0; }
+/* na folha os dois cartões da linha ficam do mesmo tamanho: um alto e um
+   baixo lado a lado ficam com cara de bloco faltando */
+.rep-page--painel .pn-duplo { align-items: stretch; }
+.rep-page--painel .pn-duplo .pn-card { display: flex; flex-direction: column; }
+.rep-page--painel .pn-duplo .sm-chart { margin-top: auto; margin-bottom: auto; }
+
 </style>
 <style>
 /* assets/css/report.css */
@@ -3373,18 +3526,25 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     };
   }
 
-  /* Situação de acompanhamento do item. É controle interno: não sai em
-     nenhuma página do PDF — quem vai para o relatório é o campo
-     "Arch Status Waiver", que segue independente deste. O item só conta como
-     concluído quando chega em "Waiver accepted". */
+  /* Situação de acompanhamento do item. Nasceu como controle interno, e
+     continua sendo o que o editor mostra e o que os filtros contam. Desde
+     que o Bruno pediu, é também **o que fecha a linha do item no índice da
+     capa** do relatório — o Arch Status Waiver, que é texto livre, continua
+     impresso no bloco de status da página do item, mas quem diz em que pé o
+     waiver está, na capa, é esta situação (§10). O item só conta como
+     concluído quando chega em "Waiver accepted".
+
+     `en` é o rótulo que vai para o papel: o relatório é um documento em
+     inglês, e "Em preenchimento" no meio da capa seria a única palavra em
+     português da folha. */
   var STATUS = [
-    { id: 'preenchendo', nome: 'Em preenchimento',     cor: '#9aa1ae',
+    { id: 'preenchendo', nome: 'Em preenchimento',     en: 'Under preparation', cor: '#9aa1ae',
       ajuda: 'Ainda sendo escrito.' },
-    { id: 'solicitado',  nome: 'Waiver requested',     cor: '#2a78d6',
+    { id: 'solicitado',  nome: 'Waiver requested',     en: 'Waiver requested', cor: '#2a78d6',
       ajuda: 'Enviado, aguardando resposta.' },
-    { id: 'justificar',  nome: 'Improve justification', cor: '#eb6834',
+    { id: 'justificar',  nome: 'Improve justification', en: 'Improve justification', cor: '#eb6834',
       ajuda: 'Voltou pedindo justificativa melhor.' },
-    { id: 'aceito',      nome: 'Waiver accepted',      cor: '#1baf7a',
+    { id: 'aceito',      nome: 'Waiver accepted',      en: 'Waiver accepted', cor: '#1baf7a',
       ajuda: 'Aceito — o item conta como concluído.' }
   ];
   var STATUS_PADRAO = 'preenchendo';
@@ -3420,7 +3580,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       certificates: [],
       evidence: [],
       nota: '',              // anotação interna livre; NÃO sai no PDF (§4)
-      status: STATUS_PADRAO, // acompanhamento interno; não sai no PDF
+      herdadoDe: '',         // marco de onde este item foi trazido (§5, herdar.js)
+      herdadoEm: '',         // quando foi trazido — ISO
+      status: STATUS_PADRAO, // acompanhamento do item; fecha a linha da capa
       done: false,           // espelho de status === 'aceito', para filtros e contagens
       editedBy: '',          // quem mexeu nele por último
       editedAt: '',
@@ -3486,7 +3648,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   var CAMPOS_EVIDENCIA = ['id', 'ref', 'note', 'orientation', 'images'];
   var CAMPOS_ITEM = ['id', 'ncrId', 'systems', 'func', 'description', 'currentSituation',
     'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
-    'approvedExpiry', 'historic', 'certificates', 'evidence', 'nota', 'status', 'done',
+    'approvedExpiry', 'historic', 'certificates', 'evidence', 'nota',
+    'herdadoDe', 'herdadoEm', 'status', 'done',
     'editedBy', 'editedAt', 'syncBase'];
   var CAMPOS_PROJETO = ['id', 'schema', 'name', 'marco', 'marcoDev', 'lastEditedBy',
     'lastEditedAt', 'lastBackupBy', 'lastBackupAt', 'coverTitle', 'coverTitleDev',
@@ -3558,6 +3721,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       certificates: certs,
       evidence: Array.isArray(raw.evidence) ? raw.evidence.map(normalizeEvidence) : [],
       nota: str(raw.nota),
+      herdadoDe: str(raw.herdadoDe),
+      herdadoEm: str(raw.herdadoEm),
       status: status,
       done: status === STATUS_CONCLUIDO,
       editedBy: str(raw.editedBy),
@@ -3740,7 +3905,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
      um item que ninguém montou. Elas seguem o item inteiro, como antes. */
   var CAMPOS_MESCLA = ['ncrId', 'systems', 'func', 'description', 'currentSituation',
     'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
-    'approvedExpiry', 'historic', 'nota', 'certificates', 'status'];
+    'approvedExpiry', 'historic', 'nota', 'herdadoDe', 'certificates', 'status'];
 
   function rotuloCampo(campo) {
     var achado = '';
@@ -3748,6 +3913,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     if (achado) return achado;
     if (campo === 'certificates') return 'Certificate Impacted';
     if (campo === 'status') return 'Situação do item';
+    if (campo === 'herdadoDe') return 'Herdada do marco';
     return campo;
   }
 
@@ -5957,10 +6123,16 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       var rest = (kind === 'dev' ? [ncr.func] : [ncr.systems, ncr.func])
         .map(clean).filter(Boolean).join('|');
       if (rest) item.appendChild(document.createTextNode(c.indexSeparator + rest));
-      if (clean(ncr.archStatus)) {
-        item.appendChild(el('span', 'rep-index-status',
-          (rest ? '|' : c.indexSeparator) + clean(ncr.archStatus)));
-      }
+      /* A linha do índice fecha com a **situação do item** — o campo de
+         acompanhamento do editor —, e não mais com o Arch Status Waiver.
+         Pedido do Bruno: o Arch Status é texto livre e nem sempre está
+         escrito, enquanto a situação é sempre uma das quatro e é ela que
+         diz, de relance, em que pé o waiver está. O Arch Status continua
+         impresso na página do item, no bloco de status.
+         Vai em inglês porque o documento é em inglês (Store.STATUS.en). */
+      var sit = Store.statusInfo(ncr.status);
+      item.appendChild(el('span', 'rep-index-status',
+        (rest ? '|' : c.indexSeparator) + (sit.en || sit.nome)));
       list.appendChild(item);
     });
     if (!rows.length) {
@@ -6228,8 +6400,22 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   'use strict';
 
   /* Ordem dos marcos do programa. Vale para colocar os cards na fila quando o
-     texto não diz quem vem antes — as setas escritas sempre mandam mais. */
-  var ORDEM = ['J01 & J03', 'J02 & J04', 'J05', 'J06', 'J07', 'J08', 'J09', 'J10', 'J11', 'J12'];
+     texto não diz quem vem antes — as setas escritas sempre mandam mais.
+
+     Depois do J12 vêm dois marcos que não têm número: o do RANAE e, por
+     último, o TRAP. Como não têm "J", eles cairiam no fim como card solto
+     (posição 900) e apareceriam fora de ordem no desenho; entrando aqui,
+     ficam no lugar certo da fila. Cuidado: "RANAE J06" continua sendo o J06
+     — quando há número no texto, é o número que manda (ver `marco`). */
+  var ORDEM = ['J01 & J03', 'J02 & J04', 'J05', 'J06', 'J07', 'J08', 'J09', 'J10',
+    'J11', 'J12', 'RANAE', 'TRAP'];
+
+  /* Os marcos sem número da lista acima, reconhecidos pelo texto: "RANAE",
+     "RANAE final" e "Ranae" são o mesmo card. */
+  var SEM_NUMERO = [
+    { chave: 'RANAE', re: /RANAE/i },
+    { chave: 'TRAP', re: /TRAP/i }
+  ];
 
   /* "To:" é o que o relatório usa; os outros entram só para não perder o que
      alguém escrever à mão de outro jeito. */
@@ -6259,7 +6445,15 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     }
 
     if (!achados.length) {
-      /* sem marco no texto: é um destino escrito por extenso, como "RANAE" */
+      /* Sem número no texto. Pode ainda ser um marco da fila — o do RANAE e o
+         TRAP não têm número —, e aí vale a chave da fila: "RANAE final" e
+         "Ranae" têm de virar o mesmo card, senão o mapa do marco conta o
+         mesmo caminho duas vezes só porque duas pessoas escreveram diferente. */
+      var k = naFilaSemNumero(t);
+      if (k >= 0) {
+        return { chave: ORDEM[k], rotulo: ORDEM[k], num: null, nums: [], cer: false, solto: true };
+      }
+      /* o resto é um destino escrito por extenso, e entra como está */
       return { chave: t.toUpperCase(), rotulo: t, num: null, nums: [], cer: false, solto: true };
     }
 
@@ -6277,9 +6471,22 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     };
   }
 
+  /** O texto sem número é um dos marcos da fila (RANAE, TRAP)? -1 se não. */
+  function naFilaSemNumero(bruto) {
+    var t = texto(bruto);
+    for (var i = 0; i < SEM_NUMERO.length; i++) {
+      if (SEM_NUMERO[i].re.test(t)) return ORDEM.indexOf(SEM_NUMERO[i].chave);
+    }
+    return -1;
+  }
+
   /** Posição na fila dos marcos. O "Cer" vem logo antes do marco dele. */
   function posicao(no) {
-    if (no.solto) return 900;                       /* o que não é marco vai para o fim */
+    if (no.solto) {
+      /* sem número no texto: ainda pode ser um marco da fila (RANAE, TRAP) */
+      var k = naFilaSemNumero(no.rotulo);
+      return k < 0 ? 900 : k;                       /* o resto vai para o fim */
+    }
     var base = no.rotulo.replace(/Cer$/i, '');
     var i = ORDEM.indexOf(base);
     var listado = i >= 0;
@@ -6527,6 +6734,92 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     return analise.colunas.map(function (col) {
       return col.map(function (n) { return n.rotulo; }).join(' + ');
     }).join(' → ');
+  }
+
+  /* --- de onde para onde -------------------------------------------------
+
+     A lista e o mapa respondem "por onde passou". Falta a pergunta curta,
+     que é a da tabela e a do painel: "este waiver foi de qual marco para
+     qual?". É sempre o último salto do caminho — o pedaço mais novo do
+     texto, e o único que ainda está valendo. */
+
+  function noDe(analise, chave) {
+    var achado = null;
+    (analise.nos || []).forEach(function (n) { if (n.chave === chave) achado = n; });
+    return achado;
+  }
+
+  /**
+   * O último salto: { de, para, texto } com os rótulos dos cards.
+   *
+   * O destino é o card da última coluna — quem ninguém empurra para a
+   * frente. A origem é quem aponta para ele; havendo mais de um ("J05 To:
+   * J09" e "J08 To: J09"), vale o mais adiantado na fila dos marcos, que é
+   * o salto mais recente.
+   */
+  function ultimoSalto(analise) {
+    if (!analise || analise.vazio || !analise.colunas.length) return null;
+    var ultima = analise.colunas[analise.colunas.length - 1];
+    var destino = ultima[ultima.length - 1];
+    if (!destino) return null;
+    var de = null;
+    (analise.arestas || []).forEach(function (a) {
+      if (a.para !== destino.chave) return;
+      var n = noDe(analise, a.de);
+      if (n && (!de || n.pos > de.pos)) de = n;
+    });
+    return {
+      de: de ? de.rotulo : '',
+      para: destino.rotulo,
+      chaveDe: de ? de.chave : '',
+      chavePara: destino.chave,
+      texto: de ? de.rotulo + ' → ' + destino.rotulo : destino.rotulo
+    };
+  }
+
+  /**
+   * Este fluxo vai **em direção** a este marco? Isto é: existe uma seta
+   * escrita que termina nele. Passar por um marco no meio do caminho não
+   * conta — quem já saiu do J08 não está indo para o J08.
+   *
+   * Devolve o card de onde veio (ou o próprio destino, quando o marco é o
+   * começo do caminho), para o painel poder dizer "veio do J08".
+   */
+  function chegaEm(analise, chave) {
+    if (!analise || analise.vazio || !chave) return null;
+    var alvo = noDe(analise, chave);
+    if (!alvo) return null;
+    var de = null;
+    (analise.arestas || []).forEach(function (a) {
+      if (a.para !== chave) return;
+      var n = noDe(analise, a.de);
+      if (n && (!de || n.pos > de.pos)) de = n;
+    });
+    if (!de) return null;
+    return { de: de.rotulo, chaveDe: de.chave, para: alvo.rotulo, chavePara: alvo.chave };
+  }
+
+  /**
+   * Uma linha do Waiver Historic, no formato do relatório.
+   * Está aqui, e só aqui, para o texto que o programa escreve sozinho ser
+   * exatamente o que `analisar` sabe ler de volta.
+   */
+  function linhaHistorico(de, para) {
+    var a = texto(de), b = texto(para);
+    if (!a || !b) return '';
+    return a + ' To: ' + b;
+  }
+
+  /** Acrescenta a linha ao texto, sem repetir uma que já esteja escrita. */
+  function comLinha(historic, de, para) {
+    var linha = linhaHistorico(de, para);
+    if (!linha) return texto(historic);
+    var atual = texto(historic);
+    var repetida = atual.split('\n').some(function (l) {
+      return texto(l).toUpperCase() === linha.toUpperCase();
+    });
+    if (repetida) return atual;
+    return atual ? atual + '\n' + linha : linha;
   }
 
   /* --- o que o marco anterior respondeu ---------------------------------- */
@@ -6974,11 +7267,174 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     saltos: saltos,
     marcosCitados: marcosCitados,
     passaPor: passaPor,
+    ultimoSalto: ultimoSalto,
+    chegaEm: chegaEm,
+    linhaHistorico: linhaHistorico,
+    comLinha: comLinha,
     indice: indice,
     anterior: anterior,
     resumoDoAchado: resumoDoAchado,
     esconderBalao: esconderBalao,
     svg: svg
+  };
+})(window);
+
+</script>
+<script>
+/* assets/js/herdar.js */
+/* ==========================================================================
+   herdar.js — levar o item aceito para o marco em que o waiver foi aprovado
+   --------------------------------------------------------------------------
+   Quando um waiver é aceito, ele não acaba: ele vale até um marco à frente.
+   Um item do J08 com "Waiver Approved Expiry: J09" vai ter de ser reescrito
+   no relatório do J09, e o trabalho de hoje é justamente esse — copiar à mão,
+   item por item, lembrando de trocar o que muda.
+
+   Aqui isso vira um botão. O item é copiado para o relatório do marco de
+   destino (que já tem de existir neste navegador — nenhum relatório nasce
+   sozinho, e criar um marco por engano seria pior do que avisar), e chega lá:
+
+   - **em "Em preenchimento"**, nunca aceito. O waiver do marco anterior foi
+     aceito; o deste ainda nem foi pedido. É o pedido do Bruno em uma frase:
+     "elas devem ficar em preenchimento quando forem transportadas".
+   - **com o Waiver Historic já escrito** no formato do relatório
+     (`J08 To: J09`), pela mesma função que o fluxo sabe ler de volta
+     (`Fluxo.comLinha`) — não há um segundo formato aqui.
+   - **marcado como herdado** (`herdadoDe`), que é o que põe a tarja na lista
+     e a coluna na Tabela: "isto veio do J08, confira antes de mandar".
+   - **sem o ciclo que terminou**: Arch Answer, Arch Status e as duas datas de
+     validade eram a resposta do marco anterior. O texto do pedido —
+     description, current situation, why not possible, arguments — é o que dá
+     trabalho de escrever, e esse vai inteiro.
+
+   O item de origem não é tocado. Ele é o registro do que aconteceu no marco
+   dele, e continua sendo — inclusive para o ponto no card do fluxo, que lê o
+   Arch Answer do marco anterior direto de lá.
+   ========================================================================== */
+
+(function (global) {
+  'use strict';
+
+  function texto(v) { return (v == null ? '' : String(v)).trim(); }
+
+  /* O que era a resposta do marco que terminou. Some na cópia, para ninguém
+     mandar para o J09 a data de validade que venceu no J08. */
+  var DO_CICLO_ANTERIOR = ['archAnswer', 'archStatus', 'requestExpiry', 'approvedExpiry'];
+
+  /** O marco de um relatório, já entendido como card de fluxo. */
+  function marcoDe(project, kind) {
+    return Fluxo.marco(Report.marcoOf(project, kind));
+  }
+
+  /**
+   * Para onde este item vai quando o waiver for aceito: o marco escrito em
+   * "Waiver Approved Expiry". É o campo que o relatório já usa para dizer
+   * até quando o waiver vale — não inventamos campo novo para isso (§10).
+   */
+  function destinoDe(item) {
+    return Fluxo.marco(item && item.approvedExpiry);
+  }
+
+  /**
+   * O item está pronto para ser levado adiante?
+   * Devolve sempre um diagnóstico, porque a tela precisa dizer o que falta.
+   */
+  function avaliar(project, item, kind, projects) {
+    var out = {
+      pode: false, motivo: '', destino: null, origem: null,
+      projetoDestino: null, jaLa: null
+    };
+    if (!item) { out.motivo = 'Nenhum item aberto.'; return out; }
+
+    out.origem = marcoDe(project, kind);
+    out.destino = destinoDe(item);
+
+    if (Store.statusInfo(item.status).id !== Store.STATUS_CONCLUIDO) {
+      out.motivo = 'Só depois de “Waiver accepted”: enquanto o waiver não foi ' +
+        'aceito, não há o que levar para o marco seguinte.';
+      return out;
+    }
+    if (!out.destino) {
+      out.motivo = 'Escreva o marco em “Waiver Approved Expiry (before)” — ' +
+        'é ele que diz para onde este waiver vai.';
+      return out;
+    }
+    if (out.origem && Fluxo.mesmoMarco(out.origem, out.destino)) {
+      out.motivo = 'O “Waiver Approved Expiry” aponta para o próprio marco ' +
+        'deste relatório (' + out.destino.rotulo + ').';
+      return out;
+    }
+
+    /* O relatório do destino tem de existir: criar um marco sozinho, a
+       partir de um campo de texto, encheria a lista de marcos escritos com
+       typo — e cada um deles viajaria para a pasta da equipe. */
+    (projects || []).forEach(function (p) {
+      if (p.id === project.id) return;
+      if (out.projetoDestino) return;
+      var m = marcoDe(p, kind);
+      if (m && Fluxo.mesmoMarco(m, out.destino)) out.projetoDestino = p;
+    });
+    if (!out.projetoDestino) {
+      out.motivo = 'Não há neste navegador um relatório do marco ' +
+        out.destino.rotulo + '. Crie-o primeiro (ou traga-o pela pasta).';
+      return out;
+    }
+
+    /* Já foi levado antes? O pareamento é o mesmo de sempre: o número,
+       dentro do marco. Levar duas vezes criaria duas NCR-001 no J09, e a
+       mesclagem juntaria as duas num item só no computador do colega. */
+    var chave = Store.numeroChave(item);
+    (out.projetoDestino[Store.itemsKey(kind)] || []).forEach(function (n) {
+      if (!out.jaLa && chave && Store.numeroChave(n) === chave) out.jaLa = n;
+    });
+    if (out.jaLa) {
+      out.motivo = 'O ' + (texto(item.ncrId) || 'item') + ' já existe no ' +
+        out.destino.rotulo + '.';
+      return out;
+    }
+
+    out.pode = true;
+    return out;
+  }
+
+  /**
+   * A cópia que vai para o marco de destino. Não grava nada — quem grava é
+   * quem chamou, que também é quem sabe avisar a tela e a pasta.
+   */
+  function copiaPara(item, origem, destino) {
+    var copia = Store.duplicar(item);
+    /* `duplicar` marca o número com "(cópia)" porque lá o destino é o MESMO
+       relatório, onde dois números iguais viram um item só na mesclagem do
+       colega. Aqui o destino é outro marco, e o pareamento é sempre dentro
+       do marco: a NCR-001 do J08 e a NCR-001 do J09 são itens distintos, e
+       têm de ter o mesmo número — é ele que liga um ao outro no fluxo. */
+    copia.ncrId = texto(item.ncrId);
+    DO_CICLO_ANTERIOR.forEach(function (c) { copia[c] = ''; });
+    copia.historic = Fluxo.comLinha(item.historic,
+      origem ? origem.rotulo : '', destino ? destino.rotulo : '');
+    copia.herdadoDe = origem ? origem.rotulo : '';
+    copia.herdadoEm = new Date().toISOString();
+    /* `duplicar` já põe em "Em preenchimento"; explícito porque é o pedido */
+    Store.setStatus(copia, Store.STATUS_PADRAO);
+    return copia;
+  }
+
+  /** O texto que a tela mostra antes de confirmar. */
+  function resumo(av) {
+    if (!av.pode) return av.motivo;
+    return 'Uma cópia de ' + (texto(av.origem && av.origem.rotulo) || 'aqui') +
+      ' para ' + av.destino.rotulo + ', em “Em preenchimento”, com ' +
+      '“' + Fluxo.linhaHistorico(av.origem && av.origem.rotulo, av.destino.rotulo) +
+      '” já escrito no Waiver Historic.';
+  }
+
+  global.Herdar = {
+    DO_CICLO_ANTERIOR: DO_CICLO_ANTERIOR,
+    destinoDe: destinoDe,
+    marcoDe: marcoDe,
+    avaliar: avaliar,
+    copiaPara: copiaPara,
+    resumo: resumo
   };
 })(window);
 
@@ -7267,34 +7723,43 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     return wrap;
   }
 
-  /** Barras horizontais de uma cor só: comparação de magnitude. */
+  /**
+   * Barras horizontais de uma cor só: comparação de magnitude.
+   *
+   * `opts.larg` estreita o viewBox. Serve a quem desenha numa coluna
+   * estreita — o painel do marco: com o viewBox de 720 numa coluna de 110 mm
+   * o texto de 11 px sai com menos de meio milímetro no papel, ilegível.
+   * Menos largura de viewBox para a mesma largura em tela = letra maior.
+   */
   function barras(linhas, opts) {
     opts = opts || {};
     var max = 0;
     linhas.forEach(function (l) { if (l.valor > max) max = l.valor; });
     if (!max) return eixoVazio(opts.vazio || 'Sem dados para exibir.');
 
+    var LARGURA = opts.larg || LARG;
+    var ROT = opts.rotulo || ROTULO;
     var alt = linhas.length * (ALT_BARRA + ESPACO) + 6;
-    var largBarra = LARG - ROTULO - 60;
-    var svg = sv('svg', { viewBox: '0 0 ' + LARG + ' ' + alt, role: 'img', class: 'sm-svg' });
+    var largBarra = LARGURA - ROT - 60;
+    var svg = sv('svg', { viewBox: '0 0 ' + LARGURA + ' ' + alt, role: 'img', class: 'sm-svg' });
 
     linhas.forEach(function (l, i) {
       var y = i * (ALT_BARRA + ESPACO);
       var rot = sv('text', {
-        x: ROTULO - 10, y: y + ALT_BARRA / 2 + 4,
+        x: ROT - 10, y: y + ALT_BARRA / 2 + 4,
         'text-anchor': 'end', class: 'sm-axis-label'
       });
       rot.textContent = l.rotulo.length > 22 ? l.rotulo.slice(0, 21) + '…' : l.rotulo;
       svg.appendChild(rot);
 
       var w = Math.max((l.valor / max) * largBarra, 2);
-      var r = sv('rect', { x: ROTULO, y: y, width: w, height: ALT_BARRA, rx: 3, fill: C1 });
+      var r = sv('rect', { x: ROT, y: y, width: w, height: ALT_BARRA, rx: 3, fill: C1 });
       var t = sv('title');
       t.textContent = l.rotulo + ': ' + l.valor;
       r.appendChild(t);
       svg.appendChild(r);
 
-      var v = sv('text', { x: ROTULO + w + 8, y: y + ALT_BARRA / 2 + 4, class: 'sm-total-label' });
+      var v = sv('text', { x: ROT + w + 8, y: y + ALT_BARRA / 2 + 4, class: 'sm-total-label' });
       v.textContent = l.valor;
       svg.appendChild(v);
     });
@@ -7803,6 +8268,453 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 
 </script>
 <script>
+/* assets/js/painel.js */
+/* ==========================================================================
+   painel.js — o painel de um marco: tudo o que está indo para ele
+   --------------------------------------------------------------------------
+   A aba Fluxos responde "por onde passou". Esta é a pergunta do outro lado
+   do balcão, e é a que se leva para a reunião: **o que está chegando no
+   J09?** Quantos itens, vindos de onde, em que pé estão, e quais são.
+
+   O recorte é uma regra só: entra no painel o item cujo Waiver Historic tem
+   uma seta que **termina** no marco escolhido (`Fluxo.chegaEm`). Passar pelo
+   marco no meio do caminho não conta — quem já saiu do J08 não está indo
+   para o J08 —, e é isso que faz o painel do J09 ser o J09 e não "tudo o que
+   um dia encostou no J09".
+
+   Os itens vêm de **todos os relatórios deste navegador**, porque é disso
+   que a pergunta trata: o que chega no J09 vem do J08, do J06, do RANAE.
+   Olhar só o relatório aberto responderia a pergunta errada.
+
+   O desenho é SVG escrito à mão, como o resto do programa: sem biblioteca,
+   imprime em vetor e funciona com o arquivo aberto direto do disco. E a
+   folha usa a paginação do relatório (`Report.paginar`), então uma lista de
+   quarenta itens atravessa as folhas com o cabeçalho repetido, em vez de
+   terminar colada na borda do papel.
+   ========================================================================== */
+
+(function (global) {
+  'use strict';
+
+  var SVGNS = 'http://www.w3.org/2000/svg';
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function sv(tag, attrs) {
+    var n = document.createElementNS(SVGNS, tag);
+    Object.keys(attrs || {}).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+    return n;
+  }
+
+  function texto(v) { return (v == null ? '' : String(v)).trim(); }
+  function pct(n, total) { return total ? Math.round((n / total) * 100) + '%' : '0%'; }
+
+  /* ---------------------------------------------------------------------- */
+  /* apuração                                                                */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * Todos os itens deste navegador, com o fluxo já lido uma vez.
+   *
+   * Existe para o `Fluxo.analisar` de cada item rodar **uma vez** por
+   * desenho: o seletor de marcos pergunta por todos os destinos, e refazer a
+   * leitura do texto a cada pergunta seria o mesmo trabalho N vezes.
+   */
+  function base(projects) {
+    var out = [];
+    (projects || []).forEach(function (p) {
+      ['ncr', 'dev'].forEach(function (kind) {
+        var marco = Report.marcoOf(p, kind) || p.name || 'sem marco';
+        var daqui = Fluxo.marco(marco);
+        Store.ordenar(p, kind).forEach(function (item) {
+          out.push({
+            projeto: p, projetoId: p.id, marco: marco, kind: kind, item: item,
+            fluxo: Fluxo.analisar(item.historic),
+            daqui: daqui
+          });
+        });
+      });
+    });
+    return out;
+  }
+
+  /**
+   * Os marcos que aparecem como **destino** de alguma seta escrita, com
+   * quantos itens o painel de cada um mostraria. A contagem sai da mesma
+   * função que monta a lista (descontando as repetições), senão o seletor
+   * diria "J09 (7)" e a folha abaixo mostraria seis.
+   */
+  function marcosDeDestino(projects) {
+    var b = base(projects);
+    var vistos = {};
+    var lista = [];
+    b.forEach(function (r) {
+      if (r.fluxo.vazio) return;
+      r.fluxo.arestas.forEach(function (a) {
+        var no = null;
+        r.fluxo.nos.forEach(function (n) { if (n.chave === a.para) no = n; });
+        if (!no || vistos[no.chave]) return;
+        vistos[no.chave] = { chave: no.chave, rotulo: no.rotulo, pos: no.pos, n: 0 };
+        lista.push(vistos[no.chave]);
+      });
+    });
+    lista.forEach(function (m) { m.n = daBase(b, m.chave).length; });
+    lista.sort(function (a, b2) { return (a.pos - b2.pos) || Store.cmpTexto(a.rotulo, b2.rotulo); });
+    return lista;
+  }
+
+  /**
+   * As linhas do painel: um item por linha, de qualquer relatório, cujo
+   * fluxo tenha uma seta terminando no marco escolhido.
+   *
+   * Uma NCR que já foi levada adiante existe duas vezes neste navegador — a
+   * do marco anterior, aceita, e a cópia que chegou aqui, em preenchimento —
+   * e as duas dizem "vou para o J09". No painel elas são **uma linha só**:
+   * a cópia que já está no marco, porque é ela que ainda dá trabalho. O
+   * pareamento é o de sempre: o número, dentro do tipo. A que sobrou guarda
+   * `jaChegou`, que é o que separa "já está aqui" de "ainda tenho de trazer".
+   */
+  function linhas(projects, chave) {
+    return daBase(base(projects), chave);
+  }
+
+  function daBase(b, chave) {
+    var out = [];
+    if (!chave) return out;
+    b.forEach(function (r) {
+      var chega = Fluxo.chegaEm(r.fluxo, chave);
+      if (!chega) return;
+      out.push({
+        projeto: r.projeto, projetoId: r.projetoId, marco: r.marco, kind: r.kind,
+        item: r.item, fluxo: r.fluxo, veioDe: chega.de,
+        /* o item mora no relatório do próprio marco do painel? */
+        jaChegou: !!(r.daqui && r.daqui.chave === chave)
+      });
+    });
+    out = semRepetir(out);
+    /* de onde vem primeiro, e dentro disso pelo número: a lista é lida
+       procurando "o que o J08 está me mandando" */
+    out.sort(function (a, b) {
+      return Store.cmpTexto(a.veioDe, b.veioDe) ||
+        Store.cmpTexto(texto(a.item.ncrId), texto(b.item.ncrId));
+    });
+    return out;
+  }
+
+  /** Uma linha por número: a que já está no marco ganha da que ainda vem. */
+  function semRepetir(rows) {
+    var por = {};
+    var ordem = [];
+    rows.forEach(function (r) {
+      var k = r.kind + '\u0000' + Store.numeroChave(r.item);
+      if (!Store.numeroChave(r.item)) { ordem.push(r); return; }  /* sem número, sem par */
+      var tem = por[k];
+      if (!tem) { por[k] = r; ordem.push(r); return; }
+      if (r.jaChegou && !tem.jaChegou) {
+        /* fica a cópia que chegou, mas lembrando de onde ela veio */
+        r.veioDe = r.veioDe || tem.veioDe;
+        ordem[ordem.indexOf(tem)] = r;
+        por[k] = r;
+      }
+    });
+    return ordem;
+  }
+
+  /** Os números da folha. */
+  function apurar(rows, chave) {
+    var st = {
+      total: rows.length, ncr: 0, dev: 0, aceitos: 0, parados: 0, herdados: 0,
+      jaChegaram: 0, aTrazer: 0,
+      porSituacao: {}, porOrigem: {}, porSistema: {}, origens: 0
+    };
+    Store.STATUS.forEach(function (o) { st.porSituacao[o.nome] = 0; });
+    rows.forEach(function (r) {
+      if (r.kind === 'dev') st.dev++; else st.ncr++;
+      if (r.item.done) st.aceitos++;
+      if (Summary.estaParado(r.item)) st.parados++;
+      if (texto(r.item.herdadoDe)) st.herdados++;
+      if (r.jaChegou) st.jaChegaram++;
+      /* aceito no marco anterior e ainda não copiado para cá: é a lista de
+         tarefas do marco — o que falta trazer, um por um */
+      else if (r.item.done) st.aTrazer++;
+      st.porSituacao[Summary.situacao(r.item)]++;
+      var o = texto(r.veioDe) || '(início do caminho)';
+      st.porOrigem[o] = (st.porOrigem[o] || 0) + 1;
+      Summary.sistemas(r.item).forEach(function (x) {
+        st.porSistema[x] = (st.porSistema[x] || 0) + 1;
+      });
+    });
+    st.origens = Object.keys(st.porOrigem).length;
+    st.pendentes = st.total - st.aceitos;
+    st.chave = chave;
+    return st;
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* desenho                                                                 */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * Rosca da situação. Por que rosca e não mais uma barra: a folha já tem
+   * duas barras horizontais, e a parte-todo de quatro fatias é a única coisa
+   * do painel que se lê de longe, do outro lado da mesa de reunião.
+   * Cada fatia leva o próprio número ao lado, na legenda — anel sem rótulo
+   * obriga a medir ângulo a olho, e isso não é leitura.
+   */
+  function rosca(st) {
+    var R = 54, r = 34, CX = 70, CY = 70;
+    var fatias = Store.STATUS.map(function (o) {
+      return { nome: o.nome, cor: o.cor, valor: st.porSituacao[o.nome] || 0 };
+    }).filter(function (f) { return f.valor > 0; });
+
+    var wrap = el('div', 'pn-rosca');
+    var svg = sv('svg', {
+      viewBox: '0 0 140 140', width: '140', height: '140',
+      role: 'img', class: 'pn-rosca-svg'
+    });
+    svg.appendChild(sv('title', {})).textContent = 'Situação dos itens que vão para ' +
+      (st.chave || 'o marco');
+
+    if (!st.total) {
+      svg.appendChild(sv('circle', { cx: CX, cy: CY, r: (R + r) / 2, fill: 'none',
+        stroke: Summary.NEUTRO, 'stroke-width': R - r }));
+    } else if (fatias.length === 1) {
+      /* um arco de 360° não fecha com path: vira círculo */
+      svg.appendChild(sv('circle', { cx: CX, cy: CY, r: (R + r) / 2, fill: 'none',
+        stroke: fatias[0].cor, 'stroke-width': R - r }));
+    } else {
+      var ini = -Math.PI / 2;
+      fatias.forEach(function (f) {
+        var ang = (f.valor / st.total) * Math.PI * 2;
+        svg.appendChild(arco(CX, CY, R, r, ini, ini + ang, f.cor, f.nome + ': ' + f.valor));
+        ini += ang;
+      });
+    }
+
+    var centro = sv('text', { x: CX, y: CY - 2, 'text-anchor': 'middle', class: 'pn-rosca-num' });
+    centro.textContent = String(st.total);
+    svg.appendChild(centro);
+    var sob = sv('text', { x: CX, y: CY + 16, 'text-anchor': 'middle', class: 'pn-rosca-sub' });
+    sob.textContent = st.total === 1 ? 'item' : 'itens';
+    svg.appendChild(sob);
+    wrap.appendChild(svg);
+
+    var leg = el('ul', 'pn-leg');
+    Store.STATUS.forEach(function (o) {
+      var v = st.porSituacao[o.nome] || 0;
+      var li = el('li', 'pn-leg-item' + (v ? '' : ' is-zero'));
+      var dot = el('span', 'pn-leg-dot');
+      dot.style.background = o.cor;
+      li.appendChild(dot);
+      li.appendChild(el('span', 'pn-leg-nome', o.nome));
+      li.appendChild(el('strong', 'pn-leg-n', String(v)));
+      li.appendChild(el('span', 'pn-leg-pct', pct(v, st.total)));
+      leg.appendChild(li);
+    });
+    wrap.appendChild(leg);
+    return wrap;
+  }
+
+  /** Um pedaço do anel, entre dois ângulos. */
+  function arco(cx, cy, R, r, a0, a1, cor, titulo) {
+    var grande = (a1 - a0) > Math.PI ? 1 : 0;
+    /* 1,5° de folga entre fatias: sem a fresta, duas cores vizinhas de
+       luminância parecida viram uma mancha só na impressão em cinza */
+    var folga = Math.min(0.026, (a1 - a0) / 4);
+    var b0 = a0 + folga, b1 = a1 - folga;
+    var p = function (raio, ang) {
+      return (cx + raio * Math.cos(ang)).toFixed(2) + ' ' + (cy + raio * Math.sin(ang)).toFixed(2);
+    };
+    var d = 'M ' + p(R, b0) +
+      ' A ' + R + ' ' + R + ' 0 ' + grande + ' 1 ' + p(R, b1) +
+      ' L ' + p(r, b1) +
+      ' A ' + r + ' ' + r + ' 0 ' + grande + ' 0 ' + p(r, b0) + ' Z';
+    var path = sv('path', { d: d, fill: cor });
+    var t = sv('title', {});
+    t.textContent = titulo;
+    path.appendChild(t);
+    return path;
+  }
+
+  function kpis(st, rotulo) {
+    var row = el('div', 'pn-kpis');
+    [
+      ['Itens indo para ' + rotulo, st.total, st.ncr + ' NCR · ' + st.dev + ' DEV'],
+      ['Vindos de', st.origens, st.origens === 1 ? 'marco' : 'marcos diferentes'],
+      ['Waiver accepted', st.aceitos, pct(st.aceitos, st.total) + ' do recorte'],
+      /* seis quadros, e não sete: na folha eles saem em três colunas, e o
+         sétimo ficaria sozinho numa linha. "Em andamento" saiu porque é o
+         complemento do aceito e já está na rosca ao lado. */
+      ['Parados há ' + Summary.DIAS_PARADO + '+ dias', st.parados, 'pendentes sem ninguém mexer'],
+      ['Já no relatório de ' + rotulo, st.jaChegaram, pct(st.jaChegaram, st.total) + ' do recorte'],
+      ['Aceitos, falta trazer', st.aTrazer, 'aceitos lá e ainda sem cópia aqui']
+    ].forEach(function (k) {
+      var t = el('div', 'pn-kpi');
+      t.appendChild(el('span', 'pn-kpi-label', k[0]));
+      t.appendChild(el('strong', 'pn-kpi-value', String(k[1])));
+      t.appendChild(el('span', 'pn-kpi-sub', k[2]));
+      row.appendChild(t);
+    });
+    return row;
+  }
+
+  function porOrdem(obj) {
+    return Object.keys(obj).sort(function (a, b) {
+      return (obj[b] - obj[a]) || Store.cmpTexto(a, b);
+    }).map(function (k) { return { rotulo: k, valor: obj[k] }; });
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* a folha                                                                 */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * Monta o painel dentro de `host`.
+   *
+   * `opts.impressao` marca os blocos como `data-fluido`, que é o que a
+   * paginação do relatório usa para levá-los à folha seguinte; `opts.abrir`
+   * recebe a linha quando alguém clica no número (na tela só).
+   *
+   * `opts.parte` separa a folha em duas, e só a impressão usa isso:
+   *   'painel' — capa, números e gráficos;
+   *   'lista'  — os itens.
+   * Juntos numa folha só sobrava lugar para duas linhas da lista, e o
+   * cabeçalho que ficava para trás empurrava o gráfico inteiro para a folha
+   * seguinte — meia folha em branco e a lista apertada logo depois. Separados,
+   * cada um enche a sua: os números de um lado, a lista do outro.
+   */
+  function montar(host, projects, marco, opts) {
+    opts = opts || {};
+    var rotulo = (marco && marco.rotulo) || (marco && marco.chave) || '—';
+    var rows = linhas(projects, marco && marco.chave);
+    var st = apurar(rows, rotulo);
+    var fluido = function (n) { if (opts.impressao) n.setAttribute('data-fluido', ''); return n; };
+    var parte = opts.parte || 'tudo';
+    var querPainel = parte === 'tudo' || parte === 'painel';
+    var querLista = parte === 'tudo' || parte === 'lista';
+    /* O viewBox estreito é só para o papel: na tela a coluna tem 600 px e o
+       padrão de 720 sai no tamanho certo; na folha ela tem 110 mm, e aí o
+       mesmo 720 encolhe o rótulo para menos de meio milímetro (§6). */
+    var estreito = function (larg, rot) {
+      return opts.impressao ? { larg: larg, rotulo: rot } : {};
+    };
+
+    if (!querPainel) {
+      if (st.total) host.appendChild(listaDe(rows, st, rotulo, opts));
+      return { st: st, rows: rows };
+    }
+
+    /* --- cabeçalho --- */
+    var capa = el('header', 'pn-capa');
+    capa.appendChild(el('p', 'pn-capa-sobre', 'Painel do marco'));
+    capa.appendChild(el('h2', 'pn-capa-marco', rotulo));
+    capa.appendChild(el('p', 'pn-capa-linha',
+      st.total + (st.total === 1 ? ' item vai' : ' itens vão') + ' para ' + rotulo +
+      ', vindo' + (st.total === 1 ? '' : 's') + ' de ' + st.origens +
+      (st.origens === 1 ? ' marco' : ' marcos') + '.'));
+    capa.appendChild(el('p', 'pn-capa-pe',
+      'Gerado em ' + new Date().toLocaleString('pt-BR') +
+      (Store.getUser() ? ' por ' + Store.getUser() : '') +
+      ' · lidos do Waiver Historic de ' + (projects || []).length + ' relatório(s) deste navegador.'));
+    host.appendChild(fluido(capa));
+
+    if (!st.total) {
+      host.appendChild(fluido(el('p', 'pn-vazio',
+        'Nenhum item com uma seta escrita terminando em ' + rotulo + '. ' +
+        'O painel lê o campo “Waiver Historic”: enquanto ninguém escrever ' +
+        '“… To: ' + rotulo + '”, não há o que chegar aqui.')));
+      return { st: st, rows: rows };
+    }
+
+    host.appendChild(fluido(kpis(st, rotulo)));
+
+    /* --- os dois gráficos, lado a lado --- */
+    var duplo = el('div', 'pn-duplo');
+    var c1 = el('section', 'sm-card pn-card');
+    var h1 = el('header', 'sm-card-head');
+    h1.appendChild(el('h3', null, 'Em que pé estão'));
+    h1.appendChild(el('p', null, 'Situação de acompanhamento dos itens que vão para ' + rotulo + '.'));
+    c1.appendChild(h1);
+    c1.appendChild(rosca(st));
+    duplo.appendChild(c1);
+
+    var c2 = el('section', 'sm-card pn-card');
+    var h2 = el('header', 'sm-card-head');
+    h2.appendChild(el('h3', null, 'De onde vêm'));
+    h2.appendChild(el('p', null, 'O marco de onde parte a seta que chega em ' + rotulo + '.'));
+    c2.appendChild(h2);
+    var o2 = estreito(380, 90);
+    o2.vazio = 'Sem origem escrita.';
+    c2.appendChild(Summary.barras(porOrdem(st.porOrigem), o2));
+    duplo.appendChild(c2);
+    host.appendChild(fluido(duplo));
+
+    var sis = porOrdem(st.porSistema).slice(0, 12);
+    if (sis.length) {
+      var c3 = el('section', 'sm-card pn-card');
+      var h3 = el('header', 'sm-card-head');
+      h3.appendChild(el('h3', null, 'Sistemas mais atingidos'));
+      h3.appendChild(el('p', null, 'Um item pode citar vários sistemas; ' +
+        (Object.keys(st.porSistema).length > 12 ? 'os doze mais frequentes.' : 'todos os citados.')));
+      c3.appendChild(h3);
+      c3.appendChild(Summary.barras(sis, estreito(520, 110)));
+      host.appendChild(fluido(c3));
+    }
+
+    /* --- a lista --- */
+    if (querLista) host.appendChild(listaDe(rows, st, rotulo, opts));
+
+    return { st: st, rows: rows };
+  }
+
+  function listaDe(rows, st, rotulo, opts) {
+    var cols = [
+      { titulo: 'Número', larg: 16, valor: function (r) {
+        return opts.abrir ? link(r, opts.abrir) : texto(r.item.ncrId) || '(sem número)';
+      } },
+      { titulo: 'Está no', larg: 14, valor: function (r) {
+        return r.marco + (r.jaChegou ? ' ✓' : '');
+      } },
+      { titulo: 'Caminho', larg: 15, valor: function (r) {
+        var s = Fluxo.ultimoSalto(r.fluxo);
+        return s ? s.texto : '';
+      } },
+      { titulo: 'Sistemas', larg: 13, valor: function (r) { return texto(r.item.systems); } },
+      { titulo: 'Função / descrição', larg: 25, valor: function (r) { return texto(r.item.func); } },
+      { titulo: 'Situação', larg: 18, valor: function (r) { return Summary.situacao(r.item); } }
+    ];
+    return SummaryView.blocoLista(
+      'Os ' + st.total + ' item(ns) que vão para ' + rotulo,
+      'Ordenados pelo marco de origem. “Está no” é o relatório em que o item ' +
+      'mora hoje; o ✓ marca o que já foi trazido para ' + rotulo + '. Uma NCR ' +
+      'que já foi levada adiante aparece uma vez só, na cópia que chegou.',
+      cols, rows, 'Nada a listar.');
+  }
+
+  function link(r, abrir) {
+    var a = el('a', 'sm-link', texto(r.item.ncrId) || '(sem número)');
+    a.href = '#';
+    a.title = 'Abrir este item';
+    a.addEventListener('click', function (e) { e.preventDefault(); abrir(r); });
+    return a;
+  }
+
+  global.Painel = {
+    marcosDeDestino: marcosDeDestino,
+    base: base,
+    linhas: linhas,
+    apurar: apurar,
+    montar: montar
+  };
+})(window);
+
+</script>
+<script>
 /* assets/js/xlsx.js */
 /* ==========================================================================
    xlsx.js — escreve uma planilha do Excel sem biblioteca nenhuma
@@ -8224,6 +9136,18 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     { id: 'requestExpiry', titulo: 'Request Expiry', larg: 16, valor: function (r) { return txt(r.item.requestExpiry); } },
     { id: 'approvedExpiry', titulo: 'Approved Expiry', larg: 16, valor: function (r) { return txt(r.item.approvedExpiry); } },
     { id: 'caminho', titulo: 'Caminho do waiver', larg: 30, valor: function (r) { return caminhoDe(r); } },
+    /* O último salto: "J08 → J09". O caminho inteiro responde por onde o
+       waiver passou; esta responde a pergunta curta, que é a que se faz
+       olhando a tabela — "para onde esta NCR está indo agora?". */
+    { id: 'salto', titulo: 'Waiver de → para', larg: 18, valor: function (r) {
+      var s = Fluxo.ultimoSalto(fluxoDe(r));
+      return s ? s.texto : '';
+    } },
+    { id: 'destino', titulo: 'Indo para o marco', larg: 16, valor: function (r) {
+      var s = Fluxo.ultimoSalto(fluxoDe(r));
+      return s ? s.para : '';
+    } },
+    { id: 'herdadoDe', titulo: 'Herdada do marco', larg: 16, valor: function (r) { return txt(r.item.herdadoDe); } },
     { id: 'historic', titulo: 'Waiver Historic', larg: 30, longo: true, valor: function (r) { return txt(r.item.historic); } },
     { id: 'description', titulo: 'Description', larg: 46, longo: true, valor: function (r) { return txt(r.item.description); } },
     { id: 'currentSituation', titulo: 'Current Situation', larg: 46, longo: true, valor: function (r) { return txt(r.item.currentSituation); } },
@@ -8248,7 +9172,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   /* O que aparece de saída: o suficiente para achar um item e saber em que pé
      ele está. O resto está a um clique em "Colunas" — esconder é mais fácil
      de desfazer do que uma tabela que já nasce ilegível de tão larga. */
-  var PADRAO = ['marco', 'tipo', 'ncrId', 'systems', 'func', 'situacao', 'archStatus', 'editedAt'];
+  var PADRAO = ['marco', 'tipo', 'ncrId', 'systems', 'func', 'salto', 'situacao', 'editedAt'];
 
   function colunaPorId(id) {
     return COLUNAS.filter(function (c) { return c.id === id; })[0] || null;
@@ -8339,6 +9263,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     var base = {
       colunas: PADRAO.slice(),
       ordem: { id: 'marco', dir: 'asc' },
+      novas: ['salto'],
       filtros: {}
     };
     try {
@@ -8350,6 +9275,19 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         if (!base.colunas.length) base.colunas = PADRAO.slice();
       }
       if (o && o.ordem && colunaPorId(o.ordem.id)) base.ordem = o.ordem;
+      /* Coluna nova numa versão nova: quem já tinha uma escolha guardada não
+         a veria nunca, e reclamaria com razão que a coluna "não veio". Uma
+         vez só, e anotado — quem tirar a coluna depois não a recebe de volta
+         na abertura seguinte. */
+      if (!o || !o.novas || o.novas.indexOf('salto') < 0) {
+        base.novas = ((o && o.novas) || []).concat(['salto']);
+        if (base.colunas.indexOf('salto') < 0) {
+          var onde = base.colunas.indexOf('situacao');
+          base.colunas.splice(onde < 0 ? base.colunas.length : onde, 0, 'salto');
+        }
+      } else {
+        base.novas = o.novas;
+      }
     } catch (e) { /* preferência ilegível não impede a aba de abrir */ }
     return base;
   }
@@ -8359,7 +9297,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   function gravarEstado(estado) {
     try {
       global.localStorage.setItem(CHAVE, JSON.stringify({
-        colunas: estado.colunas, ordem: estado.ordem
+        colunas: estado.colunas, ordem: estado.ordem, novas: estado.novas || []
       }));
     } catch (e) { /* sem espaço: a aba funciona igual, só não lembra */ }
   }
@@ -9625,7 +10563,9 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   /* aba Fluxos: recorte do que está à vista */
   var fluxosFiltro = {
     busca: '', soComFluxo: false, marcos: [], tipo: '',
-    vista: 'lista', escopo: 'projeto'
+    vista: 'lista', escopo: 'projeto',
+    /* o marco do painel: qual é a chegada que estamos olhando */
+    painel: ''
   };
 
   function renderSummary(semRolar) {
@@ -9831,7 +10771,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   var VISTAS = [
     { id: 'lista', nome: 'Lista', ajuda: 'Um fluxo por item, na ordem do PDF.' },
     { id: 'mapa', nome: 'Mapa do marco', ajuda: 'Todos os fluxos somados num desenho só: a seta engorda com o número de itens que passam por ela.' },
-    { id: 'matriz', nome: 'Matriz de/para', ajuda: 'Uma linha por seta escrita, da mais usada para a menos.' }
+    { id: 'matriz', nome: 'Matriz de/para', ajuda: 'Uma linha por seta escrita, da mais usada para a menos.' },
+    { id: 'painel', nome: 'Painel do marco', ajuda: 'Tudo o que está indo para um marco: quantos itens, de onde vêm, em que pé estão e quais são. Olha todos os relatórios deste navegador e sai em PDF.' }
   ];
 
   function vistaAtual() {
@@ -9841,6 +10782,30 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 
   function fluxosDe(linhas) {
     return linhas.map(function (r) { return r.fluxo; });
+  }
+
+  /* Os marcos que alguém escreveu como DESTINO de uma seta. O painel do J09
+     só faz sentido se alguém disse "… To: J09" em algum lugar; oferecer a
+     lista fixa dos marcos do programa encheria o seletor de painéis vazios. */
+  function marcosDoPainel() {
+    return Painel.marcosDeDestino(state.projects);
+  }
+
+  /**
+   * O marco do painel. Sem escolha guardada, vale o marco do relatório
+   * aberto — quase sempre é ele que a pessoa quer ver chegando.
+   */
+  function marcoDoPainel() {
+    var lista = marcosDoPainel();
+    if (!lista.length) return null;
+    var achado = null;
+    lista.forEach(function (m) { if (m.chave === fluxosFiltro.painel) achado = m; });
+    if (achado) return achado;
+    var meu = marcoDesteRelatorio();
+    if (meu) lista.forEach(function (m) { if (!achado && m.chave === meu.chave) achado = m; });
+    /* nada combinou: o último da fila é o marco mais adiantado que alguém
+       escreveu, e é o que costuma estar por vir */
+    return achado || lista[lista.length - 1];
   }
 
   /** O mapa: os fluxos dos itens à vista somados num desenho só. */
@@ -9910,11 +10875,15 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     /* --- barra: o que está à vista e como exportar --- */
     var barra = el('div', 'sm-bar');
     var info = el('div', 'fx-info');
-    info.appendChild(el('strong', null, fluxosFiltro.escopo === 'todos'
-      ? 'Todos os marcos deste navegador'
-      : (Report.marcoOf(state.project, 'ncr') || state.project.name || 'sem marco')));
-    info.appendChild(el('span', null, comFluxo + ' de ' + todas.length +
-      ' item(ns) com waivers anteriores escritos · ' + linhas.length + ' no recorte.'));
+    info.appendChild(el('strong', null, vista.id === 'painel'
+      ? 'Painel do marco'
+      : (fluxosFiltro.escopo === 'todos'
+        ? 'Todos os marcos deste navegador'
+        : (Report.marcoOf(state.project, 'ncr') || state.project.name || 'sem marco'))));
+    info.appendChild(el('span', null, vista.id === 'painel'
+      ? 'O painel lê o Waiver Historic de todos os relatórios deste navegador.'
+      : comFluxo + ' de ' + todas.length +
+        ' item(ns) com waivers anteriores escritos · ' + linhas.length + ' no recorte.'));
     /* preenchido no fim, quando os cards já estão na tela e dá para contar
        quantos acharam o mesmo item em outro relatório */
     var achou = el('span', 'fx-achou');
@@ -9950,6 +10919,12 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     vistas.appendChild(el('span', 'fx-vista-ajuda', vista.ajuda));
     host.appendChild(vistas);
 
+    /* O painel tem uma regra só — quem tem seta terminando no marco — e ela
+       vale para todos os relatórios. Escopo, busca, tipo e "passa por" são do
+       fluxo por item; mostrá-los aqui seria oferecer botões que não fazem
+       nada. Quem recorta o painel é o seletor de marco, logo abaixo. */
+    var soDoFluxo = vista.id !== 'painel';
+
     /* De onde vêm os itens. O mapa de um marco só responde "por onde passou
        este marco"; com todos, responde "por onde passa o programa". */
     var escopo = el('div', 'fx-vistas fx-vistas--escopo');
@@ -9964,7 +10939,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       });
       escopo.appendChild(b);
     });
-    host.appendChild(escopo);
+    if (soDoFluxo) host.appendChild(escopo);
 
     /* --- filtros --- */
     var fb = el('div', 'sm-filtros');
@@ -10014,10 +10989,10 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     so.appendChild(cb);
     so.appendChild(document.createTextNode(' esconder quem não tem fluxo'));
     fb.appendChild(so);
-    host.appendChild(fb);
+    if (soDoFluxo) host.appendChild(fb);
 
     /* --- filtro por marco: os marcos que os próprios textos citam --------- */
-    if (marcosDisponiveis.length) {
+    if (marcosDisponiveis.length && soDoFluxo) {
       var chips = el('div', 'fx-marcos');
       chips.appendChild(el('span', 'fx-marcos-rot', 'Passa por:'));
       marcosDisponiveis.forEach(function (m) {
@@ -10049,6 +11024,19 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     }
 
     /* --- o conteúdo da vista escolhida --- */
+    if (vista.id === 'painel') {
+      var mp = marcoDoPainel();
+      host.appendChild(escolhaDoPainel(mp));
+      var caixa = el('div', 'pn-tela');
+      if (mp) Painel.montar(caixa, state.projects, mp, { abrir: abrirDaTabela });
+      else caixa.appendChild(el('p', 'hint',
+        'Nenhuma seta escrita ainda: o painel lê o campo “Waiver Historic” ' +
+        'dos itens. Escreva “J08 To: J09” em um item e o J09 aparece aqui.'));
+      host.appendChild(caixa);
+      achou.textContent = '';
+      if (!semRolar) host.scrollTop = 0; else host.scrollTop = antes;
+      return;
+    }
     if (vista.id === 'mapa') {
       host.appendChild(blocoMapaDeFluxo(linhas));
       host.appendChild(blocoSaltos(linhas));
@@ -10080,6 +11068,30 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
         : '');
 
     if (!semRolar) host.scrollTop = 0; else host.scrollTop = antes;
+  }
+
+  /** A escolha do marco do painel — a única coisa que o painel filtra. */
+  function escolhaDoPainel(atual) {
+    var box = el('div', 'fx-vistas fx-vistas--escopo pn-escolha');
+    box.appendChild(el('span', 'fx-marcos-rot', 'Chegando no marco:'));
+    var sel = document.createElement('select');
+    sel.setAttribute('aria-label', 'Marco do painel');
+    marcosDoPainel().forEach(function (m) {
+      var op = document.createElement('option');
+      op.value = m.chave;
+      op.textContent = m.rotulo + ' (' + m.n + ')';
+      sel.appendChild(op);
+    });
+    if (atual) sel.value = atual.chave;
+    sel.addEventListener('change', function () {
+      fluxosFiltro.painel = sel.value;
+      renderFluxos(true);
+    });
+    box.appendChild(sel);
+    box.appendChild(el('span', 'fx-vista-ajuda',
+      'O painel olha todos os relatórios deste navegador e ignora os filtros ' +
+      'acima: a regra dele é uma só — entra quem tem uma seta terminando neste marco.'));
+    return box;
   }
 
   /** A linha de um item: identificação à esquerda, fluxo à direita. */
@@ -10136,6 +11148,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
    * comprida não pode terminar no fim da folha e continuar na borda do papel.
    */
   function exportarFluxosPdf() {
+    if (vistaAtual().id === 'painel') { exportarPainelPdf(); return; }
     var root = $('#printRoot');
     root.innerHTML = '';
     var medida = Report.abrirMedida(root);
@@ -10193,6 +11206,54 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     var titulo = document.title;
     document.title = Report.suggestedFileName(state.project, 'pdf', 'ncr')
       .replace('WaiverRequest_', 'Fluxos_').replace(/\.pdf$/, '');
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.title = titulo; }, 500);
+    }, 60);
+  }
+
+  /**
+   * O painel do marco em A4. Mesma montagem da tela — é o mesmo
+   * `Painel.montar` —, só que sem os links e com os blocos marcados para a
+   * paginação poder levá-los à folha seguinte.
+   */
+  function exportarPainelPdf() {
+    var mp = marcoDoPainel();
+    if (!mp) { toast('Não há marco de destino escrito em nenhum item.'); return; }
+    var root = $('#printRoot');
+    root.innerHTML = '';
+    var medida = Report.abrirMedida(root);
+    try {
+      /* duas folhas de propósito: os números e os gráficos numa, a lista na
+         outra (ver o comentário de Painel.montar). Cada uma é paginada por
+         conta própria, então a lista comprida continua atravessando folhas
+         com o cabeçalho repetido. */
+      var cont = function (titulo) {
+        return function () {
+          var c = el('section', 'rep-page rep-page--summary rep-page--painel rep-page--cont');
+          c.appendChild(el('div', 'rep-cover-title', titulo + ' (cont.)'));
+          return c;
+        };
+      };
+      var titulo = 'Painel do marco ' + mp.rotulo;
+
+      var folha = el('section', 'rep-page rep-page--summary rep-page--painel');
+      var res = Painel.montar(folha, state.projects, mp, { impressao: true, parte: 'painel' });
+      root.appendChild(folha);
+      Report.paginar(folha, root, cont(titulo));
+
+      if (res.st.total) {
+        var lista = el('section', 'rep-page rep-page--summary rep-page--painel');
+        lista.appendChild(el('div', 'rep-cover-title', titulo));
+        Painel.montar(lista, state.projects, mp, { impressao: true, parte: 'lista' });
+        root.appendChild(lista);
+        Report.paginar(lista, root, cont(titulo));
+      }
+    } finally {
+      Report.fecharMedida(medida);
+    }
+    var titulo = document.title;
+    document.title = 'Painel_' + mp.rotulo.replace(/[^\w]+/g, '_') + '_' + Report.timeStamp();
     setTimeout(function () {
       window.print();
       setTimeout(function () { document.title = titulo; }, 500);
@@ -10737,6 +11798,14 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       if (imgCount) badges.appendChild(el('span', null, '🖼 ' + imgCount));
       /* o item com anotação é o que tem pendência escrita: dá para varrer a
          lista e achar onde alguém parou, sem abrir um por um */
+      /* veio do marco anterior e ainda não foi conferido: é o lembrete que
+         o Bruno pediu — "algumas informações terão que ser alteradas" */
+      var herd = (ncr.herdadoDe || '').trim();
+      if (herd) {
+        var hb = el('span', 'herd-dot', '⤵');
+        hb.title = 'Herdada do ' + herd + ' — confira o que precisa mudar neste marco.';
+        badges.appendChild(hb);
+      }
       var anot = (ncr.nota || '').trim();
       if (anot) {
         var nb = el('span', 'nota-dot', '📝');
@@ -11156,6 +12225,11 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       host.appendChild(empty);
       return;
     }
+
+    /* A faixa de herdada vem antes de tudo: é a primeira coisa a saber sobre
+       um item que chegou pronto de outro marco. */
+    var herd = cardDeHerdada(ncr);
+    if (herd) host.appendChild(herd);
 
     /* --- identificação --- */
     var idCard = card('Identificação da ' + kindName(), '#4B0082');
@@ -11774,9 +12848,98 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     $('#fluxoDialog').showModal();
   }
 
-  /* Situação de acompanhamento: controle interno, não sai no PDF. Substitui o
-     antigo botão "Concluir" — o item passa a contar como concluído quando, e
-     só quando, chega em "Waiver accepted". */
+  /**
+   * Leva o item aceito para o relatório do marco em que o waiver foi
+   * aprovado. O item de origem não é tocado: ele é o registro do que
+   * aconteceu no marco dele, e é dele que o ponto no card do fluxo lê o
+   * Arch Answer do marco anterior.
+   */
+  function levarAdiante() {
+    var ncr = currentNcr();
+    if (!ncr) return;
+    var av = Herdar.avaliar(state.project, ncr, state.kind, state.projects);
+    if (!av.pode) { toast(av.motivo, 9000); return; }
+
+    if (!confirm('Levar a ' + (ncr.ncrId || 'NCR') + ' para o ' + av.destino.rotulo + '?\n\n' +
+        Herdar.resumo(av) + '\n\n' +
+        'O item deste marco não muda em nada.')) return;
+
+    var copia = Herdar.copiaPara(ncr, av.origem, av.destino);
+    var destino = av.projetoDestino;
+    var kind = state.kind;
+    destino[Store.itemsKey(kind)].push(copia);
+    /* a autoria tem de ficar no relatório de destino, senão o item chega lá
+       sem dono e sem hora — e a mesclagem do colega não sabe que é novo */
+    Store.logChange(destino, SESSION_ID, kind, copia, 'criou');
+
+    flushSave().then(function () { return Store.save(destino); }).then(function () {
+      refreshProjectSelect();
+      renderNcrList();
+      renderEditor();
+      agendarGravacaoPasta();
+      toast((ncr.ncrId || 'Item') + ' copiada para o ' + av.destino.rotulo +
+        ', em “Em preenchimento”.', 12000, {
+        rotulo: 'Abrir lá',
+        fn: function () {
+          abrirDaTabela({ projetoId: destino.id, kind: kind, item: copia,
+            marco: Report.marcoOf(destino, kind) || destino.name });
+        }
+      });
+    }).catch(markError);
+  }
+
+  /**
+   * A faixa do item que veio de outro marco. Ela existe porque a cópia chega
+   * com o texto do marco anterior e **precisa** ser revista: o pedido do
+   * Bruno era ter onde lembrar disso. Sai quando a pessoa diz que conferiu.
+   */
+  function cardDeHerdada(ncr) {
+    var de = (ncr.herdadoDe || '').trim();
+    if (!de) return null;
+    var faixa = el('div', 'herd-faixa');
+    var txt = el('div', 'herd-faixa-txt');
+    txt.appendChild(el('strong', null, 'Herdada do ' + de));
+    txt.appendChild(el('span', null,
+      'Foi copiada de lá quando o waiver foi aceito e chegou aqui em ' +
+      '“Em preenchimento”. O Arch Answer, o Arch Status e as datas de ' +
+      'validade vieram em branco de propósito — são a resposta do marco ' +
+      'anterior. Confira o texto antes de mandar este pedido.'));
+    faixa.appendChild(txt);
+    var ok = el('button', 'btn btn--sm', 'Já conferi');
+    ok.type = 'button';
+    /* vale com o item travado: conferir não é editar o documento */
+    ok.setAttribute('data-livre', '');
+    ok.title = 'Tira a marca de herdada. O Waiver Historic continua como está.';
+    ok.addEventListener('click', function () {
+      var n = currentNcr();
+      if (!n) return;
+      n.herdadoDe = '';
+      touch(n);
+      renderNcrList();
+      renderEditor();
+      scheduleSave();
+      toast('Marca retirada.', 8000, {
+        rotulo: 'Desfazer',
+        fn: function () {
+          var alvo = currentNcr();
+          if (!alvo) return;
+          alvo.herdadoDe = de;
+          touch(alvo);
+          renderNcrList();
+          renderEditor();
+          scheduleSave();
+        }
+      });
+    });
+    faixa.appendChild(ok);
+    return faixa;
+  }
+
+  /* Situação de acompanhamento. Substituiu o antigo botão "Concluir" — o item
+     passa a contar como concluído quando, e só quando, chega em "Waiver
+     accepted". Desde o pedido do Bruno ela também fecha a linha do item no
+     índice da capa do PDF (§4 do CLAUDE.md); no resto do relatório continua
+     sem aparecer. */
   function renderStatusBar() {
     var ncr = currentNcr();
     var atual = Store.statusInfo(ncr.status);
@@ -11786,8 +12949,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
     var info = el('div', 'done-bar-info');
     info.appendChild(el('strong', null, 'Situação deste item'));
     info.appendChild(el('span', null,
-      'Controle interno: não sai no PDF do relatório. O item conta como ' +
-      'concluído ao chegar em “Waiver accepted”.'));
+      'Fecha a linha deste item no índice da capa do PDF (em inglês). O item ' +
+      'conta como concluído ao chegar em “Waiver accepted”.'));
     var who = el('span', 'done-bar-who');
     who.id = 'doneBarWho';
     info.appendChild(who);
@@ -11830,10 +12993,27 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
       });
     });
 
+    /* Levar adiante. Fica à vista sempre, mesmo quando não dá: o botão
+       apagado que explica o que falta ensina o caminho; o botão escondido
+       faz a pessoa achar que a função não existe. */
+    var av = Herdar.avaliar(state.project, ncr, state.kind, state.projects);
+    var adiante = el('button', 'btn btn--herdar',
+      av.pode ? '⤵ Levar para o ' + av.destino.rotulo : '⤵ Levar para o marco seguinte');
+    adiante.type = 'button';
+    adiante.disabled = !av.pode;
+    adiante.title = Herdar.resumo(av);
+    adiante.addEventListener('click', function () { levarAdiante(); });
+
     var linha = el('div', 'status-row');
     linha.appendChild(grupo);
+    linha.appendChild(adiante);
     linha.appendChild(next);
     bar.appendChild(linha);
+    if (!av.pode && Store.statusInfo(ncr.status).id === Store.STATUS_CONCLUIDO) {
+      /* aceito e mesmo assim não dá: o motivo é acionável (falta a data, ou
+         falta o relatório do marco), então vai escrito e não só no title */
+      bar.appendChild(el('div', 'hint status-herdar-aviso', av.motivo));
+    }
 
     return bar;
   }
