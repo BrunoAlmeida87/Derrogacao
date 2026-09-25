@@ -609,7 +609,7 @@ fila, cada uma com quantas NCRs tem) e veja cada NCR num cartão.
 
 | Coluna | O que entra |
 | --- | --- |
-| **Ainda fora do relatório** | NCRs do banco com **Marco Atual** igual ao marco e que ainda não estão no relatório dele (botão **+ J09 Waiver** no cartão), e itens de **outros marcos** cujo waiver vale até este (*Approved Expiry*, ou *Request Expiry*) e ainda não foram levados |
+| **NCR to be closed** | toda NCR do marco que **não está no Waiver dele**: as do banco com **Marco Atual** igual ao marco (o cartão diz se ela está no Waiver de outro marco ou em nenhum, e tem o botão **+ J09 Waiver**) e os itens de **outros marcos** cujo waiver vale até este (*Approved Expiry*, ou *Request Expiry*) e ainda não foram levados. Sem waiver, a NCR precisa ser fechada até o marco: aqui o status **fechada fica verde (✓)** e a aberta em âmbar, as abertas vêm primeiro, e o alto da coluna conta "37 de 114 já fechadas · 77 a fechar" |
 | **Em preenchimento · Waiver requested · Improve justification · Waiver accepted** | os itens NCR do relatório do marco, pela situação |
 
 - O marco casa com o relatório pelo **texto igual**, a mesma regra do Banco

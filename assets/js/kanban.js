@@ -12,7 +12,10 @@
    - as NCRs do banco com Marco Atual = J09 que ainda não estão no relatório;
    - os itens de outros marcos cujo waiver vale até o J09 (Approved Expiry,
      ou o Request Expiry na falta — Herdar.avanco) e ainda não foram levados.
-   As duas últimas ficam na primeira coluna, "Ainda fora do relatório".
+   As duas últimas ficam na primeira coluna, "NCR to be closed" (pedido do
+   Bruno): a NCR do marco que não está no Waiver dele não tem waiver, então
+   precisa ser fechada até o marco. Nessa coluna, fechada é o resultado bom
+   (verde); aberta é o que ainda falta.
 
    Marco casa com relatório pelo texto igual (Ncrs.marcoChave), a mesma
    regra do Banco NCR: "J06 Ind" não é o "J06".
@@ -149,6 +152,8 @@
   function ordenar(cs) {
     return cs.slice().sort(function (a, b) {
       if (a.alerta !== b.alerta) return a.alerta ? -1 : 1;
+      /* em "NCR to be closed", as que ainda faltam fechar vêm primeiro */
+      if (a.coluna === FORA && a.fechada !== b.fechada) return a.fechada ? 1 : -1;
       return Store.cmpTexto(numeroDe(a), numeroDe(b));
     });
   }
@@ -264,9 +269,10 @@
     [[String(total), 'NCRs neste marco'],
      [String(noRel.length), 'no relatório'],
      [noRel.length ? Math.round(aceitos * 100 / noRel.length) + '%' : '—', 'aceitas (do relatório)'],
+     [String(todos.filter(function (c) { return c.coluna === FORA && !c.fechada; }).length), 'to be closed (ainda abertas)'],
      [String(todos.filter(function (c) { return c.alerta; }).length), 'fechadas com waiver pendente']
     ].forEach(function (p, i) {
-      var d = el('div', 'kb-num' + (i === 3 && p[0] !== '0' ? ' is-alerta' : ''));
+      var d = el('div', 'kb-num' + (i === 4 && p[0] !== '0' ? ' is-alerta' : ''));
       d.appendChild(el('strong', null, p[0]));
       d.appendChild(el('span', null, p[1]));
       nums.appendChild(d);
@@ -293,7 +299,8 @@
   }
 
   function colunasDef() {
-    return [{ id: FORA, nome: 'Ainda fora do relatório', ajuda: 'No banco com este Marco Atual, ou vindo de outro marco' }]
+    return [{ id: FORA, nome: 'NCR to be closed',
+      ajuda: 'NCRs deste marco que não estão no Waiver dele: sem waiver, precisam ser fechadas até o marco' }]
       .concat(Store.STATUS.map(function (s) { return { id: s.id, nome: s.nome, ajuda: s.ajuda }; }));
   }
 
@@ -312,7 +319,13 @@
       ch.title = col.ajuda;
       coluna.appendChild(ch);
       var corpo = el('div', 'kb-col-corpo');
-      if (!cs.length) corpo.appendChild(el('p', 'kb-col-vazia', col.id === FORA ? 'Nada fora do relatório.' : 'Nenhuma NCR aqui.'));
+      if (col.id === FORA && nTot) {
+        var nFech = todos.filter(function (c) { return c.coluna === FORA && c.fechada; }).length;
+        var sub = el('div', 'kb-col-sub', nFech + ' de ' + nTot + ' já fechada' + (nTot > 1 ? 's' : '') +
+          ' · ' + (nTot - nFech) + ' a fechar');
+        ch.appendChild(sub);
+      }
+      if (!cs.length) corpo.appendChild(el('p', 'kb-col-vazia', col.id === FORA ? 'Nenhuma NCR fora do Waiver.' : 'Nenhuma NCR aqui.'));
       cs.forEach(function (c) { corpo.appendChild(cartao(c)); });
       coluna.appendChild(corpo);
       if (col.id !== FORA) soltarEm(coluna, col.id);
@@ -351,7 +364,13 @@
       else ctx.abrir(c.project, c.item);
     });
     topo.appendChild(num);
-    if (c.rec && c.rec.fonte.status) {
+    if (c.rec && c.rec.fonte.status && c.coluna === FORA) {
+      /* aqui a meta é fechar: fechada é o verde, aberta é o que falta */
+      var chip = el('span', 'kb-st-ncr ' + (c.fechada ? 'is-ok' : 'is-falta'),
+        (c.fechada ? '✓ ' : '') + curto(c.rec.fonte.status, 26));
+      chip.title = c.fechada ? 'NCR já fechada no banco NCR' : 'NCR ainda aberta: precisa ser fechada (não está no Waiver deste marco)';
+      topo.appendChild(chip);
+    } else if (c.rec && c.rec.fonte.status) {
       topo.appendChild(el('span', 'kb-st-ncr' + (c.fechada ? ' is-fechada' : ''), curto(c.rec.fonte.status, 26)));
     } else if (!c.rec) {
       var sb = el('span', 'kb-st-ncr is-sem', 'fora do banco');
@@ -367,7 +386,11 @@
       card.appendChild(al);
     }
 
-    if (c.tipo === 'banco') card.appendChild(el('div', 'kb-origem', 'No banco: Marco Atual ' + c.rec.waiver.marcoAtual));
+    if (c.tipo === 'banco') {
+      var outros = Ncrs.vinculos(c.rec, ctx.projects()).map(function (v) { return marcoRel(v.project); });
+      card.appendChild(el('div', 'kb-origem', 'No banco: Marco Atual ' + c.rec.waiver.marcoAtual +
+        (outros.length ? ' · no Waiver de ' + outros.sort(Fluxo.cmpMarco).join(', ') : ' · em nenhum Waiver')));
+    }
     if (c.tipo === 'caminho') {
       card.appendChild(el('div', 'kb-origem kb-origem--caminho', 'Vem do ' + marcoRel(c.project) + ' — ' +
         Store.statusInfo(c.item.status).nome + (c.aprovado ? ' (Approved Expiry)' : ' (Request Expiry)')));
@@ -412,7 +435,7 @@
       if (c.item.editedAt) acoes.appendChild(el('span', 'kb-quem', (c.item.editedBy || 'sem nome') + ' · ' + Ncrs.data(c.item.editedAt).slice(0, 10)));
     } else if (c.tipo === 'banco') {
       if (c.relatorio) {
-        acoes.appendChild(botao('+ ' + marcoRel(c.relatorio) + ' Waiver', 'btn--sm btn--primary', function () {
+        acoes.appendChild(botao('+ ' + marcoRel(c.relatorio) + ' Waiver', 'btn--sm', function () {
           ctx.adicionar(c.rec, c.relatorio).then(function () { render(host, ctx); });
         }, 'Adicionar esta NCR ao relatório ' + marcoRel(c.relatorio) + ' Waiver (entra em "Em preenchimento")'));
       } else {

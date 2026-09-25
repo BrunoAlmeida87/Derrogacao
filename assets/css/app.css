@@ -3082,7 +3082,7 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
 .st-cor--solicitado  { --st-cor: #2a78d6; --st-sf: #e2edfb; --st-tx: #164f93; }
 .st-cor--justificar  { --st-cor: #eb6834; --st-sf: #fde9df; --st-tx: #97390f; }
 .st-cor--aceito      { --st-cor: #1baf7a; --st-sf: #dff5ec; --st-tx: #0c6645; }
-.st-cor--fora        { --st-cor: #8a90a0; --st-sf: #f6f7f9; --st-tx: #3d4351; }
+.st-cor--fora        { --st-cor: #6b4f9e; --st-sf: #f2eef9; --st-tx: #4a3278; }
 .st-cor-ponto {
   display: inline-block; width: 9px; height: 9px; border-radius: 50%;
   background: var(--st-cor, #9aa1ae); flex: 0 0 auto;
@@ -3212,7 +3212,8 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
   border-top: 4px solid var(--st-cor);
   transition: box-shadow .12s, background .12s;
 }
-.kb-col--fora { background: #fff; border-style: dashed; border-top-style: solid; }
+.kb-col-cab { flex-wrap: wrap; }
+.kb-col-sub { flex: 1 0 100%; margin: -2px 0 0 17px; font-size: 11.5px; color: var(--st-tx); }
 .kb-col.is-alvo { box-shadow: 0 0 0 3px var(--st-cor); background: #fff; }
 .kb-col-cab {
   position: sticky; top: -14px; z-index: 1;
@@ -3240,7 +3241,6 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
 .kb-card[draggable="true"] { cursor: grab; }
 .kb-card:hover { box-shadow: 0 6px 18px rgba(20, 22, 28, .12); transform: translateY(-1px); }
 .kb-card.is-arrastando { opacity: .5; transform: rotate(1.5deg); }
-.kb-card.is-fora { border-style: dashed; }
 .kb-card.is-alerta { border-color: #f2c7c2; background: #fffafa; }
 .kb-card.is-alerta::before { background: #b42318; }
 .kb-card-topo { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -3257,6 +3257,8 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
 }
 .kb-st-ncr.is-fechada { background: #fdecec; color: #b42318; }
 .kb-st-ncr.is-sem { background: #f1f2f5; color: var(--muted); }
+.kb-st-ncr.is-ok { background: #dff5ec; color: #0c6645; }
+.kb-st-ncr.is-falta { background: #fdf4e3; color: #8a4b00; }
 .kb-alerta {
   font-size: 11.5px; color: #7a1b12; background: #fdecec; border-radius: 6px; padding: 4px 8px;
 }

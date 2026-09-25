@@ -853,8 +853,11 @@ tela que responde "onde está a NCR-018?" sem abrir marco por marco.
   regras da pasta. Versões antigas ignoram a chave nova.
 
 ### Aba Kanban (`kanban.js`)
-O quadro de um marco. Colunas: "Ainda fora do relatório" + as quatro de
-`Store.STATUS`. Entram os itens NCR dos relatórios com **o mesmo marco pelo
+O quadro de um marco. Colunas: **"NCR to be closed"** + as quatro de
+`Store.STATUS`. O nome é do Bruno: NCR do marco que não está no Waiver dele
+não tem waiver, então tem de ser fechada até o marco — por isso ali a
+fechada é verde e a aberta é a que falta (o contrário do resto do programa,
+onde fechada é vermelho), e as abertas vêm primeiro. Entram os itens NCR dos relatórios com **o mesmo marco pelo
 texto** (`Ncrs.marcoChave`, a regra do Banco NCR), as NCRs do banco com esse
 Marco Atual que não estão lá, e os itens de outros marcos que `Herdar.avanco`
 diz que vão para ele e ainda não foram (a mesma "segunda porta" do painel).
