@@ -17,12 +17,18 @@
 (function (global) {
   'use strict';
 
-  var COLS_KEY = 'derrogacao:ncrColunas';
+  /* "2": o padrão de colunas mudou (pedido do Bruno, com a imagem da janela
+     de colunas). A chave nova faz o padrão novo valer uma vez para todos; a
+     partir daí vale a escolha — e a ORDEM — de cada um. */
+  var COLS_KEY = 'derrogacao:ncrColunas2';
   var PAINEL_KEY = 'derrogacao:ncrPainel';
   var DESTAQUE_KEY = 'derrogacao:ncrDestacarFechadas';
 
   /* chave do filtro -> vazio. Cada filtro de escolha é uma LISTA: vazia = todos */
-  var FILTROS = ['status', 'sistema', 'marcoOriginal', 'marcoAtual', 'funcaoVital', 'correlacao', 'waiver', 'presenca'];
+  var FILTROS = ['status', 'sistema', 'marcoOriginal', 'marcoAtual', 'funcaoVital', 'correlacao',
+    'waiver', 'relWaiver', 'sitWaiver', 'alerta', 'presenca'];
+  /* filtros cujos valores são marcos: as opções saem na fila combinada */
+  var FILTROS_MARCO = { marcoOriginal: 1, marcoAtual: 1, relWaiver: 1 };
 
   var st = {
     filtros: filtrosVazios(),
@@ -71,6 +77,27 @@
     return t.length > n ? t.slice(0, n - 1) + '…' : t;
   }
   function nomeRel(p) { return (p.marco || p.name || 'sem marco') + ' Waiver'; }
+  function marcoRel(p) { return p.marco || p.name || '?'; }
+
+  /** Chave de ordenação de um marco na fila combinada (Fluxo.ORDEM). */
+  function chaveMarco(t) {
+    t = str(t);
+    if (!t) return '~';
+    var o = Math.round((Fluxo.ordemMarco(t) + 10) * 100);
+    return ('00000000' + o).slice(-8) + ' ' + t;
+  }
+
+  /** Vínculos na ordem do caminho: J06 antes do J08, o J08 antes do J09. */
+  function vinculosEmOrdem(vinc) {
+    return vinc.slice().sort(function (a, b) { return Fluxo.cmpMarco(marcoRel(a.project), marcoRel(b.project)); });
+  }
+
+  /* A NCR fechada com o waiver ainda em aberto: o waiver ficou para trás de
+     uma NCR que já acabou — ou a NCR foi fechada sem o waiver sair. Waiver
+     aceito não é problema. */
+  function pendenteFechada(fechada, vinc) {
+    return fechada && vinc.some(function (v) { return v.item.status !== Store.STATUS_CONCLUIDO; });
+  }
 
   /* --- colunas ------------------------------------------------------------- */
 
@@ -100,6 +127,7 @@
         var campo = c.id.slice(2);
         c.valor = function (r) { return r.waiver[campo]; };
         c.campo = campo;
+        if (c.editar === 'marcos') c.ordem = function (r) { return chaveMarco(r.waiver[campo]); };
       }
     });
     (m.colunas || []).forEach(function (nome) {
@@ -110,10 +138,15 @@
     return base;
   }
 
+  /* O padrão pedido pelo Bruno: os dados do Waiver, e do banco a descrição,
+     o status, os bigramas, a data de criação e a data do CEDOC Closure. */
   function padraoVisiveis() {
-    var pap = Ncrs.meta().papeis || {};
-    return ['numero', pap.titulo ? 'titulo' : 'descricao', 'sistema', 'status',
-      'w:marcoOriginal', 'w:marcoAtual', 'w:funcaoVital', 'waiver', 'w:observacao', 'criadoEm'];
+    var ids = ['numero', 'w:marcoOriginal', 'w:marcoAtual', 'w:funcaoVital', 'waiver', 'w:waiverHistoric',
+      'descricao', 'status', 'sistema', 'criadoEm'];
+    (Ncrs.meta().colunas || []).forEach(function (nome) {
+      if (/cedoc\s*closure/.test(Ncrs.norm(nome)) && ids.indexOf('c:' + nome) < 0) ids.push('c:' + nome);
+    });
+    return ids;
   }
 
   function visiveis() {
@@ -145,7 +178,8 @@
       pronta: !!rel && !jaNoRel,
       semRel: !!rec.waiver.marcoAtual && !rel,
       correl: Ncrs.situacaoCorrelacao(rec),
-      fechada: Ncrs.fechada(rec)
+      fechada: Ncrs.fechada(rec),
+      alerta: pendenteFechada(Ncrs.fechada(rec), vinc)
     };
   }
 
@@ -192,6 +226,13 @@
       if (l.semRel) v.push('semrel');
       return v;
     },
+    relWaiver: function (l) {
+      return l.vinculos.length ? l.vinculos.map(function (v) { return marcoRel(v.project); }) : ['__vazio'];
+    },
+    sitWaiver: function (l) {
+      return l.vinculos.length ? l.vinculos.map(function (v) { return Store.statusInfo(v.item.status).id; }) : ['__nenhum'];
+    },
+    alerta: function (l) { return [l.alerta ? 'sim' : 'nao']; },
     presenca: function (l) { return [l.rec.fonte.presente ? 'presente' : 'ausente']; }
   };
 
@@ -226,7 +267,10 @@
   function ordenar(ls) {
     var c = colunas().filter(function (x) { return x.id === st.ordem.col; })[0] || colunas()[0];
     var f = c.ordem || c.valor;
-    if (c.especial) f = function (r, l) { return l.vinculos.map(function (v) { return v.project.marco; }).join(' ') || (l.pronta ? '~' : '~~'); };
+    if (c.especial) f = function (r, l) {
+      return vinculosEmOrdem(l.vinculos).map(function (v) { return chaveMarco(marcoRel(v.project)); }).join(' ') ||
+        (l.pronta ? '~' : '~~');
+    };
     return ls.slice().sort(function (a, b) {
       return (Store.cmpTexto(f(a.rec, a), f(b.rec, b)) || Store.cmpTexto(ordemNumero(a.rec), ordemNumero(b.rec))) * st.ordem.dir;
     });
@@ -290,10 +334,12 @@
     var trh = el('tr');
     cols.forEach(function (c) {
       var th = el('th', (c.waiver || c.especial) ? 'is-waiver' : '');
+      th.draggable = !c.fixa;
       var b = el('button', 'nb2-sort', c.nome);
       b.type = 'button';
       if (st.ordem.col === c.id) b.appendChild(el('span', 'nb2-seta', st.ordem.dir > 0 ? ' ▲' : ' ▼'));
-      b.title = ((c.waiver || c.especial) ? 'Dado do Waiver (preenchido aqui). ' : 'Dado do banco NCR. ') + 'Clique para ordenar.';
+      b.title = ((c.waiver || c.especial) ? 'Dado do Waiver (preenchido aqui). ' : 'Dado do banco NCR. ') +
+        'Clique para ordenar' + (c.fixa ? '.' : '; arraste para mudar a coluna de lugar.');
       b.addEventListener('click', function () {
         if (st.ordem.col === c.id) st.ordem.dir = -st.ordem.dir;
         else { st.ordem.col = c.id; st.ordem.dir = 1; }
@@ -301,6 +347,13 @@
       });
       th.appendChild(b);
       trh.appendChild(th);
+    });
+    arrastavel(trh, function (de, para) {
+      if (para < 1) para = 1;                         /* o Número fica sempre primeiro */
+      var ids = cols.map(function (c) { return c.id; });
+      ids.splice(para, 0, ids.splice(de, 1)[0]);
+      gravarPref(COLS_KEY, ids);
+      renderTabela();
     });
     thead.appendChild(trh);
     t.appendChild(thead);
@@ -387,7 +440,8 @@
   function seletor(rec, campo, lista, depois) {
     var sel = el('select');
     var atual = rec.waiver[campo];
-    var ops = Ncrs.listas()[lista] || [];
+    var ops = (Ncrs.listas()[lista] || []).slice();
+    if (lista === 'marcos') ops.sort(Fluxo.cmpMarco);
     var o0 = el('option', null, '—');
     o0.value = '';
     sel.appendChild(o0);
@@ -413,16 +467,66 @@
     return sel;
   }
 
+  /**
+   * Uma etiqueta de relatório com a cor da situação do item lá dentro — a
+   * mesma cor do trilho da lista e da pílula do resumo (Store.STATUS).
+   * Serve à tabela e à ficha.
+   */
+  function etiquetaRel(v, fechada, rotulo, aoAbrir) {
+    var sit = Store.statusInfo(v.item.status);
+    var b = el('button', 'nb2-rel st-cor st-cor--' + sit.id);
+    b.type = 'button';
+    b.appendChild(el('span', 'st-cor-ponto'));
+    b.appendChild(document.createTextNode(rotulo));
+    var alerta = fechada && sit.id !== Store.STATUS_CONCLUIDO;
+    if (alerta) {
+      b.classList.add('is-alerta');
+      b.appendChild(el('span', 'nb2-rel-alerta', '⚠'));
+    }
+    b.title = (v.item.ncrId || 'Item') + ' no ' + nomeRel(v.project) + ' — ' + sit.nome +
+      (alerta ? '. ATENÇÃO: a NCR está fechada e o waiver ainda não foi aceito.' : '') +
+      '\nClique para abrir o item.';
+    b.setAttribute('aria-label', marcoRel(v.project) + ': ' + sit.nome + (alerta ? ', NCR fechada com waiver pendente' : ''));
+    b.addEventListener('click', aoAbrir);
+    return b;
+  }
+
+  /**
+   * O caminho da NCR pelos relatórios, na ordem da fila dos marcos, como a
+   * coluna "Caminho do waiver" da aba Tabela: J06 → J08 → (J09). O que está
+   * entre parênteses é para onde o waiver aponta (Approved Expiry, ou o
+   * Request Expiry na falta) e ainda não foi levado.
+   */
+  function caminhoWaiver(box, l, aoAbrir) {
+    var vs = vinculosEmOrdem(l.vinculos);
+    vs.forEach(function (v, i) {
+      if (i) box.appendChild(el('span', 'nb2-seta-caminho', '→'));
+      box.appendChild(etiquetaRel(v, l.fechada, marcoRel(v.project), function () { aoAbrir(v); }));
+    });
+    var destino = destinoPendente(vs);
+    if (destino) {
+      box.appendChild(el('span', 'nb2-seta-caminho', '→'));
+      var d = el('span', 'nb2-rel-destino', '(' + destino.rotulo + ')');
+      d.title = 'O waiver do ' + marcoRel(destino.de.project) + ' vale até ' + destino.rotulo +
+        (destino.aprovado ? ' (Approved Expiry)' : ' (Request Expiry)') + ', e a NCR ainda não está no relatório de lá.';
+      box.appendChild(d);
+    }
+    return vs;
+  }
+
+  /** Para onde o último relatório da NCR aponta, se ela ainda não chegou lá. */
+  function destinoPendente(vs) {
+    if (!vs.length || typeof Herdar === 'undefined') return null;
+    var ult = vs[vs.length - 1];
+    var av = Herdar.avanco(ult.project, ult.item, 'ncr', ctx.projects());
+    if (av.estado !== 'aLevar' && av.estado !== 'semRelatorio') return null;
+    return { rotulo: av.destino.rotulo, aprovado: av.aprovado, de: ult };
+  }
+
   function celulaWaiver(td, l) {
     var box = el('div', 'nb2-waiver');
     if (l.vinculos.length) {
-      l.vinculos.forEach(function (v) {
-        var b = el('button', 'nb2-rel', v.project.marco || v.project.name || '?');
-        b.type = 'button';
-        b.title = 'Abrir ' + (v.item.ncrId || 'o item') + ' no relatório ' + nomeRel(v.project);
-        b.addEventListener('click', function () { ctx.abrir(v.project, v.item); });
-        box.appendChild(b);
-      });
+      caminhoWaiver(box, l, function (v) { ctx.abrir(v.project, v.item); });
     } else {
       box.appendChild(el('span', 'nb2-mini', 'Não vinculada'));
     }
@@ -596,20 +700,23 @@
     ['Vinculadas a Waiver', function (ls) { return ls.filter(function (l) { return l.vinculos.length > 0; }).length; },
       function () { return 'em algum relatório'; }, ['waiver', 'vinculada']],
     ['Prontas para adicionar', function (ls) { return ls.filter(function (l) { return l.pronta; }).length; },
-      function () { return 'marco atual tem relatório'; }, ['waiver', 'pronta']]
+      function () { return 'marco atual tem relatório'; }, ['waiver', 'pronta']],
+    ['⚠ Fechadas, waiver pendente', function (ls) { return ls.filter(function (l) { return l.alerta; }).length; },
+      function () { return 'NCR fechada, waiver não aceito'; }, ['alerta', 'sim'], 'nb2-kpi--alerta']
   ];
 
   function kpis(todas) {
     var row = el('div', 'sm-kpis nb2-kpis');
     row.id = 'nb2Kpis';
     KPI_DEFS.forEach(function (k, i) {
-      var t = el('button', 'sm-kpi nb2-kpi');
+      var t = el('button', 'sm-kpi nb2-kpi' + (k[4] ? ' ' + k[4] : ''));
       t.type = 'button';
       t.dataset.i = String(i);
       t.title = k[3] ? 'Filtrar a tabela por este grupo' : 'Limpar os filtros';
       t.appendChild(el('span', 'sm-kpi-label', k[0]));
       t.appendChild(el('strong', 'sm-kpi-value', String(k[1](todas))));
       t.appendChild(el('span', 'sm-kpi-sub', k[2](todas)));
+      if (k[4] && !k[1](todas)) t.classList.add('is-zero');
       t.addEventListener('click', function () {
         st.filtros = filtrosVazios();
         st.soAbertas = false;
@@ -630,6 +737,7 @@
       var k = KPI_DEFS[+t.dataset.i];
       t.querySelector('.sm-kpi-value').textContent = String(k[1](todas));
       t.querySelector('.sm-kpi-sub').textContent = k[2](todas);
+      if (k[4]) t.classList.toggle('is-zero', !k[1](todas));
     });
   }
 
@@ -639,14 +747,18 @@
     correlacao: { completa: 'Completa', parcial: 'Parcial', vazia: 'Sem correlação' },
     waiver: { vinculada: 'Vinculada a algum relatório', nao: 'Não vinculada',
       pronta: 'Pronta para adicionar', semrel: 'Marco atual sem relatório' },
+    alerta: { sim: '⚠ Fechada com waiver pendente', nao: 'Sem esse alerta' },
     presenca: { presente: 'No último export', ausente: 'Fora do último export' }
   };
   var NOMES_FILTRO = {
     status: 'Status', sistema: 'Sistema', marcoOriginal: 'Marco Original', marcoAtual: 'Marco Atual',
-    funcaoVital: 'Função Vital', correlacao: 'Correlação', waiver: 'Waiver', presenca: 'No export'
+    funcaoVital: 'Função Vital', correlacao: 'Correlação', waiver: 'Waiver',
+    relWaiver: 'Relatório Waiver', sitWaiver: 'Situação do Waiver', alerta: 'Alerta', presenca: 'No export'
   };
 
   function nomeValor(chave, v) {
+    if (chave === 'relWaiver' && v === '__vazio') return '(em nenhum relatório)';
+    if (chave === 'sitWaiver') return v === '__nenhum' ? '(em nenhum relatório)' : Store.statusInfo(v).nome;
     if (v === '__vazio') return '(não preenchido)';
     return (ROTULOS_FIXOS[chave] && ROTULOS_FIXOS[chave][v]) || v;
   }
@@ -657,6 +769,14 @@
     var ks = Object.keys(cont);
     if (ROTULOS_FIXOS[chave]) {
       ks = Object.keys(ROTULOS_FIXOS[chave]);
+    } else if (chave === 'sitWaiver') {
+      ks = Store.STATUS.map(function (o) { return o.id; }).concat(['__nenhum']);
+    } else if (FILTROS_MARCO[chave]) {
+      ks.sort(function (a, b) {
+        if (a === '__vazio') return -1;
+        if (b === '__vazio') return 1;
+        return Fluxo.cmpMarco(a, b);
+      });
     } else {
       ks.sort(function (a, b) {
         if (a === '__vazio') return -1;
@@ -737,6 +857,7 @@
         filtroMudou();
       });
       row.appendChild(cb);
+      if (chave === 'sitWaiver' && o.valor !== '__nenhum') row.appendChild(el('span', 'st-cor-ponto st-cor--' + o.valor));
       row.appendChild(el('span', 'nb2-ms-nome', o.nome));
       row.appendChild(el('span', 'nb2-ms-n', String(o.n)));
       row.dataset.busca = Ncrs.norm(o.nome);
@@ -804,49 +925,172 @@
 
   /* --- colunas e exportação -------------------------------------------------------- */
 
+  /**
+   * A janela das colunas: à esquerda, as que aparecem, NA ORDEM da tabela —
+   * com ↑/↓ e também arrastando (arrastar sozinho exclui quem não consegue o
+   * gesto, WCAG 2.5.7); à direita, todas as disponíveis para marcar.
+   * Nada muda na tabela até "Aplicar".
+   */
   function escolherColunas() {
     var dlg = document.getElementById('nbColsDialog');
     var body = dlg.querySelector('.dlg-body');
-    body.innerHTML = '';
-    body.appendChild(el('h3', null, 'Colunas da tabela'));
-    body.appendChild(el('p', null, 'As do Waiver são as que você preenche aqui; as do banco NCR vêm da importação.'));
-    var marcadas = visiveis().map(function (c) { return c.id; });
-    [
-      ['Do Waiver', colunas().filter(function (c) { return c.waiver || c.especial; })],
-      ['Principais do banco NCR', colunas().filter(function (c) { return !c.waiver && !c.especial && !c.origem; })],
-      ['Todas as colunas do export', colunas().filter(function (c) { return c.origem; })]
-    ].forEach(function (g) {
-      if (!g[1].length) return;
-      body.appendChild(el('div', 'nb-cols-tit', g[0]));
-      var lista = el('div', 'nb-cols');
-      g[1].forEach(function (c) {
-        var lab = el('label', 'nb-col');
-        var cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.value = c.id;
-        cb.checked = marcadas.indexOf(c.id) >= 0;
-        cb.disabled = !!c.fixa;
-        lab.appendChild(cb);
-        lab.appendChild(document.createTextNode(' ' + c.nome));
-        lista.appendChild(lab);
+    var todas = colunas();
+    var porId = {};
+    todas.forEach(function (c) { porId[c.id] = c; });
+    var ids = visiveis().map(function (c) { return c.id; });
+
+    function desenhar(foco) {
+      body.innerHTML = '';
+      body.appendChild(el('h3', null, 'Colunas da tabela'));
+      body.appendChild(el('p', 'nb-cols-dica', 'Marque à direita o que aparece. À esquerda, a ordem: use ↑ ↓ ou arraste. ' +
+        'As do Waiver são as que você preenche aqui; as do banco NCR vêm da importação. Também dá para arrastar o título da coluna na própria tabela.'));
+      var grade = el('div', 'nb-cols-grade');
+      body.appendChild(grade);
+
+      /* esquerda: a ordem */
+      var esq = el('div', 'nb-cols-ordem');
+      esq.appendChild(el('div', 'nb-cols-tit', 'Ordem na tabela (' + ids.length + ')'));
+      var ol = el('ol', 'nb-ordem');
+      ids.forEach(function (id, i) {
+        var c = porId[id];
+        if (!c) return;
+        var li = el('li', 'nb-ordem-item' + ((c.waiver || c.especial) ? ' is-waiver' : ''));
+        li.dataset.id = id;
+        li.draggable = !c.fixa;
+        li.appendChild(el('span', 'nb-ordem-pega', c.fixa ? '📌' : '⠿'));
+        li.appendChild(el('span', 'nb-ordem-nome', c.nome));
+        var set = el('span', 'nb-ordem-setas');
+        [['↑', -1], ['↓', 1]].forEach(function (a) {
+          var bt = el('button', 'btn btn--sm btn--quiet', a[0]);
+          bt.type = 'button';
+          var para = i + a[1];
+          bt.disabled = !!c.fixa || para < 1 || para >= ids.length;
+          bt.title = (a[1] < 0 ? 'Mover para a esquerda' : 'Mover para a direita') + ' — ' + c.nome;
+          bt.setAttribute('aria-label', bt.title);
+          bt.dataset.acao = id + (a[1] < 0 ? ':sobe' : ':desce');
+          bt.addEventListener('click', function () {
+            ids.splice(para, 0, ids.splice(i, 1)[0]);
+            desenhar(bt.dataset.acao);
+          });
+          set.appendChild(bt);
+        });
+        li.appendChild(set);
+        ol.appendChild(li);
       });
-      body.appendChild(lista);
-    });
+      arrastavel(ol, function (de, para) {
+        if (para < 1) para = 1;                       /* o Número fica sempre primeiro */
+        ids.splice(para, 0, ids.splice(de, 1)[0]);
+        desenhar();
+      });
+      esq.appendChild(ol);
+      grade.appendChild(esq);
+
+      /* direita: o que pode aparecer */
+      var dir = el('div', 'nb-cols-todas');
+      [
+        ['Do Waiver', todas.filter(function (c) { return c.waiver || c.especial; })],
+        ['Principais do banco NCR', todas.filter(function (c) { return !c.waiver && !c.especial && !c.origem; })],
+        ['Todas as colunas do export', todas.filter(function (c) { return c.origem; })]
+      ].forEach(function (g) {
+        if (!g[1].length) return;
+        dir.appendChild(el('div', 'nb-cols-tit', g[0]));
+        var lista = el('div', 'nb-cols');
+        g[1].forEach(function (c) {
+          var lab = el('label', 'nb-col');
+          var cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.value = c.id;
+          cb.checked = ids.indexOf(c.id) >= 0;
+          cb.disabled = !!c.fixa;
+          cb.addEventListener('change', function () {
+            if (cb.checked) { if (ids.indexOf(c.id) < 0) ids.push(c.id); }
+            else ids = ids.filter(function (x) { return x !== c.id; });
+            desenhar('cb:' + c.id);
+          });
+          lab.appendChild(cb);
+          lab.appendChild(document.createTextNode(' ' + c.nome));
+          lista.appendChild(lab);
+        });
+        dir.appendChild(lista);
+      });
+      grade.appendChild(dir);
+
+      /* o foco volta para o botão ou a caixa que acabou de ser usada */
+      if (foco) {
+        var alvo = foco.indexOf('cb:') === 0
+          ? body.querySelector('input[value="' + cssEsc(foco.slice(3)) + '"]')
+          : body.querySelector('[data-acao="' + cssEsc(foco) + '"]');
+        if (alvo && alvo.disabled) alvo = alvo.parentNode.querySelector('button:not([disabled])');
+        if (alvo) alvo.focus();
+      }
+    }
+    desenhar();
+
     var ac = dlg.querySelector('.dlg-actions');
     ac.innerHTML = '';
-    ac.appendChild(botao('Voltar ao padrão', '', function () { gravarPref(COLS_KEY, []); dlg.close(); renderTabela(); }));
+    ac.appendChild(botao('Voltar ao padrão', '', function () { ids = padraoVisiveis(); desenhar(); },
+      'Volta às colunas e à ordem de saída (ainda é preciso aplicar)'));
+    ac.appendChild(botao('Cancelar', '', function () { dlg.close(); }));
     ac.appendChild(botao('Aplicar', 'btn--primary', function () {
-      var ids = ['numero'];
-      Array.prototype.forEach.call(body.querySelectorAll('input[type=checkbox]'), function (cb) {
-        if (cb.checked && cb.value !== 'numero') ids.push(cb.value);
-      });
-      var ordem = colunas().map(function (c) { return c.id; });
-      ids.sort(function (a, b) { return ordem.indexOf(a) - ordem.indexOf(b); });
-      gravarPref(COLS_KEY, ids);
+      gravarPref(COLS_KEY, ['numero'].concat(ids.filter(function (x) { return x !== 'numero'; })));
       dlg.close();
       renderTabela();
     }));
     dlg.showModal();
+  }
+
+  /**
+   * Arrastar para reordenar os filhos de uma lista (ou de uma linha de
+   * cabeçalho). `mover(de, para)` recebe os índices. Só o gesto: o teclado
+   * tem os botões ↑/↓ da janela de colunas.
+   */
+  function arrastavel(pai, mover) {
+    var de = -1;
+    function indice(n) { return Array.prototype.indexOf.call(pai.children, n); }
+    function alvo(e) {
+      var n = e.target;
+      while (n && n.parentNode !== pai) n = n.parentNode;
+      return n;
+    }
+    pai.addEventListener('dragstart', function (e) {
+      var n = alvo(e);
+      if (!n || !n.draggable) return;
+      de = indice(n);
+      n.classList.add('is-arrastando');
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(de)); } catch (x) { /* ok */ }
+    });
+    pai.addEventListener('dragover', function (e) {
+      if (de < 0) return;
+      var n = alvo(e);
+      if (!n) return;
+      e.preventDefault();
+      Array.prototype.forEach.call(pai.children, function (c) { c.classList.remove('is-alvo-antes', 'is-alvo-depois'); });
+      var r = n.getBoundingClientRect();
+      var horizontal = pai.tagName === 'TR';
+      var depois = horizontal ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+      n.classList.add(depois ? 'is-alvo-depois' : 'is-alvo-antes');
+    });
+    pai.addEventListener('drop', function (e) {
+      if (de < 0) return;
+      e.preventDefault();
+      var n = alvo(e);
+      var ori = de;
+      limpar();
+      if (!n) return;
+      var r = n.getBoundingClientRect();
+      var horizontal = pai.tagName === 'TR';
+      var depois = horizontal ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+      var para = indice(n) + (depois ? 1 : 0);
+      if (para > ori) para--;
+      if (para !== ori) mover(ori, para);
+    });
+    function limpar() {
+      de = -1;
+      Array.prototype.forEach.call(pai.children, function (c) {
+        c.classList.remove('is-arrastando', 'is-alvo-antes', 'is-alvo-depois');
+      });
+    }
+    pai.addEventListener('dragend', limpar);
   }
 
   /** Exporta exatamente o que está à vista, com as colunas à vista. */
@@ -855,7 +1099,13 @@
     var ls = aVista(linhas());
     var valores = ls.map(function (l) {
       return cols.map(function (c) {
-        if (c.especial) return l.vinculos.map(function (v) { return v.project.marco; }).join(' / ') || 'Não vinculada';
+        if (c.especial) {
+          var vs = vinculosEmOrdem(l.vinculos);
+          if (!vs.length) return 'Não vinculada';
+          var t = vs.map(function (v) { return marcoRel(v.project) + ' (' + Store.statusInfo(v.item.status).nome + ')'; }).join(' → ');
+          var d = destinoPendente(vs);
+          return d ? t + ' → (' + d.rotulo + ')' : t;
+        }
         return str(c.valor(l.rec));
       });
     });
@@ -944,13 +1194,14 @@
     var vinc = Ncrs.vinculos(rec, projects);
     var lin = el('div', 'nb-vinc');
     if (vinc.length) {
-      vinc.forEach(function (v) {
-        var b = el('button', 'nb2-rel', nomeRel(v.project));
-        b.type = 'button';
-        b.title = 'Abrir o item no relatório';
-        b.addEventListener('click', function () { dlg.close(); ctx.abrir(v.project, v.item); });
-        lin.appendChild(b);
+      vinculosEmOrdem(vinc).forEach(function (v, i) {
+        if (i) lin.appendChild(el('span', 'nb2-seta-caminho', '→'));
+        lin.appendChild(etiquetaRel(v, fechada, nomeRel(v.project) + ' · ' + Store.statusInfo(v.item.status).nome,
+          function () { dlg.close(); ctx.abrir(v.project, v.item); }));
       });
+      if (pendenteFechada(fechada, vinc)) {
+        sr.appendChild(avisoFechada(rec));
+      }
     } else {
       lin.appendChild(el('span', 'nb2-mini', 'Não vinculada a nenhum relatório.'));
     }
@@ -1077,6 +1328,15 @@
     body.scrollTop = rolagem;
   }
 
+  function avisoFechada(rec) {
+    var d = el('div', 'nb-alerta');
+    d.setAttribute('role', 'note');
+    d.appendChild(el('strong', null, '⚠ NCR fechada com waiver pendente'));
+    d.appendChild(el('span', null, 'O banco NCR diz "' + (rec.fonte.status || 'fechada') +
+      '", mas o item no relatório ainda não está em "Waiver accepted". Confira se o waiver ainda é necessário ou se falta atualizar a situação.'));
+    return d;
+  }
+
   function secao(pai, titulo, sub, cls) {
     var s = el('section', 'nb-sec ' + (cls || ''));
     s.appendChild(el('h4', null, titulo));
@@ -1137,6 +1397,8 @@
     atualizarLinha: atualizarLinha,
     abrirFicha: abrirFicha,
     aposMudancaExterna: aposMudancaExterna,
-    descricaoDoFiltro: descricaoDoFiltro
+    descricaoDoFiltro: descricaoDoFiltro,
+    avisoFechada: avisoFechada,
+    etiquetaRel: etiquetaRel
   };
 })(window);

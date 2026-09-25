@@ -72,6 +72,7 @@ assets/js/xlsxler.js       LÊ .xlsx — cópia literal do motor do NCR Control
 assets/js/ncrs.js          banco NCR: modelo, importações, junção da pasta
 assets/js/ncrfluxo.js      o fluxo da NCR (trajetória e mapa) do NCR Control
 assets/js/ncrview.js       aba Banco NCR: tabela, filtros, ficha
+assets/js/kanban.js        aba Kanban: as NCRs de um marco, por situação
 assets/js/app.js           o editor (o maior; ~3000 linhas)
 derrogacao.html            o programa inteiro num arquivo só — gerado, e versionado
 tools/build-standalone.py  gera (e confere) o derrogacao.html
@@ -82,7 +83,7 @@ exemplos/                  .json prontos para importar
 Ordem de carga dos scripts (importa: cada um usa o anterior):
 `log.js → store.js → revisoes.js → pasta.js → xlsxler.js → ncrs.js →
 ncrfluxo.js → report.js → fluxo.js → herdar.js → summary.js → painel.js →
-xlsx.js → tabela.js → chat.js → lado.js → ncrview.js → app.js`.
+xlsx.js → tabela.js → chat.js → lado.js → ncrview.js → kanban.js → app.js`.
 (`log.js` vem primeiro porque todo mundo o usa — e **por isso mesmo não usa
 ninguém**: ele não conhece `Store`, `Pasta` nem `app`.)
 (`tabela.js` usa `Summary`, `Fluxo`, `Report` e `SummaryView.csvCampo`;
@@ -779,6 +780,25 @@ tela que responde "onde está a NCR-018?" sem abrir marco por marco.
   Retrato com dez colunas partia toda palavra ao meio.
 
 ### Banco NCR (`ncrs.js`, `ncrfluxo.js`, `ncrview.js`)
+- **Marcos em ordem de fila, não alfabética** (`Fluxo.ordemMarco`/`cmpMarco`,
+  a mesma `posicao` do desenho): listas, filtros, ordenação das colunas de
+  marco e o caminho da coluna Waiver. `J05 (J06Cer)` é o J05 (o parêntese
+  não muda a posição); `Ind` fica logo depois do marco dele.
+- **Coluna Waiver = caminho**, como o "Caminho do waiver" da Tabela: os
+  vínculos na ordem da fila, cada etiqueta com a cor da situação do item
+  (`.st-cor--<status>`, as cores de `Store.STATUS` em três tons — a cor pura
+  com letra branca não passa no contraste), e `(J09)` tracejado quando o
+  último relatório aponta para um marco onde a NCR ainda não está
+  (`Herdar.avanco`, estados `aLevar`/`semRelatorio`).
+- **Alerta "fechada com waiver pendente"**: `Ncrs.fechada(rec)` e algum
+  vínculo fora de `aceito`. É só tela — etiqueta, KPI, filtro, ficha,
+  editor (`renderLigacaoBanco`), lista (`.alerta-dot`) e Kanban. Não vai ao
+  PDF.
+- **Colunas**: a chave virou `derrogacao:ncrColunas2` quando o padrão mudou
+  (pedido do Bruno, com a imagem da janela), para o padrão novo valer uma vez
+  para todos. A lista gravada É a ordem — `visiveis()` não reordena. A
+  janela tem ↑/↓ (teclado) e arrastar; o cabeçalho da tabela também arrasta
+  (`arrastavel`). O Número fica sempre em primeiro.
 - **Importação do banco** reaproveita o NCR Control: o mesmo leitor de xlsx
   (`xlsxler.js` é cópia literal do motor dele — o `xlsx.js` daqui escreve, não
   lê), a mesma detecção de cabeçalho e os mesmos aliases de coluna, a mesma
@@ -831,6 +851,32 @@ tela que responde "onde está a NCR-018?" sem abrir marco por marco.
   a pasta traria de volta o que se desfez — e não apaga as NCRs que entraram.
 - O **backup de tudo** leva `ncrBase`; abrir um backup junta o banco NCR pelas
   regras da pasta. Versões antigas ignoram a chave nova.
+
+### Aba Kanban (`kanban.js`)
+O quadro de um marco. Colunas: "Ainda fora do relatório" + as quatro de
+`Store.STATUS`. Entram os itens NCR dos relatórios com **o mesmo marco pelo
+texto** (`Ncrs.marcoChave`, a regra do Banco NCR), as NCRs do banco com esse
+Marco Atual que não estão lá, e os itens de outros marcos que `Herdar.avanco`
+diz que vão para ele e ainda não foram (a mesma "segunda porta" do painel).
+Deduplicado pela chave da NCR.
+
+- **Arrastar muda a situação** por `mudarSituacaoDe` em `app.js`:
+  `Store.setStatus` + `Store.logChange` + `Store.save` + pasta — o mesmo
+  caminho do editor, para um item de **qualquer** relatório (o Kanban não
+  precisa do relatório aberto). Alternativa sem arrastar: o `<select>` do
+  cartão (WCAG 2.5.7). Sair de `aceito` pede confirmação — o item aceito é
+  travado no editor, e o Kanban não pode ser a porta dos fundos da trava.
+- Soltar um cartão do banco numa coluna = `adicionarAoWaiver(rec, p,
+  situacao)`.
+- **Sem `overflow` no quadro**: o cabeçalho de cada coluna gruda na rolagem
+  da aba (§6).
+- O marco escolhido e os filtros não são guardados: abre no marco do
+  relatório aberto.
+- Não há PDF do Kanban.
+
+A **Tabela**, o **Banco NCR** e o **Kanban** usam o trilho estreito na
+lateral (pedido do Bruno: "diminua as margens para caber tudo"); a Tabela
+também perdeu o padding lateral. Só tela — o PDF da tabela é o de antes.
 
 ### Aba Resumo (`summary.js`)
 Gráficos em **SVG escrito à mão** — sem biblioteca, imprimem em vetor e
@@ -1193,3 +1239,10 @@ desta máquina às vezes bloqueia `github.io`.
 | Editar na tabela do Banco NCR não redesenha a tabela | a rolagem voltava ao topo e a linha sumia do filtro no meio da edição |
 | Exportação do Banco NCR leva o que está à vista, com "Recorte" | pedido do Bruno; mesma regra da aba Tabela |
 | JSON de correlação fora do Git | repositório público, dado do programa |
+| Marcos em ordem de fila em todo lugar (`Fluxo.cmpMarco`) | pedido do Bruno: "na ordem que combinamos, igual ao extrato da tabela"; alfabética põe J05 (J06Cer) e J06Cer em lugar errado |
+| Coluna Waiver colorida pela situação do item | pedido do Bruno; as cores de `Store.STATUS`, em tons que passam no contraste |
+| Aviso de NCR fechada com waiver pendente, só na tela | pedido do Bruno; *Waiver accepted* não avisa. O PDF é sagrado (§2) |
+| Colunas do Banco NCR reordenáveis, chave nova para o padrão novo | o padrão da imagem do Bruno tinha de valer para quem já tinha escolha gravada |
+| Kanban por marco, marco pelo texto igual | mesma regra do Banco NCR (`J09 Ind` ≠ `J09`) |
+| Arrastar no Kanban muda a situação; sair de "aceito" confirma | é o gesto natural de um quadro; a confirmação protege a trava do item aceito |
+

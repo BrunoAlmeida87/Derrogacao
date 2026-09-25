@@ -153,6 +153,11 @@
               title="As NCRs do SBR4 importadas do banco NCR, com marcos, função vital e observação">
         Banco NCR
       </button>
+      <button class="tab" role="tab" id="tabKanban" data-kind="kanban"
+              aria-selected="false" aria-controls="kanbanScroll" tabindex="-1"
+              title="As NCRs de um marco em cartões, por situação do waiver">
+        Kanban
+      </button>
       <button class="tab" role="tab" id="tabConversa" data-kind="conversa"
               aria-selected="false" aria-controls="conversaScroll" tabindex="-1" hidden
               title="Recados da equipe, pela pasta da rede">
@@ -229,6 +234,10 @@
       <strong>Banco NCR</strong> — as NCRs do SBR4.
     </div>
 
+    <div class="sidebar-note" id="sidebarKanban" hidden>
+      <strong>Kanban</strong> — as NCRs de um marco, por situação do waiver.
+    </div>
+
     <div class="sidebar-note" id="sidebarResumo" hidden>
       O resumo reúne <strong>todos os marcos</strong> deste navegador — não só o
       relatório aberto. Escolha um marco na tela ao lado para ver o detalhe e
@@ -249,6 +258,8 @@
          aria-labelledby="tabConversa" tabindex="0" hidden></div>
     <div class="editor-scroll banco-scroll" id="bancoScroll" role="tabpanel"
          aria-labelledby="tabBanco" tabindex="0" hidden></div>
+    <div class="editor-scroll kanban-scroll" id="kanbanScroll" role="tabpanel"
+         aria-labelledby="tabKanban" tabindex="0" hidden></div>
   </main>
 
   <!-- o item preso ao lado: só leitura, para escrever um olhando o outro -->
@@ -690,6 +701,7 @@
 <script src="assets/js/chat.js"></script>
 <script src="assets/js/lado.js"></script>
 <script src="assets/js/ncrview.js"></script>
+<script src="assets/js/kanban.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
 </html>

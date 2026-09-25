@@ -27,9 +27,10 @@
   var isConversa = function () { return state.kind === 'conversa'; };
   var isTabela = function () { return state.kind === 'tabela'; };
   var isBanco = function () { return state.kind === 'banco'; };
+  var isKanban = function () { return state.kind === 'kanban'; };
   /* Abas que tomam a tela inteira: não têm lista lateral nem formulário. */
   var telaCheia = function () {
-    return isResumo() || isFluxos() || isConversa() || isTabela() || isBanco();
+    return isResumo() || isFluxos() || isConversa() || isTabela() || isBanco() || isKanban();
   };
   /** Lista de itens da aba ativa — o vetor de verdade, para alterar. */
   var items = function () {
@@ -166,7 +167,7 @@
       if (isResumo()) renderSummary();
       if (isFluxos()) renderFluxos(true);
       if (isTabela()) renderTabela(true);
-      if (isBanco()) renderBanco(true);
+      if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
     }).catch(markError);
   }
 
@@ -267,7 +268,7 @@
     if (isResumo()) renderSummary();
     if (isFluxos()) renderFluxos();
     if (isTabela()) renderTabela();
-    if (isBanco()) renderBanco();
+    if (isBanco()) renderBanco(); if (isKanban()) renderKanban();
     if (isConversa()) renderCanais();
     markSaved();
   }
@@ -300,6 +301,7 @@
     $('#sidebarTabela').hidden = !isTabela();
     $('#sidebarConversa').hidden = !isConversa();
     $('#sidebarBanco').hidden = !isBanco();
+    $('#sidebarKanban').hidden = !isKanban();
     $('#editorScroll').hidden = telaCheia();
     $('#editorScroll').setAttribute('aria-labelledby', isDev() ? 'tabDev' : 'tabNcr');
     $('#summaryScroll').hidden = !isResumo();
@@ -307,6 +309,7 @@
     $('#tabelaScroll').hidden = !isTabela();
     $('#conversaScroll').hidden = !isConversa();
     $('#bancoScroll').hidden = !isBanco();
+    $('#kanbanScroll').hidden = !isKanban();
     $('#previewBtn').hidden = telaCheia();
     renderAoLado();     /* o item ao lado só existe onde há editor ao lado dele */
     if (telaCheia()) {
@@ -333,6 +336,7 @@
     if (isFluxos()) { renderFluxos(); return; }
     if (isTabela()) { renderTabela(); return; }
     if (isBanco()) { renderBanco(); return; }
+    if (isKanban()) { renderKanban(); return; }
     if (isConversa()) { abrirCanal(canalAberto); return; }
     renderNcrList();
     renderEditor();
@@ -1592,6 +1596,16 @@
         var hb = el('span', 'herd-dot', '⤵');
         hb.title = 'Herdada do ' + herd + ' — confira o que precisa mudar neste marco.';
         badges.appendChild(hb);
+      }
+      /* NCR já fechada no banco NCR com o waiver ainda em aberto */
+      if (!isDev() && !ncr.done) {
+        var recB = (ncr.ncrKey && Ncrs.get(ncr.ncrKey)) || Ncrs.get(ncr.ncrId);
+        if (recB && Ncrs.fechada(recB)) {
+          var ab = el('span', 'alerta-dot', '⚠');
+          ab.title = 'A NCR está fechada no banco NCR (' + (recB.fonte.status || 'fechada') +
+            '), mas o waiver ainda não foi aceito.';
+          badges.appendChild(ab);
+        }
       }
       var anot = (ncr.nota || '').trim();
       if (anot) {
@@ -4785,7 +4799,7 @@
    * pelo mesmo registro de sessão e autoria de um item criado à mão — é
    * isso que o faz chegar aos colegas pela pasta.
    */
-  function adicionarAoWaiver(rec, project) {
+  function adicionarAoWaiver(rec, project, situacao) {
     var nome = (project.marco || project.name || 'sem marco') + ' Waiver';
     if (Ncrs.vinculos(rec, [project]).length) {
       toast('Esta NCR já está vinculada ao ' + nome + '.');
@@ -4794,6 +4808,8 @@
     var item = Store.newNcr();
     var dados = Ncrs.paraItemWaiver(rec);
     Object.keys(dados).forEach(function (k) { item[k] = dados[k]; });
+    /* do Kanban, a NCR pode ser solta direto numa coluna */
+    if (situacao) Store.setStatus(item, situacao);
     project.ncrs.push(item);
     Store.logChange(project, SESSION_ID, 'ncr', item, 'criou');
     return Store.save(project)
@@ -4830,16 +4846,26 @@
     flushSave().then(ir, ir);
   }
 
-  /* No editor, a linha que liga o item à NCR do banco. */
+  /* No editor, a linha que liga o item à NCR do banco: o status dela no
+     banco NCR à vista, e o aviso quando ela já foi fechada mas o waiver
+     deste item ainda não foi aceito (pedido do Bruno). O aviso é da tela:
+     o PDF do relatório não muda. */
   function renderLigacaoBanco(item) {
-    var box = el('div', 'nb-ligacao');
+    var wrap = el('div', 'nb-ligacao-wrap');
     var rec = (item.ncrKey && Ncrs.get(item.ncrKey)) || Ncrs.get(item.ncrId);
-    if (!rec) { box.hidden = true; return box; }
+    if (!rec) { wrap.hidden = true; return wrap; }
+    var fechada = Ncrs.fechada(rec);
+    var box = el('div', 'nb-ligacao');
     box.appendChild(el('span', 'nb-ligacao-rot', 'Banco NCR'));
-    var partes = [rec.fonte.status,
+    var stNcr = el('span', 'nb-ligacao-st ' + (fechada ? 'is-fechada' : 'is-aberta'),
+      (rec.fonte.status || (fechada ? 'fechada' : 'sem status')) +
+      (fechada && rec.fonte.status && !/clos|fech|encerr|cancel/i.test(rec.fonte.status) ? ' · fechada' : ''));
+    stNcr.title = 'Status da NCR no banco NCR' + (rec.fonte.importadoEm ? ' (importado em ' + Ncrs.data(rec.fonte.importadoEm) + ')' : '');
+    box.appendChild(stNcr);
+    var partes = [
       rec.waiver.marcoAtual ? 'Marco Atual ' + rec.waiver.marcoAtual : '',
       rec.waiver.funcaoVital].filter(Boolean);
-    box.appendChild(el('span', 'nb-ligacao-txt', partes.join(' · ') || 'sem dados complementares'));
+    box.appendChild(el('span', 'nb-ligacao-txt', partes.join(' · ')));
     var b = el('button', 'btn btn--sm', 'Ver a ficha');
     b.type = 'button';
     b.addEventListener('click', function () {
@@ -4849,7 +4875,56 @@
       });
     });
     box.appendChild(b);
-    return box;
+    wrap.appendChild(box);
+    if (fechada && item.status !== Store.STATUS_CONCLUIDO) {
+      var av = NcrView.avisoFechada(rec);
+      av.classList.add('nb-alerta--editor');
+      wrap.appendChild(av);
+    }
+    return wrap;
+  }
+
+  /* --- aba Kanban ------------------------------------------------------------ */
+
+  var ctxKanban = {
+    projects: function () { return state.projects; },
+    marcoInicial: function () { return state.project ? state.project.marco : ''; },
+    abrir: function (project, item) { abrirItemDoWaiver(project, item); },
+    abrirFicha: function (key) {
+      flushSave().then(function () {
+        switchKind('banco');
+        NcrView.abrirFicha(key);
+      });
+    },
+    adicionar: function (rec, project, situacao) { return adicionarAoWaiver(rec, project, situacao); },
+    mudarSituacao: function (project, item, id) { return mudarSituacaoDe(project, item, id); }
+  };
+
+  function renderKanban() {
+    Kanban.render($('#kanbanScroll'), ctxKanban);
+  }
+
+  /**
+   * Muda a situação de um item de qualquer relatório — o Kanban mostra itens
+   * que não são os do relatório aberto. Mesmo caminho do editor:
+   * Store.setStatus, a sessão (autoria), gravar e mandar para a pasta.
+   */
+  function mudarSituacaoDe(project, item, id) {
+    if (item.status === id) return Promise.resolve(false);
+    Store.setStatus(item, id);
+    Store.logChange(project, SESSION_ID, 'ncr', item, 'editou');
+    return Store.save(project).then(function () {
+      if (state.project && state.project.id === project.id) renderNcrList();
+      renderTabs();
+      renderSessionInfo();
+      agendarGravacaoPasta();
+      toast((item.ncrId || 'Item') + ': ' + Store.statusInfo(id).nome + '.');
+      return true;
+    }).catch(function (e) {
+      markError(e);
+      alert('Não foi possível gravar a situação.');
+      return false;
+    });
   }
 
   /* --- importações ----------------------------------------------------------- */
@@ -4966,13 +5041,13 @@
       Log.ok('banco NCR', r.resumo.titulo, { numeros: r.resumo.numeros.length, alteradas: r.alterados.length });
       agendarGravacaoPasta();
       renderTabs();
-      if (isBanco()) renderBanco(true);
+      if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
       mostrarResumoImportacao(r.resumo);
     }).catch(function (e) {
       /* arquivo recusado é situação normal: quem usa recebe o aviso abaixo */
       console.warn('Importação do banco NCR recusada:', e);
       /* se algo parou no meio, volta ao que está gravado */
-      Ncrs.carregar().then(function () { if (isBanco()) renderBanco(true); });
+      Ncrs.carregar().then(function () { if (isBanco()) renderBanco(true); if (isKanban()) renderKanban(); });
       alert('Não foi possível ' + (NOMES_IMPORTACAO[tipo] || 'importar') + ': ' + ((e && e.message) || e));
     });
   }
@@ -5048,7 +5123,7 @@
       ]).then(function () {
         $('#ncrResumoDialog').close();
         agendarGravacaoPasta();
-        if (isBanco()) renderBanco(true);
+        if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
         toast('Importação desfeita: ' + x.voltaram + ' NCR(s) de volta ao estado anterior.');
       });
     }).catch(function (e) { markError(e); alert('Não foi possível desfazer.'); });
@@ -5068,7 +5143,7 @@
     Ncrs.setListas(linhas('#ncrListaMarcos'), linhas('#ncrListaFuncoes'), Store.getUser()).then(function () {
       $('#ncrListasDialog').close();
       agendarGravacaoPasta();
-      if (isBanco()) renderBanco(true);
+      if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
       toast('Listas salvas.');
     }).catch(markError);
   }
@@ -5118,7 +5193,7 @@
     return Promise.all([Ncrs.salvar(r.alterados), Ncrs.salvarMeta()]).then(function () {
       agendarGravacaoPasta();
       renderTabs();
-      if (isBanco()) renderBanco(true);
+      if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
       return r;
     });
   }
@@ -5686,7 +5761,7 @@
                            resumo.novosRelatorios || resumo.relatoriosRemovidos);
     var rn = resumo && resumo.ncr;
     if (rn && (rn.entraram || rn.atualizados)) {
-      if (isBanco()) renderBanco(true);
+      if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
       var ficha = NcrView.aposMudancaExterna();
       if (ficha) {
         toast('A NCR ' + ficha.numero + ' foi atualizada por ' + (ficha.waiver.editedBy || 'outra pessoa') +
@@ -5727,7 +5802,7 @@
     if (isResumo()) renderSummary();
     if (isFluxos()) renderFluxos(true);
     if (isTabela()) renderTabela(true);
-    if (isBanco()) renderBanco(true);
+    if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
 
     if (!telaCheia()) {
       var agora = currentNcr();

@@ -14,6 +14,10 @@ login e nenhum dado sai do computador.
   desenhado como no NCR Control e o botão que leva a NCR ao relatório de
   Waiver do marco. Ver [Aba Banco NCR](#aba-banco-ncr).
 
+- **Aba Kanban.** As NCRs de um marco (J09, por exemplo) em cartões, uma
+  coluna por situação do waiver, com as cores de sempre. Arrastar o cartão
+  muda a situação. Ver [Aba Kanban](#aba-kanban).
+
 - **Duas abas: NCR e DEV.** As duas categorias seguem o mesmo layout e são
   preenchidas ao mesmo tempo, cada uma com o seu marco, e **exportadas como
   dois PDFs independentes**. As diferenças da DEV, conforme o relatório
@@ -598,6 +602,32 @@ interessam.
 > O Excel sai com o que está **à vista**: as colunas escolhidas, o recorte dos
 > filtros e a ordem da tela. Para o total, limpe os filtros antes.
 
+## Aba Kanban
+
+O quadro de **um marco**: escolha o marco nas pastilhas do alto (na ordem da
+fila, cada uma com quantas NCRs tem) e veja cada NCR num cartão.
+
+| Coluna | O que entra |
+| --- | --- |
+| **Ainda fora do relatório** | NCRs do banco com **Marco Atual** igual ao marco e que ainda não estão no relatório dele (botão **+ J09 Waiver** no cartão), e itens de **outros marcos** cujo waiver vale até este (*Approved Expiry*, ou *Request Expiry*) e ainda não foram levados |
+| **Em preenchimento · Waiver requested · Improve justification · Waiver accepted** | os itens NCR do relatório do marco, pela situação |
+
+- O marco casa com o relatório pelo **texto igual**, a mesma regra do Banco
+  NCR: *J09 Ind* tem quadro próprio.
+- O cartão mostra o número, o **status da NCR no banco** (vermelho quando
+  fechada), a função vital, o começo da descrição, o caminho
+  (`J06 → J08 → (J10)`), os bigramas e quem mexeu por último. NCR fechada com
+  waiver pendente sobe para o alto da coluna, em vermelho; **⚠ Só com
+  alerta** mostra só essas.
+- **Arrastar o cartão para outra coluna muda a situação** do item (grava com
+  autoria e vai para a pasta como qualquer edição). Sem arrastar: a lista
+  de situação em cada cartão. Tirar um item de *Waiver accepted* pede
+  confirmação. Arrastar um cartão do banco para uma coluna adiciona a NCR ao
+  relatório já nessa situação.
+- Clicar no número abre o item no editor (ou a ficha, para a NCR que ainda
+  não está no relatório).
+- O Kanban é só tela: **o PDF do relatório não muda**.
+
 ## Aba Banco NCR
 
 Uma tabela das **NCRs do SBR4**, trazidas do banco NCR, para acompanhar e
@@ -627,8 +657,9 @@ de correlação e os relatórios têm em comum.
   painel**.
 - **Painel recolhível**: as importações, os números do banco (que também
   filtram, com um clique) e os **filtros de múltipla escolha** — Status,
-  Sistema, Marco Original, Marco Atual, Função Vital, Correlação, Waiver e
-  presença no último export. Marque quantas opções quiser em cada um; o
+  Sistema, Marco Original, Marco Atual, Função Vital, Correlação, Waiver,
+  **Relatório Waiver** (em que relatório a NCR está: J06, J09…), **Situação do
+  Waiver**, **Alerta** e presença no último export. Marque quantas opções quiser em cada um; o
   recorte ativo aparece numa faixa acima da tabela, com **Limpar**.
 - **Marco Original, Marco Atual e Função Vital** são escolhidos direto na
   tabela. A célula mostra o valor; o clique abre a lista. **A tela não pula
@@ -636,7 +667,26 @@ de correlação e os relatórios têm em comum.
   vista, marcada em amarelo**, até você mudar o filtro — ela não some no meio
   da edição.
 - As opções das listas vêm da aba *Possibilidades da Mascara* e podem ser
-  editadas em **Listas…**.
+  editadas em **Listas…**. Os marcos aparecem sempre **na ordem da fila**
+  (J01 & J03 · J02 & J04 · J05 · J06Cer · J06 · … · J12 · RANAE · TRAP), nas
+  listas, nos filtros e ao ordenar a coluna — não em ordem alfabética.
+- **Coluna Waiver = o caminho da NCR pelos relatórios**, na ordem dos marcos,
+  como a coluna *Caminho do waiver* da aba Tabela: `J06 → J08 → (J09)`. Cada
+  etiqueta tem a **cor da situação do item** naquele relatório (cinza *Em
+  preenchimento*, azul *Waiver requested*, laranja *Improve justification*,
+  verde *Waiver accepted*); o que está entre parênteses é para onde o waiver
+  aponta (*Approved Expiry*, ou *Request Expiry* na falta) e ainda não foi
+  levado. Clicar numa etiqueta abre o item.
+- **⚠ NCR fechada com waiver pendente**: a NCR está fechada no banco, mas o
+  item ainda não está em *Waiver accepted*. Aparece na etiqueta, no número
+  do painel (que filtra com um clique), na ficha, no editor e na lista de
+  itens. *Waiver accepted* não gera aviso.
+- **Colunas…** escolhe **e reordena** as colunas: à esquerda a ordem, com
+  ↑ ↓ ou arrastando; à direita o que marcar. Dá também para **arrastar o
+  título da coluna** na própria tabela. A escolha fica guardada neste
+  navegador. O padrão: Marco Original, Marco Atual, Função Vital, Waiver,
+  Waiver Historic, Descrição, Status, Bigramas, Data Criação e CEDOC Closure
+  Data.
 - **Excel e CSV** saem com o que está à vista (colunas e filtro), e o Excel
   leva uma aba **Recorte** dizendo qual filtro produziu a planilha.
 
@@ -1219,6 +1269,7 @@ assets/js/xlsxler.js     LÊ planilhas .xlsx (o motor do NCR Control)
 assets/js/ncrs.js        banco NCR: importações, correlação, histórico, junção
 assets/js/ncrfluxo.js    o desenho do fluxo da NCR, igual ao do NCR Control
 assets/js/ncrview.js     aba Banco NCR: tabela, filtros e ficha
+assets/js/kanban.js      aba Kanban: as NCRs de um marco, por situação
 assets/js/app.js         lógica do editor
 derrogacao.html          o programa inteiro num arquivo só (gerado)
 tools/build-standalone.py  gera a versão de arquivo único

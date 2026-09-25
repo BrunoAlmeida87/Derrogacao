@@ -67,6 +67,7 @@ body[data-kind="fluxos"] { --kind: #0f7a52; --kind-sf: #e8f6f0; --kind-br: #b6e0
 body[data-kind="conversa"] { --kind: #7a4b0f; --kind-sf: #f7efe6; --kind-br: #e2c9ad; }
 body[data-kind="tabela"] { --kind: #1a4fa0; --kind-sf: #e8eefb; --kind-br: #bdcdec; }
 body[data-kind="banco"]  { --kind: #34506b; --kind-sf: #e9eef4; --kind-br: #c3d0de; }
+body[data-kind="kanban"] { --kind: #8b1e5b; --kind-sf: #fbeef5; --kind-br: #eac3d7; }
 
 * { box-sizing: border-box; }
 
@@ -333,6 +334,7 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
 .tab[data-kind="tabela"] { --tab: #1a4fa0; --tab-sf: #e8eefb; }
 .tab[data-kind="conversa"] { --tab: #7a4b0f; --tab-sf: #f7efe6; }
 .tab[data-kind="banco"]  { --tab: #34506b; --tab-sf: #e9eef4; }
+.tab[data-kind="kanban"] { --tab: #8b1e5b; --tab-sf: #fbeef5; }
 .tab:hover { background: var(--tab-sf); color: var(--tab); }
 .tab[aria-selected="true"] {
   color: var(--tab);
@@ -2788,16 +2790,30 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
    com o cabeçalho da tabela grudado no alto.
    ========================================================================== */
 
+/* O mesmo trilho vale para a Tabela (pedido do Bruno: margens menores, para
+   caber tudo numa tela) e para o Kanban (as cinco colunas lado a lado). */
 @media (min-width: 901px) {
-  body[data-kind="banco"] .sidebar { width: 118px; flex: 0 0 118px; }
-  body[data-kind="banco"] .tabs { flex-direction: column; flex-wrap: nowrap; border-bottom: 0; }
-  body[data-kind="banco"] .tab {
+  body[data-kind="banco"] .sidebar,
+  body[data-kind="tabela"] .sidebar,
+  body[data-kind="kanban"] .sidebar { width: 118px; flex: 0 0 118px; }
+  body[data-kind="banco"] .tabs,
+  body[data-kind="tabela"] .tabs,
+  body[data-kind="kanban"] .tabs { flex-direction: column; flex-wrap: nowrap; border-bottom: 0; }
+  body[data-kind="banco"] .tab,
+  body[data-kind="tabela"] .tab,
+  body[data-kind="kanban"] .tab {
     flex: 0 0 auto; justify-content: flex-start; padding: 10px 12px;
     border-bottom: 0; border-left: 3px solid transparent;
   }
-  body[data-kind="banco"] .tab[aria-selected="true"] { border-left-color: var(--tab); }
-  body[data-kind="banco"] #sidebarBanco { display: none; }
+  body[data-kind="banco"] .tab[aria-selected="true"],
+  body[data-kind="tabela"] .tab[aria-selected="true"],
+  body[data-kind="kanban"] .tab[aria-selected="true"] { border-left-color: var(--tab); }
+  body[data-kind="banco"] #sidebarBanco,
+  body[data-kind="tabela"] #sidebarTabela,
+  body[data-kind="kanban"] #sidebarKanban { display: none; }
 }
+/* a Tabela com pouca margem dos lados: a largura é das colunas */
+#tabelaScroll { padding-left: 8px; padding-right: 8px; }
 
 .banco-scroll { overflow: auto; padding: 0 18px 60px; }
 /* sem padding em cima: o cabeçalho grudado encosta na borda da área de
@@ -3070,6 +3086,224 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
 /* alvos de clique com 24 px no mínimo (WCAG 2.5.8), como no resto do programa */
 .nb2-num, .nb2-rel, .nb2-dd { min-height: 24px; }
 .nb2-num { padding: 3px 0; }
+
+/* ==========================================================================
+   Cores da situação do waiver (Store.STATUS), fora do PDF
+   As mesmas quatro cores do trilho da lista e da pílula do resumo, em três
+   tons: fundo claro, borda e texto escuro — o texto escuro é o que passa no
+   contraste (a cor pura com letra branca não passa, WCAG 1.4.3).
+   ========================================================================== */
+.st-cor--preenchendo { --st-cor: #9aa1ae; --st-sf: #eef0f3; --st-tx: #454b57; }
+.st-cor--solicitado  { --st-cor: #2a78d6; --st-sf: #e2edfb; --st-tx: #164f93; }
+.st-cor--justificar  { --st-cor: #eb6834; --st-sf: #fde9df; --st-tx: #97390f; }
+.st-cor--aceito      { --st-cor: #1baf7a; --st-sf: #dff5ec; --st-tx: #0c6645; }
+.st-cor--fora        { --st-cor: #8a90a0; --st-sf: #f6f7f9; --st-tx: #3d4351; }
+.st-cor-ponto {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--st-cor, #9aa1ae); flex: 0 0 auto;
+}
+
+/* --- coluna Waiver do Banco NCR: o caminho, com a cor da situação ------------ */
+.nb2-rel.st-cor {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--st-tx); background: var(--st-sf);
+  border: 1.5px solid var(--st-cor); border-radius: 12px; padding: 1px 8px;
+}
+.nb2-rel.st-cor:hover { background: #fff; color: var(--st-tx); box-shadow: 0 0 0 2px var(--st-sf); }
+.nb2-rel.st-cor:focus-visible { outline: 2px solid var(--st-tx); outline-offset: 1px; }
+.nb2-rel.is-alerta { border-style: dashed; }
+.nb2-rel-alerta { color: #b42318; font-size: 12px; line-height: 1; }
+.nb2-seta-caminho { color: var(--muted); font-size: 12px; }
+.nb2-rel-destino {
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  border: 1.5px dashed #b8bdc8; border-radius: 12px; padding: 2px 8px; white-space: nowrap;
+}
+.nb-vinc .nb2-rel.st-cor { font-size: 12px; padding: 3px 10px; }
+
+/* o KPI do alerta: vermelho quando há o que ver */
+.nb2-kpi--alerta:not(.is-zero) { border-color: #f2c7c2; background: #fdf2f1; }
+.nb2-kpi--alerta:not(.is-zero) .sm-kpi-value,
+.nb2-kpi--alerta:not(.is-zero) .sm-kpi-label { color: #b42318; }
+
+/* o aviso de NCR fechada com waiver pendente (ficha e editor) */
+.nb-alerta {
+  display: flex; flex-direction: column; gap: 2px;
+  margin: 0 0 10px; padding: 8px 12px; font-size: 12.5px; line-height: 1.45;
+  color: #7a1b12; background: #fdf2f1; border: 1px solid #f2c7c2;
+  border-left: 4px solid #b42318; border-radius: 0 6px 6px 0;
+}
+.nb-alerta strong { color: #b42318; }
+.nb-alerta--editor { margin: 8px 0 0; }
+.nb-ligacao-wrap { margin-top: 10px; }
+.nb-ligacao-wrap .nb-ligacao { margin-top: 0; }
+.nb-ligacao-st {
+  font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; white-space: nowrap;
+}
+.nb-ligacao-st.is-aberta { background: #e7f4ec; color: #1d6b45; }
+.nb-ligacao-st.is-fechada { background: #fdecec; color: #b42318; }
+.alerta-dot { color: #b42318; font-size: 12px; line-height: 1; }
+
+/* --- janela das colunas: a ordem à esquerda, o que marcar à direita ----------- */
+.nb-cols-dica { font-size: 13px; color: var(--ink-2); }
+.nb-cols-grade { display: grid; grid-template-columns: minmax(230px, 300px) 1fr; gap: 18px; align-items: start; }
+@media (max-width: 760px) { .nb-cols-grade { grid-template-columns: 1fr; } }
+.nb-cols-ordem { position: sticky; top: 0; }
+.nb-ordem, .dlg-body .nb-ordem {
+  list-style: none; margin: 0; padding: 4px; counter-reset: ord;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fafbfc;
+  max-height: 58vh; overflow: auto;
+}
+.nb-ordem-item {
+  display: flex; align-items: center; gap: 6px; padding: 3px 4px 3px 6px; margin: 2px 0;
+  background: #fff; border: 1px solid var(--line-2); border-radius: 5px; font-size: 13px;
+  counter-increment: ord;
+}
+.nb-ordem-item::before { content: counter(ord); font-size: 11px; color: var(--muted); min-width: 16px; text-align: right; }
+.nb-ordem-item.is-waiver { border-left: 3px solid #34506b; }
+.nb-ordem-item[draggable="true"] { cursor: grab; }
+.nb-ordem-pega { color: var(--muted); font-size: 12px; }
+.nb-ordem-nome { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-ordem-setas { display: flex; gap: 2px; }
+.nb-ordem-setas .btn { min-width: 26px; min-height: 24px; padding: 1px 6px; }
+.nb-ordem-item.is-arrastando, .nb2-table th.is-arrastando { opacity: .45; }
+.nb-ordem-item.is-alvo-antes { box-shadow: 0 -3px 0 #34506b; }
+.nb-ordem-item.is-alvo-depois { box-shadow: 0 3px 0 #34506b; }
+.nb2-table th[draggable="true"] { cursor: grab; }
+.nb2-table th.is-alvo-antes { box-shadow: inset 3px 0 0 #34506b; }
+.nb2-table th.is-alvo-depois { box-shadow: inset -3px 0 0 #34506b; }
+
+/* ==========================================================================
+   aba Kanban
+   Cinco colunas lado a lado, cada uma com a cor da situação; o cartão é a
+   NCR. Tudo aqui é tela — o Kanban não tem folha de impressão.
+   ========================================================================== */
+.kanban-scroll { overflow: auto; padding: 14px 14px 40px; background: #f4f5f8; }
+.kb { display: flex; flex-direction: column; gap: 12px; min-height: 100%; }
+.kb-vazio {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 18px 22px; max-width: 760px;
+}
+.kb-vazio h3 { margin: 0 0 6px; color: var(--kind); }
+
+.kb-cab {
+  display: grid; grid-template-columns: auto 1fr; gap: 10px 18px; align-items: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px 18px; box-shadow: var(--sh-1);
+  border-top: 4px solid var(--kind);
+}
+.kb-tit { display: flex; flex-direction: column; gap: 0; min-width: 180px; }
+.kb-sobre { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.kb-marco { font-size: 28px; line-height: 1.1; color: var(--kind); letter-spacing: -.01em; }
+.kb-rel { font-size: 12px; color: var(--ink-2); }
+.kb-ferr { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
+.kb-busca { flex: 1 1 260px; max-width: 420px; }
+.kb-toggle.is-on { background: var(--kind); border-color: var(--kind); color: #fff; }
+.kb-toggle--alerta.is-on { background: #b42318; border-color: #b42318; }
+.kb-marcos { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.kb-chip.is-on { background: var(--kind); border-color: var(--kind); color: #fff; }
+
+.kb-resumo {
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 18px; box-shadow: var(--sh-1);
+}
+.kb-resumo-nums { display: flex; flex-wrap: wrap; gap: 8px 28px; }
+.kb-num { display: flex; align-items: baseline; gap: 6px; }
+.kb-num strong { font-size: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.kb-num span { font-size: 12px; color: var(--muted); }
+.kb-num.is-alerta strong, .kb-num.is-alerta span { color: #b42318; }
+.kb-barra { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--line-2); }
+.kb-barra-seg { background: var(--st-cor); min-width: 3px; }
+.kb-barra-seg + .kb-barra-seg { box-shadow: inset 2px 0 0 #fff; }
+
+.kb-quadro {
+  display: grid; grid-template-columns: repeat(5, minmax(240px, 1fr)); gap: 12px;
+  align-items: start; padding-bottom: 6px;
+  /* sem overflow aqui: o cabeçalho de cada coluna gruda na rolagem da aba */
+}
+.kb-col {
+  display: flex; flex-direction: column; min-width: 0;
+  background: var(--st-sf); border: 1px solid var(--line); border-radius: 12px;
+  border-top: 4px solid var(--st-cor);
+  transition: box-shadow .12s, background .12s;
+}
+.kb-col--fora { background: #fff; border-style: dashed; border-top-style: solid; }
+.kb-col.is-alvo { box-shadow: 0 0 0 3px var(--st-cor); background: #fff; }
+.kb-col-cab {
+  position: sticky; top: -14px; z-index: 1;
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px 8px;
+  background: inherit; border-radius: 10px 10px 0 0;
+}
+.kb-col-cab h3 { margin: 0; flex: 1; font-size: 13px; color: var(--st-tx); letter-spacing: .01em; }
+.kb-col-n {
+  font-size: 12px; font-weight: 700; color: var(--st-tx); background: #fff;
+  border: 1px solid var(--st-cor); border-radius: 999px; padding: 0 8px; font-variant-numeric: tabular-nums;
+}
+.kb-col-corpo { display: flex; flex-direction: column; gap: 8px; padding: 2px 10px 12px; min-height: 90px; }
+.kb-col-vazia { margin: 8px 2px; font-size: 12px; color: var(--muted); font-style: italic; }
+
+.kb-card {
+  position: relative; display: flex; flex-direction: column; gap: 6px;
+  background: #fff; border: 1px solid #e3e5ea; border-radius: 10px;
+  padding: 10px 12px 9px 14px; box-shadow: 0 1px 2px rgba(20, 22, 28, .06);
+  transition: box-shadow .12s, transform .12s;
+}
+.kb-card::before {
+  content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 4px;
+  border-radius: 0 4px 4px 0; background: var(--st-cor);
+}
+.kb-card[draggable="true"] { cursor: grab; }
+.kb-card:hover { box-shadow: 0 6px 18px rgba(20, 22, 28, .12); transform: translateY(-1px); }
+.kb-card.is-arrastando { opacity: .5; transform: rotate(1.5deg); }
+.kb-card.is-fora { border-style: dashed; }
+.kb-card.is-alerta { border-color: #f2c7c2; background: #fffafa; }
+.kb-card.is-alerta::before { background: #b42318; }
+.kb-card-topo { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.kb-card-num {
+  font: inherit; font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 12.5px; font-weight: 700; color: var(--ink);
+  background: none; border: none; padding: 2px 0; min-height: 24px; cursor: pointer; text-align: left;
+  overflow-wrap: anywhere;
+}
+.kb-card-num:hover { color: var(--kind); text-decoration: underline; }
+.kb-st-ncr {
+  margin-left: auto; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 10px;
+  background: #e7f4ec; color: #1d6b45; white-space: nowrap;
+}
+.kb-st-ncr.is-fechada { background: #fdecec; color: #b42318; }
+.kb-st-ncr.is-sem { background: #f1f2f5; color: var(--muted); }
+.kb-alerta {
+  font-size: 11.5px; color: #7a1b12; background: #fdecec; border-radius: 6px; padding: 4px 8px;
+}
+.kb-alerta strong { color: #b42318; }
+.kb-origem { font-size: 11.5px; color: var(--ink-2); background: #f4f5f8; border-radius: 6px; padding: 3px 8px; }
+.kb-origem--caminho { background: #f3ecfb; color: #4b1d7a; }
+.kb-fv {
+  align-self: flex-start; max-width: 100%;
+  font-size: 11px; font-weight: 700; color: #34506b; background: #e9eef4;
+  border-radius: 6px; padding: 2px 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.kb-desc {
+  margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-2);
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+.kb-card-pe { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
+.kb-caminho { font-weight: 700; color: var(--ink-2); }
+.kb-sis { background: #f1f2f5; border-radius: 4px; padding: 1px 6px; }
+.kb-nota { font-size: 12px; }
+.kb-card-acoes {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  border-top: 1px solid var(--line-2); padding-top: 7px; margin-top: 2px;
+}
+.kb-sel {
+  font-size: 12px; font-weight: 700; color: var(--st-tx); background-color: var(--st-sf);
+  border: 1.5px solid var(--st-cor); border-radius: 6px; padding: 2px 4px; min-height: 26px; max-width: 100%;
+}
+.kb-quem { font-size: 11px; color: var(--muted); margin-left: auto; }
+@media (max-width: 900px) {
+  .kb-cab { grid-template-columns: 1fr; }
+  .kb-ferr { justify-content: flex-start; }
+}
 
 </style>
 <style>
@@ -3549,6 +3783,11 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
               title="As NCRs do SBR4 importadas do banco NCR, com marcos, função vital e observação">
         Banco NCR
       </button>
+      <button class="tab" role="tab" id="tabKanban" data-kind="kanban"
+              aria-selected="false" aria-controls="kanbanScroll" tabindex="-1"
+              title="As NCRs de um marco em cartões, por situação do waiver">
+        Kanban
+      </button>
       <button class="tab" role="tab" id="tabConversa" data-kind="conversa"
               aria-selected="false" aria-controls="conversaScroll" tabindex="-1" hidden
               title="Recados da equipe, pela pasta da rede">
@@ -3625,6 +3864,10 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
       <strong>Banco NCR</strong> — as NCRs do SBR4.
     </div>
 
+    <div class="sidebar-note" id="sidebarKanban" hidden>
+      <strong>Kanban</strong> — as NCRs de um marco, por situação do waiver.
+    </div>
+
     <div class="sidebar-note" id="sidebarResumo" hidden>
       O resumo reúne <strong>todos os marcos</strong> deste navegador — não só o
       relatório aberto. Escolha um marco na tela ao lado para ver o detalhe e
@@ -3645,6 +3888,8 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
          aria-labelledby="tabConversa" tabindex="0" hidden></div>
     <div class="editor-scroll banco-scroll" id="bancoScroll" role="tabpanel"
          aria-labelledby="tabBanco" tabindex="0" hidden></div>
+    <div class="editor-scroll kanban-scroll" id="kanbanScroll" role="tabpanel"
+         aria-labelledby="tabKanban" tabindex="0" hidden></div>
   </main>
 
   <!-- o item preso ao lado: só leitura, para escrever um olhando o outro -->
@@ -10146,6 +10391,30 @@ if(isWorker){
   }
 
   /**
+   * A posição de um marco escrito à mão na fila combinada (J01 & J03 · J02 &
+   * J04 · J05 · J06 · … · J12 · RANAE · TRAP). Serve às listas que não são
+   * desenho — filtros, dropdowns, a coluna Waiver do Banco NCR, o Kanban —
+   * para todas mostrarem os marcos na mesma ordem que o fluxo. O "Ind" fica
+   * logo depois do marco dele; o que não é marco nenhum vai para o fim.
+   */
+  function ordemMarco(bruto) {
+    /* "J05 (J06Cer)" é o J05: o parêntese explica, não muda de lugar na fila */
+    var fora = texto(bruto).replace(/\([^)]*\)/g, ' ');
+    var m = marco(/J\s*\d/i.test(fora) ? fora : bruto);
+    if (!m) return 9999;
+    var p = posicao(m);
+    if (fora !== texto(bruto)) p += 0.05;
+    return /\bind\b/i.test(texto(bruto)) ? p + 0.1 : p;
+  }
+
+  /** Comparação para `sort`: a fila dos marcos, e o texto no empate. */
+  function cmpMarco(a, b) {
+    var d = ordemMarco(a) - ordemMarco(b);
+    if (d) return d;
+    return texto(a).localeCompare(texto(b), 'pt-BR', { numeric: true, sensitivity: 'base' });
+  }
+
+  /**
    * Lê o campo inteiro e devolve o que precisa para desenhar:
    *   nos       cada card, uma vez só
    *   arestas   as setas escritas
@@ -10902,6 +11171,8 @@ if(isWorker){
     analisar: analisar,
     caminhoTexto: caminhoTexto,
     marco: marco,
+    ordemMarco: ordemMarco,
+    cmpMarco: cmpMarco,
     mesmoMarco: mesmoMarco,
     agregado: agregado,
     matriz: matriz,
@@ -14133,12 +14404,18 @@ if(isWorker){
 (function (global) {
   'use strict';
 
-  var COLS_KEY = 'derrogacao:ncrColunas';
+  /* "2": o padrão de colunas mudou (pedido do Bruno, com a imagem da janela
+     de colunas). A chave nova faz o padrão novo valer uma vez para todos; a
+     partir daí vale a escolha — e a ORDEM — de cada um. */
+  var COLS_KEY = 'derrogacao:ncrColunas2';
   var PAINEL_KEY = 'derrogacao:ncrPainel';
   var DESTAQUE_KEY = 'derrogacao:ncrDestacarFechadas';
 
   /* chave do filtro -> vazio. Cada filtro de escolha é uma LISTA: vazia = todos */
-  var FILTROS = ['status', 'sistema', 'marcoOriginal', 'marcoAtual', 'funcaoVital', 'correlacao', 'waiver', 'presenca'];
+  var FILTROS = ['status', 'sistema', 'marcoOriginal', 'marcoAtual', 'funcaoVital', 'correlacao',
+    'waiver', 'relWaiver', 'sitWaiver', 'alerta', 'presenca'];
+  /* filtros cujos valores são marcos: as opções saem na fila combinada */
+  var FILTROS_MARCO = { marcoOriginal: 1, marcoAtual: 1, relWaiver: 1 };
 
   var st = {
     filtros: filtrosVazios(),
@@ -14187,6 +14464,27 @@ if(isWorker){
     return t.length > n ? t.slice(0, n - 1) + '…' : t;
   }
   function nomeRel(p) { return (p.marco || p.name || 'sem marco') + ' Waiver'; }
+  function marcoRel(p) { return p.marco || p.name || '?'; }
+
+  /** Chave de ordenação de um marco na fila combinada (Fluxo.ORDEM). */
+  function chaveMarco(t) {
+    t = str(t);
+    if (!t) return '~';
+    var o = Math.round((Fluxo.ordemMarco(t) + 10) * 100);
+    return ('00000000' + o).slice(-8) + ' ' + t;
+  }
+
+  /** Vínculos na ordem do caminho: J06 antes do J08, o J08 antes do J09. */
+  function vinculosEmOrdem(vinc) {
+    return vinc.slice().sort(function (a, b) { return Fluxo.cmpMarco(marcoRel(a.project), marcoRel(b.project)); });
+  }
+
+  /* A NCR fechada com o waiver ainda em aberto: o waiver ficou para trás de
+     uma NCR que já acabou — ou a NCR foi fechada sem o waiver sair. Waiver
+     aceito não é problema. */
+  function pendenteFechada(fechada, vinc) {
+    return fechada && vinc.some(function (v) { return v.item.status !== Store.STATUS_CONCLUIDO; });
+  }
 
   /* --- colunas ------------------------------------------------------------- */
 
@@ -14216,6 +14514,7 @@ if(isWorker){
         var campo = c.id.slice(2);
         c.valor = function (r) { return r.waiver[campo]; };
         c.campo = campo;
+        if (c.editar === 'marcos') c.ordem = function (r) { return chaveMarco(r.waiver[campo]); };
       }
     });
     (m.colunas || []).forEach(function (nome) {
@@ -14226,10 +14525,15 @@ if(isWorker){
     return base;
   }
 
+  /* O padrão pedido pelo Bruno: os dados do Waiver, e do banco a descrição,
+     o status, os bigramas, a data de criação e a data do CEDOC Closure. */
   function padraoVisiveis() {
-    var pap = Ncrs.meta().papeis || {};
-    return ['numero', pap.titulo ? 'titulo' : 'descricao', 'sistema', 'status',
-      'w:marcoOriginal', 'w:marcoAtual', 'w:funcaoVital', 'waiver', 'w:observacao', 'criadoEm'];
+    var ids = ['numero', 'w:marcoOriginal', 'w:marcoAtual', 'w:funcaoVital', 'waiver', 'w:waiverHistoric',
+      'descricao', 'status', 'sistema', 'criadoEm'];
+    (Ncrs.meta().colunas || []).forEach(function (nome) {
+      if (/cedoc\s*closure/.test(Ncrs.norm(nome)) && ids.indexOf('c:' + nome) < 0) ids.push('c:' + nome);
+    });
+    return ids;
   }
 
   function visiveis() {
@@ -14261,7 +14565,8 @@ if(isWorker){
       pronta: !!rel && !jaNoRel,
       semRel: !!rec.waiver.marcoAtual && !rel,
       correl: Ncrs.situacaoCorrelacao(rec),
-      fechada: Ncrs.fechada(rec)
+      fechada: Ncrs.fechada(rec),
+      alerta: pendenteFechada(Ncrs.fechada(rec), vinc)
     };
   }
 
@@ -14308,6 +14613,13 @@ if(isWorker){
       if (l.semRel) v.push('semrel');
       return v;
     },
+    relWaiver: function (l) {
+      return l.vinculos.length ? l.vinculos.map(function (v) { return marcoRel(v.project); }) : ['__vazio'];
+    },
+    sitWaiver: function (l) {
+      return l.vinculos.length ? l.vinculos.map(function (v) { return Store.statusInfo(v.item.status).id; }) : ['__nenhum'];
+    },
+    alerta: function (l) { return [l.alerta ? 'sim' : 'nao']; },
     presenca: function (l) { return [l.rec.fonte.presente ? 'presente' : 'ausente']; }
   };
 
@@ -14342,7 +14654,10 @@ if(isWorker){
   function ordenar(ls) {
     var c = colunas().filter(function (x) { return x.id === st.ordem.col; })[0] || colunas()[0];
     var f = c.ordem || c.valor;
-    if (c.especial) f = function (r, l) { return l.vinculos.map(function (v) { return v.project.marco; }).join(' ') || (l.pronta ? '~' : '~~'); };
+    if (c.especial) f = function (r, l) {
+      return vinculosEmOrdem(l.vinculos).map(function (v) { return chaveMarco(marcoRel(v.project)); }).join(' ') ||
+        (l.pronta ? '~' : '~~');
+    };
     return ls.slice().sort(function (a, b) {
       return (Store.cmpTexto(f(a.rec, a), f(b.rec, b)) || Store.cmpTexto(ordemNumero(a.rec), ordemNumero(b.rec))) * st.ordem.dir;
     });
@@ -14406,10 +14721,12 @@ if(isWorker){
     var trh = el('tr');
     cols.forEach(function (c) {
       var th = el('th', (c.waiver || c.especial) ? 'is-waiver' : '');
+      th.draggable = !c.fixa;
       var b = el('button', 'nb2-sort', c.nome);
       b.type = 'button';
       if (st.ordem.col === c.id) b.appendChild(el('span', 'nb2-seta', st.ordem.dir > 0 ? ' ▲' : ' ▼'));
-      b.title = ((c.waiver || c.especial) ? 'Dado do Waiver (preenchido aqui). ' : 'Dado do banco NCR. ') + 'Clique para ordenar.';
+      b.title = ((c.waiver || c.especial) ? 'Dado do Waiver (preenchido aqui). ' : 'Dado do banco NCR. ') +
+        'Clique para ordenar' + (c.fixa ? '.' : '; arraste para mudar a coluna de lugar.');
       b.addEventListener('click', function () {
         if (st.ordem.col === c.id) st.ordem.dir = -st.ordem.dir;
         else { st.ordem.col = c.id; st.ordem.dir = 1; }
@@ -14417,6 +14734,13 @@ if(isWorker){
       });
       th.appendChild(b);
       trh.appendChild(th);
+    });
+    arrastavel(trh, function (de, para) {
+      if (para < 1) para = 1;                         /* o Número fica sempre primeiro */
+      var ids = cols.map(function (c) { return c.id; });
+      ids.splice(para, 0, ids.splice(de, 1)[0]);
+      gravarPref(COLS_KEY, ids);
+      renderTabela();
     });
     thead.appendChild(trh);
     t.appendChild(thead);
@@ -14503,7 +14827,8 @@ if(isWorker){
   function seletor(rec, campo, lista, depois) {
     var sel = el('select');
     var atual = rec.waiver[campo];
-    var ops = Ncrs.listas()[lista] || [];
+    var ops = (Ncrs.listas()[lista] || []).slice();
+    if (lista === 'marcos') ops.sort(Fluxo.cmpMarco);
     var o0 = el('option', null, '—');
     o0.value = '';
     sel.appendChild(o0);
@@ -14529,16 +14854,66 @@ if(isWorker){
     return sel;
   }
 
+  /**
+   * Uma etiqueta de relatório com a cor da situação do item lá dentro — a
+   * mesma cor do trilho da lista e da pílula do resumo (Store.STATUS).
+   * Serve à tabela e à ficha.
+   */
+  function etiquetaRel(v, fechada, rotulo, aoAbrir) {
+    var sit = Store.statusInfo(v.item.status);
+    var b = el('button', 'nb2-rel st-cor st-cor--' + sit.id);
+    b.type = 'button';
+    b.appendChild(el('span', 'st-cor-ponto'));
+    b.appendChild(document.createTextNode(rotulo));
+    var alerta = fechada && sit.id !== Store.STATUS_CONCLUIDO;
+    if (alerta) {
+      b.classList.add('is-alerta');
+      b.appendChild(el('span', 'nb2-rel-alerta', '⚠'));
+    }
+    b.title = (v.item.ncrId || 'Item') + ' no ' + nomeRel(v.project) + ' — ' + sit.nome +
+      (alerta ? '. ATENÇÃO: a NCR está fechada e o waiver ainda não foi aceito.' : '') +
+      '\nClique para abrir o item.';
+    b.setAttribute('aria-label', marcoRel(v.project) + ': ' + sit.nome + (alerta ? ', NCR fechada com waiver pendente' : ''));
+    b.addEventListener('click', aoAbrir);
+    return b;
+  }
+
+  /**
+   * O caminho da NCR pelos relatórios, na ordem da fila dos marcos, como a
+   * coluna "Caminho do waiver" da aba Tabela: J06 → J08 → (J09). O que está
+   * entre parênteses é para onde o waiver aponta (Approved Expiry, ou o
+   * Request Expiry na falta) e ainda não foi levado.
+   */
+  function caminhoWaiver(box, l, aoAbrir) {
+    var vs = vinculosEmOrdem(l.vinculos);
+    vs.forEach(function (v, i) {
+      if (i) box.appendChild(el('span', 'nb2-seta-caminho', '→'));
+      box.appendChild(etiquetaRel(v, l.fechada, marcoRel(v.project), function () { aoAbrir(v); }));
+    });
+    var destino = destinoPendente(vs);
+    if (destino) {
+      box.appendChild(el('span', 'nb2-seta-caminho', '→'));
+      var d = el('span', 'nb2-rel-destino', '(' + destino.rotulo + ')');
+      d.title = 'O waiver do ' + marcoRel(destino.de.project) + ' vale até ' + destino.rotulo +
+        (destino.aprovado ? ' (Approved Expiry)' : ' (Request Expiry)') + ', e a NCR ainda não está no relatório de lá.';
+      box.appendChild(d);
+    }
+    return vs;
+  }
+
+  /** Para onde o último relatório da NCR aponta, se ela ainda não chegou lá. */
+  function destinoPendente(vs) {
+    if (!vs.length || typeof Herdar === 'undefined') return null;
+    var ult = vs[vs.length - 1];
+    var av = Herdar.avanco(ult.project, ult.item, 'ncr', ctx.projects());
+    if (av.estado !== 'aLevar' && av.estado !== 'semRelatorio') return null;
+    return { rotulo: av.destino.rotulo, aprovado: av.aprovado, de: ult };
+  }
+
   function celulaWaiver(td, l) {
     var box = el('div', 'nb2-waiver');
     if (l.vinculos.length) {
-      l.vinculos.forEach(function (v) {
-        var b = el('button', 'nb2-rel', v.project.marco || v.project.name || '?');
-        b.type = 'button';
-        b.title = 'Abrir ' + (v.item.ncrId || 'o item') + ' no relatório ' + nomeRel(v.project);
-        b.addEventListener('click', function () { ctx.abrir(v.project, v.item); });
-        box.appendChild(b);
-      });
+      caminhoWaiver(box, l, function (v) { ctx.abrir(v.project, v.item); });
     } else {
       box.appendChild(el('span', 'nb2-mini', 'Não vinculada'));
     }
@@ -14712,20 +15087,23 @@ if(isWorker){
     ['Vinculadas a Waiver', function (ls) { return ls.filter(function (l) { return l.vinculos.length > 0; }).length; },
       function () { return 'em algum relatório'; }, ['waiver', 'vinculada']],
     ['Prontas para adicionar', function (ls) { return ls.filter(function (l) { return l.pronta; }).length; },
-      function () { return 'marco atual tem relatório'; }, ['waiver', 'pronta']]
+      function () { return 'marco atual tem relatório'; }, ['waiver', 'pronta']],
+    ['⚠ Fechadas, waiver pendente', function (ls) { return ls.filter(function (l) { return l.alerta; }).length; },
+      function () { return 'NCR fechada, waiver não aceito'; }, ['alerta', 'sim'], 'nb2-kpi--alerta']
   ];
 
   function kpis(todas) {
     var row = el('div', 'sm-kpis nb2-kpis');
     row.id = 'nb2Kpis';
     KPI_DEFS.forEach(function (k, i) {
-      var t = el('button', 'sm-kpi nb2-kpi');
+      var t = el('button', 'sm-kpi nb2-kpi' + (k[4] ? ' ' + k[4] : ''));
       t.type = 'button';
       t.dataset.i = String(i);
       t.title = k[3] ? 'Filtrar a tabela por este grupo' : 'Limpar os filtros';
       t.appendChild(el('span', 'sm-kpi-label', k[0]));
       t.appendChild(el('strong', 'sm-kpi-value', String(k[1](todas))));
       t.appendChild(el('span', 'sm-kpi-sub', k[2](todas)));
+      if (k[4] && !k[1](todas)) t.classList.add('is-zero');
       t.addEventListener('click', function () {
         st.filtros = filtrosVazios();
         st.soAbertas = false;
@@ -14746,6 +15124,7 @@ if(isWorker){
       var k = KPI_DEFS[+t.dataset.i];
       t.querySelector('.sm-kpi-value').textContent = String(k[1](todas));
       t.querySelector('.sm-kpi-sub').textContent = k[2](todas);
+      if (k[4]) t.classList.toggle('is-zero', !k[1](todas));
     });
   }
 
@@ -14755,14 +15134,18 @@ if(isWorker){
     correlacao: { completa: 'Completa', parcial: 'Parcial', vazia: 'Sem correlação' },
     waiver: { vinculada: 'Vinculada a algum relatório', nao: 'Não vinculada',
       pronta: 'Pronta para adicionar', semrel: 'Marco atual sem relatório' },
+    alerta: { sim: '⚠ Fechada com waiver pendente', nao: 'Sem esse alerta' },
     presenca: { presente: 'No último export', ausente: 'Fora do último export' }
   };
   var NOMES_FILTRO = {
     status: 'Status', sistema: 'Sistema', marcoOriginal: 'Marco Original', marcoAtual: 'Marco Atual',
-    funcaoVital: 'Função Vital', correlacao: 'Correlação', waiver: 'Waiver', presenca: 'No export'
+    funcaoVital: 'Função Vital', correlacao: 'Correlação', waiver: 'Waiver',
+    relWaiver: 'Relatório Waiver', sitWaiver: 'Situação do Waiver', alerta: 'Alerta', presenca: 'No export'
   };
 
   function nomeValor(chave, v) {
+    if (chave === 'relWaiver' && v === '__vazio') return '(em nenhum relatório)';
+    if (chave === 'sitWaiver') return v === '__nenhum' ? '(em nenhum relatório)' : Store.statusInfo(v).nome;
     if (v === '__vazio') return '(não preenchido)';
     return (ROTULOS_FIXOS[chave] && ROTULOS_FIXOS[chave][v]) || v;
   }
@@ -14773,6 +15156,14 @@ if(isWorker){
     var ks = Object.keys(cont);
     if (ROTULOS_FIXOS[chave]) {
       ks = Object.keys(ROTULOS_FIXOS[chave]);
+    } else if (chave === 'sitWaiver') {
+      ks = Store.STATUS.map(function (o) { return o.id; }).concat(['__nenhum']);
+    } else if (FILTROS_MARCO[chave]) {
+      ks.sort(function (a, b) {
+        if (a === '__vazio') return -1;
+        if (b === '__vazio') return 1;
+        return Fluxo.cmpMarco(a, b);
+      });
     } else {
       ks.sort(function (a, b) {
         if (a === '__vazio') return -1;
@@ -14853,6 +15244,7 @@ if(isWorker){
         filtroMudou();
       });
       row.appendChild(cb);
+      if (chave === 'sitWaiver' && o.valor !== '__nenhum') row.appendChild(el('span', 'st-cor-ponto st-cor--' + o.valor));
       row.appendChild(el('span', 'nb2-ms-nome', o.nome));
       row.appendChild(el('span', 'nb2-ms-n', String(o.n)));
       row.dataset.busca = Ncrs.norm(o.nome);
@@ -14920,49 +15312,172 @@ if(isWorker){
 
   /* --- colunas e exportação -------------------------------------------------------- */
 
+  /**
+   * A janela das colunas: à esquerda, as que aparecem, NA ORDEM da tabela —
+   * com ↑/↓ e também arrastando (arrastar sozinho exclui quem não consegue o
+   * gesto, WCAG 2.5.7); à direita, todas as disponíveis para marcar.
+   * Nada muda na tabela até "Aplicar".
+   */
   function escolherColunas() {
     var dlg = document.getElementById('nbColsDialog');
     var body = dlg.querySelector('.dlg-body');
-    body.innerHTML = '';
-    body.appendChild(el('h3', null, 'Colunas da tabela'));
-    body.appendChild(el('p', null, 'As do Waiver são as que você preenche aqui; as do banco NCR vêm da importação.'));
-    var marcadas = visiveis().map(function (c) { return c.id; });
-    [
-      ['Do Waiver', colunas().filter(function (c) { return c.waiver || c.especial; })],
-      ['Principais do banco NCR', colunas().filter(function (c) { return !c.waiver && !c.especial && !c.origem; })],
-      ['Todas as colunas do export', colunas().filter(function (c) { return c.origem; })]
-    ].forEach(function (g) {
-      if (!g[1].length) return;
-      body.appendChild(el('div', 'nb-cols-tit', g[0]));
-      var lista = el('div', 'nb-cols');
-      g[1].forEach(function (c) {
-        var lab = el('label', 'nb-col');
-        var cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.value = c.id;
-        cb.checked = marcadas.indexOf(c.id) >= 0;
-        cb.disabled = !!c.fixa;
-        lab.appendChild(cb);
-        lab.appendChild(document.createTextNode(' ' + c.nome));
-        lista.appendChild(lab);
+    var todas = colunas();
+    var porId = {};
+    todas.forEach(function (c) { porId[c.id] = c; });
+    var ids = visiveis().map(function (c) { return c.id; });
+
+    function desenhar(foco) {
+      body.innerHTML = '';
+      body.appendChild(el('h3', null, 'Colunas da tabela'));
+      body.appendChild(el('p', 'nb-cols-dica', 'Marque à direita o que aparece. À esquerda, a ordem: use ↑ ↓ ou arraste. ' +
+        'As do Waiver são as que você preenche aqui; as do banco NCR vêm da importação. Também dá para arrastar o título da coluna na própria tabela.'));
+      var grade = el('div', 'nb-cols-grade');
+      body.appendChild(grade);
+
+      /* esquerda: a ordem */
+      var esq = el('div', 'nb-cols-ordem');
+      esq.appendChild(el('div', 'nb-cols-tit', 'Ordem na tabela (' + ids.length + ')'));
+      var ol = el('ol', 'nb-ordem');
+      ids.forEach(function (id, i) {
+        var c = porId[id];
+        if (!c) return;
+        var li = el('li', 'nb-ordem-item' + ((c.waiver || c.especial) ? ' is-waiver' : ''));
+        li.dataset.id = id;
+        li.draggable = !c.fixa;
+        li.appendChild(el('span', 'nb-ordem-pega', c.fixa ? '📌' : '⠿'));
+        li.appendChild(el('span', 'nb-ordem-nome', c.nome));
+        var set = el('span', 'nb-ordem-setas');
+        [['↑', -1], ['↓', 1]].forEach(function (a) {
+          var bt = el('button', 'btn btn--sm btn--quiet', a[0]);
+          bt.type = 'button';
+          var para = i + a[1];
+          bt.disabled = !!c.fixa || para < 1 || para >= ids.length;
+          bt.title = (a[1] < 0 ? 'Mover para a esquerda' : 'Mover para a direita') + ' — ' + c.nome;
+          bt.setAttribute('aria-label', bt.title);
+          bt.dataset.acao = id + (a[1] < 0 ? ':sobe' : ':desce');
+          bt.addEventListener('click', function () {
+            ids.splice(para, 0, ids.splice(i, 1)[0]);
+            desenhar(bt.dataset.acao);
+          });
+          set.appendChild(bt);
+        });
+        li.appendChild(set);
+        ol.appendChild(li);
       });
-      body.appendChild(lista);
-    });
+      arrastavel(ol, function (de, para) {
+        if (para < 1) para = 1;                       /* o Número fica sempre primeiro */
+        ids.splice(para, 0, ids.splice(de, 1)[0]);
+        desenhar();
+      });
+      esq.appendChild(ol);
+      grade.appendChild(esq);
+
+      /* direita: o que pode aparecer */
+      var dir = el('div', 'nb-cols-todas');
+      [
+        ['Do Waiver', todas.filter(function (c) { return c.waiver || c.especial; })],
+        ['Principais do banco NCR', todas.filter(function (c) { return !c.waiver && !c.especial && !c.origem; })],
+        ['Todas as colunas do export', todas.filter(function (c) { return c.origem; })]
+      ].forEach(function (g) {
+        if (!g[1].length) return;
+        dir.appendChild(el('div', 'nb-cols-tit', g[0]));
+        var lista = el('div', 'nb-cols');
+        g[1].forEach(function (c) {
+          var lab = el('label', 'nb-col');
+          var cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.value = c.id;
+          cb.checked = ids.indexOf(c.id) >= 0;
+          cb.disabled = !!c.fixa;
+          cb.addEventListener('change', function () {
+            if (cb.checked) { if (ids.indexOf(c.id) < 0) ids.push(c.id); }
+            else ids = ids.filter(function (x) { return x !== c.id; });
+            desenhar('cb:' + c.id);
+          });
+          lab.appendChild(cb);
+          lab.appendChild(document.createTextNode(' ' + c.nome));
+          lista.appendChild(lab);
+        });
+        dir.appendChild(lista);
+      });
+      grade.appendChild(dir);
+
+      /* o foco volta para o botão ou a caixa que acabou de ser usada */
+      if (foco) {
+        var alvo = foco.indexOf('cb:') === 0
+          ? body.querySelector('input[value="' + cssEsc(foco.slice(3)) + '"]')
+          : body.querySelector('[data-acao="' + cssEsc(foco) + '"]');
+        if (alvo && alvo.disabled) alvo = alvo.parentNode.querySelector('button:not([disabled])');
+        if (alvo) alvo.focus();
+      }
+    }
+    desenhar();
+
     var ac = dlg.querySelector('.dlg-actions');
     ac.innerHTML = '';
-    ac.appendChild(botao('Voltar ao padrão', '', function () { gravarPref(COLS_KEY, []); dlg.close(); renderTabela(); }));
+    ac.appendChild(botao('Voltar ao padrão', '', function () { ids = padraoVisiveis(); desenhar(); },
+      'Volta às colunas e à ordem de saída (ainda é preciso aplicar)'));
+    ac.appendChild(botao('Cancelar', '', function () { dlg.close(); }));
     ac.appendChild(botao('Aplicar', 'btn--primary', function () {
-      var ids = ['numero'];
-      Array.prototype.forEach.call(body.querySelectorAll('input[type=checkbox]'), function (cb) {
-        if (cb.checked && cb.value !== 'numero') ids.push(cb.value);
-      });
-      var ordem = colunas().map(function (c) { return c.id; });
-      ids.sort(function (a, b) { return ordem.indexOf(a) - ordem.indexOf(b); });
-      gravarPref(COLS_KEY, ids);
+      gravarPref(COLS_KEY, ['numero'].concat(ids.filter(function (x) { return x !== 'numero'; })));
       dlg.close();
       renderTabela();
     }));
     dlg.showModal();
+  }
+
+  /**
+   * Arrastar para reordenar os filhos de uma lista (ou de uma linha de
+   * cabeçalho). `mover(de, para)` recebe os índices. Só o gesto: o teclado
+   * tem os botões ↑/↓ da janela de colunas.
+   */
+  function arrastavel(pai, mover) {
+    var de = -1;
+    function indice(n) { return Array.prototype.indexOf.call(pai.children, n); }
+    function alvo(e) {
+      var n = e.target;
+      while (n && n.parentNode !== pai) n = n.parentNode;
+      return n;
+    }
+    pai.addEventListener('dragstart', function (e) {
+      var n = alvo(e);
+      if (!n || !n.draggable) return;
+      de = indice(n);
+      n.classList.add('is-arrastando');
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(de)); } catch (x) { /* ok */ }
+    });
+    pai.addEventListener('dragover', function (e) {
+      if (de < 0) return;
+      var n = alvo(e);
+      if (!n) return;
+      e.preventDefault();
+      Array.prototype.forEach.call(pai.children, function (c) { c.classList.remove('is-alvo-antes', 'is-alvo-depois'); });
+      var r = n.getBoundingClientRect();
+      var horizontal = pai.tagName === 'TR';
+      var depois = horizontal ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+      n.classList.add(depois ? 'is-alvo-depois' : 'is-alvo-antes');
+    });
+    pai.addEventListener('drop', function (e) {
+      if (de < 0) return;
+      e.preventDefault();
+      var n = alvo(e);
+      var ori = de;
+      limpar();
+      if (!n) return;
+      var r = n.getBoundingClientRect();
+      var horizontal = pai.tagName === 'TR';
+      var depois = horizontal ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+      var para = indice(n) + (depois ? 1 : 0);
+      if (para > ori) para--;
+      if (para !== ori) mover(ori, para);
+    });
+    function limpar() {
+      de = -1;
+      Array.prototype.forEach.call(pai.children, function (c) {
+        c.classList.remove('is-arrastando', 'is-alvo-antes', 'is-alvo-depois');
+      });
+    }
+    pai.addEventListener('dragend', limpar);
   }
 
   /** Exporta exatamente o que está à vista, com as colunas à vista. */
@@ -14971,7 +15486,13 @@ if(isWorker){
     var ls = aVista(linhas());
     var valores = ls.map(function (l) {
       return cols.map(function (c) {
-        if (c.especial) return l.vinculos.map(function (v) { return v.project.marco; }).join(' / ') || 'Não vinculada';
+        if (c.especial) {
+          var vs = vinculosEmOrdem(l.vinculos);
+          if (!vs.length) return 'Não vinculada';
+          var t = vs.map(function (v) { return marcoRel(v.project) + ' (' + Store.statusInfo(v.item.status).nome + ')'; }).join(' → ');
+          var d = destinoPendente(vs);
+          return d ? t + ' → (' + d.rotulo + ')' : t;
+        }
         return str(c.valor(l.rec));
       });
     });
@@ -15060,13 +15581,14 @@ if(isWorker){
     var vinc = Ncrs.vinculos(rec, projects);
     var lin = el('div', 'nb-vinc');
     if (vinc.length) {
-      vinc.forEach(function (v) {
-        var b = el('button', 'nb2-rel', nomeRel(v.project));
-        b.type = 'button';
-        b.title = 'Abrir o item no relatório';
-        b.addEventListener('click', function () { dlg.close(); ctx.abrir(v.project, v.item); });
-        lin.appendChild(b);
+      vinculosEmOrdem(vinc).forEach(function (v, i) {
+        if (i) lin.appendChild(el('span', 'nb2-seta-caminho', '→'));
+        lin.appendChild(etiquetaRel(v, fechada, nomeRel(v.project) + ' · ' + Store.statusInfo(v.item.status).nome,
+          function () { dlg.close(); ctx.abrir(v.project, v.item); }));
       });
+      if (pendenteFechada(fechada, vinc)) {
+        sr.appendChild(avisoFechada(rec));
+      }
     } else {
       lin.appendChild(el('span', 'nb2-mini', 'Não vinculada a nenhum relatório.'));
     }
@@ -15193,6 +15715,15 @@ if(isWorker){
     body.scrollTop = rolagem;
   }
 
+  function avisoFechada(rec) {
+    var d = el('div', 'nb-alerta');
+    d.setAttribute('role', 'note');
+    d.appendChild(el('strong', null, '⚠ NCR fechada com waiver pendente'));
+    d.appendChild(el('span', null, 'O banco NCR diz "' + (rec.fonte.status || 'fechada') +
+      '", mas o item no relatório ainda não está em "Waiver accepted". Confira se o waiver ainda é necessário ou se falta atualizar a situação.'));
+    return d;
+  }
+
   function secao(pai, titulo, sub, cls) {
     var s = el('section', 'nb-sec ' + (cls || ''));
     s.appendChild(el('h4', null, titulo));
@@ -15253,7 +15784,520 @@ if(isWorker){
     atualizarLinha: atualizarLinha,
     abrirFicha: abrirFicha,
     aposMudancaExterna: aposMudancaExterna,
-    descricaoDoFiltro: descricaoDoFiltro
+    descricaoDoFiltro: descricaoDoFiltro,
+    avisoFechada: avisoFechada,
+    etiquetaRel: etiquetaRel
+  };
+})(window);
+
+</script>
+<script>
+/* assets/js/kanban.js */
+/* ==========================================================================
+   kanban.js — aba "Kanban": as NCRs de um marco em cartões, por situação
+   --------------------------------------------------------------------------
+   Pedido do Bruno: "para o marco J09, mostrar todas as NCRs vinculadas a
+   esse marco e o status do Waiver dela". O painel da aba Fluxos responde o
+   que está chegando num marco em números; o Kanban mostra cada NCR, e deixa
+   mudar a situação arrastando o cartão.
+
+   Quem entra no quadro do J09:
+   - os itens NCR do relatório do J09 — uma coluna por situação
+     (Store.STATUS, com as mesmas cores do resto do programa);
+   - as NCRs do banco com Marco Atual = J09 que ainda não estão no relatório;
+   - os itens de outros marcos cujo waiver vale até o J09 (Approved Expiry,
+     ou o Request Expiry na falta — Herdar.avanco) e ainda não foram levados.
+   As duas últimas ficam na primeira coluna, "Ainda fora do relatório".
+
+   Marco casa com relatório pelo texto igual (Ncrs.marcoChave), a mesma
+   regra do Banco NCR: "J06 Ind" não é o "J06".
+
+   Só desenha e repassa: gravar, abrir o item e adicionar ao relatório é
+   com o app.js (recebido em `ctx`). O PDF do relatório não é tocado.
+   ========================================================================== */
+(function (global) {
+  'use strict';
+
+  var FORA = 'fora';
+
+  var st = {
+    marco: '',          // o marco escolhido (texto, como está no relatório)
+    busca: '',
+    soAlertas: false,
+    caminho: true       // mostrar os que vêm de outros marcos
+  };
+  var ctx = null;
+  var host = null;
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function str(v) { return v == null ? '' : String(v); }
+  function curto(t, n) {
+    t = str(t).replace(/\s+/g, ' ').trim();
+    return t.length > n ? t.slice(0, n - 1) + '…' : t;
+  }
+  function botao(texto, cls, fn, titulo) {
+    var b = el('button', 'btn ' + (cls || ''), texto);
+    b.type = 'button';
+    if (titulo) b.title = titulo;
+    b.addEventListener('click', fn);
+    return b;
+  }
+  function marcoRel(p) { return p.marco || p.name || ''; }
+
+  /* --- quem está em cada marco -------------------------------------------- */
+
+  /** Os marcos que têm quadro: relatórios com NCR e Marco Atual do banco. */
+  function marcos(projects) {
+    var vistos = {};
+    var out = [];
+    function add(t) {
+      var k = Ncrs.marcoChave(t);
+      if (!k || vistos[k]) return;
+      vistos[k] = 1;
+      out.push(t);
+    }
+    projects.forEach(function (p) { if (p.marco) add(p.marco); });
+    Ncrs.lista().forEach(function (r) { if (r.waiver.marcoAtual) add(r.waiver.marcoAtual); });
+    return out.sort(Fluxo.cmpMarco);
+  }
+
+  /** A NCR do banco que é este item (pelo vínculo gravado ou pelo número). */
+  function recDoItem(item) {
+    return (item.ncrKey && Ncrs.get(item.ncrKey)) || Ncrs.get(item.ncrId) || null;
+  }
+
+  /**
+   * Os cartões do quadro de um marco.
+   * { coluna, tipo: 'item'|'banco'|'caminho', project, item, rec, chave, alerta }
+   */
+  function cartoes(marco, projects) {
+    var k = Ncrs.marcoChave(marco);
+    var alvo = Fluxo.marco(marco);
+    var daqui = projects.filter(function (p) { return Ncrs.marcoChave(p.marco) === k; });
+    var out = [];
+    var jaTem = {};
+
+    daqui.forEach(function (p) {
+      (p.ncrs || []).forEach(function (it) {
+        var rec = recDoItem(it);
+        var chave = rec ? rec.key : Ncrs.chave(it.ncrId);
+        if (chave) jaTem[chave] = 1;
+        out.push({ coluna: Store.statusInfo(it.status).id, tipo: 'item', project: p, item: it, rec: rec, chave: chave });
+      });
+    });
+
+    Ncrs.lista().forEach(function (rec) {
+      if (Ncrs.marcoChave(rec.waiver.marcoAtual) !== k || jaTem[rec.key]) return;
+      jaTem[rec.key] = 1;
+      out.push({ coluna: FORA, tipo: 'banco', project: null, item: null, rec: rec, chave: rec.key,
+        relatorio: daqui[0] || null });
+    });
+
+    if (st.caminho && alvo) {
+      projects.forEach(function (p) {
+        if (Ncrs.marcoChave(p.marco) === k) return;
+        (p.ncrs || []).forEach(function (it) {
+          var av = Herdar.avanco(p, it, 'ncr', projects);
+          if (!av.destino || !Fluxo.mesmoMarco(av.destino, alvo)) return;
+          if (av.estado !== 'aLevar' && av.estado !== 'semRelatorio') return;
+          var rec = recDoItem(it);
+          var chave = rec ? rec.key : Ncrs.chave(it.ncrId);
+          if (chave && jaTem[chave]) return;
+          if (chave) jaTem[chave] = 1;
+          out.push({ coluna: FORA, tipo: 'caminho', project: p, item: it, rec: rec, chave: chave, aprovado: av.aprovado });
+        });
+      });
+    }
+
+    out.forEach(function (c) {
+      c.fechada = c.rec ? Ncrs.fechada(c.rec) : false;
+      c.alerta = c.fechada && c.tipo === 'item' && c.coluna !== Store.STATUS_CONCLUIDO;
+    });
+    return out;
+  }
+
+  function numeroDe(c) { return c.item ? (c.item.ncrId || '(sem número)') : c.rec.numero; }
+
+  function textoBusca(c) {
+    var partes = [numeroDe(c)];
+    if (c.item) {
+      partes.push(c.item.systems, c.item.func, c.item.description, c.item.nota, c.item.observation, c.item.historic);
+    }
+    if (c.rec) {
+      partes.push(c.rec.fonte.descricao, c.rec.fonte.status, c.rec.fonte.sistema, c.rec.waiver.funcaoVital, c.rec.waiver.observacao);
+    }
+    return Ncrs.norm(partes.join(' '));
+  }
+
+  function passa(c) {
+    if (st.soAlertas && !c.alerta) return false;
+    if (!st.busca) return true;
+    var hay = textoBusca(c);
+    return Ncrs.norm(st.busca).split(' ').filter(Boolean).every(function (t) { return hay.indexOf(t) >= 0; });
+  }
+
+  function ordenar(cs) {
+    return cs.slice().sort(function (a, b) {
+      if (a.alerta !== b.alerta) return a.alerta ? -1 : 1;
+      return Store.cmpTexto(numeroDe(a), numeroDe(b));
+    });
+  }
+
+  /* --- desenho ---------------------------------------------------------------- */
+
+  function render(h, c) {
+    host = h; ctx = c;
+    var topo = host.scrollTop;
+    var buscando = document.activeElement && document.activeElement.id === 'kbBusca';
+    host.innerHTML = '';
+    var projects = ctx.projects();
+    var lista = marcos(projects);
+    var achou = lista.some(function (m) { return Ncrs.marcoChave(m) === Ncrs.marcoChave(st.marco); });
+    if (!achou) {
+      var inicial = ctx.marcoInicial();
+      st.marco = lista.filter(function (m) { return Ncrs.marcoChave(m) === Ncrs.marcoChave(inicial); })[0] || lista[0] || '';
+    }
+
+    var raiz = el('div', 'kb');
+    host.appendChild(raiz);
+    if (!lista.length) {
+      var v = el('div', 'kb-vazio');
+      v.appendChild(el('h3', null, 'Nenhum marco ainda'));
+      v.appendChild(el('p', null, 'O quadro aparece quando houver um relatório com NCRs ou NCRs do banco com Marco Atual preenchido.'));
+      raiz.appendChild(v);
+      return;
+    }
+
+    var todos = cartoes(st.marco, projects);
+    var vis = todos.filter(passa);
+
+    raiz.appendChild(cabecalho(lista, projects, todos));
+    raiz.appendChild(resumo(todos));
+    raiz.appendChild(quadro(vis, todos));
+    host.scrollTop = topo;
+    if (buscando) {
+      var b = document.getElementById('kbBusca');
+      if (b) { b.focus(); b.setSelectionRange(b.value.length, b.value.length); }
+    }
+  }
+
+  function cabecalho(lista, projects, todos) {
+    var cab = el('div', 'kb-cab');
+    var tit = el('div', 'kb-tit');
+    tit.appendChild(el('span', 'kb-sobre', 'Kanban do marco'));
+    tit.appendChild(el('strong', 'kb-marco', st.marco));
+    var rel = projects.filter(function (p) { return Ncrs.marcoChave(p.marco) === Ncrs.marcoChave(st.marco); })[0];
+    tit.appendChild(el('span', 'kb-rel', rel ? 'Relatório: ' + (rel.marco || rel.name) + ' Waiver'
+      : 'Ainda não há relatório de Waiver deste marco'));
+    cab.appendChild(tit);
+
+    var ferr = el('div', 'kb-ferr');
+    var busca = el('input', 'kb-busca');
+    busca.type = 'search';
+    busca.id = 'kbBusca';
+    busca.placeholder = 'Buscar no quadro: número, texto, função…';
+    busca.setAttribute('aria-label', 'Buscar nos cartões do quadro');
+    busca.value = st.busca;
+    var tm = null;
+    busca.addEventListener('input', function () {
+      clearTimeout(tm);
+      tm = setTimeout(function () { st.busca = busca.value; render(host, ctx); }, 200);
+    });
+    ferr.appendChild(busca);
+
+    var nAlerta = todos.filter(function (c) { return c.alerta; }).length;
+    var ba = botao('⚠ Só com alerta' + (nAlerta ? ' (' + nAlerta + ')' : ''), 'btn--sm kb-toggle kb-toggle--alerta' + (st.soAlertas ? ' is-on' : ''),
+      function () { st.soAlertas = !st.soAlertas; render(host, ctx); },
+      'Mostra só as NCRs fechadas no banco com o waiver ainda não aceito');
+    ba.setAttribute('aria-pressed', st.soAlertas ? 'true' : 'false');
+    ba.disabled = !nAlerta && !st.soAlertas;
+    ferr.appendChild(ba);
+
+    var bc = botao('Incluir as que vêm de outros marcos', 'btn--sm kb-toggle' + (st.caminho ? ' is-on' : ''),
+      function () { st.caminho = !st.caminho; render(host, ctx); },
+      'Itens de outros relatórios cujo waiver vale até este marco (Approved Expiry, ou Request Expiry) e ainda não foram levados');
+    bc.setAttribute('aria-pressed', st.caminho ? 'true' : 'false');
+    ferr.appendChild(bc);
+    cab.appendChild(ferr);
+
+    /* os marcos, na fila combinada, como as pastilhas da aba Tabela */
+    var fila = el('div', 'kb-marcos');
+    fila.setAttribute('role', 'group');
+    fila.setAttribute('aria-label', 'Marco do quadro');
+    lista.forEach(function (m) {
+      var n = cartoes(m, projects).length;
+      var on = Ncrs.marcoChave(m) === Ncrs.marcoChave(st.marco);
+      var b = el('button', 'tb-chip kb-chip' + (on ? ' is-on' : ''));
+      b.type = 'button';
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.appendChild(document.createTextNode(m + ' '));
+      b.appendChild(el('span', 'tb-chip-n', String(n)));
+      b.addEventListener('click', function () {
+        st.marco = m;
+        render(host, ctx);
+        var ch = host.querySelector('.kb-chip.is-on');
+        if (ch) ch.focus();
+      });
+      fila.appendChild(b);
+    });
+    cab.appendChild(fila);
+    return cab;
+  }
+
+  /** A faixa de progresso: quantos em cada situação, com as mesmas cores. */
+  function resumo(todos) {
+    var box = el('div', 'kb-resumo');
+    var total = todos.length;
+    var noRel = todos.filter(function (c) { return c.tipo === 'item'; });
+    var aceitos = noRel.filter(function (c) { return c.coluna === Store.STATUS_CONCLUIDO; }).length;
+    var nums = el('div', 'kb-resumo-nums');
+    [[String(total), 'NCRs neste marco'],
+     [String(noRel.length), 'no relatório'],
+     [noRel.length ? Math.round(aceitos * 100 / noRel.length) + '%' : '—', 'aceitas (do relatório)'],
+     [String(todos.filter(function (c) { return c.alerta; }).length), 'fechadas com waiver pendente']
+    ].forEach(function (p, i) {
+      var d = el('div', 'kb-num' + (i === 3 && p[0] !== '0' ? ' is-alerta' : ''));
+      d.appendChild(el('strong', null, p[0]));
+      d.appendChild(el('span', null, p[1]));
+      nums.appendChild(d);
+    });
+    box.appendChild(nums);
+
+    if (total) {
+      var barra = el('div', 'kb-barra');
+      barra.setAttribute('role', 'img');
+      var partes = [];
+      colunasDef().forEach(function (col) {
+        var n = todos.filter(function (c) { return c.coluna === col.id; }).length;
+        if (!n) return;
+        var s = el('span', 'kb-barra-seg st-cor--' + col.id);
+        s.style.width = (n * 100 / total) + '%';
+        s.title = col.nome + ': ' + n;
+        barra.appendChild(s);
+        partes.push(col.nome + ' ' + n);
+      });
+      barra.setAttribute('aria-label', partes.join(', '));
+      box.appendChild(barra);
+    }
+    return box;
+  }
+
+  function colunasDef() {
+    return [{ id: FORA, nome: 'Ainda fora do relatório', ajuda: 'No banco com este Marco Atual, ou vindo de outro marco' }]
+      .concat(Store.STATUS.map(function (s) { return { id: s.id, nome: s.nome, ajuda: s.ajuda }; }));
+  }
+
+  function quadro(vis, todos) {
+    var q = el('div', 'kb-quadro');
+    colunasDef().forEach(function (col) {
+      var cs = ordenar(vis.filter(function (c) { return c.coluna === col.id; }));
+      var nTot = todos.filter(function (c) { return c.coluna === col.id; }).length;
+      var coluna = el('section', 'kb-col st-cor--' + col.id + (col.id === FORA ? ' kb-col--fora' : ''));
+      coluna.dataset.coluna = col.id;
+      coluna.setAttribute('aria-label', col.nome + ': ' + cs.length + ' NCR(s)');
+      var ch = el('header', 'kb-col-cab');
+      ch.appendChild(el('span', 'st-cor-ponto'));
+      ch.appendChild(el('h3', null, col.nome));
+      ch.appendChild(el('span', 'kb-col-n', cs.length === nTot ? String(nTot) : cs.length + '/' + nTot));
+      ch.title = col.ajuda;
+      coluna.appendChild(ch);
+      var corpo = el('div', 'kb-col-corpo');
+      if (!cs.length) corpo.appendChild(el('p', 'kb-col-vazia', col.id === FORA ? 'Nada fora do relatório.' : 'Nenhuma NCR aqui.'));
+      cs.forEach(function (c) { corpo.appendChild(cartao(c)); });
+      coluna.appendChild(corpo);
+      if (col.id !== FORA) soltarEm(coluna, col.id);
+      q.appendChild(coluna);
+    });
+    return q;
+  }
+
+  /* --- o cartão ---------------------------------------------------------------- */
+
+  function cartao(c) {
+    var card = el('article', 'kb-card' + (c.alerta ? ' is-alerta' : '') + (c.tipo !== 'item' ? ' is-fora' : ''));
+    card.dataset.tipo = c.tipo;
+    var arrasta = c.tipo === 'item' || (c.tipo === 'banco' && c.relatorio);
+    if (arrasta) {
+      card.draggable = true;
+      card.addEventListener('dragstart', function (e) {
+        emArraste = c;
+        card.classList.add('is-arrastando');
+        try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', numeroDe(c)); } catch (x) { /* ok */ }
+      });
+      card.addEventListener('dragend', function () {
+        emArraste = null;
+        card.classList.remove('is-arrastando');
+        Array.prototype.forEach.call(document.querySelectorAll('.kb-col.is-alvo'), function (n) { n.classList.remove('is-alvo'); });
+      });
+    }
+
+    /* cabeça: número e status da NCR no banco */
+    var topo = el('div', 'kb-card-topo');
+    var num = el('button', 'kb-card-num', numeroDe(c));
+    num.type = 'button';
+    num.title = c.tipo === 'banco' ? 'Abrir a ficha da NCR' : 'Abrir o item no relatório ' + marcoRel(c.project) + ' Waiver';
+    num.addEventListener('click', function () {
+      if (c.tipo === 'banco') ctx.abrirFicha(c.rec.key);
+      else ctx.abrir(c.project, c.item);
+    });
+    topo.appendChild(num);
+    if (c.rec && c.rec.fonte.status) {
+      topo.appendChild(el('span', 'kb-st-ncr' + (c.fechada ? ' is-fechada' : ''), curto(c.rec.fonte.status, 26)));
+    } else if (!c.rec) {
+      var sb = el('span', 'kb-st-ncr is-sem', 'fora do banco');
+      sb.title = 'Este item não corresponde a nenhuma NCR importada do banco NCR (SBR4)';
+      topo.appendChild(sb);
+    }
+    card.appendChild(topo);
+
+    if (c.alerta) {
+      var al = el('div', 'kb-alerta');
+      al.appendChild(el('strong', null, '⚠ NCR fechada'));
+      al.appendChild(document.createTextNode(' e o waiver ainda em “' + Store.statusInfo(c.coluna).nome + '”'));
+      card.appendChild(al);
+    }
+
+    if (c.tipo === 'banco') card.appendChild(el('div', 'kb-origem', 'No banco: Marco Atual ' + c.rec.waiver.marcoAtual));
+    if (c.tipo === 'caminho') {
+      card.appendChild(el('div', 'kb-origem kb-origem--caminho', 'Vem do ' + marcoRel(c.project) + ' — ' +
+        Store.statusInfo(c.item.status).nome + (c.aprovado ? ' (Approved Expiry)' : ' (Request Expiry)')));
+    }
+
+    var fv = (c.item && c.item.func) || (c.rec && c.rec.waiver.funcaoVital) || '';
+    if (fv) {
+      var f = el('div', 'kb-fv', curto(fv, 60));
+      f.title = fv;
+      card.appendChild(f);
+    }
+
+    var desc = (c.item && c.item.description) || (c.rec && c.rec.fonte.descricao) || '';
+    if (desc) {
+      var d = el('p', 'kb-desc', curto(desc, 220));
+      if (desc.length > 220) d.title = curto(desc, 1200);
+      card.appendChild(d);
+    }
+
+    var pe = el('div', 'kb-card-pe');
+    var caminho = caminhoDe(c);
+    if (caminho) pe.appendChild(el('span', 'kb-caminho', caminho));
+    var sis = (c.item && c.item.systems) || (c.rec && c.rec.fonte.sistema) || '';
+    if (sis) pe.appendChild(el('span', 'kb-sis', curto(sis, 24)));
+    if (c.item && c.item.nota) {
+      var nt = el('span', 'kb-nota', '📝');
+      nt.title = 'Anotação: ' + curto(c.item.nota, 300);
+      nt.setAttribute('aria-label', 'Tem anotação');
+      pe.appendChild(nt);
+    }
+    if (c.item && c.item.herdadoDe) {
+      var hd = el('span', 'kb-nota', '⤵');
+      hd.title = 'Veio do ' + c.item.herdadoDe;
+      hd.setAttribute('aria-label', hd.title);
+      pe.appendChild(hd);
+    }
+    card.appendChild(pe);
+
+    var acoes = el('div', 'kb-card-acoes');
+    if (c.tipo === 'item') {
+      acoes.appendChild(seletorSituacao(c));
+      if (c.item.editedAt) acoes.appendChild(el('span', 'kb-quem', (c.item.editedBy || 'sem nome') + ' · ' + Ncrs.data(c.item.editedAt).slice(0, 10)));
+    } else if (c.tipo === 'banco') {
+      if (c.relatorio) {
+        acoes.appendChild(botao('+ ' + marcoRel(c.relatorio) + ' Waiver', 'btn--sm btn--primary', function () {
+          ctx.adicionar(c.rec, c.relatorio).then(function () { render(host, ctx); });
+        }, 'Adicionar esta NCR ao relatório ' + marcoRel(c.relatorio) + ' Waiver (entra em "Em preenchimento")'));
+      } else {
+        acoes.appendChild(el('span', 'kb-quem', 'crie o relatório ' + st.marco + ' para adicionar'));
+      }
+    } else if (c.tipo === 'caminho') {
+      acoes.appendChild(botao('Abrir no ' + marcoRel(c.project), 'btn--sm', function () { ctx.abrir(c.project, c.item); },
+        'Abre o item no relatório de origem; o botão “⤵ Levar para o marco seguinte” fica na barra de situação'));
+    }
+    if (c.rec && c.tipo !== 'banco') {
+      acoes.appendChild(botao('Ficha', 'btn--sm btn--quiet', function () { ctx.abrirFicha(c.rec.key); }, 'Abrir a ficha da NCR no Banco NCR'));
+    }
+    card.appendChild(acoes);
+    return card;
+  }
+
+  /** De onde veio → este marco → (para onde vai), como o "Caminho do waiver". */
+  function caminhoDe(c) {
+    if (!c.item) {
+      var w = c.rec.waiver;
+      return w.marcoOriginal && Ncrs.marcoChave(w.marcoOriginal) !== Ncrs.marcoChave(w.marcoAtual)
+        ? w.marcoOriginal + ' → ' + w.marcoAtual : '';
+    }
+    var a = Fluxo.analisar(c.item.historic || '');
+    var t = Fluxo.caminhoTexto(a);
+    var alvo = Herdar.paraOnde(c.item);
+    var aqui = Fluxo.marco(marcoRel(c.project));
+    if (alvo && !(aqui && Fluxo.mesmoMarco(alvo.no, aqui))) t = (t || marcoRel(c.project)) + ' → (' + alvo.no.rotulo + ')';
+    return t;
+  }
+
+  /** Mudar a situação sem arrastar (teclado, leitor de tela, WCAG 2.5.7). */
+  function seletorSituacao(c) {
+    var sel = el('select', 'kb-sel st-cor--' + c.coluna);
+    sel.setAttribute('aria-label', 'Situação do waiver de ' + numeroDe(c));
+    sel.title = 'Situação do waiver no relatório ' + marcoRel(c.project);
+    Store.STATUS.forEach(function (s) {
+      var o = el('option', null, s.nome);
+      o.value = s.id;
+      sel.appendChild(o);
+    });
+    sel.value = c.coluna;
+    sel.addEventListener('change', function () {
+      mover(c, sel.value, function () { sel.value = c.coluna; });
+    });
+    return sel;
+  }
+
+  /* --- arrastar entre as colunas ------------------------------------------------ */
+
+  var emArraste = null;
+
+  function soltarEm(coluna, id) {
+    coluna.addEventListener('dragover', function (e) {
+      if (!emArraste || emArraste.coluna === id) return;
+      e.preventDefault();
+      coluna.classList.add('is-alvo');
+    });
+    coluna.addEventListener('dragleave', function (e) {
+      if (!coluna.contains(e.relatedTarget)) coluna.classList.remove('is-alvo');
+    });
+    coluna.addEventListener('drop', function (e) {
+      e.preventDefault();
+      coluna.classList.remove('is-alvo');
+      var c = emArraste;
+      emArraste = null;
+      if (c) mover(c, id);
+    });
+  }
+
+  function mover(c, id, desfazer) {
+    if (c.tipo === 'banco') {
+      /* do banco para o relatório: adicionar, e já na situação escolhida */
+      ctx.adicionar(c.rec, c.relatorio, id).then(function () { render(host, ctx); });
+      return;
+    }
+    if (c.tipo !== 'item' || c.coluna === id) return;
+    if (c.coluna === Store.STATUS_CONCLUIDO &&
+        !global.confirm('Tirar ' + numeroDe(c) + ' de “Waiver accepted”?\n\nO item aceito fica travado no editor; ' +
+          'mudar a situação vale para toda a equipe na próxima sincronização.')) {
+      if (desfazer) desfazer();
+      return;
+    }
+    ctx.mudarSituacao(c.project, c.item, id).then(function () { render(host, ctx); });
+  }
+
+  global.Kanban = {
+    render: render,
+    cartoes: cartoes,
+    marcos: marcos
   };
 })(window);
 
@@ -15289,9 +16333,10 @@ if(isWorker){
   var isConversa = function () { return state.kind === 'conversa'; };
   var isTabela = function () { return state.kind === 'tabela'; };
   var isBanco = function () { return state.kind === 'banco'; };
+  var isKanban = function () { return state.kind === 'kanban'; };
   /* Abas que tomam a tela inteira: não têm lista lateral nem formulário. */
   var telaCheia = function () {
-    return isResumo() || isFluxos() || isConversa() || isTabela() || isBanco();
+    return isResumo() || isFluxos() || isConversa() || isTabela() || isBanco() || isKanban();
   };
   /** Lista de itens da aba ativa — o vetor de verdade, para alterar. */
   var items = function () {
@@ -15428,7 +16473,7 @@ if(isWorker){
       if (isResumo()) renderSummary();
       if (isFluxos()) renderFluxos(true);
       if (isTabela()) renderTabela(true);
-      if (isBanco()) renderBanco(true);
+      if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
     }).catch(markError);
   }
 
@@ -15529,7 +16574,7 @@ if(isWorker){
     if (isResumo()) renderSummary();
     if (isFluxos()) renderFluxos();
     if (isTabela()) renderTabela();
-    if (isBanco()) renderBanco();
+    if (isBanco()) renderBanco(); if (isKanban()) renderKanban();
     if (isConversa()) renderCanais();
     markSaved();
   }
@@ -15562,6 +16607,7 @@ if(isWorker){
     $('#sidebarTabela').hidden = !isTabela();
     $('#sidebarConversa').hidden = !isConversa();
     $('#sidebarBanco').hidden = !isBanco();
+    $('#sidebarKanban').hidden = !isKanban();
     $('#editorScroll').hidden = telaCheia();
     $('#editorScroll').setAttribute('aria-labelledby', isDev() ? 'tabDev' : 'tabNcr');
     $('#summaryScroll').hidden = !isResumo();
@@ -15569,6 +16615,7 @@ if(isWorker){
     $('#tabelaScroll').hidden = !isTabela();
     $('#conversaScroll').hidden = !isConversa();
     $('#bancoScroll').hidden = !isBanco();
+    $('#kanbanScroll').hidden = !isKanban();
     $('#previewBtn').hidden = telaCheia();
     renderAoLado();     /* o item ao lado só existe onde há editor ao lado dele */
     if (telaCheia()) {
@@ -15595,6 +16642,7 @@ if(isWorker){
     if (isFluxos()) { renderFluxos(); return; }
     if (isTabela()) { renderTabela(); return; }
     if (isBanco()) { renderBanco(); return; }
+    if (isKanban()) { renderKanban(); return; }
     if (isConversa()) { abrirCanal(canalAberto); return; }
     renderNcrList();
     renderEditor();
@@ -16854,6 +17902,16 @@ if(isWorker){
         var hb = el('span', 'herd-dot', '⤵');
         hb.title = 'Herdada do ' + herd + ' — confira o que precisa mudar neste marco.';
         badges.appendChild(hb);
+      }
+      /* NCR já fechada no banco NCR com o waiver ainda em aberto */
+      if (!isDev() && !ncr.done) {
+        var recB = (ncr.ncrKey && Ncrs.get(ncr.ncrKey)) || Ncrs.get(ncr.ncrId);
+        if (recB && Ncrs.fechada(recB)) {
+          var ab = el('span', 'alerta-dot', '⚠');
+          ab.title = 'A NCR está fechada no banco NCR (' + (recB.fonte.status || 'fechada') +
+            '), mas o waiver ainda não foi aceito.';
+          badges.appendChild(ab);
+        }
       }
       var anot = (ncr.nota || '').trim();
       if (anot) {
@@ -20047,7 +21105,7 @@ if(isWorker){
    * pelo mesmo registro de sessão e autoria de um item criado à mão — é
    * isso que o faz chegar aos colegas pela pasta.
    */
-  function adicionarAoWaiver(rec, project) {
+  function adicionarAoWaiver(rec, project, situacao) {
     var nome = (project.marco || project.name || 'sem marco') + ' Waiver';
     if (Ncrs.vinculos(rec, [project]).length) {
       toast('Esta NCR já está vinculada ao ' + nome + '.');
@@ -20056,6 +21114,8 @@ if(isWorker){
     var item = Store.newNcr();
     var dados = Ncrs.paraItemWaiver(rec);
     Object.keys(dados).forEach(function (k) { item[k] = dados[k]; });
+    /* do Kanban, a NCR pode ser solta direto numa coluna */
+    if (situacao) Store.setStatus(item, situacao);
     project.ncrs.push(item);
     Store.logChange(project, SESSION_ID, 'ncr', item, 'criou');
     return Store.save(project)
@@ -20092,16 +21152,26 @@ if(isWorker){
     flushSave().then(ir, ir);
   }
 
-  /* No editor, a linha que liga o item à NCR do banco. */
+  /* No editor, a linha que liga o item à NCR do banco: o status dela no
+     banco NCR à vista, e o aviso quando ela já foi fechada mas o waiver
+     deste item ainda não foi aceito (pedido do Bruno). O aviso é da tela:
+     o PDF do relatório não muda. */
   function renderLigacaoBanco(item) {
-    var box = el('div', 'nb-ligacao');
+    var wrap = el('div', 'nb-ligacao-wrap');
     var rec = (item.ncrKey && Ncrs.get(item.ncrKey)) || Ncrs.get(item.ncrId);
-    if (!rec) { box.hidden = true; return box; }
+    if (!rec) { wrap.hidden = true; return wrap; }
+    var fechada = Ncrs.fechada(rec);
+    var box = el('div', 'nb-ligacao');
     box.appendChild(el('span', 'nb-ligacao-rot', 'Banco NCR'));
-    var partes = [rec.fonte.status,
+    var stNcr = el('span', 'nb-ligacao-st ' + (fechada ? 'is-fechada' : 'is-aberta'),
+      (rec.fonte.status || (fechada ? 'fechada' : 'sem status')) +
+      (fechada && rec.fonte.status && !/clos|fech|encerr|cancel/i.test(rec.fonte.status) ? ' · fechada' : ''));
+    stNcr.title = 'Status da NCR no banco NCR' + (rec.fonte.importadoEm ? ' (importado em ' + Ncrs.data(rec.fonte.importadoEm) + ')' : '');
+    box.appendChild(stNcr);
+    var partes = [
       rec.waiver.marcoAtual ? 'Marco Atual ' + rec.waiver.marcoAtual : '',
       rec.waiver.funcaoVital].filter(Boolean);
-    box.appendChild(el('span', 'nb-ligacao-txt', partes.join(' · ') || 'sem dados complementares'));
+    box.appendChild(el('span', 'nb-ligacao-txt', partes.join(' · ')));
     var b = el('button', 'btn btn--sm', 'Ver a ficha');
     b.type = 'button';
     b.addEventListener('click', function () {
@@ -20111,7 +21181,56 @@ if(isWorker){
       });
     });
     box.appendChild(b);
-    return box;
+    wrap.appendChild(box);
+    if (fechada && item.status !== Store.STATUS_CONCLUIDO) {
+      var av = NcrView.avisoFechada(rec);
+      av.classList.add('nb-alerta--editor');
+      wrap.appendChild(av);
+    }
+    return wrap;
+  }
+
+  /* --- aba Kanban ------------------------------------------------------------ */
+
+  var ctxKanban = {
+    projects: function () { return state.projects; },
+    marcoInicial: function () { return state.project ? state.project.marco : ''; },
+    abrir: function (project, item) { abrirItemDoWaiver(project, item); },
+    abrirFicha: function (key) {
+      flushSave().then(function () {
+        switchKind('banco');
+        NcrView.abrirFicha(key);
+      });
+    },
+    adicionar: function (rec, project, situacao) { return adicionarAoWaiver(rec, project, situacao); },
+    mudarSituacao: function (project, item, id) { return mudarSituacaoDe(project, item, id); }
+  };
+
+  function renderKanban() {
+    Kanban.render($('#kanbanScroll'), ctxKanban);
+  }
+
+  /**
+   * Muda a situação de um item de qualquer relatório — o Kanban mostra itens
+   * que não são os do relatório aberto. Mesmo caminho do editor:
+   * Store.setStatus, a sessão (autoria), gravar e mandar para a pasta.
+   */
+  function mudarSituacaoDe(project, item, id) {
+    if (item.status === id) return Promise.resolve(false);
+    Store.setStatus(item, id);
+    Store.logChange(project, SESSION_ID, 'ncr', item, 'editou');
+    return Store.save(project).then(function () {
+      if (state.project && state.project.id === project.id) renderNcrList();
+      renderTabs();
+      renderSessionInfo();
+      agendarGravacaoPasta();
+      toast((item.ncrId || 'Item') + ': ' + Store.statusInfo(id).nome + '.');
+      return true;
+    }).catch(function (e) {
+      markError(e);
+      alert('Não foi possível gravar a situação.');
+      return false;
+    });
   }
 
   /* --- importações ----------------------------------------------------------- */
@@ -20228,13 +21347,13 @@ if(isWorker){
       Log.ok('banco NCR', r.resumo.titulo, { numeros: r.resumo.numeros.length, alteradas: r.alterados.length });
       agendarGravacaoPasta();
       renderTabs();
-      if (isBanco()) renderBanco(true);
+      if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
       mostrarResumoImportacao(r.resumo);
     }).catch(function (e) {
       /* arquivo recusado é situação normal: quem usa recebe o aviso abaixo */
       console.warn('Importação do banco NCR recusada:', e);
       /* se algo parou no meio, volta ao que está gravado */
-      Ncrs.carregar().then(function () { if (isBanco()) renderBanco(true); });
+      Ncrs.carregar().then(function () { if (isBanco()) renderBanco(true); if (isKanban()) renderKanban(); });
       alert('Não foi possível ' + (NOMES_IMPORTACAO[tipo] || 'importar') + ': ' + ((e && e.message) || e));
     });
   }
@@ -20310,7 +21429,7 @@ if(isWorker){
       ]).then(function () {
         $('#ncrResumoDialog').close();
         agendarGravacaoPasta();
-        if (isBanco()) renderBanco(true);
+        if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
         toast('Importação desfeita: ' + x.voltaram + ' NCR(s) de volta ao estado anterior.');
       });
     }).catch(function (e) { markError(e); alert('Não foi possível desfazer.'); });
@@ -20330,7 +21449,7 @@ if(isWorker){
     Ncrs.setListas(linhas('#ncrListaMarcos'), linhas('#ncrListaFuncoes'), Store.getUser()).then(function () {
       $('#ncrListasDialog').close();
       agendarGravacaoPasta();
-      if (isBanco()) renderBanco(true);
+      if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
       toast('Listas salvas.');
     }).catch(markError);
   }
@@ -20380,7 +21499,7 @@ if(isWorker){
     return Promise.all([Ncrs.salvar(r.alterados), Ncrs.salvarMeta()]).then(function () {
       agendarGravacaoPasta();
       renderTabs();
-      if (isBanco()) renderBanco(true);
+      if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
       return r;
     });
   }
@@ -20948,7 +22067,7 @@ if(isWorker){
                            resumo.novosRelatorios || resumo.relatoriosRemovidos);
     var rn = resumo && resumo.ncr;
     if (rn && (rn.entraram || rn.atualizados)) {
-      if (isBanco()) renderBanco(true);
+      if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
       var ficha = NcrView.aposMudancaExterna();
       if (ficha) {
         toast('A NCR ' + ficha.numero + ' foi atualizada por ' + (ficha.waiver.editedBy || 'outra pessoa') +
@@ -20989,7 +22108,7 @@ if(isWorker){
     if (isResumo()) renderSummary();
     if (isFluxos()) renderFluxos(true);
     if (isTabela()) renderTabela(true);
-    if (isBanco()) renderBanco(true);
+    if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
 
     if (!telaCheia()) {
       var agora = currentNcr();

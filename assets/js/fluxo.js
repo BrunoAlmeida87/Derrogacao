@@ -125,6 +125,30 @@
   }
 
   /**
+   * A posição de um marco escrito à mão na fila combinada (J01 & J03 · J02 &
+   * J04 · J05 · J06 · … · J12 · RANAE · TRAP). Serve às listas que não são
+   * desenho — filtros, dropdowns, a coluna Waiver do Banco NCR, o Kanban —
+   * para todas mostrarem os marcos na mesma ordem que o fluxo. O "Ind" fica
+   * logo depois do marco dele; o que não é marco nenhum vai para o fim.
+   */
+  function ordemMarco(bruto) {
+    /* "J05 (J06Cer)" é o J05: o parêntese explica, não muda de lugar na fila */
+    var fora = texto(bruto).replace(/\([^)]*\)/g, ' ');
+    var m = marco(/J\s*\d/i.test(fora) ? fora : bruto);
+    if (!m) return 9999;
+    var p = posicao(m);
+    if (fora !== texto(bruto)) p += 0.05;
+    return /\bind\b/i.test(texto(bruto)) ? p + 0.1 : p;
+  }
+
+  /** Comparação para `sort`: a fila dos marcos, e o texto no empate. */
+  function cmpMarco(a, b) {
+    var d = ordemMarco(a) - ordemMarco(b);
+    if (d) return d;
+    return texto(a).localeCompare(texto(b), 'pt-BR', { numeric: true, sensitivity: 'base' });
+  }
+
+  /**
    * Lê o campo inteiro e devolve o que precisa para desenhar:
    *   nos       cada card, uma vez só
    *   arestas   as setas escritas
@@ -881,6 +905,8 @@
     analisar: analisar,
     caminhoTexto: caminhoTexto,
     marco: marco,
+    ordemMarco: ordemMarco,
+    cmpMarco: cmpMarco,
     mesmoMarco: mesmoMarco,
     agregado: agregado,
     matriz: matriz,
