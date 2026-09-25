@@ -1143,23 +1143,118 @@
 
   var dbPromise = null;
 
+  var STORES_NECESSARIOS = [STORE, 'snapshots', 'handles'];
+
+  function criarQueFalta(db) {
+    if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
+    if (!db.objectStoreNames.contains('snapshots')) db.createObjectStore('snapshots', { keyPath: 'id' });
+    /* guarda o "crachá" da pasta compartilhada, que não é um caminho de
+       texto e sim um objeto que só o navegador sabe interpretar */
+    if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles');
+  }
+
+  /**
+   * Abre o banco do navegador.
+   *
+   * Pede a versão 3, mas aceita um banco que já esteja numa versão maior. Uma
+   * versão de teste da integração com o banco NCR subiu o banco para a 4, e o
+   * navegador recusa abrir um banco "mais novo" do que o pedido
+   * (VersionError): sem este desvio o programa não gravava nada, não lia os
+   * relatórios e não conseguia guardar o crachá da pasta — com todos os dados
+   * intactos lá dentro. Abrir sem pedir versão abre o banco como ele está;
+   * as prateleiras extras de uma versão maior são ignoradas.
+   */
   function openDb() {
     if (dbPromise) return dbPromise;
     dbPromise = new Promise(function (resolve, reject) {
       if (!global.indexedDB) { reject(new Error('IndexedDB indisponível')); return; }
-      var req = global.indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = function () {
-        var db = req.result;
-        if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
-        if (!db.objectStoreNames.contains('snapshots')) db.createObjectStore('snapshots', { keyPath: 'id' });
-        /* guarda o "crachá" da pasta compartilhada, que não é um caminho de
-           texto e sim um objeto que só o navegador sabe interpretar */
-        if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles');
-      };
-      req.onsuccess = function () { resolve(req.result); };
-      req.onerror = function () { reject(req.error || new Error('Falha ao abrir o banco local')); };
+      function abrir(versao) {
+        var req = versao ? global.indexedDB.open(DB_NAME, versao) : global.indexedDB.open(DB_NAME);
+        req.onupgradeneeded = function () { criarQueFalta(req.result); };
+        req.onsuccess = function () {
+          var db = req.result;
+          var falta = STORES_NECESSARIOS.filter(function (n) { return !db.objectStoreNames.contains(n); });
+          if (falta.length) {
+            /* banco de outra versão sem alguma prateleira nossa: cria só o que falta */
+            var v = db.version + 1;
+            db.close();
+            abrir(v);
+            return;
+          }
+          /* se outra aba precisar atualizar o banco, esta sai da frente */
+          db.onversionchange = function () { db.close(); dbPromise = null; };
+          migrarNcrV4(db).then(function () { resolve(db); }, function () { resolve(db); });
+        };
+        req.onerror = function (ev) {
+          var e = req.error;
+          if (e && e.name === 'VersionError' && versao) {
+            if (ev && ev.preventDefault) ev.preventDefault();
+            Log.aviso('armazenamento', 'o banco deste navegador está numa versão maior que a pedida',
+              'quase sempre é de uma versão de teste do programa. Ele é aberto como está — ' +
+              'nenhum dado se perde.', { pedida: versao });
+            abrir(0);
+            return;
+          }
+          reject(e || new Error('Falha ao abrir o banco local'));
+        };
+      }
+      abrir(DB_VERSION);
     });
     return dbPromise;
+  }
+
+  /**
+   * A versão de teste guardava o banco NCR em prateleiras próprias ("ncrs" e
+   * "ncrmeta"). Se elas existem neste navegador, o que está lá é copiado uma
+   * vez para o armazém "snapshots", onde esta versão o procura — sem apagar
+   * nada e sem passar por cima de uma NCR que já esteja no lugar novo.
+   */
+  function migrarNcrV4(db) {
+    if (!db.objectStoreNames.contains('ncrs')) return Promise.resolve(0);
+    return new Promise(function (ok) {
+      var nomes = ['ncrs', SNAP_STORE];
+      if (db.objectStoreNames.contains('ncrmeta')) nomes.push('ncrmeta');
+      var copiadas = 0;
+      var tx;
+      try { tx = db.transaction(nomes, 'readwrite'); } catch (e) { ok(0); return; }
+      var snap = tx.objectStore(SNAP_STORE);
+      var chaves = snap.getAllKeys();
+      chaves.onsuccess = function () {
+        var tem = {};
+        (chaves.result || []).forEach(function (k) { tem[k] = true; });
+        if (tem['ncrmeta:migradoV4']) return;
+        var r1 = tx.objectStore('ncrs').getAll();
+        r1.onsuccess = function () {
+          (r1.result || []).forEach(function (r) {
+            if (!r || !r.key || tem['ncr:' + r.key]) return;
+            var c = JSON.parse(JSON.stringify(r));
+            c.id = 'ncr:' + r.key;
+            snap.put(c);
+            copiadas++;
+          });
+        };
+        if (nomes.indexOf('ncrmeta') >= 0) {
+          var r2 = tx.objectStore('ncrmeta').getAll();
+          r2.onsuccess = function () {
+            (r2.result || []).forEach(function (m) {
+              if (!m || !m.id || tem['ncrmeta:' + m.id]) return;
+              var c = JSON.parse(JSON.stringify(m));
+              c.id = 'ncrmeta:' + m.id;
+              snap.put(c);
+            });
+          };
+        }
+        snap.put({ id: 'ncrmeta:migradoV4', em: nowIso() });
+      };
+      tx.oncomplete = function () {
+        if (copiadas) {
+          Log.passo('armazenamento', 'banco NCR da versão de teste trazido para o lugar novo', { ncrs: copiadas });
+        }
+        ok(copiadas);
+      };
+      tx.onerror = function () { ok(0); };
+      tx.onabort = function () { ok(0); };
+    });
   }
 
   function idbAll() {

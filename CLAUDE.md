@@ -1061,6 +1061,16 @@ permissão da pasta entre sessões.
   do J08 — o que ninguém faz —, e com isso o painel parecia funcionar e a
   coluna parecia certa. O histórico termina no marco do próprio relatório; o
   futuro está nas datas de validade.
+- **Banco do navegador numa versão maior que a pedida trava o programa
+  inteiro.** Uma versão de teste da integração do banco NCR subiu o IndexedDB
+  para a v4; a versão seguinte pedia a v3, o navegador respondeu `VersionError`
+  e nada funcionava — não gravava, não lia os relatórios, não guardava o crachá
+  da pasta ("não consigo vincular o banco") —, com os dados todos intactos lá
+  dentro. Hoje o `openDb` abre sem pedir versão quando dá `VersionError`, cria
+  só a prateleira que faltar, e o `migrarNcrV4` copia uma vez o banco NCR das
+  prateleiras de teste (`ncrs`, `ncrmeta`) para o `snapshots`. **Nunca suba o
+  `DB_VERSION` sem necessidade**: a versão anterior do programa deixa de abrir
+  o navegador para sempre, e isso não tem volta sem apagar o banco.
 - **Dois `function` com o mesmo nome no mesmo arquivo: vale o segundo, sem
   aviso.** O `pasta.js` tinha `carimbo()` (a última leitura, exportada) e
   `carimbo(d)` (o nome datado do histórico); o segundo apagava o primeiro, e
