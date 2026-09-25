@@ -148,6 +148,11 @@
               title="Todos os itens de todos os relatórios, em tabela: busca, filtros e exportação">
         Tabela
       </button>
+      <button class="tab" role="tab" id="tabBanco" data-kind="banco"
+              aria-selected="false" aria-controls="bancoScroll" tabindex="-1"
+              title="As NCRs do SBR4 importadas do banco NCR, com marcos, função vital e observação">
+        Banco NCR
+      </button>
       <button class="tab" role="tab" id="tabConversa" data-kind="conversa"
               aria-selected="false" aria-controls="conversaScroll" tabindex="-1" hidden
               title="Recados da equipe, pela pasta da rede">
@@ -220,6 +225,10 @@
       a ordem do relatório nem a do PDF.</strong>
     </div>
 
+    <div class="sidebar-note" id="sidebarBanco" hidden>
+      <strong>Banco NCR</strong> — as NCRs do SBR4.
+    </div>
+
     <div class="sidebar-note" id="sidebarResumo" hidden>
       O resumo reúne <strong>todos os marcos</strong> deste navegador — não só o
       relatório aberto. Escolha um marco na tela ao lado para ver o detalhe e
@@ -238,6 +247,8 @@
          aria-labelledby="tabTabela" tabindex="0" hidden></div>
     <div class="editor-scroll conversa-scroll" id="conversaScroll" role="tabpanel"
          aria-labelledby="tabConversa" tabindex="0" hidden></div>
+    <div class="editor-scroll banco-scroll" id="bancoScroll" role="tabpanel"
+         aria-labelledby="tabBanco" tabindex="0" hidden></div>
   </main>
 
   <!-- o item preso ao lado: só leitura, para escrever um olhando o outro -->
@@ -578,6 +589,85 @@
   </div>
 </dialog>
 
+<!-- ====================== banco NCR ====================== -->
+<input type="file" id="ncrFileInput" hidden>
+
+<!-- ficha da NCR: quase a tela inteira; o conteúdo é montado por ncrview.js -->
+<dialog id="ncrDialog" class="nb-dlg nb-ficha" aria-label="Ficha da NCR">
+  <div class="nb-ficha-cab"></div>
+  <div class="nb-ficha-corpo"></div>
+</dialog>
+<dialog id="nbColsDialog" class="dlg--wide nb-dlg">
+  <div class="dlg-body"></div>
+  <div class="dlg-actions"></div>
+</dialog>
+
+<dialog id="ncrCorrDialog">
+  <div class="dlg-body">
+    <h3>Importar correlação</h3>
+    <p>Preenche, nas NCRs do banco, <strong>Marco Original</strong>, <strong>Marco
+       Atual</strong>, <strong>Função Vital</strong>, <strong>Waiver Historic</strong>
+       e <strong>Observação</strong>. Aceita o JSON de correlação ou a própria
+       planilha (aba “Correlação NCR”; a aba “Possibilidades da Mascara” alimenta
+       as listas).</p>
+    <ul class="nb-regras">
+      <li>Só as NCRs que já estão no banco são atualizadas; as outras ficam
+          guardadas e entram sozinhas quando chegarem numa importação do banco.</li>
+      <li>Célula vazia no arquivo nunca apaga nada.</li>
+      <li>Nenhuma NCR é duplicada: a chave é o número.</li>
+    </ul>
+    <label class="nb-check">
+      <input type="checkbox" id="ncrCorrSubst">
+      Substituir também os valores que já estão preenchidos aqui
+    </label>
+    <div class="hint">Desmarcado (o normal): só completa o que está em branco — reimportar o
+      arquivo não desfaz o que foi corrigido à mão depois.</div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="ncrCorrCancelBtn">Cancelar</button>
+    <button class="btn btn--primary" id="ncrCorrGoBtn">Escolher o arquivo…</button>
+  </div>
+</dialog>
+
+<dialog id="ncrResumoDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3 id="ncrResumoTitulo">Importação concluída</h3>
+    <p class="mg-origin" id="ncrResumoArquivo"></p>
+    <div id="ncrResumoBody"></div>
+    <p class="hint">Antes de importar, o estado anterior do banco NCR foi guardado:
+      dá para baixar essa cópia ou desfazer a importação.</p>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="ncrResumoCopyBtn">Baixar cópia de antes</button>
+    <button class="btn" id="ncrResumoUndoBtn">Desfazer esta importação</button>
+    <button class="btn btn--primary" id="ncrResumoCloseBtn">Fechar</button>
+  </div>
+</dialog>
+
+<dialog id="ncrListasDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>Listas dos dropdowns</h3>
+    <p>Uma opção por linha. Vêm da aba “Possibilidades da Mascara” e valem para
+       todos (viajam pela pasta e pelo backup). Tirar uma opção daqui não apaga
+       o valor de nenhuma NCR que já a use.</p>
+    <div class="grid grid--2">
+      <div class="field">
+        <label for="ncrListaMarcos">Marcos (Original e Atual)</label>
+        <textarea id="ncrListaMarcos" rows="14"></textarea>
+      </div>
+      <div class="field">
+        <label for="ncrListaFuncoes">Funções vitais</label>
+        <textarea id="ncrListaFuncoes" rows="14"></textarea>
+      </div>
+    </div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="ncrListasPadraoBtn">Voltar às possibilidades da máscara</button>
+    <button class="btn" id="ncrListasCancelBtn">Cancelar</button>
+    <button class="btn btn--primary" id="ncrListasSaveBtn">Salvar</button>
+  </div>
+</dialog>
+
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <!-- conteúdo montado apenas para impressão -->
@@ -587,6 +677,9 @@
 <script src="assets/js/store.js"></script>
 <script src="assets/js/revisoes.js"></script>
 <script src="assets/js/pasta.js"></script>
+<script src="assets/js/xlsxler.js"></script>
+<script src="assets/js/ncrs.js"></script>
+<script src="assets/js/ncrfluxo.js"></script>
 <script src="assets/js/report.js"></script>
 <script src="assets/js/fluxo.js"></script>
 <script src="assets/js/herdar.js"></script>
@@ -596,6 +689,7 @@
 <script src="assets/js/tabela.js"></script>
 <script src="assets/js/chat.js"></script>
 <script src="assets/js/lado.js"></script>
+<script src="assets/js/ncrview.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
 </html>

@@ -17,6 +17,11 @@ Duas categorias, mesmo layout, exportadas como relatórios **independentes**:
 **NCR** e **DEV**. Cada item vira uma página A4 retrato; os anexos viram
 páginas A4 paisagem no fim.
 
+Desde a integração com o NCR Control há também a aba **Banco NCR**: as NCRs
+do SBR4 importadas do banco NCR, com campos próprios do Waiver (marcos, função
+vital, observação), o fluxo de cada NCR desenhado como no NCR Control e o
+botão que leva a NCR ao relatório do marco (§5, "Banco NCR").
+
 Publicado em **https://brunoalmeida87.github.io/Derrogacao/**, a partir da
 branch `main` (veja §8).
 
@@ -63,6 +68,10 @@ assets/js/xlsx.js          escreve a planilha .xlsx (ZIP + XML à mão)
 assets/js/tabela.js        aba Tabela: todos os itens de todos os marcos
 assets/js/chat.js          a conversa da equipe (aba opcional), pela pasta
 assets/js/lado.js          o item preso ao lado do editor, em só leitura
+assets/js/xlsxler.js       LÊ .xlsx — cópia literal do motor do NCR Control
+assets/js/ncrs.js          banco NCR: modelo, importações, junção da pasta
+assets/js/ncrfluxo.js      o fluxo da NCR (trajetória e mapa) do NCR Control
+assets/js/ncrview.js       aba Banco NCR: tabela, filtros, ficha
 assets/js/app.js           o editor (o maior; ~3000 linhas)
 derrogacao.html            o programa inteiro num arquivo só — gerado, e versionado
 tools/build-standalone.py  gera (e confere) o derrogacao.html
@@ -71,9 +80,9 @@ exemplos/                  .json prontos para importar
 ```
 
 Ordem de carga dos scripts (importa: cada um usa o anterior):
-`log.js → store.js → revisoes.js → pasta.js → report.js → fluxo.js →
-herdar.js → summary.js → painel.js → xlsx.js → tabela.js → chat.js →
-lado.js → app.js`.
+`log.js → store.js → revisoes.js → pasta.js → xlsxler.js → ncrs.js →
+ncrfluxo.js → report.js → fluxo.js → herdar.js → summary.js → painel.js →
+xlsx.js → tabela.js → chat.js → lado.js → ncrview.js → app.js`.
 (`log.js` vem primeiro porque todo mundo o usa — e **por isso mesmo não usa
 ninguém**: ele não conhece `Store`, `Pasta` nem `app`.)
 (`tabela.js` usa `Summary`, `Fluxo`, `Report` e `SummaryView.csvCampo`;
@@ -105,6 +114,8 @@ ninguém**: ele não conhece `Store`, `Pasta` nem `app`.)
   evidence: [{id, ref, note, orientation,
               images:[{id, src, caption, arquivo}]}],   // arquivo: nome na pasta (§5)
   nota,                        // anotação interna livre; NÃO sai no PDF
+  observation,                 // a Observação da NCR, vinda do Banco NCR; NÃO sai no PDF
+  ncrKey,                      // chave da NCR do banco, quando o item veio de lá
   herdadoDe, herdadoEm,        // veio do marco tal, quando (§5, herdar.js)
   status,                      // acompanhamento; fecha a linha da capa (§4)
   done,                        // espelho de status === 'aceito'
@@ -114,6 +125,37 @@ ninguém**: ele não conhece `Store`, `Pasta` nem `app`.)
 
 Persistência: **IndexedDB** (`derrogacao`, v3, stores `projects`, `snapshots`,
 `handles`), com `localStorage` de reserva. `Store.save/list/remove`.
+
+**O banco NCR mora no `snapshots`**, com prefixo na chave — `ncr:<chave>` (uma
+linha por NCR) e `ncrmeta:<nome>` (listas, registro das importações, o retrato
+para desfazer). Pelo mesmo motivo da base da mesclagem: prateleira nova
+obrigaria a subir a versão do IndexedDB, e a versão anterior do programa não
+abriria mais o navegador (§10). Uma linha por NCR para editar um campo não
+regravar o banco inteiro. `Store.ncrAll/ncrPutMany/ncrMetaGet/ncrMetaPut`.
+Nenhuma importação do banco NCR passa perto de `projects`.
+
+**NCR do banco** (em memória, `ncrs.js`):
+
+```js
+{ key, numero,                  // key: número normalizado (maiúsculas, sem espaços, "/"->"-")
+  fonte:  { campos:{coluna:valor}, titulo, descricao, status, sistema, sbr, sbrPor,
+            criadoEm, responsavel, fechamento, arquivo, importadoEm, presente, alterados:[] },
+  waiver: { marcoOriginal, marcoAtual, funcaoVital, waiverHistoric, observacao,
+            editedBy, editedAt, adicoes:[{projectId, marco, itemId, em, por}] },
+  historico: [{id, data, tipo, campo, de, para, obs, responsavel, cls, estimado}] }
+```
+
+`fonte` é cópia do banco NCR e é **trocada inteira** a cada importação;
+`waiver` só é escrito pela tela e pela correlação; `historico` só cresce.
+
+### A Observation do item (`observation`)
+A Observação da NCR, copiada para o item quando a NCR é levada ao relatório.
+**Campo próprio, separado da `nota`** (decisão do Bruno): a nota é o recado
+de pendência; a observation é o texto que veio da NCR. Segue as regras da
+nota: fora do PDF, `data-livre` (editável com o item travado), em
+`CAMPOS_VISIVEIS` e `CAMPOS_MESCLA`, **fora da `signature()`**, sem subir o
+`SCHEMA` (`extrasDe` a preserva nas versões antigas). O mesmo vale para
+`ncrKey`.
 
 **Campos desconhecidos sobrevivem.** `normalizeNcr`/`normalizeProject` remontam
 o registro campo a campo — o que não estivesse na lista sumia, e era assim que
@@ -736,6 +778,60 @@ tela que responde "onde está a NCR-018?" sem abrir marco por marco.
   a mesma classe das páginas de anexo — `Report.limite` já conhece os 210 mm).
   Retrato com dez colunas partia toda palavra ao meio.
 
+### Banco NCR (`ncrs.js`, `ncrfluxo.js`, `ncrview.js`)
+- **Importação do banco** reaproveita o NCR Control: o mesmo leitor de xlsx
+  (`xlsxler.js` é cópia literal do motor dele — o `xlsx.js` daqui escreve, não
+  lê), a mesma detecção de cabeçalho e os mesmos aliases de coluna, a mesma
+  chave (`chaveNcr`) e o mesmo `grupoSbr`. Aceita também o `ncr.json` do NCR
+  Control. **Só SBR4** (`Ncrs.SBR_ALVO`): coluna SBR; vazia, o número
+  (`NCR-…-14-…`). Nunca apaga NCR — a que some do export fica com
+  `fonte.presente = false`.
+- **Correlação** só preenche o vazio (a menos de "substituir"), e a NCR que
+  ainda não está no banco vai para `meta.pendentes`, aplicada quando chegar.
+- **Vínculo NCR ↔ relatório não é gravado à parte**: é lido dos relatórios
+  (item com `ncrKey` igual ou com o mesmo número). Por isso os relatórios
+  antigos aparecem vinculados sem migração, e excluir o item desfaz o
+  vínculo. `waiver.adicoes` é só o registro histórico. Marco Atual casa com o
+  relatório por **igual exato** (`J06 Ind` ≠ `J06`) — decisão do Bruno; na
+  ficha há "Adicionar a outro relatório…".
+- **Adicionar ao Waiver** passa por `Store.logChange` como item criado à mão
+  (sessão, autoria, pasta). Description ← descrição do banco; Observation ←
+  Observação; Função ← `FVnn - TEXTO EM MAIÚSCULAS`; Sistema(s) e Waiver
+  Historic também. Recusa se a NCR já estiver no relatório.
+- **Fechada** (`Ncrs.fechada`): status final do NCR Control (`Closed`,
+  `CEDOC Closure`…), ou palavra de fechamento no status, ou data de
+  fechamento sem status. É o que pinta a linha de vermelho e o "Só abertas".
+- **Fluxo** (`ncrfluxo.js`): porta ES5 de `Detalhe.trajSVG`/`flowSVG` do NCR
+  Control, com o `FLUXO_PADRAO`, as `ETAPAS`, `ordemInferida` e `classificar`
+  de lá. Usa o `cls` do evento quando vem do NCR Control e refaz a
+  classificação quando não vem. Cores escritas por extenso (o desenho não
+  depende das variáveis CSS de lá); SVG com `width`/`height` (§6).
+- **A tela** (pedidos do Bruno depois de usar): a tabela é a página, com
+  todas as NCRs e cabeçalho `sticky` — **sem `overflow` em caixa
+  intermediária**, senão o sticky morre (§6); a lateral vira trilho estreito
+  nesta aba. Editar uma célula troca **só aquela linha**
+  (`NcrView.atualizarLinha`): a rolagem não volta ao topo, e a linha que saiu
+  do filtro fica à vista (`st.fixadas`, amarelo) até o filtro mudar. As
+  listas da tabela são botões que viram `<select>` no clique — 1.600 linhas ×
+  3 listas de até 45 opções montadas de saída seriam ~200 mil elementos.
+  Filtros de múltipla escolha; o filtro **não é guardado** (mesma regra da
+  Tabela); colunas, painel recolhido e "destacar fechadas" são preferência do
+  navegador (`localStorage`). Excel/CSV exportam o que está à vista, com a
+  aba "Recorte".
+- **Pasta**: `derrogacao-ncr-banco.json` (grande; vale a fonte com
+  `importadoEm` mais novo; histórico é união) e `derrogacao-ncr-waiver.json`
+  (pequeno; vale o `waiver.editedAt` mais novo). Separados para preencher um
+  campo não regravar megabytes pela rede; só se grava o arquivo em que este
+  lado tem novidade (`localMaisNovo`). Toda escrita com `comSegundaChance`.
+  O poll olha os três arquivos; a ficha aberta (`dialog.nb-dlg`) não segura o
+  poll — ela se redesenha quando a NCR muda por fora (`aposMudancaExterna`).
+- **Proteção**: antes de cada importação, retrato em `ncrmeta:antes-importacao`
+  (+ cópia em `historico-ncr/` com a pasta ligada). Desfazer/restaurar
+  (`Ncrs.restaurar`) regrava com carimbos **posteriores** aos atuais — senão
+  a pasta traria de volta o que se desfez — e não apaga as NCRs que entraram.
+- O **backup de tudo** leva `ncrBase`; abrir um backup junta o banco NCR pelas
+  regras da pasta. Versões antigas ignoram a chave nova.
+
 ### Aba Resumo (`summary.js`)
 Gráficos em **SVG escrito à mão** — sem biblioteca, imprimem em vetor e
 funcionam de `file://`. Paleta validada para daltonismo. Filtros (tipo,
@@ -965,6 +1061,12 @@ permissão da pasta entre sessões.
   do J08 — o que ninguém faz —, e com isso o painel parecia funcionar e a
   coluna parecia certa. O histórico termina no marco do próprio relatório; o
   futuro está nas datas de validade.
+- **Dois `function` com o mesmo nome no mesmo arquivo: vale o segundo, sem
+  aviso.** O `pasta.js` tinha `carimbo()` (a última leitura, exportada) e
+  `carimbo(d)` (o nome datado do histórico); o segundo apagava o primeiro, e
+  `Pasta.carimbo()` quebraria se chamado. O segundo virou `carimboDeNome`.
+- **Não versione dados de NCR.** O repositório é **público**. O JSON de
+  correlação, exports e históricos ficam na pasta da equipe.
 - **O service worker é rede-primeiro, de propósito.** Cache-primeiro traria de
   volta o problema de HTML novo com JS velho que o `?v=<sha>` existe para
   evitar. O `sw.js` também é carimbado na publicação: sem mudar de conteúdo,
@@ -1072,3 +1174,12 @@ desta máquina às vezes bloqueia `github.io`.
 | Cada computador anota só o que ele escreveu | anotar o que chega dos outros duplicaria cada linha em cada máquina |
 | Restaurar um texto é uma edição nova, com hora nova | só assim ele vale também no computador dos outros, em vez de voltar apagado |
 | Permissão da pasta pedida no primeiro clique, por 2 minutos | é o único jeito de atender à regra do gesto sem deixar o aviso esperando um clique no lugar certo |
+| Banco NCR no armazém `snapshots`, sem subir o IndexedDB | a versão anterior do programa continua abrindo o mesmo navegador; relatórios intocados |
+| Só SBR4 no banco NCR, por enquanto | pedido do Bruno; `Ncrs.SBR_ALVO` |
+| Observation em campo próprio, fora do PDF, separado da nota | pedido do Bruno: a nota é recado de pendência; a observation é o texto da NCR |
+| Marco Atual casa com relatório só se igual | `J06 Ind`/`J06Cer` podem não ser o `J06`; a ficha oferece escolher à mão |
+| Correlação só completa o vazio | reimportar não desfaz correção manual |
+| Vínculo lido dos relatórios, não gravado à parte | não dessincroniza; os relatórios antigos já aparecem vinculados |
+| Editar na tabela do Banco NCR não redesenha a tabela | a rolagem voltava ao topo e a linha sumia do filtro no meio da edição |
+| Exportação do Banco NCR leva o que está à vista, com "Recorte" | pedido do Bruno; mesma regra da aba Tabela |
+| JSON de correlação fora do Git | repositório público, dado do programa |

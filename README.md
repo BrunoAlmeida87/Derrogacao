@@ -8,6 +8,12 @@ login e nenhum dado sai do computador.
 
 ## O que faz
 
+- **Aba Banco NCR.** As NCRs do **SBR4** importadas do banco NCR (o mesmo
+  export que o NCR Control lê), com **Marco Original**, **Marco Atual**,
+  **Função Vital** e **Observação** preenchidos aqui, o **fluxo de cada NCR**
+  desenhado como no NCR Control e o botão que leva a NCR ao relatório de
+  Waiver do marco. Ver [Aba Banco NCR](#aba-banco-ncr).
+
 - **Duas abas: NCR e DEV.** As duas categorias seguem o mesmo layout e são
   preenchidas ao mesmo tempo, cada uma com o seu marco, e **exportadas como
   dois PDFs independentes**. As diferenças da DEV, conforme o relatório
@@ -592,6 +598,125 @@ interessam.
 > O Excel sai com o que está **à vista**: as colunas escolhidas, o recorte dos
 > filtros e a ordem da tela. Para o total, limpe os filtros antes.
 
+## Aba Banco NCR
+
+Uma tabela das **NCRs do SBR4**, trazidas do banco NCR, para acompanhar e
+correlacionar cada uma com os relatórios de Waiver. Ela não substitui nada: os
+relatórios continuam onde estavam e **nenhuma importação do banco NCR os
+altera**.
+
+### Duas partes em cada NCR
+
+| Parte | O que tem | Quem escreve |
+| --- | --- | --- |
+| **Dados do banco NCR** | número, título, descrição, status, sistema, datas, responsável e **todas** as colunas do export | a importação — substituídos a cada nova foto do banco |
+| **Dados do Waiver** | Marco Original, Marco Atual, Função Vital, Waiver Historic, Observação e o registro de cada vez que a NCR foi levada a um relatório | você, aqui — **nenhuma importação apaga ou sobrescreve** |
+
+A NCR é identificada pelo **número** (`NCR-ICN-ESC-14-0832-2025`), normalizado
+como o NCR Control faz (maiúsculas, sem espaços). É o que o banco, a planilha
+de correlação e os relatórios têm em comum.
+
+### A tela
+
+- **A tabela é a página inteira** e mostra **todas** as NCRs, rolando para
+  baixo; o cabeçalho fica grudado no alto. A barra lateral vira um trilho
+  estreito, só com as abas.
+- **Barra de cima** (sempre à vista): busca em qualquer campo, **● Destacar
+  fechadas** (pinta de vermelho as NCRs com status *Closed*, *CEDOC
+  Closure*…), **Só abertas**, **Colunas…**, **Excel**, **CSV** e **Recolher
+  painel**.
+- **Painel recolhível**: as importações, os números do banco (que também
+  filtram, com um clique) e os **filtros de múltipla escolha** — Status,
+  Sistema, Marco Original, Marco Atual, Função Vital, Correlação, Waiver e
+  presença no último export. Marque quantas opções quiser em cada um; o
+  recorte ativo aparece numa faixa acima da tabela, com **Limpar**.
+- **Marco Original, Marco Atual e Função Vital** são escolhidos direto na
+  tabela. A célula mostra o valor; o clique abre a lista. **A tela não pula
+  para o topo** ao gravar, e a linha que deixou de atender ao filtro **fica à
+  vista, marcada em amarelo**, até você mudar o filtro — ela não some no meio
+  da edição.
+- As opções das listas vêm da aba *Possibilidades da Mascara* e podem ser
+  editadas em **Listas…**.
+- **Excel e CSV** saem com o que está à vista (colunas e filtro), e o Excel
+  leva uma aba **Recorte** dizendo qual filtro produziu a planilha.
+
+### A ficha da NCR
+
+Clicar no número abre a ficha, **quase na tela inteira**, com tudo por
+extenso:
+
+- **Dados do Waiver** (editáveis) e os **relatórios** em que a NCR está;
+- **Dados do banco NCR**, todas as colunas, com os campos que mudaram na
+  última importação em destaque;
+- **Fluxo da NCR — o mesmo desenho do NCR Control**, nas duas leituras:
+  **Trajetória** (um passo por linha, na ordem do tempo, com dias em cada
+  etapa, retornos e reincidências) e **Mapa do fluxo** (todas as etapas, as
+  percorridas e as não percorridas). Sai do histórico importado; sem histórico,
+  mostra só o status atual e diz isso.
+- o **histórico** completo, em tabela.
+
+### As três importações
+
+Todas terminam numa **tela de resumo**: quantas NCRs vieram, quantas são
+novas, quantas mudaram, quantas ficaram de fora e por quê, e a lista dos
+registros com problema.
+
+- **Importar / Atualizar Banco NCR** — o **export do Excel** (o mesmo arquivo
+  que vai para `imports/` do NCR Control; as colunas são reconhecidas pelo
+  cabeçalho) ou o **`ncr.json`** da pasta `BD/` do NCR Control. Só as NCRs do
+  **SBR4** entram: vale a coluna *SBR* do export e, se ela estiver vazia, o
+  número (`NCR-…-14-…` é o SBR4). NCR existente tem os dados do banco
+  atualizados; NCR nova é acrescentada; NCR que sumiu do export **fica**,
+  marcada como "fora do último export".
+- **Importar correlação** — o JSON de correlação ou a própria planilha (aba
+  *Correlação NCR*; a aba *Possibilidades da Mascara* alimenta as listas). Por
+  padrão **só completa o que está em branco**: reimportar não desfaz o que foi
+  corrigido à mão. NCR que ainda não está no banco fica guardada e entra
+  sozinha quando aparecer numa importação do banco.
+- **Importar histórico NCR** — o `historico.json` do NCR Control (serve como
+  está). Os eventos são associados pela NCR e só se acrescentam.
+
+O JSON de correlação tem dados do programa: guarde-o na pasta da equipe,
+**não no repositório** (que é público).
+
+### Proteção antes de cada importação
+
+O estado do banco NCR é guardado antes de qualquer importação. Na tela de
+resumo dá para **baixar essa cópia** ou **desfazer a importação**; o botão
+*Desfazer última importação* também fica no painel. Com a pasta da rede
+ligada, uma cópia vai para `historico-ncr\`. **Exportar backup** (e o
+*Salvar backup de tudo* do menu) leva os relatórios **e** o banco NCR num
+arquivo só; *Restaurar de um backup…* traz o banco NCR de volta.
+
+### Levar a NCR para o relatório de Waiver
+
+Quando o **Marco Atual** é igual ao marco de um relatório existente, a coluna
+*Waiver* mostra o botão **+ J09 Waiver**. Ele cria um item novo no relatório
+com:
+
+- **Description** ← a descrição do banco NCR;
+- **Observation** ← a Observação da NCR — campo próprio do item, **separado da
+  Observação interna (anotação)**, e que também **não sai no PDF**;
+- **Função**, **Sistema(s)** e **Waiver Historic** já preenchidos
+  (`09 - Coordinate damage control` vira `FV09 - COORDINATE DAMAGE CONTROL`).
+
+Se a NCR já estiver no relatório, nada é duplicado e aparece o aviso. A coluna
+*Waiver* mostra em quais relatórios a NCR está (`J06`, `J09`…); clicar abre o
+item. Os itens que já existiam nos relatórios são reconhecidos pelo número.
+**Mudar o Marco Atual não desfaz vínculos**: a NCR continua no relatório
+anterior e passa a oferecer também o do marco novo. Na ficha há
+*Adicionar a outro relatório…*, para escolher à mão (ex.: `J06 Ind`, que só
+casa com um relatório de marco igual).
+
+### Na pasta da rede
+
+O banco NCR vai para dois arquivos ao lado de `derrogacao-dados.json`:
+`derrogacao-ncr-banco.json` (os dados do banco; muda nas importações) e
+`derrogacao-ncr-waiver.json` (os campos do Waiver; pequeno, muda a cada campo
+preenchido). Vale a edição mais recente, NCR a NCR, e nada é apagado. Antes de
+juntar uma mudança de fora, a sua versão dos campos do Waiver é guardada em
+`historico-ncr\`.
+
 ## Conversa da equipe (aba opcional)
 
 Recados entre quem trabalha no mesmo marco, **sem servidor e sem nuvem**: a
@@ -1090,6 +1215,10 @@ assets/js/painel.js      o painel de um marco: o que está chegando nele
 assets/js/xlsx.js        gera a planilha .xlsx (sem biblioteca)
 assets/js/tabela.js      a aba Tabela: todos os itens, filtros e exportação
 assets/js/chat.js        a conversa da equipe, dentro da pasta da rede
+assets/js/xlsxler.js     LÊ planilhas .xlsx (o motor do NCR Control)
+assets/js/ncrs.js        banco NCR: importações, correlação, histórico, junção
+assets/js/ncrfluxo.js    o desenho do fluxo da NCR, igual ao do NCR Control
+assets/js/ncrview.js     aba Banco NCR: tabela, filtros e ficha
 assets/js/app.js         lógica do editor
 derrogacao.html          o programa inteiro num arquivo só (gerado)
 tools/build-standalone.py  gera a versão de arquivo único

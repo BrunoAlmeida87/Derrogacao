@@ -26,9 +26,10 @@
   var isFluxos = function () { return state.kind === 'fluxos'; };
   var isConversa = function () { return state.kind === 'conversa'; };
   var isTabela = function () { return state.kind === 'tabela'; };
+  var isBanco = function () { return state.kind === 'banco'; };
   /* Abas que tomam a tela inteira: não têm lista lateral nem formulário. */
   var telaCheia = function () {
-    return isResumo() || isFluxos() || isConversa() || isTabela();
+    return isResumo() || isFluxos() || isConversa() || isTabela() || isBanco();
   };
   /** Lista de itens da aba ativa — o vetor de verdade, para alterar. */
   var items = function () {
@@ -165,6 +166,7 @@
       if (isResumo()) renderSummary();
       if (isFluxos()) renderFluxos(true);
       if (isTabela()) renderTabela(true);
+      if (isBanco()) renderBanco(true);
     }).catch(markError);
   }
 
@@ -265,6 +267,7 @@
     if (isResumo()) renderSummary();
     if (isFluxos()) renderFluxos();
     if (isTabela()) renderTabela();
+    if (isBanco()) renderBanco();
     if (isConversa()) renderCanais();
     markSaved();
   }
@@ -296,12 +299,14 @@
     $('#sidebarFluxos').hidden = !isFluxos();
     $('#sidebarTabela').hidden = !isTabela();
     $('#sidebarConversa').hidden = !isConversa();
+    $('#sidebarBanco').hidden = !isBanco();
     $('#editorScroll').hidden = telaCheia();
     $('#editorScroll').setAttribute('aria-labelledby', isDev() ? 'tabDev' : 'tabNcr');
     $('#summaryScroll').hidden = !isResumo();
     $('#fluxosScroll').hidden = !isFluxos();
     $('#tabelaScroll').hidden = !isTabela();
     $('#conversaScroll').hidden = !isConversa();
+    $('#bancoScroll').hidden = !isBanco();
     $('#previewBtn').hidden = telaCheia();
     renderAoLado();     /* o item ao lado só existe onde há editor ao lado dele */
     if (telaCheia()) {
@@ -327,6 +332,7 @@
     if (isResumo()) { renderSummary(); return; }
     if (isFluxos()) { renderFluxos(); return; }
     if (isTabela()) { renderTabela(); return; }
+    if (isBanco()) { renderBanco(); return; }
     if (isConversa()) { abrirCanal(canalAberto); return; }
     renderNcrList();
     renderEditor();
@@ -1867,6 +1873,25 @@
    *   aceito continua aceito, e é justamente nele que se anota "conferir o
    *   certificado na próxima revisão". Daí o `data-livre`.
    */
+  /* A Observation é a Observação da NCR no Banco NCR, copiada quando a NCR
+     entra no relatório. Campo próprio, separado da anotação (decisão do
+     Bruno): a anotação é o recado de pendência; esta é o texto da NCR. Como
+     a anotação, não sai no PDF — o SECTIONS do report.js não a conhece — e
+     continua editável com o item travado. */
+  function cardDeObservation() {
+    var c = card('Observation — do Banco NCR', '#1d6b45');
+    c.classList.add('card--observation');
+    c.appendChild(el('div', 'hint nota-aviso',
+      'Interna: não entra no relatório em PDF. Recebe a Observação da NCR quando ela é ' +
+      'adicionada pelo Banco NCR; depois disso, o que se escreve aqui fica só neste item.'));
+    /* o rótulo fica: sem ele o campo não tem nome para o leitor de tela */
+    var campo = field('Texto da Observação da NCR', 'observation', { rows: 3 });
+    var ta = $('#f-observation', campo);
+    if (ta) ta.setAttribute('data-livre', '');
+    c.appendChild(campo);
+    return c;
+  }
+
   function cardDeAnotacao(ncr) {
     var c = card('Observação interna', '#E4A11B');
     c.classList.add('card--nota');
@@ -2110,10 +2135,14 @@
         prev.textContent = 'Título gerado: Waiver Request for ' + Report.ncrLabel(currentNcr(), state.kind);
       });
     });
+    if (!isDev()) idCard.appendChild(renderLigacaoBanco(ncr));
     host.appendChild(idCard);
 
     /* --- a anotação, antes do conteúdo do documento --- */
     host.appendChild(cardDeAnotacao(ncr));
+
+    /* --- a Observation que veio do Banco NCR: interna, como a anotação --- */
+    if (!isDev() || (ncr.observation || '').trim()) host.appendChild(cardDeObservation());
 
     /* --- seções textuais, na ordem e nas cores do relatório --- */
     var textCard = card('Conteúdo da derrogação');
@@ -4262,6 +4291,8 @@
     }
     var projects = all ? state.projects : [state.project];
     var data = Store.toBackup(projects);
+    /* o "backup de tudo" leva também o banco NCR — backup pela metade não é backup */
+    if (all) data.ncrBase = Ncrs.paraBackup();
     var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     var name = all
       ? 'WaiverRequest_TODOS_' + Report.timeStamp(true) + '.json'
@@ -4273,7 +4304,8 @@
     /* grava a autoria do backup nos projetos exportados */
     Promise.all(projects.map(function (p) { return Store.save(p); })).then(renderUser);
     lembrarPasta(name, all
-      ? 'Backup de tudo: ' + projects.length + ' relatório(s), NCR e DEV.'
+      ? 'Backup de tudo: ' + projects.length + ' relatório(s), NCR e DEV, e o banco NCR (' +
+        data.ncrBase.ncrs.length + ' NCRs).'
       : 'Backup apenas do relatório aberto.');
   }
 
@@ -4579,6 +4611,31 @@
       var raw, incoming;
       try {
         raw = JSON.parse(String(reader.result));
+      } catch (e) {
+        alert('Não foi possível ler o backup: o arquivo não é um JSON válido.');
+        return;
+      }
+      /* arquivos do banco NCR que não são backup: cada um tem o seu botão */
+      if (raw && raw.format === 'derrogacao-correlacao') {
+        alert('Este arquivo é uma correlação de NCRs.\n\nAbra a aba "Banco NCR" e use "Importar correlação".');
+        return;
+      }
+      if (raw && (raw.tipo === 'ncr' || raw.tipo === 'historico')) {
+        alert('Este arquivo é do NCR Control.\n\nAbra a aba "Banco NCR" e use ' +
+          (raw.tipo === 'ncr' ? '"Importar / Atualizar Banco NCR".' : '"Importar histórico NCR".'));
+        return;
+      }
+      /* banco NCR dentro do arquivo: junta pelas regras da pasta (vale o mais
+         recente, nada é apagado) */
+      var nb = raw && (raw.ncrBase || (raw.format === 'derrogacao-ncr-base' ? raw : null));
+      var juntouNcr = nb ? juntarBancoNcrDoArquivo(nb) : Promise.resolve(null);
+      if (raw && raw.format === 'derrogacao-ncr-base') {
+        juntouNcr.then(function (r) {
+          toast('Banco NCR do arquivo: ' + r.entraram + ' NCR(s) nova(s), ' + r.atualizados + ' atualizada(s).');
+        }).catch(function (e) { markError(e); alert('Falha ao ler o banco NCR do arquivo.'); });
+        return;
+      }
+      try {
         incoming = Store.fromBackup(raw);
       } catch (e) {
         alert('Não foi possível ler o backup: ' + e.message);
@@ -4642,6 +4699,428 @@
         .catch(function (e) { markError(e); alert('Falha ao ler os relatórios do arquivo.'); });
     };
     reader.readAsText(file);
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* banco NCR: aba, vínculo com os relatórios e importações                 */
+  /* ---------------------------------------------------------------------- */
+
+  /* O que a aba precisa do editor. A tela (ncrview.js) só desenha; gravar,
+     mexer nos relatórios e falar com a pasta passa por aqui. */
+  var ctxBanco = {
+    projects: function () { return state.projects; },
+    editar: function (rec, campo, valor) {
+      return Ncrs.editarWaiver(rec, campo, valor, Store.getUser())
+        .then(function () { agendarGravacaoPasta(); })
+        .catch(function (e) { markError(e); });
+    },
+    adicionar: function (rec, project) { return adicionarAoWaiver(rec, project); },
+    abrir: function (project, item) { abrirItemDoWaiver(project, item); },
+    importar: function (tipo) { importarNcr(tipo); },
+    backup: function () { exportBackup(true); },
+    desfazer: function () { desfazerImportacaoNcr(); },
+    infoDesfazer: function (cb) {
+      Store.ncrMetaGet('antes-importacao').then(function (reg) {
+        cb(reg && reg.snap ? reg.info + ' (' + shortDate(reg.at) + ')' : null);
+      });
+    },
+    listas: function () { abrirListas(); },
+    exportar: function (tipo, dados) { exportarBancoNcr(tipo, dados); }
+  };
+
+  function renderBanco(manterRolagem) {
+    var box = $('#bancoScroll');
+    var topo = box.scrollTop;
+    var buscando = document.activeElement && document.activeElement.id === 'nbBusca';
+    NcrView.render(box, ctxBanco);
+    box.scrollTop = manterRolagem ? topo : 0;
+    if (buscando) {
+      var b = $('#nbBusca');
+      if (b) { b.focus(); b.setSelectionRange(b.value.length, b.value.length); }
+    }
+  }
+
+  /**
+   * A planilha do Banco NCR: o que está à vista, com as colunas à vista, e a
+   * aba "Recorte" dizendo qual filtro produziu aquilo — a mesma regra da aba
+   * Tabela (planilha filtrada que não diz que é filtrada é lida como o total).
+   */
+  function exportarBancoNcr(tipo, d) {
+    var nome = 'BancoNCR_' + Ncrs.SBR_ALVO + '_' + new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    var recorte = [
+      ['Gerado em', new Date().toLocaleString('pt-BR')],
+      ['Gerado por', Store.getUser() || '(sem nome)'],
+      ['NCRs nesta planilha', d.linhas.length],
+      ['NCRs no banco', d.total],
+      ['Recorte', d.recorte || 'sem filtro — todas as NCRs do ' + Ncrs.SBR_ALVO],
+      ['Colunas', d.colunas.map(function (c) { return c.titulo; }).join(' · ')]
+    ];
+    if (tipo === 'csv') {
+      var linhas = [d.colunas.map(function (c) { return c.titulo; })].concat(d.linhas);
+      var csv = '\ufeff' + linhas.map(function (l) {
+        return l.map(SummaryView.csvCampo).join(';');
+      }).join('\r\n') + '\r\n\r\n' + recorte.map(function (l) {
+        return l.map(SummaryView.csvCampo).join(';');
+      }).join('\r\n');
+      download(new Blob([csv], { type: 'text/csv;charset=utf-8' }), nome + '.csv');
+      toast('CSV salvo em Downloads: ' + d.linhas.length + ' NCR(s).', 4000);
+      return;
+    }
+    try {
+      download(Xlsx.blob([
+        { nome: 'Banco NCR', colunas: d.colunas, linhas: d.linhas },
+        { nome: 'Recorte', colunas: [{ titulo: 'Campo', larg: 24 }, { titulo: 'Valor', larg: 80 }],
+          linhas: recorte, filtros: false }
+      ]), nome + '.xlsx');
+      toast('Planilha salva em Downloads: ' + d.linhas.length + ' NCR(s).', 4000);
+    } catch (e) {
+      markError(e);
+      toast('Não foi possível gerar a planilha.');
+    }
+  }
+
+  /**
+   * Leva a NCR para o relatório: cria um item novo com o número, a
+   * Description do banco NCR e a Observação como Observation. O item passa
+   * pelo mesmo registro de sessão e autoria de um item criado à mão — é
+   * isso que o faz chegar aos colegas pela pasta.
+   */
+  function adicionarAoWaiver(rec, project) {
+    var nome = (project.marco || project.name || 'sem marco') + ' Waiver';
+    if (Ncrs.vinculos(rec, [project]).length) {
+      toast('Esta NCR já está vinculada ao ' + nome + '.');
+      return Promise.resolve(false);
+    }
+    var item = Store.newNcr();
+    var dados = Ncrs.paraItemWaiver(rec);
+    Object.keys(dados).forEach(function (k) { item[k] = dados[k]; });
+    project.ncrs.push(item);
+    Store.logChange(project, SESSION_ID, 'ncr', item, 'criou');
+    return Store.save(project)
+      .then(function () { return Ncrs.registrarAdicao(rec, project, item, Store.getUser()); })
+      .then(function () {
+        refreshProjectSelect();
+        renderTabs();
+        renderSessionInfo();
+        agendarGravacaoPasta();
+        Log.ok('banco NCR', 'NCR levada ao relatório', { marco: project.marco || '' });
+        toast('NCR ' + rec.numero + ' adicionada ao ' + nome + '.');
+        return true;
+      })
+      .catch(function (e) {
+        markError(e);
+        alert('Não foi possível adicionar a NCR ao relatório.');
+        return false;
+      });
+  }
+
+  /** Abre o relatório e o item — usado pelas etiquetas da coluna Waiver. */
+  function abrirItemDoWaiver(project, item) {
+    var d = $('#ncrDialog');
+    if (d && d.open) d.close();
+    function ir() {
+      state.kind = 'ncr';
+      if (!state.project || state.project.id !== project.id) loadProject(project);
+      renderTabs();
+      renderNcrList();
+      selectNcr(item.id);
+      var li = $('.ncr-item[aria-current="true"]');
+      if (li && li.scrollIntoView) li.scrollIntoView({ block: 'nearest' });
+    }
+    flushSave().then(ir, ir);
+  }
+
+  /* No editor, a linha que liga o item à NCR do banco. */
+  function renderLigacaoBanco(item) {
+    var box = el('div', 'nb-ligacao');
+    var rec = (item.ncrKey && Ncrs.get(item.ncrKey)) || Ncrs.get(item.ncrId);
+    if (!rec) { box.hidden = true; return box; }
+    box.appendChild(el('span', 'nb-ligacao-rot', 'Banco NCR'));
+    var partes = [rec.fonte.status,
+      rec.waiver.marcoAtual ? 'Marco Atual ' + rec.waiver.marcoAtual : '',
+      rec.waiver.funcaoVital].filter(Boolean);
+    box.appendChild(el('span', 'nb-ligacao-txt', partes.join(' · ') || 'sem dados complementares'));
+    var b = el('button', 'btn btn--sm', 'Ver a ficha');
+    b.type = 'button';
+    b.addEventListener('click', function () {
+      flushSave().then(function () {
+        switchKind('banco');
+        NcrView.abrirFicha(rec.key);
+      });
+    });
+    box.appendChild(b);
+    return box;
+  }
+
+  /* --- importações ----------------------------------------------------------- */
+
+  var ncrImport = { tipo: '', substituir: false };
+
+  var NOMES_IMPORTACAO = {
+    banco: 'importar o banco NCR',
+    correlacao: 'importar a correlação',
+    historico: 'importar o histórico',
+    restaurar: 'restaurar o banco NCR de um backup'
+  };
+
+  function importarNcr(tipo) {
+    if (tipo === 'correlacao') {
+      $('#ncrCorrSubst').checked = false;
+      $('#ncrCorrDialog').showModal();
+      return;
+    }
+    escolherArquivoNcr(tipo);
+  }
+
+  function escolherArquivoNcr(tipo) {
+    ncrImport.tipo = tipo;
+    var inp = $('#ncrFileInput');
+    inp.accept = {
+      banco: '.xlsx,.xlsm,.json', correlacao: '.json,.xlsx,.xlsm', historico: '.json', restaurar: '.json'
+    }[tipo] || '';
+    inp.value = '';
+    inp.click();
+  }
+
+  function lerArquivoNcr(file) {
+    if (/\.xls[xm]$/i.test(file.name)) return XlsxLer.ler(file);
+    if (/\.xls$/i.test(file.name)) return Promise.reject(new Error('o formato .xls antigo não é lido. Salve a planilha como .xlsx.'));
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onerror = function () { reject(fr.error || new Error('falha ao ler o arquivo.')); };
+      fr.onload = function () {
+        try { resolve(JSON.parse(String(fr.result))); }
+        catch (e) { reject(new Error('o arquivo não é um JSON válido.')); }
+      };
+      fr.readAsText(file);
+    });
+  }
+
+  /**
+   * Proteção antes de qualquer importação: guarda o banco NCR como estava
+   * (para "Desfazer") e, com a pasta ligada, deixa uma cópia em
+   * historico-ncr\. Os relatórios de Waiver não entram: nenhuma importação
+   * do banco NCR os altera.
+   */
+  function guardarAntesDaImportacao(snap, tipo, arquivo) {
+    var reg = {
+      id: 'antes-importacao', at: Store.nowIso(),
+      info: (NOMES_IMPORTACAO[tipo] || tipo) + (arquivo ? ' (' + arquivo + ')' : ''),
+      snap: snap
+    };
+    var pasta = (Pasta.ligada() && pastaEstado === 'on')
+      ? Pasta.guardarCopia(copiaDoBancoNcr(snap), (Store.getUser() || 'sem-nome') + '-antes-' + tipo, 20)
+      : Promise.resolve(false);
+    return Promise.all([Store.ncrMetaPut(reg), pasta]).then(function (r) { return r[1]; });
+  }
+
+  function copiaDoBancoNcr(snap) {
+    return {
+      format: 'derrogacao-ncr-base', schema: 1,
+      exportedAt: Store.nowIso(), exportedBy: Store.getUser(),
+      ncrs: snap.ncrs, meta: snap.meta
+    };
+  }
+
+  function processarArquivoNcr(file) {
+    var tipo = ncrImport.tipo;
+    var quem = Store.getUser();
+    toast('Lendo ' + file.name + '…');
+    lerArquivoNcr(file).then(function (dados) {
+      var nb = null;
+      if (tipo === 'restaurar') {
+        nb = dados && (dados.ncrBase || (dados.format === 'derrogacao-ncr-base' ? dados : null));
+        if (!nb || !Array.isArray(nb.ncrs)) {
+          throw new Error('este arquivo não traz o banco NCR. Use um "backup de tudo" feito a partir desta versão, ' +
+            'ou uma cópia da pasta historico-ncr.');
+        }
+        if (!confirm('Restaurar os dados de ' + nb.ncrs.length + ' NCR(s) a partir deste backup?\n\n' +
+          '• Os valores do backup voltam a valer (inclusive os campos do Waiver).\n' +
+          '• NCRs que não estão no backup ficam como estão — nada é apagado.\n' +
+          '• Os relatórios de Waiver não são afetados.\n' +
+          '• O estado atual é guardado antes, para poder desfazer.')) return null;
+      }
+      /* o retrato é tirado antes de tocar em qualquer coisa; só é gravado se
+         o arquivo for aceito, para um arquivo errado não apagar o "desfazer"
+         da importação anterior */
+      var snap = Ncrs.retrato();
+      var r;
+      if (tipo === 'banco') r = Ncrs.importarBase(dados, file.name, quem);
+      else if (tipo === 'correlacao') {
+        r = Ncrs.importarCorrelacao(Ncrs.lerCorrelacao(dados), file.name, quem, { substituir: ncrImport.substituir });
+      } else if (tipo === 'historico') r = Ncrs.importarHistorico(dados, file.name, quem);
+      else {
+        var x = Ncrs.restaurar(nb, quem);
+        r = {
+          alterados: x.alterados,
+          resumo: { titulo: 'Banco NCR restaurado', arquivo: file.name,
+            numeros: [['NCRs restauradas', x.voltaram, true]], grupos: [], erros: [], avisos: [] }
+        };
+      }
+      return guardarAntesDaImportacao(snap, tipo, file.name).then(function (copia) {
+        if (copia) r.resumo.avisos.push('Cópia de antes da importação guardada na pasta: ' + copia);
+        return Promise.all([Ncrs.salvar(r.alterados), Ncrs.salvarMeta()]);
+      }).then(function () { return r; });
+    }).then(function (r) {
+      if (!r) return;
+      Log.ok('banco NCR', r.resumo.titulo, { numeros: r.resumo.numeros.length, alteradas: r.alterados.length });
+      agendarGravacaoPasta();
+      renderTabs();
+      if (isBanco()) renderBanco(true);
+      mostrarResumoImportacao(r.resumo);
+    }).catch(function (e) {
+      /* arquivo recusado é situação normal: quem usa recebe o aviso abaixo */
+      console.warn('Importação do banco NCR recusada:', e);
+      /* se algo parou no meio, volta ao que está gravado */
+      Ncrs.carregar().then(function () { if (isBanco()) renderBanco(true); });
+      alert('Não foi possível ' + (NOMES_IMPORTACAO[tipo] || 'importar') + ': ' + ((e && e.message) || e));
+    });
+  }
+
+  /** A tela de resumo, comum às três importações. */
+  function mostrarResumoImportacao(res) {
+    var dlg = $('#ncrResumoDialog');
+    var body = $('#ncrResumoBody');
+    body.innerHTML = '';
+    $('#ncrResumoTitulo').textContent = res.titulo;
+    $('#ncrResumoArquivo').textContent = res.arquivo ? 'Arquivo: ' + res.arquivo : '';
+
+    var nums = el('dl', 'nb-res-nums');
+    res.numeros.forEach(function (n) {
+      var dt = el('dt', null, n[0]);
+      var dd = el('dd', n[2] ? 'is-destaque' : '', String(n[1]));
+      if (/^Erros$/.test(n[0]) && n[1]) dd.className = 'is-erro';
+      nums.appendChild(dt);
+      nums.appendChild(dd);
+    });
+    body.appendChild(nums);
+
+    (res.avisos || []).forEach(function (a) { body.appendChild(el('p', 'nb-res-aviso', a)); });
+
+    var grupos = (res.erros && res.erros.length)
+      ? [{ titulo: 'Registros com erro', itens: res.erros, erro: true }].concat(res.grupos)
+      : res.grupos;
+    grupos.forEach(function (g) {
+      var det = document.createElement('details');
+      det.className = 'nb-res-grupo' + (g.erro ? ' is-erro' : '');
+      if (g.erro) det.open = true;
+      var sum = document.createElement('summary');
+      sum.textContent = g.titulo + ' (' + g.itens.length + ')';
+      det.appendChild(sum);
+      if (g.explica) det.appendChild(el('p', 'nb-mini', g.explica));
+      var ul = el('ul');
+      g.itens.slice(0, 400).forEach(function (t) { ul.appendChild(el('li', null, t)); });
+      if (g.itens.length > 400) ul.appendChild(el('li', 'nb-mini', '… e mais ' + (g.itens.length - 400) + ' (use "Copiar lista").'));
+      det.appendChild(ul);
+      var cp = el('button', 'btn btn--sm', 'Copiar lista');
+      cp.type = 'button';
+      cp.addEventListener('click', function () {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(g.itens.join('\n'))
+            .then(function () { toast('Lista copiada.'); })
+            .catch(function () { toast('Não foi possível copiar.'); });
+        }
+      });
+      det.appendChild(cp);
+      body.appendChild(det);
+    });
+    dlg.showModal();
+  }
+
+  function baixarCopiaDeAntes() {
+    Store.ncrMetaGet('antes-importacao').then(function (reg) {
+      if (!reg || !reg.snap) { toast('Não há cópia de antes da importação.'); return; }
+      var blob = new Blob([JSON.stringify(copiaDoBancoNcr(reg.snap))], { type: 'application/json' });
+      download(blob, 'BancoNCR_antes-da-importacao_' + Report.timeStamp(true) + '.json');
+    });
+  }
+
+  function desfazerImportacaoNcr() {
+    Store.ncrMetaGet('antes-importacao').then(function (reg) {
+      if (!reg || !reg.snap) { toast('Não há importação para desfazer.'); return; }
+      if (!confirm('Desfazer: ' + reg.info + ', de ' + shortDate(reg.at) + '?\n\n' +
+        'Os dados das NCRs voltam ao que eram antes. NCRs que entraram nessa importação ' +
+        'continuam no banco (nada é apagado). Os relatórios de Waiver não são afetados.')) return;
+      var x = Ncrs.restaurar(reg.snap, Store.getUser());
+      return Promise.all([
+        Ncrs.salvar(x.alterados), Ncrs.salvarMeta(),
+        Store.ncrMetaPut({ id: 'antes-importacao', at: '', info: '', snap: null })
+      ]).then(function () {
+        $('#ncrResumoDialog').close();
+        agendarGravacaoPasta();
+        if (isBanco()) renderBanco(true);
+        toast('Importação desfeita: ' + x.voltaram + ' NCR(s) de volta ao estado anterior.');
+      });
+    }).catch(function (e) { markError(e); alert('Não foi possível desfazer.'); });
+  }
+
+  /* --- listas dos dropdowns ---------------------------------------------------- */
+
+  function abrirListas() {
+    var l = Ncrs.listas();
+    $('#ncrListaMarcos').value = l.marcos.join('\n');
+    $('#ncrListaFuncoes').value = l.funcoes.join('\n');
+    $('#ncrListasDialog').showModal();
+  }
+
+  function salvarListas() {
+    var linhas = function (id) { return $(id).value.split('\n'); };
+    Ncrs.setListas(linhas('#ncrListaMarcos'), linhas('#ncrListaFuncoes'), Store.getUser()).then(function () {
+      $('#ncrListasDialog').close();
+      agendarGravacaoPasta();
+      if (isBanco()) renderBanco(true);
+      toast('Listas salvas.');
+    }).catch(markError);
+  }
+
+  /* --- banco NCR na pasta compartilhada ---------------------------------------- */
+
+  /**
+   * Mesma ideia dos relatórios — ler, juntar, gravar — com dois arquivos: o do
+   * banco (grande, muda nas importações) e o dos campos do Waiver (pequeno,
+   * muda a cada campo preenchido). Só grava o que este lado tem de novo.
+   */
+  function sincronizarNcrs() {
+    var quem = Store.getUser();
+    return Promise.all([
+      Pasta.lerArquivo(Pasta.ARQ_NCR_BANCO),
+      Pasta.lerArquivo(Pasta.ARQ_NCR_WAIVER)
+    ]).then(function (r) {
+      var lista = Ncrs.lista();
+      var temBanco = lista.some(function (x) { return x.fonte.importadoEm || x.historico.length; });
+      var temWaiver = lista.some(function (x) { return x.waiver.editedAt; }) ||
+        !!Ncrs.listas().editedAt || Object.keys(Ncrs.meta().pendentes).length > 0;
+      /* alguém gravou os campos do Waiver depois de mim: guarda os meus antes */
+      var antes = (r[1].dados && r[1].externo && temWaiver)
+        ? Pasta.guardarCopia(Ncrs.arquivoWaiver(quem), (quem || 'sem-nome') + '-antes-de-juntar', 40)
+        : Promise.resolve();
+      return antes.then(function () {
+        var rb = r[0].dados ? Ncrs.juntarBanco(r[0].dados)
+          : { entraram: 0, atualizados: 0, alterados: [], localMaisNovo: temBanco };
+        var rw = r[1].dados ? Ncrs.juntarWaiver(r[1].dados)
+          : { entraram: 0, atualizados: 0, alterados: [], localMaisNovo: temWaiver };
+        var alterados = rb.alterados.concat(rw.alterados);
+        var passos = [];
+        if (alterados.length || rw.atualizados) passos.push(Ncrs.salvar(alterados), Ncrs.salvarMeta());
+        if (rb.localMaisNovo) passos.push(Pasta.gravarArquivo(Pasta.ARQ_NCR_BANCO, Ncrs.arquivoBanco(quem)));
+        if (rw.localMaisNovo) passos.push(Pasta.gravarArquivo(Pasta.ARQ_NCR_WAIVER, Ncrs.arquivoWaiver(quem)));
+        return Promise.all(passos).then(function () {
+          return { entraram: rb.entraram + rw.entraram, atualizados: rb.atualizados + rw.atualizados };
+        });
+      });
+    });
+  }
+
+  /** Banco NCR que veio dentro de um arquivo aberto à mão: junta, sem apagar nada. */
+  function juntarBancoNcrDoArquivo(nb) {
+    var r = Ncrs.juntarBackup(nb);
+    if (!r.alterados.length) return Promise.resolve(r);
+    return Promise.all([Ncrs.salvar(r.alterados), Ncrs.salvarMeta()]).then(function () {
+      agendarGravacaoPasta();
+      renderTabs();
+      if (isBanco()) renderBanco(true);
+      return r;
+    });
   }
 
   /* ---------------------------------------------------------------------- */
@@ -5142,6 +5621,19 @@
           });
       })
       .then(function (resumo) {
+        /* o banco NCR vem em arquivos próprios; uma falha nele não pode
+           impedir a sincronização dos relatórios */
+        return sincronizarNcrs().then(function (rn) {
+          if (resumo) resumo.ncr = rn;
+          return resumo;
+        }, function (e) {
+          Log.aviso('banco NCR', 'não consegui sincronizar o banco NCR com a pasta',
+            Pasta.explicar(e) + ' Os relatórios sincronizaram normalmente; o banco NCR tenta de novo na próxima rodada.',
+            { erro: e && e.name });
+          return resumo;
+        });
+      })
+      .then(function (resumo) {
         pastaEstado = 'on';
         ultimoSucesso = Date.now();
         /* salva localmente o que veio, para funcionar mesmo sem a pasta */
@@ -5192,6 +5684,18 @@
     guardarMudancas(resumo);
     var mudou = resumo && (resumo.entraram || resumo.atualizados || resumo.removidos ||
                            resumo.novosRelatorios || resumo.relatoriosRemovidos);
+    var rn = resumo && resumo.ncr;
+    if (rn && (rn.entraram || rn.atualizados)) {
+      if (isBanco()) renderBanco(true);
+      var ficha = NcrView.aposMudancaExterna();
+      if (ficha) {
+        toast('A NCR ' + ficha.numero + ' foi atualizada por ' + (ficha.waiver.editedBy || 'outra pessoa') +
+          '. A ficha já mostra a versão nova.');
+      } else if (!mudou && !opts.silencioso) {
+        toast('Da pasta: banco NCR — ' + (rn.entraram ? rn.entraram + ' NCR(s) nova(s)' : '') +
+          (rn.entraram && rn.atualizados ? ', ' : '') + (rn.atualizados ? rn.atualizados + ' atualizada(s)' : '') + '.');
+      }
+    }
     /* alguém excluiu o último relatório: o programa nunca fica sem nenhum */
     if (!state.projects.length) {
       var vazio = Store.newProject('');
@@ -5223,6 +5727,7 @@
     if (isResumo()) renderSummary();
     if (isFluxos()) renderFluxos(true);
     if (isTabela()) renderTabela(true);
+    if (isBanco()) renderBanco(true);
 
     if (!telaCheia()) {
       var agora = currentNcr();
@@ -5263,10 +5768,16 @@
   function pollPasta() {
     if (!Pasta.ligada() || pastaEstado !== 'on' || sincronizando) return;
     if (Date.now() - ultimaTecla < 4000) return;   /* não mexe enquanto digita */
-    if (document.querySelector('dialog[open]')) return;
+    /* com um diálogo de decisão aberto, espera; a ficha da NCR não conta —
+       ela sabe se redesenhar quando o que mostra muda por fora */
+    if (document.querySelector('dialog[open]:not(.nb-dlg)')) return;
     if (!$('#preview').hidden) return;
-    Pasta.mudouLaFora().then(function (mudou) {
-      if (mudou) sincronizar({ semRedesenhar: true });
+    Promise.all([
+      Pasta.mudouLaFora(),
+      Pasta.mudouArquivo(Pasta.ARQ_NCR_BANCO),
+      Pasta.mudouArquivo(Pasta.ARQ_NCR_WAIVER)
+    ]).then(function (r) {
+      if (r[0] || r[1] || r[2]) sincronizar({ semRedesenhar: true });
     });
   }
 
@@ -5806,6 +6317,27 @@
       });
     });
 
+    /* banco NCR */
+    $('#ncrFileInput').addEventListener('change', function () {
+      if (this.files && this.files[0]) processarArquivoNcr(this.files[0]);
+      this.value = '';
+    });
+    $('#ncrCorrCancelBtn').addEventListener('click', function () { $('#ncrCorrDialog').close(); });
+    $('#ncrCorrGoBtn').addEventListener('click', function () {
+      ncrImport.substituir = $('#ncrCorrSubst').checked;
+      $('#ncrCorrDialog').close();
+      escolherArquivoNcr('correlacao');
+    });
+    $('#ncrResumoCloseBtn').addEventListener('click', function () { $('#ncrResumoDialog').close(); });
+    $('#ncrResumoUndoBtn').addEventListener('click', desfazerImportacaoNcr);
+    $('#ncrResumoCopyBtn').addEventListener('click', baixarCopiaDeAntes);
+    $('#ncrListasCancelBtn').addEventListener('click', function () { $('#ncrListasDialog').close(); });
+    $('#ncrListasSaveBtn').addEventListener('click', salvarListas);
+    $('#ncrListasPadraoBtn').addEventListener('click', function () {
+      $('#ncrListaMarcos').value = Ncrs.LISTAS_PADRAO.marcos.join('\n');
+      $('#ncrListaFuncoes').value = Ncrs.LISTAS_PADRAO.funcoes.join('\n');
+    });
+
     $('#settingsBtn').addEventListener('click', openSettings);
     $('#settingsCloseBtn').addEventListener('click', function () { $('#settingsDialog').close(); });
     $('#copyNcrBtn').addEventListener('click', openCopyDialog);
@@ -6095,7 +6627,14 @@
     refreshUndo();
     renderVersion();
     var abrindo = Log.etapa('abertura', 'lendo o que está guardado neste navegador');
-    Store.list().then(function (list) {
+    /* o banco NCR primeiro, para a aba já nascer certa; se ele falhar, os
+       relatórios abrem do mesmo jeito */
+    Ncrs.carregar().then(function (n) {
+      if (n) Log.detalhe('abertura', 'banco NCR carregado', { ncrs: n });
+    }, function (e) {
+      Log.aviso('abertura', 'não consegui ler o banco NCR deste navegador',
+        'os relatórios abrem normalmente; a aba Banco NCR fica vazia até recarregar.', { erro: e && e.name });
+    }).then(function () { return Store.list(); }).then(function (list) {
       state.projects = list;
       if (!list.length) {
         var p = Store.newProject('');

@@ -105,6 +105,8 @@
       certificates: [],
       evidence: [],
       nota: '',              // anotação interna livre; NÃO sai no PDF (§4)
+      observation: '',       // Observação vinda do banco NCR; interna, NÃO sai no PDF
+      ncrKey: '',            // chave da NCR do banco à qual o item foi vinculado
       herdadoDe: '',         // marco de onde este item foi trazido (§5, herdar.js)
       herdadoEm: '',         // quando foi trazido — ISO
       status: STATUS_PADRAO, // acompanhamento do item; fecha a linha da capa
@@ -174,6 +176,7 @@
   var CAMPOS_ITEM = ['id', 'ncrId', 'systems', 'func', 'description', 'currentSituation',
     'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
     'approvedExpiry', 'historic', 'certificates', 'evidence', 'nota',
+    'observation', 'ncrKey',
     'herdadoDe', 'herdadoEm', 'status', 'done',
     'editedBy', 'editedAt', 'syncBase'];
   var CAMPOS_PROJETO = ['id', 'schema', 'name', 'marco', 'marcoDev', 'lastEditedBy',
@@ -246,6 +249,8 @@
       certificates: certs,
       evidence: Array.isArray(raw.evidence) ? raw.evidence.map(normalizeEvidence) : [],
       nota: str(raw.nota),
+      observation: str(raw.observation),
+      ncrKey: str(raw.ncrKey),
       herdadoDe: str(raw.herdadoDe),
       herdadoEm: str(raw.herdadoEm),
       status: status,
@@ -383,7 +388,10 @@
        esta lista serve a duas coisas que ela precisa: a busca (procurar pelo
        motivo da pendência tem de achar o item) e o "o que mudou" da faixa de
        mesclagem. Quem manda no PDF é o SECTIONS do report.js, não esta lista. */
-    ['nota', 'Observação interna']
+    ['nota', 'Observação interna'],
+    /* Veio da Observação da NCR, no Banco NCR. Interna como a anotação, e
+       pelo mesmo motivo está aqui e fora do SECTIONS do report.js. */
+    ['observation', 'Observation (banco NCR)']
   ];
 
   function resumoEvidencia(item) {
@@ -430,7 +438,8 @@
      um item que ninguém montou. Elas seguem o item inteiro, como antes. */
   var CAMPOS_MESCLA = ['ncrId', 'systems', 'func', 'description', 'currentSituation',
     'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
-    'approvedExpiry', 'historic', 'nota', 'herdadoDe', 'certificates', 'status'];
+    'approvedExpiry', 'historic', 'nota', 'observation', 'ncrKey', 'herdadoDe',
+    'certificates', 'status'];
 
   function rotuloCampo(campo) {
     var achado = '';
@@ -1329,6 +1338,113 @@
     }).catch(function () { /* sem retrato: nada a limpar */ });
   }
 
+  /* --- banco de NCRs ------------------------------------------------------
+     Mora no armazém "snapshots", como a base da mesclagem, e pelo mesmo
+     motivo: criar prateleira nova obrigaria a subir a versão do IndexedDB, e a
+     versão anterior do programa deixaria de abrir o mesmo navegador (§10).
+     Uma linha por NCR (id "ncr:<chave>"), para editar um campo não regravar
+     o banco inteiro; e as linhas "ncrmeta:<nome>" para listas e retratos.
+     Nenhuma importação do banco NCR passa perto do armazém "projects". */
+
+  var NCR_PREFIXO = 'ncr:';
+  var NCR_META_PREFIXO = 'ncrmeta:';
+  var LS_NCRS = 'derrogacao:ncrs';
+  var LS_NCR_META = 'derrogacao:ncrmeta';
+
+  function lsLer(chave, padrao) {
+    try {
+      var raw = global.localStorage.getItem(chave);
+      return raw ? JSON.parse(raw) : padrao;
+    } catch (e) { return padrao; }
+  }
+
+  function lsGravar(chave, valor) {
+    try { global.localStorage.setItem(chave, JSON.stringify(valor)); return true; }
+    catch (e) {
+      Log.aviso('armazenamento', 'sem espaço no armazenamento de reserva para o banco NCR',
+        'o banco NCR continua na memória desta aba; use a pasta da rede ou faça um backup.',
+        { erro: e && e.name });
+      return false;
+    }
+  }
+
+  function ncrAll() {
+    if (!useIdb) return Promise.resolve(lsLer(LS_NCRS, []));
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var faixa = global.IDBKeyRange.bound(NCR_PREFIXO, NCR_PREFIXO + '\uffff');
+        var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).getAll(faixa);
+        req.onsuccess = function () {
+          resolve((req.result || []).map(function (r) { delete r.id; return r; }));
+        };
+        req.onerror = function () { reject(req.error); };
+      });
+    }).catch(function (e) { fallback(e); return lsLer(LS_NCRS, []); });
+  }
+
+  /** Grava várias NCRs numa transação só. Não apaga nenhuma. */
+  function ncrPutMany(recs) {
+    recs = (recs || []).filter(function (r) { return r && r.key; });
+    if (!recs.length) return Promise.resolve(0);
+    var copias = JSON.parse(JSON.stringify(recs));
+    function reserva() {
+      var todas = {};
+      lsLer(LS_NCRS, []).forEach(function (r) { if (r && r.key) todas[r.key] = r; });
+      copias.forEach(function (r) { todas[r.key] = r; });
+      lsGravar(LS_NCRS, Object.keys(todas).map(function (k) { return todas[k]; }));
+      return copias.length;
+    }
+    if (!useIdb) return Promise.resolve(reserva());
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(SNAP_STORE, 'readwrite');
+        var st = tx.objectStore(SNAP_STORE);
+        copias.forEach(function (r) { r.id = NCR_PREFIXO + r.key; st.put(r); });
+        tx.oncomplete = function () { resolve(copias.length); };
+        tx.onerror = function () { reject(tx.error); };
+        tx.onabort = function () { reject(tx.error || new Error('Gravação abortada')); };
+      });
+    }).catch(function (e) { fallback(e); return reserva(); });
+  }
+
+  function ncrMetaGet(nome) {
+    if (!useIdb) return Promise.resolve(lsLer(LS_NCR_META, {})[nome] || null);
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).get(NCR_META_PREFIXO + nome);
+        req.onsuccess = function () {
+          var r = req.result || null;
+          if (r) { r.id = nome; }
+          resolve(r);
+        };
+        req.onerror = function () { reject(req.error); };
+      });
+    }).catch(function (e) { fallback(e); return lsLer(LS_NCR_META, {})[nome] || null; });
+  }
+
+  /** Grava um registro de meta; `obj.id` é o nome (meta, antes-importacao…). */
+  function ncrMetaPut(obj) {
+    var copia = JSON.parse(JSON.stringify(obj));
+    var nome = copia.id;
+    function reserva() {
+      var tudo = lsLer(LS_NCR_META, {});
+      tudo[nome] = copia;
+      lsGravar(LS_NCR_META, tudo);
+      return copia;
+    }
+    if (!useIdb) return Promise.resolve(reserva());
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(SNAP_STORE, 'readwrite');
+        var reg = JSON.parse(JSON.stringify(copia));
+        reg.id = NCR_META_PREFIXO + nome;
+        tx.objectStore(SNAP_STORE).put(reg);
+        tx.oncomplete = function () { resolve(copia); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    }).catch(function (e) { fallback(e); return reserva(); });
+  }
+
   /* --- localStorage (reserva) ------------------------------------------- */
 
   function lsAll() {
@@ -1468,6 +1584,10 @@
     getHandle: getHandle,
     clearHandle: clearHandle,
     saveSnapshot: saveSnapshot,
+    ncrAll: ncrAll,
+    ncrPutMany: ncrPutMany,
+    ncrMetaGet: ncrMetaGet,
+    ncrMetaPut: ncrMetaPut,
     getSnapshot: getSnapshot,
     clearSnapshot: clearSnapshot,
     saveBase: saveBase,

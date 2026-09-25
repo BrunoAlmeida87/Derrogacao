@@ -64,6 +64,7 @@
       .then(function (h) {
         handle = h;
         ultimaLeitura = 0;
+        leituras = {};
         return Store.putHandle(h).then(function () { return h; });
       });
   }
@@ -74,6 +75,7 @@
     return Store.getHandle().then(function (h) {
       handle = h || null;
       ultimaLeitura = 0;
+      leituras = {};
       return handle;
     });
   }
@@ -81,6 +83,7 @@
   function esquecer() {
     handle = null;
     ultimaLeitura = 0;
+    leituras = {};
     return Store.clearHandle();
   }
 
@@ -451,7 +454,10 @@
 
   /* --- histórico automático ------------------------------------------------ */
 
-  function carimbo(d) {
+  /* Nome do arquivo datado. Chamava-se `carimbo`, o mesmo nome da função lá
+     de cima que devolve a última leitura — e a segunda declaração apagava a
+     primeira, deixando `Pasta.carimbo()` sem argumento a quebrar. */
+  function carimboDeNome(d) {
     var p = function (n) { return String(n).padStart(2, '0'); };
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
       '_' + p(d.getHours()) + 'h' + p(d.getMinutes());
@@ -464,7 +470,7 @@
    */
   function versionar(payload, quem) {
     if (!handle) return Promise.resolve(false);
-    var nomeArq = carimbo(new Date()) + '_' +
+    var nomeArq = carimboDeNome(new Date()) + '_' +
       ((quem || 'sem-nome').replace(/[^\w\-]+/g, '-').toLowerCase()) + '.json';
     return comSegundaChance(function () {
       return handle.getDirectoryHandle(HISTORICO, { create: true })
@@ -548,7 +554,113 @@
       .then(function (t) { return JSON.parse(t); });
   }
 
+  /* --- o banco NCR na pasta ------------------------------------------------
+     Dois arquivos ao lado dos dados, pelo motivo da conversa e do diário: o
+     derrogacao-dados.json é reescrito e versionado a cada gravação, e o banco
+     NCR não tem por que engordar aquilo. Separados entre si porque um é
+     grande e muda nas importações (o banco) e o outro é pequeno e muda a
+     cada campo preenchido (os campos do Waiver). Cada um guarda a sua marca
+     de "última leitura", para o poll saber se mudou lá fora. */
+
+  var ARQ_NCR_BANCO = 'derrogacao-ncr-banco.json';
+  var ARQ_NCR_WAIVER = 'derrogacao-ncr-waiver.json';
+  var HISTORICO_NCR = 'historico-ncr';
+  var leituras = {};
+
+  function lerArquivo(nomeArq) {
+    if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
+    return comSegundaChance(function () {
+      return handle.getFileHandle(nomeArq)
+        .then(function (fh) { return fh.getFile(); })
+        .then(function (file) {
+          return file.text().then(function (txt) {
+            var externo = (leituras[nomeArq] || 0) > 0 && file.lastModified > leituras[nomeArq];
+            leituras[nomeArq] = file.lastModified;
+            return { dados: txt ? JSON.parse(txt) : null, lastModified: file.lastModified, externo: externo };
+          });
+        });
+    }, nomeArq).catch(function (e) {
+      /* ainda não existe: ninguém importou o banco NCR com a pasta ligada */
+      if (e && (e.name === 'NotFoundError' || e.name === 'NotFound')) return { dados: null, lastModified: 0, externo: false };
+      throw e;
+    });
+  }
+
+  function gravarArquivo(nomeArq, payload) {
+    if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
+    var texto = JSON.stringify(payload);
+    return comSegundaChance(function () {
+      return handle.getFileHandle(nomeArq, { create: true })
+        .then(function (fh) {
+          return fh.createWritable().then(function (w) {
+            return w.write(texto).then(function () { return w.close(); });
+          }).then(function () { return fh.getFile(); });
+        });
+    }, nomeArq).then(function (file) {
+      leituras[nomeArq] = file.lastModified;
+      Log.detalhe('pasta', 'gravado ' + nomeArq, { bytes: texto.length });
+      return true;
+    });
+  }
+
+  function mudouArquivo(nomeArq) {
+    if (!handle) return Promise.resolve(false);
+    return handle.getFileHandle(nomeArq)
+      .then(function (fh) { return fh.getFile(); })
+      .then(function (file) { return file.lastModified > (leituras[nomeArq] || 0); })
+      .catch(function () { return false; });
+  }
+
+  /** Cópia datada em historico-ncr/ (antes de importar, antes de juntar), guardando as últimas `max`. */
+  function guardarCopia(payload, rotulo, max) {
+    if (!handle) return Promise.resolve(false);
+    var nomeArq = carimboDeNome(new Date()) + '_' +
+      ((rotulo || 'copia').replace(/[^\w\-]+/g, '-').toLowerCase()) + '.json';
+    return comSegundaChance(function () {
+      return handle.getDirectoryHandle(HISTORICO_NCR, { create: true })
+        .then(function (dir) {
+          return dir.getFileHandle(nomeArq, { create: true })
+            .then(function (fh) { return fh.createWritable(); })
+            .then(function (w) { return w.write(JSON.stringify(payload)).then(function () { return w.close(); }); })
+            .then(function () { return podarCopias(dir, max || 20); });
+        });
+    }, HISTORICO_NCR + '/' + nomeArq)
+      .then(function () { return HISTORICO_NCR + '/' + nomeArq; })
+      .catch(function (e) {
+        /* cópia é desejável, não essencial: nunca derruba a importação */
+        Log.aviso('pasta', 'não consegui guardar a cópia do banco NCR em ' + HISTORICO_NCR + '/',
+          explicar(e), { erro: e && e.name });
+        return false;
+      });
+  }
+
+  function podarCopias(dir, max) {
+    var nomes = [];
+    var it = dir.keys();
+    function proximo() {
+      return it.next().then(function (r) {
+        if (r.done) return nomes;
+        if (/\.json$/i.test(r.value)) nomes.push(r.value);
+        return proximo();
+      });
+    }
+    return proximo().then(function (lista) {
+      if (lista.length <= max) return;
+      lista.sort();
+      return Promise.all(lista.slice(0, lista.length - max).map(function (n) {
+        return dir.removeEntry(n).catch(function () { /* alguém já removeu */ });
+      }));
+    });
+  }
+
   global.Pasta = {
+    lerArquivo: lerArquivo,
+    gravarArquivo: gravarArquivo,
+    mudouArquivo: mudouArquivo,
+    guardarCopia: guardarCopia,
+    ARQ_NCR_BANCO: ARQ_NCR_BANCO,
+    ARQ_NCR_WAIVER: ARQ_NCR_WAIVER,
+    HISTORICO_NCR: HISTORICO_NCR,
     suportado: suportado,
     ligada: ligada,
     nome: nome,
