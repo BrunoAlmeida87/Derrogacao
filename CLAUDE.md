@@ -874,7 +874,12 @@ Deduplicado pela chave da NCR.
 - **Sem `overflow` no quadro**: o cabeçalho de cada coluna gruda na rolagem
   da aba (§6).
 - O marco escolhido e os filtros não são guardados: abre no marco do
-  relatório aberto.
+  relatório aberto (sem o "Ind", se os Ind estiverem escondidos).
+- **Marcos "Ind" (industriais) ficam fora** — decisão do Bruno: têm pouca
+  relevância. Escondidos do seletor por padrão (botão "Marcos industriais"),
+  e nunca somados ao marco sem Ind. Cuidado: `Fluxo.marco("J09 Ind")` é o
+  J09 (ignora o Ind), então a porta "a caminho" confere o **texto** do
+  Expiry (`ehInd`) — senão um waiver até "J09 Ind" cairia no quadro do J09.
 - Não há PDF do Kanban.
 
 A **Tabela**, o **Banco NCR** e o **Kanban** usam o trilho estreito na
@@ -1247,5 +1252,7 @@ desta máquina às vezes bloqueia `github.io`.
 | Aviso de NCR fechada com waiver pendente, só na tela | pedido do Bruno; *Waiver accepted* não avisa. O PDF é sagrado (§2) |
 | Colunas do Banco NCR reordenáveis, chave nova para o padrão novo | o padrão da imagem do Bruno tinha de valer para quem já tinha escolha gravada |
 | Kanban por marco, marco pelo texto igual | mesma regra do Banco NCR (`J09 Ind` ≠ `J09`) |
+| Kanban esconde os marcos "Ind" e nunca os soma ao marco sem Ind | decisão do Bruno: o marco industrial tem pouca relevância |
+| Primeira coluna do Kanban é "NCR to be closed" | pedido do Bruno: NCR do marco fora do Waiver dele precisa ser fechada |
 | Arrastar no Kanban muda a situação; sair de "aceito" confirma | é o gesto natural de um quadro; a confirmação protege a trava do item aceito |
 

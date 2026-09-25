@@ -613,7 +613,10 @@ fila, cada uma com quantas NCRs tem) e veja cada NCR num cartão.
 | **Em preenchimento · Waiver requested · Improve justification · Waiver accepted** | os itens NCR do relatório do marco, pela situação |
 
 - O marco casa com o relatório pelo **texto igual**, a mesma regra do Banco
-  NCR: *J09 Ind* tem quadro próprio.
+  NCR: **nada de *J09 Ind* entra no quadro do J09** — nem a NCR com Marco
+  Atual *J09 Ind*, nem o item cujo waiver vale até *J09 Ind*. Os marcos
+  industriais (*Ind*) nem aparecem no seletor, a não ser que você ligue
+  **Marcos industriais (Ind)**.
 - O cartão mostra o número, o **status da NCR no banco** (vermelho quando
   fechada), a função vital, o começo da descrição, o caminho
   (`J06 → J08 → (J10)`), os bigramas e quem mexeu por último. NCR fechada com

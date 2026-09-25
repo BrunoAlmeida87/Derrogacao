@@ -15829,7 +15829,8 @@ if(isWorker){
     marco: '',          // o marco escolhido (texto, como está no relatório)
     busca: '',
     soAlertas: false,
-    caminho: true       // mostrar os que vêm de outros marcos
+    caminho: true,      // mostrar os que vêm de outros marcos
+    ind: false          // mostrar os marcos industriais ("J09 Ind")
   };
   var ctx = null;
   var host = null;
@@ -15854,10 +15855,18 @@ if(isWorker){
   }
   function marcoRel(p) { return p.marco || p.name || ''; }
 
+  /* "J09 Ind" é o marco industrial: para o Bruno, de pouca relevância. Ele
+     nunca entra no quadro do J09 (o marco casa pelo texto igual) e o seletor
+     só o oferece quando pedido. */
+  function ehInd(t) { return /\bind\b/i.test(str(t)); }
+
   /* --- quem está em cada marco -------------------------------------------- */
 
   /** Os marcos que têm quadro: relatórios com NCR e Marco Atual do banco. */
   function marcos(projects) {
+    return marcos.todos(projects).filter(function (m) { return st.ind || !ehInd(m); });
+  }
+  marcos.todos = function (projects) {
     var vistos = {};
     var out = [];
     function add(t) {
@@ -15869,7 +15878,7 @@ if(isWorker){
     projects.forEach(function (p) { if (p.marco) add(p.marco); });
     Ncrs.lista().forEach(function (r) { if (r.waiver.marcoAtual) add(r.waiver.marcoAtual); });
     return out.sort(Fluxo.cmpMarco);
-  }
+  };
 
   /** A NCR do banco que é este item (pelo vínculo gravado ou pelo número). */
   function recDoItem(item) {
@@ -15909,6 +15918,8 @@ if(isWorker){
         (p.ncrs || []).forEach(function (it) {
           var av = Herdar.avanco(p, it, 'ncr', projects);
           if (!av.destino || !Fluxo.mesmoMarco(av.destino, alvo)) return;
+          /* Fluxo.marco não distingue "J09 Ind" de "J09": quem decide é o texto */
+          if (ehInd(av.aprovado ? it.approvedExpiry : it.requestExpiry) !== ehInd(marco)) return;
           if (av.estado !== 'aLevar' && av.estado !== 'semRelatorio') return;
           var rec = recDoItem(it);
           var chave = rec ? rec.key : Ncrs.chave(it.ncrId);
@@ -15966,7 +15977,9 @@ if(isWorker){
     var lista = marcos(projects);
     var achou = lista.some(function (m) { return Ncrs.marcoChave(m) === Ncrs.marcoChave(st.marco); });
     if (!achou) {
-      var inicial = ctx.marcoInicial();
+      /* o relatório aberto é um "Ind" escondido: abre no marco dele sem o Ind */
+      var semInd = function (t) { return str(t).replace(/\s*\bind\b/i, ''); };
+      var inicial = st.marco ? semInd(st.marco) : (st.ind ? ctx.marcoInicial() : semInd(ctx.marcoInicial()));
       st.marco = lista.filter(function (m) { return Ncrs.marcoChave(m) === Ncrs.marcoChave(inicial); })[0] || lista[0] || '';
     }
 
@@ -16030,6 +16043,15 @@ if(isWorker){
       'Itens de outros relatórios cujo waiver vale até este marco (Approved Expiry, ou Request Expiry) e ainda não foram levados');
     bc.setAttribute('aria-pressed', st.caminho ? 'true' : 'false');
     ferr.appendChild(bc);
+
+    var nInd = marcos.todos(projects).filter(ehInd).length;
+    if (nInd) {
+      var bi = botao('Marcos industriais (Ind)', 'btn--sm kb-toggle' + (st.ind ? ' is-on' : ''),
+        function () { st.ind = !st.ind; render(host, ctx); },
+        (st.ind ? 'Esconder' : 'Mostrar') + ' os ' + nInd + ' marcos "Ind" no seletor. Eles nunca entram no quadro do marco sem "Ind".');
+      bi.setAttribute('aria-pressed', st.ind ? 'true' : 'false');
+      ferr.appendChild(bi);
+    }
     cab.appendChild(ferr);
 
     /* os marcos, na fila combinada, como as pastilhas da aba Tabela */
