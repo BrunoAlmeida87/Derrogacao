@@ -72,6 +72,10 @@
     return b;
   }
   function str(v) { return v == null ? '' : String(v); }
+  /* Modo leitura (o visualizador): mostra tudo, não oferece nada que grave —
+     importar, listas, escolher marco/função, escrever na ficha, adicionar
+     ao relatório. */
+  function leitura() { return !!(ctx && ctx.leitura); }
   function curto(t, n) {
     t = str(t).replace(/\s+/g, ' ').trim();
     return t.length > n ? t.slice(0, n - 1) + '…' : t;
@@ -399,7 +403,7 @@
         if (!r.fonte.importadoEm) td.appendChild(el('span', 'nb2-mini', 'sem dados do banco'));
         else if (!r.fonte.presente) td.appendChild(el('span', 'nb2-mini', 'fora do último export'));
         if (fora) td.appendChild(el('span', 'nb2-mini nb2-fora', 'fora do filtro'));
-      } else if (c.editar) {
+      } else if (c.editar && !leitura()) {
         td.appendChild(celulaEditavel(r, c.campo, c.editar));
       } else if (c.especial) {
         celulaWaiver(td, l);
@@ -530,7 +534,7 @@
     } else {
       box.appendChild(el('span', 'nb2-mini', 'Não vinculada'));
     }
-    if (l.pronta) {
+    if (l.pronta && !leitura()) {
       box.appendChild(botao('+ ' + nomeRel(l.relAtual), 'btn--sm btn--primary nb2-add', function () {
         ctx.adicionar(l.rec, l.relAtual).then(function () {
           st.fixadas[l.rec.key] = true;
@@ -632,6 +636,14 @@
 
   function acoes() {
     var box = el('div', 'nb2-acoes');
+    if (leitura()) {
+      /* no visualizador só a data do banco interessa: de quando é o retrato */
+      var u = Ncrs.meta().importacoes.filter(function (i) { return i.tipo === 'banco'; }).slice(-1)[0];
+      box.appendChild(el('span', 'nb2-ultima', u
+        ? 'Banco atualizado em ' + Ncrs.data(u.em) + (u.por ? ' por ' + u.por : '')
+        : 'O banco NCR não veio nesta publicação.'));
+      return box;
+    }
     var g1 = el('div', 'nb2-grupo');
     g1.appendChild(el('span', 'nb2-grupo-rot', 'Importar'));
     g1.appendChild(botao('Importar / Atualizar Banco NCR', 'btn--sm btn--primary', function () { ctx.importar('banco'); },
@@ -671,6 +683,12 @@
 
   function vazio() {
     var c = el('div', 'nb2-vazio');
+    if (leitura()) {
+      c.appendChild(el('h3', null, 'O banco NCR não veio nesta publicação'));
+      c.appendChild(el('p', 'nb2-mini', 'Quem publica é o editor: o banco NCR entra na próxima ' +
+        'publicação, depois de importado lá.'));
+      return c;
+    }
     c.appendChild(el('h3', null, 'Nenhuma NCR no banco ainda'));
     var ol = el('ol');
     [
@@ -1169,6 +1187,16 @@
     [['marcoOriginal', 'Marco Original', 'marcos'], ['marcoAtual', 'Marco Atual', 'marcos'],
      ['funcaoVital', 'Função Vital', 'funcoes']].forEach(function (d) {
       var fl = el('div', 'field');
+      if (leitura()) {
+        fl.appendChild(el('label', null, d[1]));
+        var so = el('input');
+        so.type = 'text';
+        so.readOnly = true;
+        so.value = rec.waiver[d[0]] || '—';
+        fl.appendChild(so);
+        g3.appendChild(fl);
+        return;
+      }
       var sel = seletor(rec, d[0], d[2], function () {
         atualizarLinha(rec.key);
         desenharFicha();
@@ -1208,7 +1236,9 @@
     sr.appendChild(lin);
     var rel = Ncrs.relatorioDoMarco(w.marcoAtual, projects);
     var ac = el('div', 'nb-ficha-acoes');
-    if (rel) {
+    if (leitura()) {
+      /* nada a adicionar daqui: a seção só mostra onde a NCR já está */
+    } else if (rel) {
       var ja = vinc.some(function (v) { return v.project.id === rel.id; });
       var b1 = botao(ja ? '✓ Já está no ' + nomeRel(rel) : 'Adicionar ao ' + nomeRel(rel), ja ? 'btn--sm' : 'btn--sm btn--primary', function () {
         ctx.adicionar(rec, rel).then(function () { atualizarLinha(rec.key); desenharFicha(); });
@@ -1221,7 +1251,7 @@
       ac.appendChild(el('span', 'nb2-mini', 'Escolha o Marco Atual para ver o relatório correspondente.'));
     }
     var outros = projects.filter(function (p) { return !rel || p.id !== rel.id; });
-    if (outros.length) {
+    if (outros.length && !leitura()) {
       var sel = el('select', 'nb2-sel');
       var o0 = el('option', null, 'Adicionar a outro relatório…');
       o0.value = '';
@@ -1355,7 +1385,12 @@
     ta.id = id;
     ta.rows = linhasN;
     ta.value = rec.waiver[campo];
-    ta.placeholder = 'ex.: ' + ph;
+    if (!leitura()) ta.placeholder = 'ex.: ' + ph;
+    if (leitura()) {
+      ta.readOnly = true;
+      fl.appendChild(ta);
+      return fl;
+    }
     var tm = null;
     ta.addEventListener('input', function () {
       clearTimeout(tm);

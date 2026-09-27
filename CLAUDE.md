@@ -22,6 +22,11 @@ do SBR4 importadas do banco NCR, com campos próprios do Waiver (marcos, funçã
 vital, observação), o fluxo de cada NCR desenhado como no NCR Control e o
 botão que leva a NCR ao relatório do marco (§5, "Banco NCR").
 
+O mesmo código gera **dois programas**: o **editor** (`derrogacao.html`) e o
+**visualizador** somente leitura (`derrogacao-visualizador.html`), para quem só
+acompanha — é o editor em modo leitura, alimentado pela publicação do editor
+(§5, "O visualizador").
+
 Publicado em **https://brunoalmeida87.github.io/Derrogacao/**, a partir da
 branch `main` (veja §8).
 
@@ -54,9 +59,12 @@ assets/css/app.css         estilos do editor
 assets/css/report.css      layout do relatório — tela e impressão A4
 assets/js/log.js           o diário do console: o que está acontecendo, e o
                            que fazer quando dá errado (carrega primeiro)
+assets/js/leitura.js       o modo leitura (o visualizador): liga e blinda
 assets/js/store.js         modelo, persistência, mesclagem, ordenação
 assets/js/revisoes.js      o diário: quem escreveu o quê, campo a campo
-assets/js/pasta.js         a pasta da rede como banco de dados (e as imagens)
+assets/js/pasta.js         a pasta da rede como banco de dados (e as imagens),
+                           e a pasta da publicação (`Pasta.publicacao`)
+assets/js/publicacao.js    o arquivo publicado para o visualizador
 assets/js/report.js        monta as páginas no padrão do PDF, e as pagina
 assets/js/fluxo.js         lê o Waiver Historic, desenha o caminho do waiver e
                            acha o mesmo item no relatório do marco anterior
@@ -75,13 +83,14 @@ assets/js/ncrview.js       aba Banco NCR: tabela, filtros, ficha
 assets/js/kanban.js        aba Kanban: as NCRs de um marco, por situação
 assets/js/app.js           o editor (o maior; ~3000 linhas)
 derrogacao.html            o programa inteiro num arquivo só — gerado, e versionado
-tools/build-standalone.py  gera (e confere) o derrogacao.html
+derrogacao-visualizador.html  o mesmo, em modo leitura — gerado, e versionado
+tools/build-standalone.py  gera (e confere) os dois arquivos únicos
 exemplos/                  .json prontos para importar
 .github/workflows/pages.yml  publicação
 ```
 
 Ordem de carga dos scripts (importa: cada um usa o anterior):
-`log.js → store.js → revisoes.js → pasta.js → xlsxler.js → ncrs.js →
+`log.js → leitura.js → store.js → revisoes.js → pasta.js → publicacao.js → xlsxler.js → ncrs.js →
 ncrfluxo.js → report.js → fluxo.js → herdar.js → summary.js → painel.js →
 xlsx.js → tabela.js → chat.js → lado.js → ncrview.js → kanban.js → app.js`.
 (`log.js` vem primeiro porque todo mundo o usa — e **por isso mesmo não usa
@@ -999,6 +1008,68 @@ papel — com `pastaEstado` em `erro` ou `permissao` ele vira alarme
 (`ultimoSucesso`) e **ignora o "Agora não"**: aquele botão cala o convite
 para escolher a pasta, nunca o alarme de que ela parou.
 
+### O visualizador: modo leitura (`leitura.js`) e publicação (`publicacao.js`)
+Pedido do Bruno: um HTML para quem **só visualiza** — status das derrogações,
+todas as informações e exportações —, numa pasta da rede. Não é outro
+programa: é **este**, gerado como `derrogacao-visualizador.html` com
+`<meta name="derrogacao-modo" content="leitura">` (ou `?modo=leitura` na URL,
+para conferir a versão multiarquivo). Assim toda aba e toda exportação nova do
+editor chega ao visualizador sem ninguém lembrar. (Houve uma primeira versão
+como programa separado, feita sobre uma base velha; foi refeita assim.)
+
+- **Nada grava.** `Leitura.blindar()` (chamada no início do `boot`) troca por
+  no-op tudo o que grava: `Store.save/remove/putHandle/saveSnapshot/ncrPutMany/
+  ncrMetaPut/saveBase…`, as gravações de `Pasta` (e `Pasta.ligada()` passa a
+  ser falso), `Revisoes/Chat.gravarLocais`. Por cima disso, os portões de
+  mudança no `app.js` recusam em leitura (`addNcr`, `deleteNcr`, `duplicarNcr`,
+  `moverNcr/moveNcr`, `levarAdiante`, `adicionarAoWaiver`, `mudarSituacaoDe`,
+  `importBackupFile`, `openCopyDialog`, `openSettings`, colar imagem, Ctrl+S),
+  `ctx.leitura` desliga a edição na `ncrview.js` e no `kanban.js`, e
+  `travarParaLeitura()` deixa o editor só leitura: campos `readOnly`, situação
+  desabilitada, botão que escreve some; ficam os marcados `data-mostra` (ver ao
+  lado, recolher, fluxo, ficha). O que é só do editor na página leva
+  `data-so-editor` no `index.html` e some por CSS (`body.modo-leitura`) — CSS,
+  e não `hidden`, porque o código do editor mexe no `hidden` desses elementos.
+  **Quem acrescentar uma função que grava ou um botão que escreve precisa
+  lembrar do modo leitura** — a blindagem pega o que for esquecido na tela,
+  mas só se a função estiver na lista dela.
+- **De onde vêm os dados**: de `file://` o Chrome/Edge bloqueia ler `.json`
+  (e a CSP tem `connect-src 'none'`), mas carrega `<script src>` de qualquer
+  pasta, inclusive por caminho absoluto (verificado no Chromium, com e sem
+  `--allow-file-access-from-files`, com espaço, acento e `#`). Então o editor
+  publica **`visualizador-dados.js`** (`window.DERROGACAO_VISUALIZADOR = {format:
+  'derrogacao-visualizacao', schema, publishedAt, publishedBy, projects,
+  ncrBase}`), e o visualizador o injeta com `?t=<agora>`. Ordem: pasta dos dados
+  por caminho (`localStorage derrogacao-visualizador:pastaDados`, senão o
+  `<meta name="derrogacao-pasta-dados">` que o gerador põe a partir de
+  `PASTA_DADOS_VISUALIZADOR` no `build-standalone.py` — **é ali que entra a pasta
+  definitiva quando o Bruno informar**) → ao lado → nada: tela com **um botão
+  só** ("Tentar de novo"). Releitura com dados à vista que falha → faixa
+  `#leituraAviso` com o botão. Arquivo aberto à mão é lido como texto
+  (`Publicacao.interpretar`), nunca executado. UNC (`file://servidor/…`) não
+  foi testável aqui (Linux): confirmar no Edge da empresa quando a pasta existir.
+- **Releitura** no Atualizar, ao voltar para a janela (>60 s) e a cada 5 min;
+  compara o conteúdo **bruto** (a normalização preenche carimbos com "agora").
+  Relatório, aba, item e a ordem escolhida ali sobrevivem. O banco NCR é
+  trocado inteiro, só na memória (`Ncrs.adotarBase`).
+- **O que vai** (`Publicacao.limpar`): relatórios com marco ou itens, todos os
+  itens, autoria, imagens **embutidas** (as que faltam na memória são lidas da
+  pasta com `hidratarImagens`, numa cópia) e o `Ncrs.paraBackup()`. **Não vão**:
+  `sessions`, `deleted`, `lastBackup*`, `syncBase` e a `nota` (a tela promete
+  que a anotação interna fica "só aqui e na pasta da equipe").
+- **Editor**: `⋯ Mais → 👁 Publicar para visualizadores`. Pasta própria
+  (`Pasta.publicacao`, crachá `'publicacao'` no store `handles`), Publicar
+  agora (sincroniza antes), Baixar o arquivo, **Publicar sozinho**
+  (`localStorage derrogacao:publicarAuto`; após `flushSave` e `sincronizar`,
+  no máximo a cada `Publicacao.INTERVALO_MS`, e só se `Publicacao.conteudo`
+  mudou — que ignora `updatedAt/lastEditedAt`, renovados a cada gravação).
+  Chip `#pubChip` quando a permissão cai.
+- **Conferido no navegador** (scripts fora do repositório, que não tem mais
+  suíte): o PDF do editor saiu idêntico, pixel a pixel, antes e depois da
+  mudança; o visualizador não deixa nenhum campo editável, não arrasta, não
+  grava no IndexedDB nem no localStorage de relatórios e não faz requisição
+  externa.
+
 ### Instalação e uso sem rede
 `manifest.webmanifest` + `sw.js`, registrados só em `https:` ou `localhost`
 (de `file://` a API nem existe, e o arquivo único não acompanha manifesto — o
@@ -1007,6 +1078,14 @@ fazer o Edge oferecer **Instalar**, que é o que faz o navegador guardar a
 permissão da pasta entre sessões.
 
 ## 6. Armadilhas já pagas — não repita
+
+- **O visualizador é este programa.** Botão novo que escreve, ou função nova
+  que grava, precisa do modo leitura: um `if (Leitura.ativo()) return` no
+  portão, `data-so-editor` no elemento, a função na lista de `blindar()`. E o
+  inverso: controle que só mostra, dentro do editor, leva `data-mostra`, senão
+  some no visualizador.
+- **"Somente leitura" não é controle de acesso.** Quem impede a edição é a
+  permissão da pasta na rede; diga isso sempre que o assunto voltar.
 
 - **Console limpo não é aprovação.** Um teste já reportou "nenhum erro"
   enquanto capturava páginas em branco. O console só conta o que o navegador
@@ -1145,7 +1224,9 @@ Mais de uma vez uma mudança de tela vazou para a impressão sem ninguém
 perceber — é o §2, "o PDF é sagrado", e agora ninguém confere isso por você.
 
 Abra também de `file://` e pelo `derrogacao.html`: são os dois caminhos que o
-Bruno usa e os que mais escapam.
+Bruno usa e os que mais escapam. E abra o `derrogacao-visualizador.html` com um
+`visualizador-dados.js` (⋯ Mais → Publicar → Baixar o arquivo): nenhum campo
+editável, nenhum botão que escreva, as abas e as exportações funcionando.
 
 ## 8. Publicação
 
@@ -1156,7 +1237,7 @@ Dois workflows:
 - `.github/workflows/pages.yml` — publica.
 
 `main` → workflow `.github/workflows/pages.yml`:
-gera `derrogacao.html`, carimba `?v=<sha>` nos assets, força tudo para a branch
+gera `derrogacao.html` e `derrogacao-visualizador.html`, carimba `?v=<sha>` nos assets, força tudo para a branch
 `gh-pages`. A API do token não consegue criar o site do Pages; por isso o
 espelho em branch, e não `actions/deploy-pages`.
 
@@ -1228,6 +1309,11 @@ desta máquina às vezes bloqueia `github.io`.
 | Toda exportação leva a aba "Recorte" | planilha filtrada que não diz que está filtrada é lida como se fosse o total |
 | Caminho do banco com valor de saída e chave própria | ninguém deveria precisar perguntar onde fica a pasta; e o caminho do backup é outro campo |
 | Mesclagem campo a campo, com base guardada, em vez de item inteiro | dois campos diferentes do mesmo item nunca foram conflito; tratá-los como se fossem era perder texto em silêncio |
+| Visualizador = o editor em modo leitura, não um programa à parte | escolhido com o Bruno: toda aba e exportação nova chega a ele sozinha; um programa separado ficaria para trás a cada melhoria |
+| Visualizador lê um `.js` publicado, por caminho ou ao lado | de `file://` o navegador bloqueia ler `.json`; `<script>` passa, sem clique e sem permissão |
+| Visualizador mostra NCR, DEV, Resumo, Fluxos, Tabela, Banco NCR e Kanban; sem Conversa | escolha do Bruno |
+| Publicação leva tudo, inclusive em preenchimento, e a autoria; não leva sessões, histórico do texto nem a anotação interna | decisão do Bruno (tudo e autoria); a anotação tem na tela a promessa de ficar na equipe |
+| Pasta dos dados do visualizador com padrão gravado no arquivo, e a informada na tela por cima | a pasta definitiva ainda não existe; quando existir, ninguém precisa configurar |
 | A base de mesclagem só avança depois da gravação dar certo | avançá-la antes faz a junção seguinte ler o meu trabalho como sendo do outro, e apagá-lo |
 | Duas bases (mesclagem e diário) na mesma prateleira do IndexedDB | criar prateleira nova obriga a subir a versão do banco, e a versão anterior do programa deixaria de abrir o mesmo navegador |
 | A base que vale é decidida pelo `baseadoEm` do arquivo, não pelo relógio do item | ser mais novo não é ter visto: só o carimbo do arquivo diz se a cópia que chegou partiu da minha gravação ou de antes dela |

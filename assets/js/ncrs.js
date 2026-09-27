@@ -980,6 +980,23 @@
     return { voltaram: n, alterados: alterados };
   }
 
+  /**
+   * Substitui o banco inteiro, em memória, pelo que veio de uma publicação.
+   * Só o visualizador (modo leitura) usa: ali o banco NCR não tem casa
+   * própria — ele é o retrato publicado pelo editor, e uma publicação nova
+   * troca o retrato inteiro. Não grava nada e não mexe em carimbo nenhum.
+   */
+  function adotarBase(nb) {
+    base = {};
+    ((nb && nb.ncrs) || []).forEach(function (x) {
+      var r = normalizarRec(x);
+      if (r.key) base[r.key] = r;
+    });
+    meta = normalizarMeta(nb && nb.meta);
+    mudou();
+    return lista().length;
+  }
+
   /** O banco inteiro, para ir dentro do backup. */
   function paraBackup() {
     return { format: 'derrogacao-ncr-base', schema: 1, ncrs: copia(lista()), meta: copia(meta) };
@@ -1216,6 +1233,7 @@
     retrato: retrato,
     restaurar: restaurar,
     paraBackup: paraBackup,
+    adotarBase: adotarBase,
     arquivoBanco: arquivoBanco,
     arquivoWaiver: arquivoWaiver,
     juntarBanco: juntarBanco,

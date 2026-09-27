@@ -1,7 +1,7 @@
-# O arquivo único (derrogacao.html) é conteúdo derivado do index.html e dos
-# assets, e está versionado. Sem esta conferência ele envelheceria em
-# silêncio: quem baixasse o repositório levaria uma versão antiga do
-# programa, achando que levava a de agora.
+# Os arquivos únicos (derrogacao.html e derrogacao-visualizador.html) são
+# conteúdo derivado do index.html e dos assets, e estão versionados. Sem esta
+# conferência eles envelheceriam em silêncio: quem baixasse o repositório
+# levaria uma versão antiga do programa, achando que levava a de agora.
 name: Conferir o arquivo único
 
 on:
@@ -15,5 +15,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: O derrogacao.html corresponde ao index.html e aos assets?
+      - name: Os arquivos únicos (editor e visualizador) correspondem ao index.html e aos assets?
         run: python3 tools/build-standalone.py --conferir

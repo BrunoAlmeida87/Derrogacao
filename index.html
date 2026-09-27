@@ -22,8 +22,10 @@
     <span class="brand-mark" aria-hidden="true">W</span>
     <span class="brand-text">
       <b>Waiver Request</b>
-      <small>gerador de relatórios de derrogação</small>
+      <small id="brandSub">gerador de relatórios de derrogação</small>
     </span>
+    <span class="leitura-selo" id="leituraSelo" hidden
+          title="Este é o visualizador: mostra e exporta, mas não altera nada dos relatórios">somente leitura</span>
   </div>
 
   <div class="topbar-group">
@@ -31,18 +33,27 @@
       <label for="projectSelect">Relatório</label>
       <select id="projectSelect"></select>
     </div>
-    <button class="btn btn--onDark" id="newProjectTopBtn" title="Criar um relatório para outro marco">+ Novo relatório</button>
+    <button data-so-editor class="btn btn--onDark" id="newProjectTopBtn" title="Criar um relatório para outro marco">+ Novo relatório</button>
   </div>
 
-  <div class="topbar-field topbar-field--grow">
+  <div data-so-editor class="topbar-field topbar-field--grow">
     <label for="marcoInput">Marco</label>
     <input type="text" id="marcoInput" placeholder="ex.: RANAE J06">
   </div>
 
   <div class="topbar-right">
-  <button class="pasta-chip" id="pastaChip" hidden data-estado="off">
+  <button data-so-editor class="pasta-chip" id="pastaChip" hidden data-estado="off">
     <span id="pastaChipLabel">📁</span>
   </button>
+  <button data-so-editor class="pasta-chip" id="pubChip" hidden data-estado="permissao"
+          title="A publicação automática para os visualizadores precisa da sua permissão para gravar na pasta deles. Clique aqui.">
+    👁 permitir publicação
+  </button>
+  <!-- só no visualizador: de quando são os dados, e reler -->
+  <button class="pasta-chip leitura-fonte" id="fonteChip" hidden data-estado="erro">
+    <span id="fonteChipLabel">📄 sem dados</span>
+  </button>
+  <button class="btn btn--onDark" id="atualizarBtn" hidden title="Ler de novo a publicação">⟳ Atualizar</button>
   <div class="topbar-actions">
     <button class="btn btn--onDark" id="previewBtn">Pré-visualizar</button>
     <button class="btn btn--go" id="pdfBtn">Exportar PDF…</button>
@@ -50,38 +61,41 @@
       <button class="btn btn--onDark btn--menu" id="menuBtn" aria-haspopup="true" aria-expanded="false" title="Mais ações: backup, abrir arquivo, ajustes">⋯ Mais</button>
       <div class="menu-pop" id="menuPop" hidden>
 
-        <div class="menu-title">Arquivos <small>trocar trabalho com outras pessoas</small></div>
-        <button class="menu-item menu-item--accent" id="backupAllBtn">
+        <div data-so-editor class="menu-title">Arquivos <small>trocar trabalho com outras pessoas</small></div>
+        <button data-so-editor class="menu-item menu-item--accent" id="backupAllBtn">
           ★ Salvar backup de tudo <small>todos os relatórios · use este no dia a dia</small>
         </button>
-        <button class="menu-item" id="pastaBtn" hidden>
+        <button data-so-editor class="menu-item" id="pastaBtn" hidden>
           🗄 Pasta da rede como banco de dados <small id="pastaBtnSub">ler e gravar direto numa pasta da rede</small>
         </button>
-        <button class="menu-item" id="restoreBtn">
+        <button data-so-editor class="menu-item" id="publicarBtn">
+          👁 Publicar para visualizadores <small id="publicarBtnSub">o arquivo que o visualizador (só leitura) lê</small>
+        </button>
+        <button data-so-editor class="menu-item" id="restoreBtn">
           Abrir arquivo… <small>recebe e mescla o trabalho de um colega</small>
         </button>
-        <button class="menu-item" id="backupBtn">
+        <button data-so-editor class="menu-item" id="backupBtn">
           Salvar só este relatório <small>apenas o marco aberto, para enviar a alguém</small>
         </button>
-        <a class="menu-item" id="standaloneLink" href="derrogacao.html" download hidden>
+        <a data-so-editor class="menu-item" id="standaloneLink" href="derrogacao.html" download hidden>
           ⤓ Baixar para usar sem internet <small>um arquivo só, abre com dois cliques</small>
         </a>
-        <button class="menu-item" id="undoMergeBtn" hidden>
+        <button data-so-editor class="menu-item" id="undoMergeBtn" hidden>
           ↩ Desfazer a última mesclagem <small id="undoMergeWhen"></small>
         </button>
 
-        <div class="menu-title">Relatório aberto <small id="menuMarco"></small></div>
-        <button class="menu-item menu-item--warn" id="mergeLocalBtn" hidden>
+        <div data-so-editor class="menu-title">Relatório aberto <small id="menuMarco"></small></div>
+        <button data-so-editor class="menu-item menu-item--warn" id="mergeLocalBtn" hidden>
           ⇄ Juntar com o outro relatório deste marco <small id="mergeLocalWho"></small>
         </button>
-        <button class="menu-item" id="sessionsBtn">
+        <button data-so-editor class="menu-item" id="sessionsBtn">
           Histórico de alterações <small>quem mexeu em quê, por sessão</small>
         </button>
-        <button class="menu-item" id="settingsBtn">
+        <button data-so-editor class="menu-item" id="settingsBtn">
           Ajustes de capa e rodapé <small>títulos, rodapé, marco da DEV</small>
         </button>
-        <div class="menu-sep"></div>
-        <button class="menu-item menu-item--danger" id="deleteProjectBtn">
+        <div data-so-editor class="menu-sep"></div>
+        <button data-so-editor class="menu-item menu-item--danger" id="deleteProjectBtn">
           Excluir este relatório
         </button>
 
@@ -91,7 +105,7 @@
         </button>
 
 
-        <button class="menu-foot" id="userBtn">
+        <button data-so-editor class="menu-foot" id="userBtn">
           <span class="menu-foot-who" id="userBtnLabel">Definir meu nome</span>
           <span class="menu-foot-act">trocar</span>
         </button>
@@ -100,14 +114,14 @@
     <input type="file" id="restoreInput" accept="application/json,.json" hidden>
   </div>
 
-  <div class="topbar-status">
+  <div data-so-editor class="topbar-status">
     <span id="saveState" data-state="saved" role="status" aria-live="polite" aria-atomic="true">salvo no navegador</span>
     <span id="editedBy" class="edited-by"></span>
   </div>
   </div>
 </header>
 
-<div class="notice notice--pasta" id="pastaNotice" role="status" aria-live="polite" hidden>
+<div data-so-editor class="notice notice--pasta" id="pastaNotice" role="status" aria-live="polite" hidden>
   <span id="pastaNoticeText"></span>
   <code class="notice-caminho" id="pastaNoticePath"></code>
   <button class="btn btn--sm btn--accent" id="pastaNoticeBtn">Escolher a pasta…</button>
@@ -115,7 +129,34 @@
   <button class="btn btn--sm btn--quiet" id="pastaNoticeDismiss">Agora não</button>
 </div>
 
-<div class="notice" id="backupNotice" role="status" aria-live="polite" hidden>
+<!-- só no visualizador: a releitura falhou e os dados à vista podem estar velhos -->
+<div class="notice notice--leitura" id="leituraAviso" role="status" aria-live="polite" hidden>
+  <span id="leituraAvisoTexto"></span>
+  <button class="btn btn--sm btn--accent" id="leituraAvisoBtn">⟳ Atualizar</button>
+</div>
+
+<!-- só no visualizador: nenhum dado lido ainda -->
+<div class="leitura-vazio" id="semDados" hidden>
+  <div class="editor-empty">
+    <p id="semDadosTitulo">Carregando os dados…</p>
+    <div id="semDadosCorpo" hidden>
+      <p id="semDadosTexto" class="leitura-vazio-txt"></p>
+      <div class="leitura-vazio-acoes">
+        <button class="btn btn--primary leitura-btn-grande" id="semDadosTentarBtn">⟳ Tentar de novo</button>
+      </div>
+      <details class="dlg-tips leitura-vazio-mais" id="semDadosMais">
+        <summary>Outras formas de abrir os dados</summary>
+        <div class="leitura-vazio-acoes">
+          <button class="btn btn--sm" id="semDadosConfigBtn">Informar a pasta dos dados…</button>
+          <button class="btn btn--sm" id="semDadosAbrirBtn">Abrir arquivo…</button>
+        </div>
+        <p class="hint">Também dá para arrastar o arquivo para esta janela.</p>
+      </details>
+    </div>
+  </div>
+</div>
+
+<div data-so-editor class="notice" id="backupNotice" role="status" aria-live="polite" hidden>
   <span id="backupNoticeText"></span>
   <button class="btn btn--sm btn--accent" id="backupNoticeBtn">★ Fazer backup total agora</button>
   <button class="btn btn--sm btn--quiet" id="backupNoticeDismiss">Depois</button>
@@ -158,7 +199,7 @@
               title="As NCRs de um marco em cartões, por situação do waiver">
         Kanban
       </button>
-      <button class="tab" role="tab" id="tabConversa" data-kind="conversa"
+      <button data-so-editor class="tab" role="tab" id="tabConversa" data-kind="conversa"
               aria-selected="false" aria-controls="conversaScroll" tabindex="-1" hidden
               title="Recados da equipe, pela pasta da rede">
         Conversa <span class="tab-ponto" id="conversaCount" hidden></span>
@@ -169,7 +210,7 @@
     <div class="sidebar-head">
       <div class="sidebar-head-row">
         <h2 id="sidebarTitle">NCRs</h2>
-        <div class="sidebar-head-actions">
+        <div data-so-editor class="sidebar-head-actions">
           <button class="btn btn--sm btn--primary" id="addNcrBtn">+ Nova NCR</button>
           <button class="btn btn--sm" id="dupNcrBtn" title="Criar uma cópia do item selecionado, para editar por cima">Duplicar</button>
           <button class="btn btn--sm" id="copyNcrBtn" title="Copiar NCRs de outro relatório">Copiar de…</button>
@@ -182,7 +223,7 @@
       <div class="ordem-row">
         <label for="ordemSelect">Ordem</label>
         <select id="ordemSelect"></select>
-        <button class="btn btn--sm" id="ordemFixarBtn" hidden
+        <button data-so-editor class="btn btn--sm" id="ordemFixarBtn" hidden
                 title="Grava esta ordem como a ordem manual, para poder ajustar arrastando">fixar</button>
       </div>
       <div class="progress-row">
@@ -191,7 +232,7 @@
           <input type="checkbox" id="pendingOnly"> esconder aceitos
         </label>
       </div>
-      <div class="session-info" id="sessionInfo" hidden>
+      <div data-so-editor class="session-info" id="sessionInfo" hidden>
         <span id="sessionCount"></span>
         <button class="btn btn--sm" id="sessionInfoBtn">ver</button>
       </div>
@@ -329,7 +370,7 @@
 
     <p class="pick-summary" id="pdfSummary"></p>
     <p class="dlg-folhas" id="pdfFolhas" hidden></p>
-    <div id="pdfGaps" class="dlg-gaps" hidden></div>
+    <div data-so-editor id="pdfGaps" class="dlg-gaps" hidden></div>
 
     <details class="dlg-tips">
       <summary>Ajustes na janela de impressão</summary>
@@ -679,15 +720,107 @@
   </div>
 </dialog>
 
+<!-- ====================== publicação para os visualizadores ====================== -->
+<dialog id="publicarDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>Publicar para visualizadores</h3>
+    <p>O <strong>visualizador</strong> é este mesmo programa em modo somente
+       leitura, num arquivo à parte (<code>derrogacao-visualizador.html</code>),
+       para quem precisa acompanhar as derrogações sem editar. Ele lê o arquivo
+       <code>visualizador-dados.js</code> — ao lado dele ou na pasta dos dados
+       informada nele. Publicar é gravar esse arquivo lá.</p>
+
+    <p class="pasta-estado" id="publicarEstado" data-estado="off"></p>
+
+    <div class="pasta-linha">
+      <span class="pasta-linha-rot">Pasta dos dados do visualizador</span>
+      <strong id="publicarPastaNome">—</strong>
+      <button class="btn btn--sm btn--primary" id="publicarEscolherBtn">Escolher a pasta…</button>
+      <button class="btn btn--sm btn--accent" id="publicarPermitirBtn" hidden>Permitir acesso</button>
+      <button class="btn btn--sm btn--danger" id="publicarDesligarBtn" hidden>Desligar</button>
+    </div>
+
+    <label class="pub-auto">
+      <input type="checkbox" id="publicarAuto">
+      <span><strong>Publicar sozinho</strong> — depois de cada gravação, no
+      máximo a cada 2 minutos e só se algo mudou. Sem isso, os visualizadores
+      só veem o que você publicar pelo botão.</span>
+    </label>
+
+    <p class="pub-visto" id="publicarVisto"></p>
+
+    <details class="dlg-tips">
+      <summary>Como montar o visualizador</summary>
+      <ol>
+        <li>Coloque numa pasta da rede o arquivo do visualizador,
+            <strong>derrogacao-visualizador.html</strong><span id="publicarBaixarVis"> —
+            <a href="derrogacao-visualizador.html" download>baixar o visualizador</a></span>.</li>
+        <li>Aqui, <em>Escolher a pasta…</em> apontando a pasta onde os dados vão
+            ficar (pode ser a mesma do visualizador, ou outra) e <em>Publicar
+            agora</em>. Sem Edge/Chrome, use <em>Baixar o arquivo</em> e copie-o
+            para lá à mão.</li>
+        <li>Se os dados ficarem noutra pasta, informe-a no visualizador
+            (etiqueta 📄 → <em>Pasta dos dados</em>) — ou peça para gravá-la
+            como padrão dentro do próprio arquivo.</li>
+        <li>As pessoas abrem o visualizador com dois cliques. Ele lê os dados
+            sozinho e confere de tempos em tempos se há publicação nova.</li>
+        <li>Quem garante que ninguém edita é a <strong>permissão da pasta na
+            rede</strong>: os visualizadores só com leitura, e sem acesso à pasta
+            do banco de dados.</li>
+      </ol>
+    </details>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="publicarBaixarBtn" title="Baixa o arquivo para você copiar à mão para a pasta dos visualizadores">Baixar o arquivo</button>
+    <button class="btn btn--accent" id="publicarAgoraBtn">Publicar agora</button>
+    <button class="btn btn--primary" id="publicarFecharBtn">Fechar</button>
+  </div>
+</dialog>
+
+<!-- ====================== visualizador: de onde vêm os dados ====================== -->
+<dialog id="fonteDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>Dados deste visualizador</h3>
+    <p class="pasta-estado" id="fonteEstado" data-estado="off"></p>
+    <dl class="leitura-fonte-dados" id="fonteDados"></dl>
+
+    <div class="leitura-caminho">
+      <label for="caminhoInput"><strong>Pasta dos dados</strong> — onde está o
+        <code>visualizador-dados.js</code> publicado pelo editor</label>
+      <div class="leitura-caminho-linha">
+        <input type="text" id="caminhoInput" placeholder="ex.: G:\DOP\GTO\...\Visualizador">
+        <button class="btn btn--sm btn--primary" id="caminhoSalvarBtn">Salvar e ler</button>
+      </div>
+      <p class="hint" id="caminhoPadrao"></p>
+      <button class="btn btn--sm" id="caminhoLimparBtn" hidden>Voltar ao padrão do arquivo</button>
+    </div>
+
+    <details class="dlg-tips">
+      <summary>Outras formas de abrir os dados</summary>
+      <p>Um arquivo publicado, o banco da pasta (<code>derrogacao-dados.json</code>)
+         ou um backup do editor. Vale até fechar a página e não se atualiza sozinho.
+         O arquivo é lido como texto — nada nele é executado.</p>
+      <button class="btn btn--sm" id="fonteAbrirBtn">Abrir arquivo…</button>
+    </details>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="fonteAtualizarBtn">⟳ Atualizar agora</button>
+    <button class="btn btn--primary" id="fonteFecharBtn">Fechar</button>
+  </div>
+</dialog>
+<input type="file" id="abrirDadosInput" accept=".js,.json,application/json,text/javascript" hidden>
+
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <!-- conteúdo montado apenas para impressão -->
 <div class="print-root" id="printRoot"></div>
 
 <script src="assets/js/log.js"></script>
+<script src="assets/js/leitura.js"></script>
 <script src="assets/js/store.js"></script>
 <script src="assets/js/revisoes.js"></script>
 <script src="assets/js/pasta.js"></script>
+<script src="assets/js/publicacao.js"></script>
 <script src="assets/js/xlsxler.js"></script>
 <script src="assets/js/ncrs.js"></script>
 <script src="assets/js/ncrfluxo.js"></script>

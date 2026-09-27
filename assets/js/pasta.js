@@ -653,7 +653,78 @@
     });
   }
 
+  /* --- a pasta dos visualizadores -------------------------------------------
+     Outra pasta, com crachá próprio: a do visualizador somente leitura, onde
+     o editor publica o `visualizador-dados.js`. Em geral quem só visualiza
+     nem enxerga a pasta do banco — por isso não é uma subpasta dela. Só
+     escreve um arquivo (e lê o começo dele, para dizer de quando é a
+     publicação que está lá); o resto da pasta não é da conta do programa. */
+
+  var publicacao = (function () {
+    var pub = null;
+    var CHAVE = 'publicacao';
+
+    function estado() {
+      if (!pub) return Promise.resolve('sem-pasta');
+      if (!pub.queryPermission) return Promise.resolve('granted');
+      return pub.queryPermission({ mode: 'readwrite' }).catch(function () { return 'prompt'; });
+    }
+    function pedir() {
+      if (!pub) return Promise.resolve('sem-pasta');
+      if (!pub.requestPermission) return Promise.resolve('granted');
+      return pub.requestPermission({ mode: 'readwrite' }).catch(function () { return 'denied'; });
+    }
+    function escolherPub() {
+      if (!suportado()) return Promise.reject(new Error('Este navegador não abre pastas. Use o Chrome ou o Edge.'));
+      return global.showDirectoryPicker({ mode: 'readwrite', id: 'derrogacao-publicacao' })
+        .then(function (h) {
+          pub = h;
+          return Store.putHandle(h, CHAVE).then(function () { return h; });
+        });
+    }
+    function retomarPub() {
+      if (!suportado()) return Promise.resolve(null);
+      return Store.getHandle(CHAVE).then(function (h) { pub = h || null; return pub; });
+    }
+    function esquecerPub() {
+      pub = null;
+      return Store.clearHandle(CHAVE);
+    }
+    /** Grava (substituindo) um arquivo de texto, com a segunda chance. */
+    function gravarTexto(nomeArq, texto) {
+      if (!pub) return Promise.reject(new Error('Nenhuma pasta de visualizadores escolhida.'));
+      return comSegundaChance(function () {
+        return pub.getFileHandle(nomeArq, { create: true })
+          .then(function (fh) { return fh.createWritable(); })
+          .then(function (w) { return w.write(texto).then(function () { return w.close(); }); });
+      }, nomeArq).then(function () {
+        Log.detalhe('publicação', 'gravado ' + nomeArq, { bytes: texto.length });
+        return true;
+      });
+    }
+    /** Só o começo do arquivo: basta para o cabeçalho, sem trazer as imagens pela rede. */
+    function inicio(nomeArq, bytes) {
+      if (!pub) return Promise.resolve(null);
+      return pub.getFileHandle(nomeArq)
+        .then(function (fh) { return fh.getFile(); })
+        .then(function (f) { return f.slice(0, bytes || 2048).text(); })
+        .catch(function () { return null; });
+    }
+    return {
+      ligada: function () { return !!pub; },
+      nome: function () { return pub ? pub.name : ''; },
+      estadoPermissao: estado,
+      pedirPermissao: pedir,
+      escolher: escolherPub,
+      retomar: retomarPub,
+      esquecer: esquecerPub,
+      gravarTexto: gravarTexto,
+      inicio: inicio
+    };
+  })();
+
   global.Pasta = {
+    publicacao: publicacao,
     lerArquivo: lerArquivo,
     gravarArquivo: gravarArquivo,
     mudouArquivo: mudouArquivo,

@@ -152,6 +152,7 @@
         itens: (state.project.ncrs || []).length + (state.project.devs || []).length
       });
       agendarGravacaoPasta();
+      agendarPublicacao();
       /* O diário também vale para quem trabalha sem a pasta — mas não a cada
          tecla: de minuto em minuto a escrita já virou um parágrafo. */
       if (Date.now() - ultimaCaptura > 60000) {
@@ -373,7 +374,7 @@
       },
       onCsv: exportarCsv,
       onPdf: exportarResumoPdf,
-      onBackup: function (project) {
+      onBackup: Leitura.ativo() ? null : function (project) {
         var antes = state.project;
         state.project = project;
         exportBackup(false);
@@ -1566,7 +1567,7 @@
 
       var li = el('li', 'ncr-item');
       li.tabIndex = 0;
-      li.draggable = true;
+      li.draggable = !Leitura.ativo();
       li.dataset.id = ncr.id;
       if (ncr.id === selectedId()) li.setAttribute('aria-current', 'true');
 
@@ -1696,6 +1697,7 @@
   /* Arrastar exige um gesto de ponteiro que nem todo mundo consegue fazer
      (WCAG 2.5.7). Os mesmos passos, com um clique só — e pelo teclado. */
   function moverNcr(id, passo) {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
     if (!state.project) return;
     if (state.project.ordem !== 'manual') fixarOrdem(true);
     var list = items();
@@ -1711,6 +1713,7 @@
   }
 
   function moveNcr(fromId, toId) {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
     /* Arrastar é um gesto manual: se havia uma ordenação automática, ela vira
        o ponto de partida da ordem manual, em vez de a arrastada ser desfeita
        no próximo desenho da tela. */
@@ -1763,6 +1766,7 @@
   }
 
   function addNcr() {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
     var ncr = Store.newNcr();
     items().push(ncr);
     touch(ncr, 'criou');
@@ -1776,6 +1780,7 @@
   }
 
   function deleteNcr() {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
     var ncr = currentNcr();
     if (!ncr) return;
     if (!confirm('Excluir a ' + kindName() + ' "' + (ncr.ncrId || 'sem número') + '" e todas as suas evidências?')) return;
@@ -1842,6 +1847,7 @@
 
   /** Cópia do item selecionado, logo abaixo dele. */
   function duplicarNcr() {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
     var ncr = currentNcr();
     if (!ncr) return;
     var copia = Store.duplicar(ncr);
@@ -2077,8 +2083,10 @@
     if (!ncr) {
       var empty = el('div', 'editor-empty');
       empty.appendChild(el('p', null, 'Nenhuma ' + kindName() + ' selecionada.'));
-      empty.appendChild(el('p', null, 'Use “+ Nova ' + kindName() + '” no painel à esquerda para começar, ' +
-        'ou abra um arquivo de backup pelo menu “⋯ Mais”.'));
+      empty.appendChild(el('p', null, Leitura.ativo()
+        ? 'Escolha uma ' + kindName() + ' na lista à esquerda.'
+        : 'Use “+ Nova ' + kindName() + '” no painel à esquerda para começar, ' +
+          'ou abra um arquivo de backup pelo menu “⋯ Mais”.'));
       host.appendChild(empty);
       return;
     }
@@ -2124,6 +2132,7 @@
     ladoBtn.type = 'button';
     ladoBtn.title = 'Mostra outro item numa coluna à direita, em só leitura';
     ladoBtn.setAttribute('data-livre', '');
+    ladoBtn.setAttribute('data-mostra', '');
     ladoBtn.addEventListener('click', abrirEscolhaDoLado);
 
     /* Também só mostra — por isso `data-livre`, que o vale no item travado. */
@@ -2153,15 +2162,18 @@
     host.appendChild(idCard);
 
     /* --- a anotação, antes do conteúdo do documento --- */
-    host.appendChild(cardDeAnotacao(ncr));
+    if (!Leitura.ativo()) host.appendChild(cardDeAnotacao(ncr));
 
     /* --- a Observation que veio do Banco NCR: interna, como a anotação --- */
-    if (!isDev() || (ncr.observation || '').trim()) host.appendChild(cardDeObservation());
+    /* no visualizador, só quando há o que ler */
+    var temObs = !!(ncr.observation || '').trim();
+    if (Leitura.ativo() ? temObs : (!isDev() || temObs)) host.appendChild(cardDeObservation());
 
     /* --- seções textuais, na ordem e nas cores do relatório --- */
     var textCard = card('Conteúdo da derrogação');
     var collapseBtn = el('button', 'btn btn--sm', 'Recolher preenchidos');
     collapseBtn.type = 'button';
+    collapseBtn.setAttribute('data-mostra', '');   /* só mostra: vale no visualizador */
     collapseBtn.style.marginLeft = 'auto';
     $('h3', textCard).appendChild(collapseBtn);
 
@@ -2246,7 +2258,8 @@
     host.appendChild(renderStatusBar());
 
     /* --- travas e avisos, por cima do que já está montado --- */
-    if (travado(ncr)) aplicarTrava(host);
+    if (Leitura.ativo()) travarParaLeitura(host);
+    else if (travado(ncr)) aplicarTrava(host);
     var mudanca = mudancasDeFora[ncr.id];
     if (mudanca) host.insertBefore(barraMudouPorFora(mudanca), host.firstChild);
 
@@ -2645,6 +2658,7 @@
     btn.id = 'fluxoAbrirBtn';
     btn.title = 'Abre o fluxo em tamanho grande';
     btn.setAttribute('data-livre', '');   /* só mostra: vale mesmo com o item travado */
+    btn.setAttribute('data-mostra', '');
     btn.addEventListener('click', function () { abrirFluxo(currentNcr(), state.kind); });
     cab.appendChild(btn);
     bloco.appendChild(cab);
@@ -2722,6 +2736,7 @@
    * Arch Answer do marco anterior.
    */
   function levarAdiante() {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
     var ncr = currentNcr();
     if (!ncr) return;
     var av = Herdar.avaliar(state.project, ncr, state.kind, state.projects);
@@ -3487,6 +3502,7 @@
   ];
 
   function openSettings() {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
     var body = $('#settingsBody');
     body.innerHTML = '';
     SETTINGS.forEach(function (def) {
@@ -3765,6 +3781,7 @@
   /* Um marco novo costuma repetir NCRs do marco anterior; isto evita
      redigitar tudo. As NCRs entram como cópias independentes. */
   function openCopyDialog() {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
     var key = Store.itemsKey(state.kind);
     var others = state.projects.filter(function (p) {
       return p.id !== state.project.id && p[key].length;
@@ -4620,6 +4637,7 @@
   }
 
   function importBackupFile(file) {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
     var reader = new FileReader();
     reader.onload = function () {
       var raw, incoming;
@@ -4722,6 +4740,7 @@
   /* O que a aba precisa do editor. A tela (ncrview.js) só desenha; gravar,
      mexer nos relatórios e falar com a pasta passa por aqui. */
   var ctxBanco = {
+    leitura: Leitura.ativo(),
     projects: function () { return state.projects; },
     editar: function (rec, campo, valor) {
       return Ncrs.editarWaiver(rec, campo, valor, Store.getUser())
@@ -4800,6 +4819,7 @@
    * isso que o faz chegar aos colegas pela pasta.
    */
   function adicionarAoWaiver(rec, project, situacao) {
+    if (Leitura.ativo()) return Promise.resolve(false);   /* visualizador: nada grava */
     var nome = (project.marco || project.name || 'sem marco') + ' Waiver';
     if (Ncrs.vinculos(rec, [project]).length) {
       toast('Esta NCR já está vinculada ao ' + nome + '.');
@@ -4868,6 +4888,7 @@
     box.appendChild(el('span', 'nb-ligacao-txt', partes.join(' · ')));
     var b = el('button', 'btn btn--sm', 'Ver a ficha');
     b.type = 'button';
+    b.setAttribute('data-mostra', '');
     b.addEventListener('click', function () {
       flushSave().then(function () {
         switchKind('banco');
@@ -4887,6 +4908,7 @@
   /* --- aba Kanban ------------------------------------------------------------ */
 
   var ctxKanban = {
+    leitura: Leitura.ativo(),
     projects: function () { return state.projects; },
     marcoInicial: function () { return state.project ? state.project.marco : ''; },
     abrir: function (project, item) { abrirItemDoWaiver(project, item); },
@@ -4910,6 +4932,7 @@
    * Store.setStatus, a sessão (autoria), gravar e mandar para a pasta.
    */
   function mudarSituacaoDe(project, item, id) {
+    if (Leitura.ativo()) return Promise.resolve(false);   /* visualizador: nada grava */
     if (item.status === id) return Promise.resolve(false);
     Store.setStatus(item, id);
     Store.logChange(project, SESSION_ID, 'ncr', item, 'editou');
@@ -5715,6 +5738,8 @@
         return adotar(resumo).then(function () {
           sincronizando = false;
           marcarPasta('on');
+          /* o que se publica é a junção: o trabalho de todos */
+          agendarPublicacao();
           ciclo.fim('sincronizado', resumo ? {
             recebidos: resumo.entraram, atualizados: resumo.atualizados,
             removidos: resumo.removidos, relatoriosNovos: resumo.novosRelatorios
@@ -6151,6 +6176,560 @@
   /* inicialização                                                          */
   /* ---------------------------------------------------------------------- */
 
+  /* ---------------------------------------------------------------------- */
+  /* publicação para os visualizadores (editor)                              */
+  /* ---------------------------------------------------------------------- */
+
+  /* O visualizador é este programa em modo leitura, num arquivo à parte, que
+     lê o `visualizador-dados.js` publicado aqui (publicacao.js). A pasta onde
+     ele fica é outra, com crachá próprio (`Pasta.publicacao`): em geral quem
+     só visualiza nem enxerga a pasta do banco. */
+  var PUB_AUTO_KEY = 'derrogacao:publicarAuto';
+  var pubEstado = 'off';          // 'off' | 'permissao' | 'on' | 'erro'
+  var pubUltimoConteudo = '';     // o que foi publicado por último, para não regravar igual
+  var pubUltimaVez = 0;
+  var pubTimer = null;
+  var publicando = false;
+
+  function pubAuto() {
+    try { return localStorage.getItem(PUB_AUTO_KEY) === '1'; } catch (e) { return false; }
+  }
+  function setPubAuto(on) {
+    try { localStorage.setItem(PUB_AUTO_KEY, on ? '1' : '0'); } catch (e) { /* ignora */ }
+  }
+
+  function contagemPublicada(projects) {
+    var itens = projects.reduce(function (a, p) { return a + p.ncrs.length + p.devs.length; }, 0);
+    return projects.length + ' marco(s), ' + itens + ' item(ns)';
+  }
+
+  /**
+   * O conteúdo a publicar, com as imagens embutidas. Na pasta do banco cada
+   * foto mora num arquivo próprio e pode ainda não ter sido lida para a
+   * memória; o visualizador não enxerga aquela pasta, então as que faltam
+   * são lidas agora (`hidratarImagens`, numa cópia — o estado não muda).
+   */
+  function montarPublicacao() {
+    var copia = { projects: JSON.parse(JSON.stringify(state.projects)) };
+    var pronto = Pasta.ligada() && pastaEstado === 'on'
+      ? hidratarImagens(copia).catch(function () { return copia; })
+      : Promise.resolve(copia);
+    return pronto.then(function () {
+      var payload = Publicacao.montar(copia.projects, Store.getUser(), Ncrs.paraBackup());
+      var faltam = Publicacao.imagensSemConteudo(payload);
+      if (faltam) {
+        Log.aviso('publicação', faltam + ' imagem(ns) sem o conteúdo na publicação',
+          'o arquivo da imagem ainda não chegou da pasta. A página de evidência sai sem ela ' +
+          'no visualizador até a próxima publicação.', { imagens: faltam });
+      }
+      return payload;
+    });
+  }
+
+  /**
+   * Grava o arquivo do visualizador na pasta dos visualizadores.
+   * Com a pasta do banco ligada, sincroniza antes: o que se publica é o
+   * trabalho de todos, não só o deste navegador.
+   *
+   * @param opts.auto  chamada automática: silenciosa, e não regrava se nada mudou
+   */
+  function publicar(opts) {
+    opts = opts || {};
+    if (Leitura.ativo()) return Promise.resolve(false);
+    if (!Pasta.publicacao.ligada() || pubEstado !== 'on') return Promise.resolve(false);
+    if (publicando) return Promise.resolve(false);
+    publicando = true;
+    var antes = (Pasta.ligada() && pastaEstado === 'on' && !opts.auto)
+      ? sincronizar({ silencioso: true })
+      : Promise.resolve();
+    return antes.then(function () {
+      var conteudo = Publicacao.conteudo(state.projects, Ncrs.paraBackup());
+      if (opts.auto && conteudo === pubUltimoConteudo) return false;
+      return montarPublicacao().then(function (payload) {
+        return Pasta.publicacao.gravarTexto(Publicacao.ARQUIVO, Publicacao.texto(payload)).then(function () {
+          pubUltimoConteudo = conteudo;
+          pubUltimaVez = Date.now();
+          Log.ok('publicação', 'publicado para os visualizadores', {
+            relatorios: payload.projects.length, automatico: !!opts.auto
+          });
+          renderPublicar();
+          if (!opts.auto) toast('Publicado para os visualizadores: ' + contagemPublicada(payload.projects) + '.');
+          return true;
+        });
+      });
+    }).catch(function (e) {
+      pubEstado = (e && e.name === 'NotAllowedError') ? 'permissao' : 'erro';
+      renderPublicar();
+      Log.erro('publicação', 'não consegui gravar na pasta dos visualizadores', e,
+        Pasta.explicar(e) + ' Os visualizadores continuam vendo a publicação anterior.');
+      if (!opts.auto) toast('Não foi possível gravar na pasta dos visualizadores.');
+      return false;
+    }).then(function (r) { publicando = false; return r; });
+  }
+
+  /* Publicação automática: depois de cada gravação, no máximo uma vez por
+     intervalo. O temporizador garante que a última mudança não fique para
+     trás quando ela cai dentro do intervalo. */
+  function agendarPublicacao() {
+    if (Leitura.ativo()) return;
+    if (!pubAuto() || !Pasta.publicacao.ligada() || pubEstado !== 'on') return;
+    if (pubTimer) return;
+    var espera = Math.max(0, Publicacao.INTERVALO_MS - (Date.now() - pubUltimaVez));
+    pubTimer = setTimeout(function () {
+      pubTimer = null;
+      publicar({ auto: true });
+    }, Math.max(espera, 1500));
+  }
+
+  /** Baixa o arquivo, para copiar à mão (navegador sem a API, ou sem pasta). */
+  function baixarPublicacao() {
+    montarPublicacao().then(function (payload) {
+      download(new Blob([Publicacao.texto(payload)], { type: 'text/javascript;charset=utf-8' }),
+        Publicacao.ARQUIVO);
+      toast('Arquivo baixado. Copie-o para a pasta dos dados do visualizador, substituindo o anterior.', 6000);
+    });
+  }
+
+  function renderPublicar() {
+    var sub = $('#publicarBtnSub');
+    var chip = $('#pubChip');
+    var ligada = Pasta.publicacao.ligada();
+    chip.hidden = !(pubAuto() && ligada && pubEstado === 'permissao');
+    sub.textContent = !ligada
+      ? 'o arquivo que o visualizador (só leitura) lê'
+      : pubEstado === 'on'
+        ? 'pasta "' + Pasta.publicacao.nome() + '"' + (pubAuto() ? ' · automático' : '')
+        : 'precisa de permissão — clique';
+    var dlg = $('#publicarDialog');
+    if (!dlg.open) return;
+
+    var suporta = Pasta.suportado();
+    $('#publicarPastaNome').textContent = ligada ? Pasta.publicacao.nome() : '—';
+    $('#publicarEscolherBtn').textContent = ligada ? 'Trocar de pasta…' : 'Escolher a pasta…';
+    $('#publicarEscolherBtn').disabled = !suporta;
+    $('#publicarDesligarBtn').hidden = !ligada;
+    $('#publicarPermitirBtn').hidden = !(ligada && pubEstado !== 'on');
+    $('#publicarAgoraBtn').disabled = !(ligada && pubEstado === 'on');
+    $('#publicarAuto').checked = pubAuto();
+    $('#publicarAuto').disabled = !ligada;
+    var linha = $('#publicarEstado');
+    linha.dataset.estado = ligada ? pubEstado : 'off';
+    linha.textContent = !suporta
+      ? 'Este navegador não grava em pastas. Use “Baixar o arquivo” e copie-o à mão — ou use o Edge ou o Chrome.'
+      : !ligada
+        ? 'Nenhuma pasta escolhida. Escolha a pasta dos dados do visualizador, ou baixe o arquivo e copie à mão.'
+        : pubEstado === 'on'
+          ? 'Ligado à pasta "' + Pasta.publicacao.nome() + '".'
+          : 'A pasta está escolhida, mas o navegador ainda não liberou a gravação nesta sessão.';
+
+    /* o que os visualizadores estão vendo agora: lido do próprio arquivo */
+    var visto = $('#publicarVisto');
+    visto.textContent = '';
+    if (ligada && pubEstado === 'on') {
+      Pasta.publicacao.inicio(Publicacao.ARQUIVO, 2048).then(function (ini) {
+        var cab = ini ? Publicacao.cabecalho(ini) : null;
+        visto.textContent = cab
+          ? 'Os visualizadores estão vendo a publicação de ' + shortDate(cab.quando) +
+            (cab.quem ? ', por ' + cab.quem : '') + '.'
+          : 'Ainda não há publicação nesta pasta.';
+      });
+    }
+  }
+
+  function abrirPublicarDialog() {
+    $('#publicarDialog').showModal();
+    renderPublicar();
+  }
+
+  /** Reata a pasta dos visualizadores. Vem sempre de um clique. */
+  function conectarPublicacao() {
+    return Pasta.publicacao.pedirPermissao().then(function (perm) {
+      pubEstado = perm === 'granted' ? 'on' : 'permissao';
+      renderPublicar();
+      if (pubEstado === 'on') agendarPublicacao();
+      else toast('Sem permissão para gravar na pasta dos visualizadores.');
+      return pubEstado === 'on';
+    });
+  }
+
+  function iniciarPublicacao() {
+    renderPublicar();
+    if (!Pasta.suportado()) return Promise.resolve();
+    return Pasta.publicacao.retomar().then(function (h) {
+      if (!h) { pubEstado = 'off'; renderPublicar(); return; }
+      return Pasta.publicacao.estadoPermissao().then(function (perm) {
+        pubEstado = perm === 'granted' ? 'on' : 'permissao';
+        renderPublicar();
+        if (pubEstado === 'on') agendarPublicacao();
+      });
+    }).catch(function (e) {
+      Log.aviso('publicação', 'a pasta dos visualizadores não pôde ser retomada',
+        'escolha a pasta de novo em ⋯ Mais → Publicar para visualizadores.', { erro: e && e.name });
+      pubEstado = 'erro';
+      renderPublicar();
+    });
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* modo leitura — o visualizador (leitura.js)                              */
+  /* ---------------------------------------------------------------------- */
+
+  /* De onde vêm os dados, nesta ordem, sem pedir clique a ninguém:
+       1. a pasta dos dados, pelo caminho (a informada neste navegador, ou a
+          gravada no próprio arquivo do visualizador);
+       2. o arquivo publicado ao lado do visualizador;
+     e, se a pessoa quiser, 3. um arquivo aberto à mão (só até fechar).
+     Se nada der certo, a tela pede um clique só: "Tentar de novo". */
+
+  var LEITURA_RELE_MS = 5 * 60 * 1000;   // conferência periódica, com a janela à vista
+  var LEITURA_VOLTA_MS = 60 * 1000;      // ao voltar para a janela, se passou disto
+
+  var leitura = {
+    ordens: {},        // a ordem escolhida aqui, por relatório: não é gravada
+    fonte: null,       // { tipo: 'caminho'|'ao-lado'|'arquivo', nome, quando, quem, lidoEm }
+    assinatura: '',    // o conteúdo bruto da última publicação, para saber se mudou
+    falhou: false,     // a última releitura não achou os dados (os velhos continuam à vista)
+    carregando: false
+  };
+
+  var ROTULO_FONTE = {
+    'caminho': 'pasta dos dados',
+    'ao-lado': 'arquivo ao lado deste visualizador',
+    'arquivo': 'arquivo aberto à mão'
+  };
+
+  /**
+   * Uma rodada de leitura. Resolve com `true` se chegaram dados novos.
+   * @param opts.silencioso  sem aviso de "nada novo"
+   * @param opts.automatico  conferência periódica: erro não vira aviso
+   */
+  function carregarLeitura(opts) {
+    opts = opts || {};
+    if (leitura.carregando) return Promise.resolve(false);
+    leitura.carregando = true;
+    var pd = Leitura.pastaDados();
+    var url = Publicacao.caminhoParaUrl(pd.caminho);
+    var falhouCaminho = false;
+    if (!state.projects.length) mostrarSemDados(null);
+
+    var tentativa = url
+      ? Publicacao.carregarDe(url).then(function (res) {
+          if (res) return { res: res, fonte: { tipo: 'caminho', nome: pd.caminho } };
+          falhouCaminho = true;
+          return null;
+        })
+      : Promise.resolve(null);
+
+    return tentativa.then(function (x) {
+      if (x) return x;
+      return Publicacao.carregarAoLado().then(function (res) {
+        return res ? { res: res, fonte: { tipo: 'ao-lado', nome: Publicacao.ARQUIVO } } : null;
+      });
+    }).then(function (x) {
+      leitura.carregando = false;
+      if (x) {
+        leitura.falhou = false;
+        var novo = aplicarPublicacao(x.res, x.fonte, opts);
+        renderAvisoLeitura(falhouCaminho
+          ? 'Não consegui ler a pasta dos dados (' + pd.caminho + '). O que está à vista veio do ' +
+            ROTULO_FONTE[x.fonte.tipo] + '.'
+          : '');
+        return novo;
+      }
+      Log.aviso('leitura', 'não encontrei a publicação',
+        url ? 'procurei em ' + pd.caminho + ' e ao lado do visualizador.'
+            : 'procurei ao lado do visualizador; nenhuma pasta de dados foi informada.');
+      if (!state.projects.length) {
+        mostrarSemDados('Não foi possível ler os dados.', pd);
+      } else if (leitura.fonte && leitura.fonte.tipo === 'arquivo') {
+        if (!opts.silencioso && !opts.automatico) {
+          toast('Os dados vieram de um arquivo aberto à mão — abra o arquivo novo para atualizar.');
+        }
+      } else {
+        /* já havia dados: continuam à vista, com o aviso e o botão */
+        leitura.falhou = true;
+        renderAvisoLeitura('Não foi possível ler a publicação mais recente' +
+          (url ? ' em ' + pd.caminho : '') + '. Os dados à vista são de ' +
+          (shortDate(leitura.fonte && leitura.fonte.quando) || 'antes') + '.');
+      }
+      renderFonte();
+      return false;
+    }, function (e) {
+      leitura.carregando = false;
+      throw e;
+    });
+  }
+
+  /**
+   * Põe a publicação na tela, sem perder o que a pessoa estava vendo:
+   * mesmo relatório, mesma aba, mesmo item — quando ainda existem.
+   */
+  function aplicarPublicacao(res, fonte, opts) {
+    opts = opts || {};
+    var mesmo = res.assinatura === leitura.assinatura;
+    var novidade = !!leitura.assinatura && !mesmo;
+    leitura.fonte = fonte;
+    fonte.quando = res.quando;
+    fonte.quem = res.quem;
+    fonte.lidoEm = Date.now();
+    renderFonte();
+    if (mesmo) return false;
+    leitura.assinatura = res.assinatura;
+
+    /* publicação de uma versão mais nova do programa: mostra, mas avisa */
+    if (res.schema > Store.SCHEMA) {
+      Log.aviso('leitura', 'a publicação é de uma versão mais nova do programa',
+        'peça o derrogacao-visualizador.html atualizado; até lá, algum campo novo pode não aparecer.');
+      toast('Este visualizador é mais antigo que os dados publicados — peça a versão nova do arquivo.', 8000);
+    }
+
+    var abertoId = state.project ? state.project.id : null;
+    var abertoMarco = state.project ? Store.marcoChave(state.project) : '';
+    var ncrAntes = state.ncrId, devAntes = state.devId;
+
+    state.projects = res.projects;
+    state.projects.forEach(function (p) {
+      if (leitura.ordens[p.id]) p.ordem = leitura.ordens[p.id];
+    });
+    /* o banco NCR é o retrato publicado: troca inteiro, só na memória */
+    Ncrs.adotarBase(res.ncrBase || { ncrs: [] });
+
+    if (!state.projects.length) {
+      state.project = null;
+      mostrarSemDados('A publicação não tem nenhum relatório.');
+      return novidade;
+    }
+    var alvo = state.projects.filter(function (p) { return p.id === abertoId; })[0] ||
+      (abertoMarco ? state.projects.filter(function (p) { return Store.marcoChave(p) === abertoMarco; })[0] : null) ||
+      state.projects[0];
+
+    $('#semDados').hidden = true;
+    $('.layout').hidden = false;
+    $('#previewBtn').disabled = false;
+    $('#pdfBtn').disabled = false;
+    $('#projectSelect').disabled = false;
+
+    var mesmoRelatorio = alvo.id === abertoId;
+    loadProject(alvo);
+    /* loadProject abre o primeiro item; na releitura, volta ao que estava */
+    if (mesmoRelatorio) {
+      var tem = function (k, id) { return id && alvo[k].some(function (n) { return n.id === id; }); };
+      if (tem('ncrs', ncrAntes)) state.ncrId = ncrAntes;
+      if (tem('devs', devAntes)) state.devId = devAntes;
+      if (!telaCheia()) { renderNcrList(); renderEditor(); }
+    } else if (state.kind === 'ncr' && !alvo.ncrs.length && alvo.devs.length) {
+      /* relatório só de DEV abre direto na aba DEV */
+      switchKind('dev');
+    }
+    Log.ok('leitura', 'publicação carregada', {
+      relatorios: state.projects.length, origem: fonte.tipo, ncrsBanco: Ncrs.lista().length
+    });
+    if (novidade && !opts.silencioso) {
+      toast('Dados atualizados' + (res.quando ? ': publicação de ' + shortDate(res.quando) : '') +
+        (res.quem ? ', por ' + res.quem : '') + '.');
+    }
+    return novidade;
+  }
+
+  function mostrarSemDados(titulo, pd) {
+    $('.layout').hidden = true;
+    renderAvisoLeitura('');
+    $('#semDados').hidden = false;
+    $('#semDadosTitulo').textContent = titulo || 'Carregando os dados…';
+    $('#semDadosCorpo').hidden = !titulo;
+    $('#semDadosMais').open = false;   /* à vista, um botão só */
+    pd = pd || Leitura.pastaDados();
+    $('#semDadosTexto').textContent = pd.caminho
+      ? 'Não consegui ler o arquivo de dados em ' + pd.caminho + '. Pode ser a rede fora do ar, ' +
+        'a pasta sem permissão de leitura para você, ou os dados ainda não publicados.'
+      : 'Não há o arquivo ' + Publicacao.ARQUIVO + ' ao lado deste visualizador, e nenhuma ' +
+        'pasta de dados foi informada.';
+    $('#previewBtn').disabled = true;
+    $('#pdfBtn').disabled = true;
+    $('#projectSelect').disabled = true;
+  }
+
+  function renderAvisoLeitura(msg) {
+    $('#leituraAviso').hidden = !msg;
+    $('#leituraAvisoTexto').textContent = msg || '';
+  }
+
+  function renderFonte() {
+    var chip = $('#fonteChip');
+    var f = leitura.fonte;
+    if (!f) {
+      chip.dataset.estado = 'erro';
+      $('#fonteChipLabel').textContent = '📄 sem dados';
+      chip.title = 'Nenhum dado carregado. Clique para ver as opções.';
+    } else {
+      chip.dataset.estado = leitura.falhou ? 'erro' : (f.tipo === 'arquivo' ? 'sincronizando' : 'on');
+      $('#fonteChipLabel').textContent = '📄 ' + (f.quando ? shortDate(f.quando) : 'dados carregados') +
+        (f.quem ? ' · ' + f.quem : '');
+      chip.title = 'Publicação de ' + (f.quando ? shortDate(f.quando) : 'data desconhecida') +
+        (f.quem ? ', por ' + f.quem : '') + '\nOrigem: ' + ROTULO_FONTE[f.tipo] + ' (' + f.nome + ')';
+    }
+
+    var dlg = $('#fonteDialog');
+    if (!dlg.open) return;
+    var linha = $('#fonteEstado');
+    linha.dataset.estado = !f ? 'erro' : (f.tipo === 'arquivo' || leitura.falhou ? 'permissao' : 'on');
+    linha.textContent = !f
+      ? 'Nenhum dado carregado.'
+      : f.tipo === 'arquivo'
+        ? 'Os dados vieram de um arquivo aberto à mão: valem até fechar a página e não se atualizam sozinhos.'
+        : leitura.falhou
+          ? 'A última tentativa de reler a publicação falhou; o que está à vista é a leitura anterior.'
+          : 'Os dados se atualizam sozinhos quando chega uma publicação nova.';
+    var dl = $('#fonteDados');
+    dl.innerHTML = '';
+    if (f) {
+      [['Publicação', f.quando ? shortDate(f.quando) : '—'],
+       ['Publicado por', f.quem || '—'],
+       ['Origem', ROTULO_FONTE[f.tipo] + ' — ' + f.nome],
+       ['Lido em', shortDate(new Date(f.lidoEm).toISOString())],
+       ['Conteúdo', state.projects.length + ' relatório(s) · ' +
+         state.projects.reduce(function (a, p) { return a + p.ncrs.length; }, 0) + ' NCR · ' +
+         state.projects.reduce(function (a, p) { return a + p.devs.length; }, 0) + ' DEV · ' +
+         Ncrs.lista().length + ' NCR(s) no banco']
+      ].forEach(function (l) {
+        dl.appendChild(el('dt', null, l[0]));
+        dl.appendChild(el('dd', null, l[1]));
+      });
+    }
+    var pd = Leitura.pastaDados();
+    var doArquivo = Leitura.pastaDoArquivo();
+    $('#caminhoInput').value = pd.caminho;
+    $('#caminhoPadrao').textContent = (doArquivo
+      ? 'Padrão gravado neste arquivo: ' + doArquivo + '.'
+      : 'Este arquivo ainda não tem uma pasta padrão: sem informar, ele procura os dados ao lado dele.') +
+      (pd.doNavegador ? ' Neste navegador vale a pasta informada acima.' : '');
+    $('#caminhoLimparBtn').hidden = !pd.doNavegador;
+  }
+
+  /** Grava (ou apaga) a pasta dos dados deste navegador e lê de lá. */
+  function salvarCaminho(valor) {
+    valor = (valor || '').trim();
+    if (valor && !Publicacao.caminhoParaUrl(valor)) {
+      toast('Caminho não reconhecido. Use, por exemplo, \\\\servidor\\pasta ou G:\\pasta.');
+      return;
+    }
+    Leitura.setPastaDoNavegador(valor);
+    carregarLeitura({}).then(function () {
+      renderFonte();
+      var pd = Leitura.pastaDados();
+      if (leitura.fonte && leitura.fonte.tipo === 'caminho') {
+        if ($('#fonteDialog').open) $('#fonteDialog').close();
+        toast('Lendo os dados de ' + pd.caminho + '.');
+      } else if (pd.caminho) {
+        toast('Não encontrei o ' + Publicacao.ARQUIVO + ' em ' + pd.caminho + '.', 6000);
+      }
+    });
+  }
+
+  function abrirArquivoDeDados(file) {
+    if (!file) return;
+    file.text().then(function (txt) {
+      var res = Publicacao.interpretar(txt);
+      leitura.falhou = false;
+      aplicarPublicacao(res, { tipo: 'arquivo', nome: file.name }, { silencioso: true });
+      renderAvisoLeitura('');
+      if ($('#fonteDialog').open) $('#fonteDialog').close();
+      toast('Aberto: ' + file.name + ' — ' + res.projects.length + ' relatório(s).');
+    }).catch(function (e) {
+      toast(e.message || 'Não foi possível ler o arquivo.');
+    });
+  }
+
+  /* Relê de tempos em tempos e ao voltar para a janela: quem deixa o
+     visualizador aberto o dia inteiro vê a publicação nova sem recarregar. */
+  function conferirLeitura(forcar) {
+    if (document.hidden) return;
+    if (document.querySelector('dialog[open]') || !$('#preview').hidden) return;
+    if (leitura.fonte && leitura.fonte.tipo === 'arquivo' && state.projects.length) return;
+    if (!forcar && leitura.fonte && Date.now() - leitura.fonte.lidoEm < LEITURA_VOLTA_MS) return;
+    carregarLeitura({ automatico: true });
+  }
+
+  /**
+   * O editor em leitura: os campos ficam só leitura (dá para selecionar e
+   * copiar), a situação fica à vista mas não muda, e os botões que escrevem
+   * somem. Ficam os que só mostram (`data-mostra`), os do fluxo e o da ficha.
+   */
+  function travarParaLeitura(host) {
+    $$('input, textarea, select', host).forEach(function (n) {
+      if (n.tagName === 'SELECT' || n.type === 'checkbox' || n.type === 'radio' || n.type === 'file') {
+        n.disabled = true;
+      } else {
+        n.readOnly = true;
+        n.removeAttribute('placeholder');
+      }
+    });
+    $$('button', host).forEach(function (b) {
+      if (b.hasAttribute('data-mostra')) return;
+      if (b.closest('.fx-bloco, .nb-ligacao-wrap')) return;
+      if (b.classList.contains('status-op')) { b.disabled = true; return; }
+      b.classList.add('leitura-esconde');
+    });
+    $$('.evid-drop, input[type="file"]', host).forEach(function (d) { d.classList.add('leitura-esconde'); });
+  }
+
+  function iniciarLeitura() {
+    Leitura.blindar();
+    document.body.classList.add('modo-leitura');
+    document.title = 'Waiver Request — Visualizador (somente leitura)';
+    $('#brandSub').textContent = 'visualizador de derrogações';
+    $('#leituraSelo').hidden = false;
+    $('#fonteChip').hidden = false;
+    $('#atualizarBtn').hidden = false;
+    $('#menuBtn').title = 'Diagnóstico e versão';
+    renderFonte();
+    Log.passo('leitura', 'modo leitura: este é o visualizador — nada aqui é gravado');
+
+    $('#atualizarBtn').addEventListener('click', function () {
+      carregarLeitura({}).then(function (novo) {
+        if (!novo && !leitura.falhou && leitura.fonte && leitura.fonte.tipo !== 'arquivo' && state.projects.length) {
+          toast('Nenhuma publicação nova — os dados continuam os de ' +
+            (shortDate(leitura.fonte.quando) || 'antes') + '.');
+        }
+      });
+    });
+    $('#leituraAvisoBtn').addEventListener('click', function () { $('#atualizarBtn').click(); });
+    $('#fonteChip').addEventListener('click', function () {
+      $('#fonteDialog').showModal();
+      renderFonte();
+    });
+    $('#fonteFecharBtn').addEventListener('click', function () { $('#fonteDialog').close(); });
+    $('#fonteAtualizarBtn').addEventListener('click', function () {
+      $('#fonteDialog').close();
+      $('#atualizarBtn').click();
+    });
+    $('#fonteAbrirBtn').addEventListener('click', function () { $('#abrirDadosInput').click(); });
+    $('#semDadosAbrirBtn').addEventListener('click', function () { $('#abrirDadosInput').click(); });
+    $('#abrirDadosInput').addEventListener('change', function () {
+      if (this.files && this.files[0]) abrirArquivoDeDados(this.files[0]);
+      this.value = '';
+    });
+    $('#semDadosTentarBtn').addEventListener('click', function () { carregarLeitura({}); });
+    $('#semDadosConfigBtn').addEventListener('click', function () {
+      $('#fonteDialog').showModal();
+      renderFonte();
+      $('#caminhoInput').focus();
+    });
+    $('#caminhoSalvarBtn').addEventListener('click', function () { salvarCaminho($('#caminhoInput').value); });
+    $('#caminhoInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); salvarCaminho(this.value); }
+    });
+    $('#caminhoLimparBtn').addEventListener('click', function () { salvarCaminho(''); });
+
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) conferirLeitura(false);
+    });
+    setInterval(function () { conferirLeitura(true); }, LEITURA_RELE_MS);
+
+    mostrarSemDados(null);
+    return carregarLeitura({ silencioso: true });
+  }
+
   function wire() {
     $('#marcoInput').addEventListener('input', function () {
       state.project.marco = this.value;
@@ -6267,6 +6846,13 @@
       state.project.ordem = Store.ordemInfo(this.value).id;
       renderOrdem();
       renderNcrList();
+      if (Leitura.ativo()) {
+        /* no visualizador a ordem é de quem está olhando: não grava, mas
+           sobrevive à releitura da publicação */
+        leitura.ordens[state.project.id] = state.project.ordem;
+        toast('Ordem: ' + Store.ordemInfo(this.value).nome + ' — só nesta tela, e no PDF que você gerar daqui.');
+        return;
+      }
       scheduleSave();
       toast('Ordem: ' + Store.ordemInfo(this.value).nome + '. Vale também no PDF.');
     });
@@ -6413,6 +6999,42 @@
       $('#ncrListaFuncoes').value = Ncrs.LISTAS_PADRAO.funcoes.join('\n');
     });
 
+    /* publicação para os visualizadores */
+    $('#publicarBtn').addEventListener('click', abrirPublicarDialog);
+    $('#pubChip').addEventListener('click', conectarPublicacao);
+    $('#publicarFecharBtn').addEventListener('click', function () { $('#publicarDialog').close(); });
+    $('#publicarAgoraBtn').addEventListener('click', function () { publicar({}); });
+    $('#publicarBaixarBtn').addEventListener('click', baixarPublicacao);
+    $('#publicarPermitirBtn').addEventListener('click', conectarPublicacao);
+    $('#publicarAuto').addEventListener('change', function () {
+      setPubAuto(this.checked);
+      renderPublicar();
+      if (this.checked) {
+        toast('Publicação automática ligada: os visualizadores recebem as mudanças em até 2 minutos.', 5000);
+        agendarPublicacao();
+      }
+    });
+    $('#publicarEscolherBtn').addEventListener('click', function () {
+      Pasta.publicacao.escolher().then(function () {
+        pubEstado = 'on';
+        renderPublicar();
+        return publicar({});
+      }).catch(function (e) {
+        if (e && e.name === 'AbortError') return;
+        markError(e);
+        toast(e.message || 'Não foi possível abrir a pasta.');
+      });
+    });
+    $('#publicarDesligarBtn').addEventListener('click', function () {
+      if (!confirm('Parar de publicar nesta pasta?\n\nO arquivo que já está lá continua; ' +
+        'os visualizadores seguem vendo a última publicação.')) return;
+      Pasta.publicacao.esquecer().then(function () {
+        pubEstado = 'off';
+        clearTimeout(pubTimer); pubTimer = null;
+        renderPublicar();
+      });
+    });
+
     $('#settingsBtn').addEventListener('click', openSettings);
     $('#settingsCloseBtn').addEventListener('click', function () { $('#settingsDialog').close(); });
     $('#copyNcrBtn').addEventListener('click', openCopyDialog);
@@ -6466,6 +7088,11 @@
     });
     window.addEventListener('drop', function (e) {
       var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f && Leitura.ativo() && /\.(json|js)$/i.test(f.name)) {
+        e.preventDefault();
+        abrirArquivoDeDados(f);
+        return;
+      }
       if (f && /\.json$/i.test(f.name)) {
         e.preventDefault();
         importBackupFile(f);
@@ -6475,6 +7102,7 @@
     /* Ctrl+V em qualquer ponto do editor manda a imagem para o último anexo
        da NCR aberta (criando um anexo, se ainda não houver nenhum). */
     document.addEventListener('paste', function (e) {
+      if (Leitura.ativo()) return;   /* visualizador: nada grava */
       if (!$('#preview').hidden) return;
       var tag = (e.target && e.target.tagName) || '';
       if (tag === 'INPUT' || tag === 'TEXTAREA') {
@@ -6505,7 +7133,11 @@
 
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !$('#preview').hidden) closePreview();
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); flushSave(); toast('Salvo.'); }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (Leitura.ativo()) { toast('Este é o visualizador: aqui nada é gravado.'); return; }
+        flushSave(); toast('Salvo.');
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') { e.preventDefault(); exportPdf(); }
     });
 
@@ -6639,6 +7271,8 @@
     /* o link para baixar o arquivo único só faz sentido servido pela web */
     var link = $('#standaloneLink');
     if (link) link.hidden = location.protocol === 'file:';
+    var vis = $('#publicarBaixarVis');
+    if (vis) vis.hidden = location.protocol === 'file:';
   }
 
   /**
@@ -6696,6 +7330,16 @@
     Log.vigiar();
     registrarFontes();
     wire();
+    /* O visualizador: o mesmo programa, só lendo a publicação. Nada do que
+       vem abaixo (banco do navegador, pasta, conversa, diário) roda nele. */
+    if (Leitura.ativo()) {
+      renderVersion();
+      iniciarLeitura().catch(function (e) {
+        Log.erro('leitura', 'não consegui abrir a publicação', e,
+          'recarregue a página; se continuar, mande Derrogacao.copiar() para quem publica.');
+      });
+      return;
+    }
     aoLado = lerAoLado();
     registrarServiceWorker();
     requestPersistentStorage();
@@ -6737,6 +7381,8 @@
       Log.detalhe('abertura', 'histórico do texto carregado', { linhas: (revisoes || []).length });
       iniciarConversa();
       return iniciarPasta();
+    }).then(function () {
+      return iniciarPublicacao();
     }).catch(function (e) {
       abrindo.falhou('não consegui ler o armazenamento deste navegador', e,
         'o programa vai começar com um relatório em branco. NÃO grave nada por cima ' +

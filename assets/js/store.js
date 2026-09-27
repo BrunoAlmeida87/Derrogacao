@@ -1294,35 +1294,37 @@
   /* --- crachá da pasta compartilhada -------------------------------------- */
 
   /* O handle não é um caminho: é um objeto que o navegador serializa e só ele
-     sabe reabrir. Por isso vive no IndexedDB e não no localStorage. */
+     sabe reabrir. Por isso vive no IndexedDB e não no localStorage.
+     A chave separa as pastas: 'pasta' é a do banco (o padrão, de sempre);
+     'publicacao' é a dos visualizadores. */
   var HANDLE_STORE = 'handles';
 
-  function putHandle(handle) {
+  function putHandle(handle, chave) {
     return openDb().then(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(HANDLE_STORE, 'readwrite');
-        tx.objectStore(HANDLE_STORE).put(handle, 'pasta');
+        tx.objectStore(HANDLE_STORE).put(handle, chave || 'pasta');
         tx.oncomplete = function () { resolve(handle); };
         tx.onerror = function () { reject(tx.error); };
       });
     });
   }
 
-  function getHandle() {
+  function getHandle(chave) {
     return openDb().then(function (db) {
       return new Promise(function (resolve, reject) {
-        var req = db.transaction(HANDLE_STORE).objectStore(HANDLE_STORE).get('pasta');
+        var req = db.transaction(HANDLE_STORE).objectStore(HANDLE_STORE).get(chave || 'pasta');
         req.onsuccess = function () { resolve(req.result || null); };
         req.onerror = function () { reject(req.error); };
       });
     }).catch(function () { return null; });
   }
 
-  function clearHandle() {
+  function clearHandle(chave) {
     return openDb().then(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(HANDLE_STORE, 'readwrite');
-        tx.objectStore(HANDLE_STORE).delete('pasta');
+        tx.objectStore(HANDLE_STORE).delete(chave || 'pasta');
         tx.oncomplete = resolve;
         tx.onerror = function () { reject(tx.error); };
       });

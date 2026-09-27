@@ -27,7 +27,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Gerar a versão de arquivo único
+      - name: Gerar as versões de arquivo único (editor e visualizador)
         run: python3 tools/build-standalone.py "${GITHUB_SHA:0:7}"
 
       - name: Carimbar a versão nos assets
@@ -45,6 +45,6 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f index.html derrogacao.html sw.js
+          git add -f index.html derrogacao.html derrogacao-visualizador.html sw.js
           git commit -m "Publica ${GITHUB_SHA:0:7}"
           git push --force origin HEAD:refs/heads/gh-pages

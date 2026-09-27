@@ -578,7 +578,7 @@
    * @param host    elemento onde a aba é desenhada
    * @param projects todos os relatórios
    * @param filtro  id do relatório a detalhar, ou '' para o panorama geral
-   * @param acoes   { onFiltro, onCsv, onPdf, onBackup }
+   * @param acoes   { onFiltro, onCsv, onPdf, onBackup? } — sem onBackup, sem o botão
    */
   /** Um campo de seleção da barra de filtros. */
   function campoSelect(rotulo, valor, opcoes, aoMudar, largo) {
@@ -623,10 +623,13 @@
 
     var acoesBox = el('div', 'sm-bar-actions');
     if (alvo) {
-      [['Resumo em PDF', function () { acoes.onPdf(alvo.project); }, 'btn--primary'],
-       ['Planilha (CSV)', function () { acoes.onCsv(alvo.project); }, ''],
-       ['Backup deste marco', function () { acoes.onBackup(alvo.project); }, '']
-      ].forEach(function (a) {
+      var botoes = [['Resumo em PDF', function () { acoes.onPdf(alvo.project); }, 'btn--primary'],
+       ['Planilha (CSV)', function () { acoes.onCsv(alvo.project); }, '']];
+      /* o visualizador não gera arquivo de dados: sem onBackup, sem o botão */
+      if (acoes.onBackup) {
+        botoes.push(['Backup deste marco', function () { acoes.onBackup(alvo.project); }, '']);
+      }
+      botoes.forEach(function (a) {
         var b = el('button', 'btn btn--sm ' + a[2], a[0]);
         b.type = 'button';
         b.addEventListener('click', a[1]);

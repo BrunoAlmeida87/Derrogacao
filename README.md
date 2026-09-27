@@ -8,6 +8,11 @@ login e nenhum dado sai do computador.
 
 ## O que faz
 
+- **Visualizador somente leitura.** Para quem só acompanha: o mesmo
+  programa, num arquivo à parte (`derrogacao-visualizador.html`), com todas
+  as abas e exportações — e nada que grave. Os dados chegam por publicação a
+  partir do editor. Ver [Visualizador](#visualizador-somente-leitura).
+
 - **Aba Banco NCR.** As NCRs do **SBR4** importadas do banco NCR (o mesmo
   export que o NCR Control lê), com **Marco Original**, **Marco Atual**,
   **Função Vital** e **Observação** preenchidos aqui, o **fluxo de cada NCR**
@@ -383,7 +388,96 @@ sua cópia.
 
 O arquivo é gerado por `tools/build-standalone.py`: a publicação o refaz a
 cada commit, carimbado com a versão do site, e a cópia versionada na raiz é
-conferida a cada envio (`--conferir`), para não envelhecer em silêncio.
+conferida a cada envio (`--conferir`), para não envelhecer em silêncio. O
+mesmo vale para o [visualizador](#visualizador-somente-leitura),
+`derrogacao-visualizador.html`.
+
+## Visualizador (somente leitura)
+
+Para quem precisa **acompanhar** as derrogações sem editar. É **este mesmo
+programa em modo leitura**, num arquivo único à parte —
+**`derrogacao-visualizador.html`** —, que se abre com dois cliques. Por ser o
+mesmo programa, ele tem tudo o que o editor mostra e exporta, e cada melhoria
+do editor chega a ele sozinha:
+
+- abas **NCR, DEV, Resumo, Fluxos, Tabela, Banco NCR e Kanban**;
+- cada item com todos os campos, o fluxo, as evidências, a **situação** e
+  **quem editou e quando**;
+- **PDF do relatório** (idêntico ao do editor, com o recorte por situação),
+  pré-visualização, resumo em PDF, painel e fluxos em PDF, planilhas
+  (.xlsx e CSV).
+
+O que **não** tem: nenhum campo editável, nenhum botão que crie, exclua,
+mude situação, importe ou faça backup; o Kanban não arrasta; a aba Conversa
+não existe. Trocar a *Ordem* da lista vale só para aquela tela (e para o PDF
+gerado dali). O visualizador **nunca grava nada** — nem no navegador, nem
+em pasta nenhuma.
+
+**Baixar:** está na raiz do repositório e no site
+(https://brunoalmeida87.github.io/Derrogacao/derrogacao-visualizador.html),
+e o editor tem o link em **⋯ Mais → 👁 Publicar para visualizadores**.
+
+### Publicar a partir do editor
+
+**⋯ Mais → 👁 Publicar para visualizadores**:
+
+1. **Escolher a pasta…** — a pasta onde os dados do visualizador vão ficar
+   (pode ser a mesma do visualizador, ou outra). O editor grava ali o
+   arquivo **`visualizador-dados.js`** e passa a dizer "os visualizadores
+   estão vendo a publicação de …".
+2. **Publicar agora** — com a pasta do banco ligada, sincroniza antes: o que
+   vai é o trabalho de todos, não só o deste navegador.
+3. **Publicar sozinho** — republica depois de cada gravação, no máximo a cada
+   2 minutos e só se algo mudou.
+4. **Baixar o arquivo** — sem Edge/Chrome, ou sem acesso de gravação àquela
+   pasta: baixa o `visualizador-dados.js` para copiar à mão.
+
+O que vai: todos os relatórios com marco ou com itens, todos os itens
+(inclusive os **em preenchimento** — a situação aparece na tela), as imagens,
+quem editou cada item e quando, e o **banco NCR**. O que **não** vai: o
+histórico de sessões, o histórico do texto, as lápides de exclusão, os campos
+de controle da mesclagem e a **Observação interna** do item (a tela promete
+que ela fica "só aqui e na pasta da equipe").
+
+### Onde o visualizador procura os dados
+
+Sem pedir clique, nesta ordem:
+
+1. na **pasta dos dados** informada neste navegador (etiqueta 📄 na barra →
+   *Pasta dos dados*);
+2. na **pasta padrão gravada no próprio arquivo** do visualizador — a linha
+   `PASTA_DADOS_VISUALIZADOR` do `tools/build-standalone.py`, que vira
+   `<meta name="derrogacao-pasta-dados">` no arquivo gerado. **Hoje está em
+   branco**; quando a pasta definitiva existir, ela entra ali e ninguém mais
+   precisa configurar nada;
+3. **ao lado** do próprio visualizador.
+
+Vale caminho de rede (`\\servidor\Projetos\…`), unidade mapeada (`G:\…`), a
+pasta ou o próprio `.js`. Se nada der certo, a tela mostra o motivo provável e
+**um botão só: ⟳ Tentar de novo**. Se os dados já estavam à vista e a
+releitura falha (rede fora do ar), eles continuam na tela, com um aviso de que
+podem estar desatualizados e o botão **⟳ Atualizar**. Sozinho, o visualizador
+relê a cada 5 minutos e ao voltar para a janela.
+
+Também dá para **abrir um arquivo** à mão (a publicação, o banco da pasta ou
+um backup do editor): vale até fechar a página. O arquivo é lido como texto —
+nada nele é executado.
+
+### Por que um `.js` e não o `.json` do banco
+
+Aberto com dois cliques (de `file://`), o navegador **não deixa** a página ler
+um `.json` — é uma proteção do Chrome e do Edge (e a CSP do programa ainda
+fecha `connect-src`). Mas deixa carregar um `<script>`, ao lado da página ou
+noutra pasta pelo caminho, sem permissão nenhuma — conferido no Chromium, com
+espaço, acento e `#` no nome da pasta. Por isso a publicação é um `.js`
+(`window.DERROGACAO_VISUALIZADOR = {…};`).
+
+> **"Somente leitura" é do programa, não da rede.** O visualizador não altera
+> nada, mas quem garante que ninguém edita é a **permissão da pasta**: os
+> visualizadores com acesso **só de leitura** à pasta dos dados deles e **sem
+> acesso** à pasta do banco de dados. O `visualizador-dados.js` tem os dados
+> completos dos relatórios publicados e do banco NCR — trate-o com o mesmo
+> cuidado dos backups.
 
 ## O caminho do waiver (aba Fluxos)
 
@@ -1248,16 +1342,18 @@ O site é servido pela branch `gh-pages`, publicada pelo workflow
 ## Estrutura
 
 ```
-index.html               interface
+index.html               interface (a mesma do editor e do visualizador)
 manifest.webmanifest     instalação como aplicativo
 sw.js                    service worker: abre sem rede
 assets/icons/            ícones do aplicativo instalado
 assets/css/app.css       estilos do editor
 assets/css/report.css    layout do relatório (tela e impressão A4)
 assets/js/log.js         o diário do console, em português
+assets/js/leitura.js     o modo leitura (o visualizador): liga e blinda
 assets/js/store.js       modelo de dados, persistência (IndexedDB) e mesclagem
 assets/js/revisoes.js    o histórico do texto: quem escreveu o quê, campo a campo
-assets/js/pasta.js       a pasta da rede como banco de dados
+assets/js/pasta.js       a pasta da rede como banco de dados (e a da publicação)
+assets/js/publicacao.js  o arquivo publicado para o visualizador
 assets/js/report.js      montagem das páginas no padrão do PDF, com paginação
 assets/js/lado.js        o item preso ao lado, em só leitura
 assets/js/fluxo.js       leitura do Waiver Historic, desenho do fluxo e a
@@ -1275,7 +1371,8 @@ assets/js/ncrview.js     aba Banco NCR: tabela, filtros e ficha
 assets/js/kanban.js      aba Kanban: as NCRs de um marco, por situação
 assets/js/app.js         lógica do editor
 derrogacao.html          o programa inteiro num arquivo só (gerado)
-tools/build-standalone.py  gera a versão de arquivo único
+derrogacao-visualizador.html  o visualizador somente leitura (gerado)
+tools/build-standalone.py  gera (e confere) os dois arquivos únicos
 exemplos/                relatórios .json prontos para importar
 CLAUDE.md                notas de manutenção: decisões, armadilhas, porquês
 ```

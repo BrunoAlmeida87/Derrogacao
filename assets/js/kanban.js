@@ -57,6 +57,9 @@
     return b;
   }
   function marcoRel(p) { return p.marco || p.name || ''; }
+  /* Modo leitura (o visualizador): o quadro mostra, mas não arrasta, não
+     troca situação e não adiciona NCR a relatório. */
+  function leitura() { return !!(ctx && ctx.leitura); }
 
   /* "J09 Ind" é o marco industrial: para o Bruno, de pouca relevância. Ele
      nunca entra no quadro do J09 (o marco casa pelo texto igual) e o seletor
@@ -350,7 +353,7 @@
       if (!cs.length) corpo.appendChild(el('p', 'kb-col-vazia', col.id === FORA ? 'Nenhuma NCR fora do Waiver.' : 'Nenhuma NCR aqui.'));
       cs.forEach(function (c) { corpo.appendChild(cartao(c)); });
       coluna.appendChild(corpo);
-      if (col.id !== FORA) soltarEm(coluna, col.id);
+      if (col.id !== FORA && !leitura()) soltarEm(coluna, col.id);
       q.appendChild(coluna);
     });
     return q;
@@ -361,7 +364,7 @@
   function cartao(c) {
     var card = el('article', 'kb-card' + (c.alerta ? ' is-alerta' : '') + (c.tipo !== 'item' ? ' is-fora' : ''));
     card.dataset.tipo = c.tipo;
-    var arrasta = c.tipo === 'item' || (c.tipo === 'banco' && c.relatorio);
+    var arrasta = !leitura() && (c.tipo === 'item' || (c.tipo === 'banco' && c.relatorio));
     if (arrasta) {
       card.draggable = true;
       card.addEventListener('dragstart', function (e) {
@@ -452,9 +455,16 @@
     card.appendChild(pe);
 
     var acoes = el('div', 'kb-card-acoes');
-    if (c.tipo === 'item') {
+    if (c.tipo === 'item' && leitura()) {
+      var stInfo = Store.statusInfo(c.coluna);
+      acoes.appendChild(el('span', 'kb-sel kb-sel--so st-cor--' + c.coluna, stInfo.nome));
+      if (c.item.editedAt) acoes.appendChild(el('span', 'kb-quem', (c.item.editedBy || 'sem nome') + ' · ' + Ncrs.data(c.item.editedAt).slice(0, 10)));
+    } else if (c.tipo === 'item') {
       acoes.appendChild(seletorSituacao(c));
       if (c.item.editedAt) acoes.appendChild(el('span', 'kb-quem', (c.item.editedBy || 'sem nome') + ' · ' + Ncrs.data(c.item.editedAt).slice(0, 10)));
+    } else if (c.tipo === 'banco' && leitura()) {
+      /* no visualizador não se adiciona: fica só a ficha, abaixo */
+      acoes.appendChild(botao('Ficha', 'btn--sm btn--quiet', function () { ctx.abrirFicha(c.rec.key); }, 'Abrir a ficha da NCR no Banco NCR'));
     } else if (c.tipo === 'banco') {
       if (c.relatorio) {
         acoes.appendChild(botao('+ ' + marcoRel(c.relatorio) + ' Waiver', 'btn--sm', function () {

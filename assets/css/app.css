@@ -3291,3 +3291,95 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
   .kb-cab { grid-template-columns: 1fr; }
   .kb-ferr { justify-content: flex-start; }
 }
+
+/* ==========================================================================
+   publicação para os visualizadores (editor)
+   ========================================================================== */
+
+.pub-auto {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin: 12px 0 4px; font-size: 13px; line-height: 1.45; cursor: pointer;
+}
+.pub-auto input { width: auto; margin-top: 3px; accent-color: var(--accent); }
+.pub-visto { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+.pub-visto:empty { display: none; }
+
+/* ==========================================================================
+   modo leitura — o visualizador (leitura.js)
+   O mesmo programa, sem nada que grave. O que é só do editor leva
+   `data-so-editor` no index.html e some aqui; o resto (campos travados,
+   botões de edição do item) é tratado pelo app.js. Nenhuma regra desta
+   seção alcança .rep-page: o PDF sai idêntico ao do editor.
+   ========================================================================== */
+
+body.modo-leitura [data-so-editor],
+body.modo-leitura .ncr-move-box,
+body.modo-leitura .nota-aviso,
+body.modo-leitura .status-herdar-aviso,
+body.modo-leitura .leitura-esconde { display: none !important; }
+
+.leitura-selo {
+  margin-left: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: #cfd5df;
+  border: 1px solid rgba(255, 255, 255, .28);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.leitura-fonte { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.notice--leitura { border-left-color: #d9a441; }
+
+/* tela sem dados: um botão só à vista; o resto recolhido */
+.leitura-vazio {
+  flex: 1;
+  display: flex;
+  padding: 40px 16px;
+  overflow: auto;
+}
+.leitura-vazio .editor-empty { max-width: 560px; }
+.leitura-vazio .leitura-vazio-txt { font-size: 14px; font-weight: 400; color: var(--ink-2); }
+.leitura-vazio-acoes { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 16px 0 4px; }
+.leitura-btn-grande { font-size: 15px; padding: 9px 22px; }
+.leitura-vazio-mais { margin-top: 18px; text-align: left; }
+.leitura-vazio-mais summary { text-align: center; }
+
+/* diálogo "Dados deste visualizador" */
+.leitura-fonte-dados {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 14px;
+  margin: 0 0 14px;
+  font-size: 13px;
+}
+.leitura-fonte-dados:empty { display: none; }
+.leitura-fonte-dados dt { color: var(--muted); }
+.leitura-fonte-dados dd { margin: 0; font-weight: 600; word-break: break-word; }
+.leitura-caminho {
+  margin: 0 0 14px;
+  padding: 12px 13px;
+  background: #f8f9fb;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.leitura-caminho label { display: block; margin-bottom: 7px; line-height: 1.45; color: var(--ink-2); }
+.leitura-caminho-linha { display: flex; gap: 8px; }
+.leitura-caminho-linha input { flex: 1; min-width: 0; }
+.leitura-caminho .hint { margin: 8px 0 0; }
+.leitura-caminho .btn { margin-top: 8px; }
+
+/* o editor em leitura: campo travado continua selecionável (para copiar),
+   mas não parece campo à espera de texto */
+body.modo-leitura .editor-scroll input[readonly],
+body.modo-leitura .editor-scroll textarea[readonly] {
+  background: #f8f9fb;
+  border-color: var(--line-2);
+}
+body.modo-leitura .status-op:disabled { opacity: 1; cursor: default; }
+body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
+.kb-sel--so { display: inline-flex; align-items: center; padding: 2px 8px; }
