@@ -31,7 +31,9 @@ botão que leva a NCR ao relatório do marco (§5, "Banco NCR").
 O mesmo código gera **dois programas**: o **editor** (`derrogacao.html`) e o
 **visualizador** somente leitura (`derrogacao-visualizador.html`), para quem só
 acompanha — é o editor em modo leitura, alimentado pela publicação do editor
-(§5, "O visualizador").
+(§5, "O visualizador"). O editor pode mandar a ele **comunicados** — um waiver
+novo, uma NCR nova, um waiver aceito no J09 —, só com um clique de quem edita
+(§5, "Comunicados para o visualizador").
 
 Publicado em **https://brunoalmeida87.github.io/Derrogacao/**, a partir da
 branch `main` (veja §8).
@@ -66,7 +68,8 @@ assets/css/report.css      layout do relatório — tela e impressão A4
 assets/js/log.js           o diário do console: o que está acontecendo, e o
                            que fazer quando dá errado (carrega primeiro)
 assets/js/config.js        o que muda com o tempo: o marco que abre primeiro
-                           (MARCO_INICIAL) e o ritmo da atualização
+                           (MARCO_INICIAL), o ritmo da atualização e os
+                           marcos que geram comunicados (MARCOS_COMUNICADOS)
 assets/js/atualizacao.js   o ciclo único da atualização automática e o contador
 assets/js/leitura.js       o modo leitura (o visualizador): liga e blinda
 assets/js/store.js         modelo, persistência, mesclagem, ordenação
@@ -84,6 +87,8 @@ assets/js/painel.js        o painel de um marco: tudo o que está indo para ele
 assets/js/xlsx.js          escreve a planilha .xlsx (ZIP + XML à mão)
 assets/js/tabela.js        aba Tabela: todos os itens de todos os marcos
 assets/js/chat.js          a conversa da equipe (aba opcional), pela pasta
+assets/js/comunicados.js   os comunicados para o visualizador: formato, chave
+                           contra duplicado, junção, retenção, lidos
 assets/js/lado.js          o item preso ao lado do editor, em só leitura
 assets/js/xlsxler.js       LÊ .xlsx — cópia literal do motor do NCR Control
 assets/js/ncrs.js          banco NCR: modelo, importações, junção da pasta
@@ -102,14 +107,17 @@ exemplos/                  .json prontos para importar
 Ordem de carga dos scripts (importa: cada um usa o anterior):
 `log.js → config.js → atualizacao.js → leitura.js → store.js → revisoes.js → pasta.js → publicacao.js → xlsxler.js → ncrs.js →
 ncrfluxo.js → report.js → fluxo.js → herdar.js → summary.js → painel.js →
-xlsx.js → tabela.js → chat.js → lado.js → ncrview.js → kanban.js → app.js`.
+xlsx.js → tabela.js → chat.js → comunicados.js → lado.js → ncrview.js → kanban.js → app.js`.
 (`log.js` vem primeiro porque todo mundo o usa — e **por isso mesmo não usa
 ninguém**: ele não conhece `Store`, `Pasta` nem `app`. `config.js` e
 `atualizacao.js` também não usam ninguém: guardam valores e recebem funções.)
 (`tabela.js` usa `Summary`, `Fluxo`, `Report` e `SummaryView.csvCampo`;
 `revisoes.js` usa `Store.CAMPOS_MESCLA`, `valorCampo` e `rotuloCampo`;
 `herdar.js` usa `Store`, `Fluxo` e `Report`; `painel.js` usa esses três mais
-`Summary` e `SummaryView.blocoLista`; `xlsx.js` não usa ninguém.)
+`Summary` e `SummaryView.blocoLista`; `xlsx.js` não usa ninguém;
+`comunicados.js` usa `Config`, `Store` e `Report.marcoOf` só na hora da
+chamada — e `publicacao.js`, que carrega antes, usa `Comunicados.deArquivo`
+também só na hora.)
 
 ## 4. Modelo de dados
 
@@ -1228,9 +1236,80 @@ para caber na barra.
   os dados como estão e o contador diz "falhou · de novo em …".
 - Em segundo plano o relógio para (nada de tique de 1 s nem de leitura); ao
   voltar, se a última rodada tem mais de um minuto, confere na hora.
-- **Quem precisar de uma rodada** (os comunicados do visualizador, quando
-  vierem) se inscreve em `Atualizacao.aoConcluir(fn)` — não cria outro
-  temporizador.
+- **Os comunicados do visualizador não têm relógio próprio**: vêm dentro da
+  publicação, na mesma leitura (`carregarLeitura` → `receberComunicados`).
+  Quem mais precisar de uma rodada se inscreve em
+  `Atualizacao.aoConcluir(fn)` — não cria outro temporizador.
+
+### Comunicados para o visualizador (`comunicados.js`)
+Pedido do Bruno: alguns acontecimentos do J09 merecem chegar a quem só
+acompanha — um waiver novo, uma NCR nova, um waiver aceito. **Nem toda
+edição**: quem decide é quem edita, com um clique. Proposto e aprovado antes
+de implementar (com os padrões abaixo, que o Bruno não contestou).
+
+- **O comunicado só nasce do clique em "📣 Publicar comunicado"**
+  (`publicarComunicado` no app.js, a única chamada de `Comunicados.criar`).
+  Nada olha os dados para deduzir acontecimento: mesclar, importar o banco,
+  abrir backup ou normalizar nunca cria comunicado. O editor salva sozinho a
+  cada tecla, então não existe "Salvar e comunicar": salvar é o de sempre, e
+  o comunicado é a ação a mais — oferecida no aviso logo depois da mudança
+  (`ofertaDoItem`/`ofertaDaNcr`, o `toast` aceita uma lista de ações),
+  sempre à mão no botão 📣 da barra de situação e na ficha da NCR, e
+  listada em ⋯ Mais → 📣 Comunicados.
+- **Três tipos** (`Comunicados.TIPOS`): `novo-waiver` (item com número num
+  relatório de marco monitorado), `nova-ncr` (NCR do banco com Marco Atual
+  monitorado) e `waiver-aceito` (item com `status === Store.STATUS_CONCLUIDO`
+  — o valor interno, nunca o texto da tela). A frase de cada um se entende
+  sem a mensagem opcional (até 280 caracteres).
+- **Os marcos vêm de `Config.MARCOS_COMUNICADOS`**, comparados por
+  `Config.ehMarco`: "J09 Ind", "J09Cer" e "J19" não são o J09. O "J09" não
+  aparece escrito em nenhum outro arquivo do programa.
+- **A prévia mostra tudo antes**: tipo, marco, número, situação nova (com a
+  de antes — `anotarTroca` guarda a última troca da sessão, para o botão da
+  barra também saber), título curto, autor, data e hora.
+- **Duplicado**: a chave do acontecimento (`Comunicados.chave`: tipo + marco
+  + NCR/DEV + número, e a situação no aceito) — pelo número, não pelo id do
+  item, porque a mesclagem pareia itens pelo número. Já comunicado, a prévia
+  diz quando e por quem e o botão vira "Comunicar de novo"; o visualizador
+  mostra um por chave (o mais novo).
+- **Arquivo próprio na pasta: `comunicados.json`**, como a conversa e o
+  diário — e não dentro do `derrogacao-dados.json`, porque a versão anterior
+  do programa, ao regravar os dados, apagaria um campo que não conhece.
+  União pelo id (comunicado não se edita), `comSegundaChance` pelo
+  `Pasta.gravarArquivo`, troca em toda `sincronizar` (`gravarJuncao`) e, se
+  só ele mudou, sozinho (`pollPasta`/`atualizarDaPasta` olham a data dele
+  também). Cópia local no `localStorage` (`derrogacao:comunicados`), como a
+  conversa: é pouco e precisa estar à mão.
+- **O visualizador só enxerga a publicação**: por isso os comunicados vão no
+  `visualizador-dados.js` (`Publicacao.montar(…, comunicados)`; o
+  `conteudo` inclui os ids, para a publicação automática perceber comunicado
+  novo). Com a pasta dos visualizadores ligada, comunicar publica na hora.
+  Visualizador antigo ignora a chave (conferido com o `derrogacao.html`
+  anterior).
+- **No visualizador**: pop-up não modal no canto (`#comPop`, filho do
+  `body` — a impressão o esconde), sem tomar o foco, **um só** com a lista
+  quando chegam vários; "Abrir waiver"/"Ver NCR" (conta como lido), "Marcar
+  como lido", "Depois" (`comAdiados`, só na memória: volta na próxima
+  abertura); a etiqueta 📣 com os não lidos abre o histórico. Os lidos ficam
+  em `derrogacao-visualizador:comunicadosLidos` (conveniência de quem está
+  sentado ali, até 300 ids). Na **primeira abertura**, o que tem mais de 7
+  dias nasce lido; e nada mais velho que a primeira abertura menos 7 dias
+  vira pop-up — é o que impede um comunicado antigo, trazido de volta por um
+  backup, de reaparecer como novidade.
+- **Retenção: os últimos 100** (`Comunicados.MAX`), e não 90 dias: o arquivo
+  é relido por todo visualizador a cada 5 minutos, e um período movimentado
+  engordaria o arquivo por prazo; por contagem o tamanho tem teto (~40 KB).
+- **Backup de tudo leva `comunicados`**; abrir backup junta pelo id (não cria
+  nada); backup antigo, sem a coleção, dá lista vazia. `Store.fromBackup` não
+  foi tocado.
+- **O diário do console** registra tipo, marco e id — nunca o número nem a
+  mensagem (há conferência disso em `tests/comunicados.test.js`).
+- **Modo leitura**: `Comunicados.gravarLocais` está na `blindar()`; os
+  portões são `abrirComunicar`/`publicarComunicado`/`sincronizarComunicados`
+  (`Leitura.ativo()`); o botão 📣 da barra nem é criado no visualizador, e o
+  da ficha depende de `ctx.comunicar` e de `leitura()`.
+- **O que não existe (ainda)**: retirar um comunicado publicado por engano.
+  Exigiria lápide, como a da conversa; a prévia é a proteção por enquanto.
 
 ### Instalação e uso sem rede
 `manifest.webmanifest` + `sw.js`, registrados só em `https:` ou `localhost`
@@ -1400,8 +1479,8 @@ permissão da pasta entre sessões.
 A suíte voltou, menor e em Node (`tests/`, ver `tests/README.md`): o Bruno
 pediu testes automatizados para os comportamentos novos. `node tests/rodar.js`
 roda todas (navegação, abertura no marco da vez, Kanban e suas exportações,
-Resumo, atualização automática, Banco NCR, compatibilidade e os arquivos
-únicos de `file://`). Elas abrem o programa de verdade, semeiam pela API do
+Resumo, atualização automática, Banco NCR, comunicados — do editor ao pop-up
+do visualizador —, compatibilidade e os arquivos únicos de `file://`). Elas abrem o programa de verdade, semeiam pela API do
 programa, conferem arquivos baixados e o número de folhas e o papel dos PDFs.
 Não é o programa: nada ali entra no `derrogacao.html`, e o programa continua
 sem build e sem dependência.
@@ -1410,8 +1489,10 @@ A suíte não substitui olhar, e vale para toda mudança de interface: **abra o
 PDF exportado** (relatório, resumo e fluxos), confira a capa, uma folha de
 continuação e uma página de evidência. Mais de uma vez uma mudança de tela
 vazou para a impressão sem ninguém perceber — é o §2, "o PDF é sagrado". Nesta
-rodada o PDF do relatório J06 de exemplo foi comparado **pixel a pixel** com o
-da versão anterior (52 folhas, idênticas).
+rodada (a dos comunicados) o PDF do relatório J06 de exemplo foi comparado
+**pixel a pixel** com o da versão anterior (52 folhas, idênticas), e a versão
+anterior foi aberta diante dos dados novos: o editor abre o backup com
+`comunicados`, e o visualizador lê a publicação com eles, sem erro.
 
 Abra também de `file://` e pelo `derrogacao.html`: são os dois caminhos que o
 Bruno usa e os que mais escapam. E abra o `derrogacao-visualizador.html` com um
@@ -1501,7 +1582,7 @@ desta máquina às vezes bloqueia `github.io`.
 | Mesclagem campo a campo, com base guardada, em vez de item inteiro | dois campos diferentes do mesmo item nunca foram conflito; tratá-los como se fossem era perder texto em silêncio |
 | Visualizador = o editor em modo leitura, não um programa à parte | escolhido com o Bruno: toda aba e exportação nova chega a ele sozinha; um programa separado ficaria para trás a cada melhoria |
 | Visualizador lê um `.js` publicado, por caminho ou ao lado | de `file://` o navegador bloqueia ler `.json`; `<script>` passa, sem clique e sem permissão |
-| Visualizador mostra NCR, DEV, Resumo, Fluxos, Tabela, Banco NCR e Kanban; sem Conversa | escolha do Bruno |
+| Visualizador mostra NCR, DEV, Resumo, Fluxos, Tabela, Banco NCR e Kanban; sem Conversa (mas com os comunicados, que não são conversa: só o editor escreve) | escolha do Bruno |
 | Publicação leva tudo, inclusive em preenchimento, e a autoria; não leva sessões, histórico do texto nem a anotação interna | decisão do Bruno (tudo e autoria); a anotação tem na tela a promessa de ficar na equipe |
 | Pasta dos dados do visualizador com padrão gravado no arquivo, e a informada na tela por cima | a pasta definitiva ainda não existe; quando existir, ninguém precisa configurar |
 | A base de mesclagem só avança depois da gravação dar certo | avançá-la antes faz a junção seguinte ler o meu trabalho como sendo do outro, e apagá-lo |
@@ -1550,4 +1631,11 @@ desta máquina às vezes bloqueia `github.io`.
 | Pastilhas de marco da Tabela na fila dos marcos | a mesma ordem do Kanban e do Resumo ("marcos em ordem de fila em todo lugar") |
 | Zebra no Banco NCR, com os estados por cima | pedido do Bruno: legibilidade de uma tabela de 13 colunas |
 | Suíte de testes de volta, em `tests/` (Node + Playwright) | pedido do Bruno para os comportamentos novos; é ferramenta de quem edita, fora do programa |
+| Comunicado só com clique e prévia; nunca deduzido dos dados | pedido do Bruno: "nem toda edição deve gerar notificação"; deduzir criaria comunicado em mesclagem e importação |
+| Comunicados em `comunicados.json`, fora do arquivo de dados | a versão anterior, ao regravar os dados, apagaria o campo; e a união pelo id é a da conversa |
+| Comunicados dentro da publicação, sem relógio próprio | o visualizador só enxerga a publicação; um segundo ciclo concorreria com o da atualização automática |
+| Retenção por contagem (100), não por prazo | o arquivo é relido a cada 5 min por todo visualizador; por contagem o tamanho tem teto |
+| Na primeira abertura do visualizador, só os da última semana viram pop-up | uma pilha de avisos velhos no primeiro dia é ruído; eles continuam no histórico |
+| O backup de tudo leva os comunicados | backup pela metade não é backup; versões antigas ignoram a chave |
+| "Novo waiver" = item do relatório Waiver do J09; "Nova NCR" = NCR do banco com Marco Atual J09 | a leitura proposta ao Bruno antes de implementar |
 

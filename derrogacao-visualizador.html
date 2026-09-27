@@ -3618,6 +3618,176 @@ body.modo-leitura .status-op:disabled { opacity: 1; cursor: default; }
 body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
 .kb-sel--so { display: inline-flex; align-items: center; padding: 2px 8px; }
 
+/* ==========================================================================
+   comunicados (comunicados.js): a prévia no editor, o pop-up e o histórico
+   no visualizador. Tudo de tela: nada disto chega ao papel — o pop-up é filho
+   do body, e a impressão esconde tudo o que não é o #printRoot.
+   ========================================================================== */
+
+/* o botão na barra de situação e na ficha da NCR */
+.btn--comunicar { border-color: #c9a64a; color: #6b4400; background: #fdf6e3; }
+.btn--comunicar:hover { background: #f9ecc6; }
+
+/* a etiqueta da barra de cima (visualizador) */
+.com-chip { gap: 5px; }
+.com-chip-conta:empty { display: none; }
+.com-chip-conta {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #fff;
+  color: #3a2a00;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+.com-chip.com-chip--novo { background: #d8b877; border-color: #d8b877; color: #3a2a00; }
+
+/* o cartão de um comunicado — o mesmo na prévia, no pop-up e no histórico */
+.com-cartao { display: flex; flex-direction: column; gap: 4px; }
+/* dentro das janelas, `.dlg-body p` daria 12 px entre as linhas do cartão */
+.dlg-body .com-cartao p { margin: 0; line-height: 1.4; }
+.dlg-body .com-cartao .com-frase { color: var(--ink); }
+.dlg-body .com-cartao .com-resumo { color: var(--muted); }
+.com-topo { display: flex; align-items: center; gap: 6px; }
+.com-tipo-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  padding: 1px 7px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #f5f6fa;
+  color: var(--ink-2);
+}
+.com-tipo-tag--novo-waiver { border-color: var(--accent-br); background: var(--accent-sf); color: var(--accent-dk); }
+.com-tipo-tag--nova-ncr { border-color: #c3d0de; background: #e9eef4; color: #22384e; }
+.com-tipo-tag--waiver-aceito { border-color: var(--ok-br); background: var(--ok-sf); color: #0b5234; }
+.com-novo {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: #b42318;
+  color: #fff;
+}
+.com-frase { margin: 0; font-weight: 600; font-size: 13.5px; line-height: 1.4; color: var(--ink); }
+.com-resumo {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.com-msg { margin: 0; font-size: 12.5px; font-style: italic; color: var(--ink-2); }
+.com-pe { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.com-meta { font-size: 11.5px; color: var(--muted); }
+
+/* o pop-up: canto de baixo, sem cobrir a tela e sem tomar o foco */
+.com-pop {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;                 /* abaixo da pré-visualização (50) e do aviso (100) */
+  width: 370px;
+  max-width: calc(100vw - 32px);
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #e3cf95;
+  border-top: 4px solid #c9a64a;
+  border-radius: var(--radius);
+  box-shadow: var(--sh-3);
+  color: var(--ink);
+}
+.com-pop[hidden] { display: none; }
+.com-pop-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px 7px;
+  border-bottom: 1px solid var(--line-2);
+}
+.com-pop-tit { font-size: 13.5px; }
+.com-pop-x {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  cursor: pointer;
+}
+.com-pop-x:hover { background: var(--bg); color: var(--ink); }
+.com-pop-x:focus-visible, .com-pop .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.com-pop-lista { overflow: auto; padding: 4px 12px; }
+.com-pop-lista .com-cartao { padding: 9px 0; }
+.com-pop-lista .com-cartao + .com-cartao { border-top: 1px solid var(--line-2); }
+.com-pop-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 9px 12px 11px;
+  border-top: 1px solid var(--line-2);
+}
+@media (max-width: 600px) {
+  .com-pop { right: 16px; left: 16px; width: auto; max-width: none; bottom: 16px; }
+}
+
+/* a prévia e o histórico */
+.com-dlg .dlg-body > p { margin-top: 0; }
+.com-tipos { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.com-tipos[hidden] { display: none; }
+.com-tipos legend { font-size: 12px; font-weight: 700; color: var(--ink-2); padding: 0 4px; }
+.com-tipo { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; cursor: pointer; }
+.com-previa-rot { font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.com-previa {
+  padding: 10px 12px;
+  border: 1px solid #e3cf95;
+  border-left: 4px solid #c9a64a;
+  border-radius: var(--radius-sm);
+  background: #fffdf7;
+  margin-bottom: 12px;
+}
+.com-campos {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 3px 14px;
+  margin: 0 0 12px;
+  font-size: 12.5px;
+}
+.com-campos dt { color: var(--muted); }
+.com-campos dd { margin: 0; font-weight: 600; word-break: break-word; }
+.com-msg-rot { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.com-msg-rot small { font-weight: 400; color: var(--muted); }
+#comunicarMsg { width: 100%; box-sizing: border-box; resize: vertical; }
+.com-conta { text-align: right; margin: 2px 0 8px; }
+.com-ja {
+  margin: 0 0 8px;
+  padding: 8px 11px;
+  border-left: 3px solid #d9a441;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--warn-sf);
+  color: #6b4400;
+  font-size: 12.5px;
+}
+.com-hist-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
+.com-hist-acoes:not(:has(:not([hidden]))) { display: none; }
+.com-lista { list-style: none; margin: 0; padding: 0; max-height: 58vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.com-lista > li { padding: 10px 12px; }
+.com-lista > li + li { border-top: 1px solid var(--line-2); }
+.com-hist-item.is-novo { background: #fffdf2; box-shadow: inset 3px 0 0 #c9a64a; }
+.com-vazio { color: var(--muted); font-size: 13px; }
+
 </style>
 <style>
 /* assets/css/report.css */
@@ -4023,6 +4193,10 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
           title="A publicação automática para os visualizadores precisa da sua permissão para gravar na pasta deles. Clique aqui.">
     👁 permitir publicação
   </button>
+  <!-- só no visualizador: os comunicados da equipe (comunicados.js) -->
+  <button class="pasta-chip com-chip" id="comChip" hidden aria-label="Comunicados">
+    📣<span class="com-chip-conta" id="comChipConta"></span>
+  </button>
   <!-- só no visualizador: de quando são os dados, e reler -->
   <button class="pasta-chip leitura-fonte" id="fonteChip" hidden data-estado="erro">
     <span id="fonteChipLabel">📄 sem dados</span>
@@ -4085,6 +4259,9 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
         <div class="menu-title">Este programa <small>vale para tudo, não só para o marco aberto</small></div>
         <button class="menu-item" id="logBtn">
           🩺 Diagnóstico e diário do console <small id="logBtnSub">ver o que o programa está fazendo e o que deu errado</small>
+        </button>
+        <button class="menu-item" id="comunicadosBtn">
+          📣 Comunicados <small id="comunicadosBtnSub">os avisos publicados para quem usa o visualizador</small>
         </button>
 
 
@@ -4772,6 +4949,47 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
   </div>
 </dialog>
 
+<!-- ====================== comunicados (comunicados.js) ====================== -->
+<!-- A prévia: o comunicado só nasce do botão "Publicar comunicado". -->
+<dialog id="comunicarDialog" class="dlg--wide com-dlg" aria-labelledby="comunicarTitulo">
+  <div class="dlg-body">
+    <h3 id="comunicarTitulo">📣 Comunicar no visualizador</h3>
+    <p>A alteração já está salva — isto é só o aviso. Quem usa o visualizador vê
+       este comunicado num pop-up discreto, na próxima vez que os dados forem lidos.
+       Nada é enviado sem o botão abaixo.</p>
+    <fieldset class="com-tipos" id="comunicarTipos" hidden></fieldset>
+    <div class="com-previa-rot">Prévia do que o visualizador vai mostrar</div>
+    <div class="com-previa" id="comunicarPrevia"></div>
+    <dl class="com-campos" id="comunicarCampos"></dl>
+    <label class="com-msg-rot" for="comunicarMsg">Mensagem curta <small>(opcional — o comunicado se entende sem ela)</small></label>
+    <textarea id="comunicarMsg" rows="2" maxlength="280" placeholder="ex.: aceito na reunião de hoje"></textarea>
+    <div class="hint com-conta" id="comunicarConta">0 / 280</div>
+    <p class="com-ja" id="comunicarJa" role="alert" hidden></p>
+    <p class="hint" id="comunicarDestino"></p>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="comunicarCancelarBtn">Cancelar</button>
+    <button class="btn btn--accent" id="comunicarOk">📣 Publicar comunicado</button>
+  </div>
+</dialog>
+
+<!-- O histórico: no editor, o registro inteiro; no visualizador, um por
+     acontecimento, com os não lidos marcados. -->
+<dialog id="comunicadosDialog" class="dlg--wide com-dlg" aria-labelledby="comunicadosTitulo">
+  <div class="dlg-body">
+    <h3 id="comunicadosTitulo">📣 Comunicados</h3>
+    <p id="comunicadosIntro"></p>
+    <div class="com-hist-acoes">
+      <button class="btn btn--sm btn--accent" id="comunicadosNovoBtn" data-so-editor hidden>📣 Comunicar o item aberto</button>
+      <button class="btn btn--sm" id="comunicadosLidosBtn" hidden>Marcar todos como lidos</button>
+    </div>
+    <ul class="com-lista" id="comunicadosLista"></ul>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn btn--primary" id="comunicadosFecharBtn">Fechar</button>
+  </div>
+</dialog>
+
 <!-- ====================== visualizador: de onde vêm os dados ====================== -->
 <dialog id="fonteDialog" class="dlg--wide">
   <div class="dlg-body">
@@ -4804,6 +5022,10 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
   </div>
 </dialog>
 <input type="file" id="abrirDadosInput" accept=".js,.json,application/json,text/javascript" hidden>
+
+<!-- visualizador: o pop-up dos comunicados novos. Não é janela modal e não
+     toma o foco; vários de uma vez viram uma lista só. -->
+<aside class="com-pop" id="comPop" role="region" aria-label="Comunicados novos" aria-live="polite" hidden></aside>
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
@@ -5136,7 +5358,7 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
    config.js — as preferências do programa que mudam com o tempo
    --------------------------------------------------------------------------
    Um lugar só para o que hoje vale e amanhã será outro — o marco da vez, o
-   ritmo da atualização automática. Mudou o marco prioritário? É aqui, e em
+   ritmo da atualização automática, os marcos que geram comunicados. Mudou o marco prioritário? É aqui, e em
    nenhum outro arquivo.
 
    Carrega logo depois do log.js e não usa ninguém: só guarda valores e as
@@ -5153,6 +5375,12 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
   /* De quanto em quanto tempo os dados de fora são conferidos sozinhos: a
      pasta da equipe no editor, a publicação no visualizador. */
   var INTERVALO_ATUALIZACAO_MS = 5 * 60 * 1000;
+
+  /* Os marcos cujos acontecimentos podem virar comunicado para o
+     visualizador (comunicados.js): um waiver novo, uma NCR nova, um waiver
+     aceito. Para acompanhar outro marco, acrescente-o aqui — ['J09', 'J10'].
+     A comparação é a de `ehMarco`: "J09 Ind" não é o J09. */
+  var MARCOS_COMUNICADOS = ['J09'];
 
   function str(v) { return v == null ? '' : String(v); }
 
@@ -5201,6 +5429,7 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
   global.Config = {
     MARCO_INICIAL: MARCO_INICIAL,
     INTERVALO_ATUALIZACAO_MS: INTERVALO_ATUALIZACAO_MS,
+    MARCOS_COMUNICADOS: MARCOS_COMUNICADOS,
     chaveMarco: chaveMarco,
     ehMarco: ehMarco,
     relatorioInicial: relatorioInicial
@@ -5219,9 +5448,10 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
    página e sem perder nada do que está aqui.
 
    Um relógio só para o programa inteiro: trocar de aba não cria outro, e
-   ninguém mais agenda releitura por conta própria. Quem quiser saber de cada
-   rodada (os comunicados do visualizador, quando existirem) se inscreve em
-   `aoConcluir` — em vez de criar um segundo mecanismo concorrente.
+   ninguém mais agenda releitura por conta própria. Os comunicados do
+   visualizador vêm dentro da própria publicação, na mesma leitura desta
+   rodada. Quem mais quiser saber de cada rodada se inscreve em `aoConcluir`
+   — em vez de criar um segundo mecanismo concorrente.
 
    - Com a página em segundo plano o relógio para: nada é conferido nem
      redesenhado. Ao voltar, se a última rodada tiver mais de um minuto,
@@ -5513,6 +5743,9 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
     if (global.Revisoes && Revisoes.gravarLocais) Revisoes.gravarLocais = function () {};
     if (global.Chat && Chat.gravarLocais) Chat.gravarLocais = function () {};
     if (global.Chat && Chat.ligado) Chat.ligado = function () { return false; };
+    /* o visualizador recebe comunicados, nunca cria: a cópia local é do
+       editor. O que ele guarda é só quais já leu (Comunicados.marcarLidos). */
+    if (global.Comunicados && Comunicados.gravarLocais) Comunicados.gravarLocais = function () {};
   }
 
   global.Leitura = {
@@ -8407,8 +8640,8 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
    Quando o arquivo chega por outro caminho (aberto à mão), ele é lido como
    TEXTO e interpretado — nunca executado.
 
-   Vai o que o relatório mostra, a situação interna, quem editou cada item e
-   o banco NCR. Não vão as sessões de trabalho, as lápides de exclusão, os
+   Vai o que o relatório mostra, a situação interna, quem editou cada item,
+   o banco NCR e os comunicados (comunicados.js). Não vão as sessões de trabalho, as lápides de exclusão, os
    campos de controle da mesclagem nem a anotação interna do item (`nota`),
    que a tela promete ficar "só aqui e na pasta da equipe".
    ========================================================================== */
@@ -8457,23 +8690,31 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
    * Ficam de fora os carimbos que toda gravação renova (updatedAt,
    * lastEditedAt) — senão cada salvamento sem mudança republicaria.
    */
-  function conteudo(projects, ncrBase) {
+  function conteudo(projects, ncrBase, comunicados) {
     return JSON.stringify([publicaveis(projects).map(function (p) {
       var c = limpar(p);
       delete c.updatedAt;
       delete c.lastEditedAt;
       return c;
-    }), ncrBase ? ncrBase.ncrs : null]);
+    }), ncrBase ? ncrBase.ncrs : null, idsDe(comunicados)]);
+  }
+
+  /* os comunicados não se editam: a lista de ids diz se chegou algum */
+  function idsDe(comunicados) {
+    return (comunicados || []).map(function (c) { return c.id; });
   }
 
   /* Os metadados vêm antes dos dados: assim dá para ler quem publicou e
      quando só pelo começo do arquivo, sem trazer as imagens pela rede. */
-  function montar(projects, quem, ncrBase) {
+  function montar(projects, quem, ncrBase, comunicados) {
     return {
       format: FORMATO,
       schema: Store.SCHEMA,
       publishedAt: new Date().toISOString(),
       publishedBy: str(quem),
+      /* os comunicados antes dos dados: são poucos, e um visualizador
+         antigo simplesmente ignora a chave */
+      comunicados: comunicados || [],
       projects: publicaveis(projects).map(limpar),
       ncrBase: ncrBase || null
     };
@@ -8507,7 +8748,7 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
 
   /**
    * Transforma o que veio (objeto já carregado ou texto de arquivo) em
-   * { projects, ncrBase, quando, quem, formato, schema, assinatura }.
+   * { projects, ncrBase, comunicados, quando, quem, formato, schema, assinatura }.
    * Aceita a publicação, o banco da pasta (derrogacao-dados.json) e os
    * backups do editor (que trazem o banco NCR em `ncrBase`).
    */
@@ -8517,6 +8758,8 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
     return {
       projects: projects,
       ncrBase: (d.ncrBase && typeof d.ncrBase === 'object') ? d.ncrBase : null,
+      /* publicação ou backup sem a coleção (os antigos): lista vazia */
+      comunicados: Comunicados.deArquivo(d),
       formato: str(d.format) || 'backup',
       schema: Number(d.schema) || 0,
       quando: str(d.publishedAt || d.updatedAt || d.exportedAt),
@@ -15466,6 +15709,430 @@ if(isWorker){
 
 </script>
 <script>
+/* assets/js/comunicados.js */
+/* ==========================================================================
+   comunicados.js — os avisos do editor para quem usa o visualizador
+   --------------------------------------------------------------------------
+   Pedido do Bruno: alguns acontecimentos merecem chegar a quem só
+   acompanha — um waiver novo no J09, uma NCR nova no J09, um waiver do J09
+   aceito. Nem toda edição: quem decide é quem está editando, com um clique
+   em "📣 Comunicar", depois de ver a prévia.
+
+   Três regras que definem o resto:
+
+   - **O comunicado só nasce do clique.** Nada aqui olha os dados para
+     deduzir um acontecimento: mesclar, importar, abrir um backup ou
+     normalizar um relatório nunca cria comunicado nenhum.
+   - **Arquivo próprio na pasta da equipe** (`comunicados.json`), como a
+     conversa e o diário: o `derrogacao-dados.json` é reescrito a cada
+     gravação, e uma versão antiga do programa, ao regravá-lo, apagaria um
+     campo que não conhece. A junção é união pelo id — comunicado não se
+     edita.
+   - **O visualizador só enxerga a publicação.** Por isso os comunicados
+     vão também dentro do `visualizador-dados.js`, e chegam na mesma leitura
+     dos dados — pelo ciclo único da atualização automática, sem um segundo
+     relógio.
+
+   O comunicado guarda o mínimo para ser lido e para achar o item: nada de
+   imagem, nada de texto longo. Os marcos que podem ser comunicados estão em
+   `Config.MARCOS_COMUNICADOS`.
+
+   Não conhece a tela: o app.js monta a prévia, o pop-up e o histórico.
+   ========================================================================== */
+(function (global) {
+  'use strict';
+
+  var ARQUIVO = 'comunicados.json';
+  var FORMATO = 'derrogacao-comunicados';
+  var SCHEMA = 1;
+
+  var CHAVE_LOCAIS = 'derrogacao:comunicados';
+  var CHAVE_LIDOS = 'derrogacao-visualizador:comunicadosLidos';
+
+  var MAX = 100;            /* guardados: os últimos 100 */
+  var MAX_MENSAGEM = 280;   /* a mensagem opcional é um recado, não um texto */
+  var MAX_RESUMO = 140;     /* o título curto do item */
+  var MAX_LIDOS = 300;      /* bem acima dos 100 guardados: um id lido não volta */
+  var DIAS_PRIMEIRA = 7;    /* na primeira abertura, só os da última semana */
+
+  /* Os tipos de acontecimento. `frase` recebe o comunicado e devolve o texto
+     que se lê sem mais nada — a mensagem opcional é um acréscimo. */
+  var TIPOS = {
+    'novo-waiver': {
+      rotulo: 'Novo waiver',
+      frase: function (c) {
+        return 'Um novo waiver foi adicionado ao marco ' + c.marco + ': ' + c.numero + '.';
+      }
+    },
+    'nova-ncr': {
+      rotulo: 'Nova NCR',
+      frase: function (c) {
+        return 'Uma nova NCR foi adicionada ao marco ' + c.marco + ': ' + c.numero + '.';
+      }
+    },
+    'waiver-aceito': {
+      rotulo: 'Waiver accepted',
+      frase: function (c) {
+        return 'O waiver da ' + c.numero + ', no marco ' + c.marco + ', foi aceito.';
+      }
+    }
+  };
+  var ORDEM_TIPOS = ['novo-waiver', 'nova-ncr', 'waiver-aceito'];
+
+  function str(v) { return v == null ? '' : String(v); }
+  function agora() { return new Date().toISOString(); }
+
+  function uid() {
+    if (global.Store && Store.uid) return 'c-' + Store.uid();
+    return 'c-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+
+  function corta(t, max) {
+    t = str(t).replace(/\s+/g, ' ').trim();
+    return t.length > max ? t.slice(0, max - 1).replace(/\s+\S*$/, '') + '…' : t;
+  }
+
+  /* --- quais marcos --------------------------------------------------------- */
+
+  function marcosMonitorados() {
+    var l = global.Config && Config.MARCOS_COMUNICADOS;
+    return Array.isArray(l) ? l : [];
+  }
+
+  /**
+   * O marco monitorado que este texto é — ou ''. A comparação é a do
+   * `Config.ehMarco`: caixa, espaço e zero à esquerda não importam, "RANAE
+   * J09" é o J09; "J09 Ind", "J09Cer" e "J19" não são.
+   */
+  function monitorado(texto) {
+    var l = marcosMonitorados();
+    for (var i = 0; i < l.length; i++) {
+      if (Config.ehMarco(texto, l[i])) return str(l[i]);
+    }
+    return '';
+  }
+
+  function marcoDoRelatorio(project, kind) {
+    if (!project) return '';
+    if (global.Report && Report.marcoOf) return str(Report.marcoOf(project, kind));
+    return str(project.marco);
+  }
+
+  /* --- o que pode ser comunicado ------------------------------------------- */
+
+  /** O marco monitorado deste relatório (na aba NCR ou DEV) — ou ''. */
+  function doRelatorio(project, kind) {
+    return monitorado(marcoDoRelatorio(project, kind));
+  }
+
+  /**
+   * Os acontecimentos que este item permite comunicar, na ordem de TIPOS:
+   * "novo waiver" para todo item com número num relatório de marco
+   * monitorado, e "waiver accepted" quando ele está aceito (pelo valor
+   * interno, `Store.STATUS_CONCLUIDO` — nunca pelo texto da tela).
+   */
+  function tiposDoItem(project, kind, item) {
+    if (!item || !str(item.ncrId).trim()) return [];
+    if (!monitorado(marcoDoRelatorio(project, kind))) return [];
+    var l = ['novo-waiver'];
+    if (item.status === Store.STATUS_CONCLUIDO) l.push('waiver-aceito');
+    return l;
+  }
+
+  /**
+   * A proposta de comunicado de um item de relatório — o que a prévia
+   * mostra. `statusAntes` só é conhecido quando a proposta vem logo depois
+   * da troca de situação.
+   */
+  function doItem(project, kind, item, tipo, statusAntes) {
+    if (tiposDoItem(project, kind, item).indexOf(tipo) < 0) return null;
+    var marco = monitorado(marcoDoRelatorio(project, kind));
+    return {
+      tipo: tipo,
+      projetoId: str(project.id),
+      marco: marco,
+      kind: kind === 'dev' ? 'dev' : 'ncr',
+      itemId: str(item.id),
+      ncrKey: str(item.ncrKey),
+      numero: str(item.ncrId).trim(),
+      resumo: corta(item.description, MAX_RESUMO),
+      statusAntes: tipo === 'waiver-aceito' ? str(statusAntes) : '',
+      statusNovo: str(item.status)
+    };
+  }
+
+  /** A NCR do banco com Marco Atual num marco monitorado: "nova NCR". */
+  function daNcr(rec) {
+    if (!rec || !rec.waiver) return null;
+    var marco = monitorado(rec.waiver.marcoAtual);
+    if (!marco) return null;
+    var f = rec.fonte || {};
+    return {
+      tipo: 'nova-ncr',
+      projetoId: '',
+      marco: marco,
+      kind: 'ncr',
+      itemId: '',
+      ncrKey: str(rec.key),
+      numero: str(rec.numero),
+      resumo: corta(f.titulo || f.descricao, MAX_RESUMO),
+      statusAntes: '',
+      statusNovo: ''
+    };
+  }
+
+  /**
+   * A chave do acontecimento: o mesmo waiver aceito no mesmo marco é o mesmo
+   * acontecimento, venha de quem vier e com o id de item que tiver (a
+   * mesclagem pareia itens pelo número). É ela que avisa "já comunicado" e
+   * que faz o visualizador mostrar uma vez só.
+   */
+  function chave(c) {
+    var num = str(c.numero).trim().toUpperCase().replace(/\s+/g, ' ');
+    var partes = [c.tipo, Config.chaveMarco(c.marco), c.kind || 'ncr', num];
+    if (c.tipo === 'waiver-aceito') partes.push(c.statusNovo);
+    return partes.join('|');
+  }
+
+  /** O comunicado de verdade, a partir da proposta. Só o clique chama isto. */
+  function criar(proposta, mensagem, autor) {
+    var c = {};
+    Object.keys(proposta).forEach(function (k) { c[k] = proposta[k]; });
+    c.id = uid();
+    c.mensagem = corta(mensagem, MAX_MENSAGEM);
+    c.autor = str(autor);
+    c.em = agora();
+    c.chave = chave(c);
+    return c;
+  }
+
+  function frase(c) {
+    var t = TIPOS[c.tipo];
+    return t ? t.frase(c) : 'Comunicado sobre o marco ' + (c.marco || '—') + ': ' + (c.numero || '—') + '.';
+  }
+
+  function rotulo(tipo) { return TIPOS[tipo] ? TIPOS[tipo].rotulo : 'Comunicado'; }
+
+  /* --- a lista ------------------------------------------------------------- */
+
+  var CAMPOS = ['id', 'tipo', 'projetoId', 'marco', 'kind', 'itemId', 'ncrKey', 'numero',
+    'resumo', 'statusAntes', 'statusNovo', 'mensagem', 'autor', 'em', 'chave'];
+
+  /**
+   * Um comunicado lido de fora (pasta, publicação, backup). Campo que esta
+   * versão não conhece passa intacto — a mesma regra dos itens: a página
+   * antiga não apaga o que a nova escreveu. Tipo desconhecido também passa:
+   * vira um comunicado genérico, em vez de sumir.
+   */
+  function normalizar(c) {
+    if (!c || typeof c !== 'object' || !c.id) return null;
+    var out = {};
+    Object.keys(c).forEach(function (k) {
+      if (CAMPOS.indexOf(k) < 0) out[k] = c[k];
+    });
+    CAMPOS.forEach(function (k) { out[k] = str(c[k]); });
+    out.kind = out.kind === 'dev' ? 'dev' : 'ncr';
+    out.mensagem = corta(out.mensagem, MAX_MENSAGEM);
+    out.resumo = corta(out.resumo, MAX_RESUMO);
+    if (!out.em) out.em = agora();
+    if (!out.chave) out.chave = chave(out);
+    return out;
+  }
+
+  function maisNovoPrimeiro(a, b) {
+    return str(b.em).localeCompare(str(a.em)) || str(b.id).localeCompare(str(a.id));
+  }
+
+  /** Os últimos MAX, do mais novo para o mais velho. */
+  function podar(lista) {
+    return lista.slice().sort(maisNovoPrimeiro).slice(0, MAX);
+  }
+
+  /** União pelo id. Comunicado não se edita: havendo os dois, fica o daqui. */
+  function juntar(a, b) {
+    var porId = {};
+    var out = [];
+    [a || [], b || []].forEach(function (l) {
+      l.forEach(function (c) {
+        var n = normalizar(c);
+        if (!n || porId[n.id]) return;
+        porId[n.id] = true;
+        out.push(n);
+      });
+    });
+    return podar(out);
+  }
+
+  /** Há aqui algum que a pasta ainda não tem? (só então se grava) */
+  function faltamLa(aqui, la) {
+    var ids = {};
+    (la || []).forEach(function (c) { if (c && c.id) ids[c.id] = true; });
+    return (aqui || []).some(function (c) { return !ids[c.id]; });
+  }
+
+  function envelope(lista) {
+    return { format: FORMATO, schema: SCHEMA, updatedAt: agora(), comunicados: podar(lista || []) };
+  }
+
+  /**
+   * O que veio de um arquivo (envelope da pasta, backup ou publicação) —
+   * sempre uma lista. Arquivo sem a coleção (os anteriores a ela) dá lista
+   * vazia.
+   */
+  function deArquivo(d) {
+    if (!d || typeof d !== 'object' || Array.isArray(d)) return [];
+    return Array.isArray(d.comunicados) ? juntar(d.comunicados, []) : [];
+  }
+
+  /** O último comunicado deste acontecimento, ou null. */
+  function jaComunicado(lista, c) {
+    var k = chave(c);
+    var achado = null;
+    (lista || []).forEach(function (x) {
+      if (x.chave === k && (!achado || str(x.em) > str(achado.em))) achado = x;
+    });
+    return achado;
+  }
+
+  /* --- a cópia deste navegador (editor) ------------------------------------
+     Como a conversa: no localStorage, porque é pouco (100 comunicados, uns
+     40 KB) e precisa estar à mão sem esperar o IndexedDB. A verdade da
+     equipe é o arquivo da pasta. */
+
+  function locais() {
+    try {
+      var raw = global.localStorage.getItem(CHAVE_LOCAIS);
+      return raw ? juntar(JSON.parse(raw), []) : [];
+    } catch (e) { return []; }
+  }
+
+  function gravarLocais(lista) {
+    try { global.localStorage.setItem(CHAVE_LOCAIS, JSON.stringify(podar(lista || []))); }
+    catch (e) { /* sem espaço: vale a pasta */ }
+  }
+
+  /* --- no visualizador: o que já foi visto -----------------------------------
+     Por navegador, no localStorage: cada pessoa marca o que leu. É
+     conveniência de quem está sentado ali, não dado do programa. */
+
+  function lerLidos() {
+    try {
+      var r = JSON.parse(global.localStorage.getItem(CHAVE_LIDOS) || 'null');
+      if (r && Array.isArray(r.ids)) return { desde: str(r.desde), ids: r.ids.map(str) };
+    } catch (e) { /* ignora */ }
+    return null;
+  }
+
+  function gravarLidos(reg) {
+    try {
+      global.localStorage.setItem(CHAVE_LIDOS, JSON.stringify({
+        desde: reg.desde,
+        ids: reg.ids.slice(-MAX_LIDOS)
+      }));
+    } catch (e) { /* sem armazenamento: o pop-up volta na próxima abertura */ }
+  }
+
+  /**
+   * O registro dos lidos deste navegador. Na primeira vez (nada guardado),
+   * o que tem mais de DIAS_PRIMEIRA dias já nasce lido: quem abre o
+   * visualizador pela primeira vez não precisa de uma pilha de avisos
+   * velhos — eles continuam no histórico.
+   */
+  function lidos(lista) {
+    var reg = lerLidos();
+    if (reg) return reg;
+    var corte = new Date(Date.now() - DIAS_PRIMEIRA * 86400000).toISOString();
+    reg = {
+      desde: agora(),
+      ids: (lista || []).filter(function (c) { return str(c.em) < corte; })
+        .map(function (c) { return c.id; })
+    };
+    gravarLidos(reg);
+    return reg;
+  }
+
+  function marcarLidos(ids) {
+    var reg = lerLidos() || { desde: agora(), ids: [] };
+    var ja = {};
+    reg.ids.forEach(function (id) { ja[id] = true; });
+    (ids || []).forEach(function (id) {
+      if (id && !ja[id]) { reg.ids.push(id); ja[id] = true; }
+    });
+    gravarLidos(reg);
+  }
+
+  /**
+   * O que o visualizador mostra: um por acontecimento (o mais novo — um
+   * "comunicar de novo" substitui o anterior), do mais novo para o mais
+   * velho.
+   */
+  function paraVer(lista) {
+    var porChave = {};
+    var out = [];
+    podar(lista || []).forEach(function (c) {
+      if (porChave[c.chave]) return;
+      porChave[c.chave] = true;
+      out.push(c);
+    });
+    return out;
+  }
+
+  /**
+   * Os não lidos, entre os que o visualizador mostra. Um comunicado mais
+   * velho que a primeira abertura deste navegador menos DIAS_PRIMEIRA dias
+   * nunca vira pop-up — é o que impede um comunicado antigo, trazido de
+   * volta por um backup, de reaparecer como novidade.
+   */
+  function naoLidos(lista) {
+    var ver = paraVer(lista);
+    var reg = lidos(lista);
+    var ja = {};
+    reg.ids.forEach(function (id) { ja[id] = true; });
+    var piso = reg.desde
+      ? new Date(Date.parse(reg.desde) - DIAS_PRIMEIRA * 86400000).toISOString()
+      : '';
+    return ver.filter(function (c) { return !ja[c.id] && (!piso || str(c.em) >= piso); });
+  }
+
+  global.Comunicados = {
+    ARQUIVO: ARQUIVO,
+    FORMATO: FORMATO,
+    SCHEMA: SCHEMA,
+    MAX: MAX,
+    MAX_MENSAGEM: MAX_MENSAGEM,
+    DIAS_PRIMEIRA: DIAS_PRIMEIRA,
+    TIPOS: TIPOS,
+    ORDEM_TIPOS: ORDEM_TIPOS,
+    CHAVE_LOCAIS: CHAVE_LOCAIS,
+    CHAVE_LIDOS: CHAVE_LIDOS,
+    marcosMonitorados: marcosMonitorados,
+    monitorado: monitorado,
+    doRelatorio: doRelatorio,
+    tiposDoItem: tiposDoItem,
+    doItem: doItem,
+    daNcr: daNcr,
+    chave: chave,
+    criar: criar,
+    frase: frase,
+    rotulo: rotulo,
+    normalizar: normalizar,
+    podar: podar,
+    juntar: juntar,
+    faltamLa: faltamLa,
+    envelope: envelope,
+    deArquivo: deArquivo,
+    jaComunicado: jaComunicado,
+    locais: locais,
+    gravarLocais: gravarLocais,
+    lidos: lidos,
+    marcarLidos: marcarLidos,
+    paraVer: paraVer,
+    naoLidos: naoLidos
+  };
+})(window);
+
+</script>
+<script>
 /* assets/js/lado.js */
 /* ==========================================================================
    lado.js — o item preso ao lado, em só leitura
@@ -16918,6 +17585,16 @@ if(isWorker){
     autor.id = 'nbAutor';
     autor.textContent = w.editedAt ? 'Última edição: ' + (w.editedBy || 'sem nome') + ' · ' + Ncrs.data(w.editedAt) : 'Ainda não preenchido.';
     sw.appendChild(autor);
+    /* Marco Atual num marco dos comunicados (Config.MARCOS_COMUNICADOS): a
+       "nova NCR" pode ser avisada a quem usa o visualizador — só com o clique */
+    var prop = !leitura() && ctx.comunicar && global.Comunicados ? Comunicados.daNcr(rec) : null;
+    if (prop) {
+      var com = botao('📣 Comunicar: nova NCR no ' + prop.marco, 'btn--sm btn--comunicar', function () {
+        ctx.comunicar(rec);
+      });
+      com.title = 'Publicar um comunicado para quem usa o visualizador. Nada é enviado sem a sua confirmação.';
+      sw.appendChild(com);
+    }
 
     /* relatórios de Waiver */
     var sr = secao(esq, 'Relatórios de Waiver', 'A NCR entra como um item novo do relatório: Description vem do banco NCR; Observation, da Observação acima.');
@@ -18422,8 +19099,9 @@ if(isWorker){
   var toastTimer = null;
   /**
    * Aviso rápido no pé da tela.
-   * `acao` — {rotulo, fn} — vira um botão dentro do aviso: é assim que o
-   * "Desfazer" da exclusão fica à mão sem virar mais uma janela.
+   * `acao` — {rotulo, fn}, ou uma lista delas — vira botão dentro do aviso:
+   * é assim que o "Desfazer" da exclusão e o "📣 Comunicar" ficam à mão sem
+   * virar mais uma janela.
    */
   function toast(msg, ms, acao) {
     var t = $('#toast');
@@ -18432,18 +19110,19 @@ if(isWorker){
     t.hidden = false;
     t.textContent = '';
     t.appendChild(document.createTextNode(msg));
-    if (acao) {
+    (Array.isArray(acao) ? acao : (acao ? [acao] : [])).forEach(function (a) {
+      if (!a) return;
       var b = document.createElement('button');
       b.className = 'btn btn--sm btn--accent toast-acao';
       b.type = 'button';
-      b.textContent = acao.rotulo;
+      b.textContent = a.rotulo;
       b.addEventListener('click', function () {
         t.hidden = true;
         clearTimeout(toastTimer);
-        acao.fn();
+        a.fn();
       });
       t.appendChild(b);
-    }
+    });
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { t.hidden = true; }, ms || 2600);
   }
@@ -21182,13 +21861,13 @@ if(isWorker){
       Log.ok('herdar', (ncr.ncrId || 'item') + ' copiada para o ' + av.destino.rotulo,
         { situacao: 'Em preenchimento', historic: 'linha acrescentada' });
       toast((ncr.ncrId || 'Item') + ' copiada para o ' + av.destino.rotulo +
-        ', em “Em preenchimento”.', 12000, {
+        ', em “Em preenchimento”.', 12000, [{
         rotulo: 'Abrir lá',
         fn: function () {
           abrirDaTabela({ projetoId: destino.id, kind: kind, item: copia,
             marco: Report.marcoOf(destino, kind) || destino.name });
         }
-      });
+      }, ofertaDoItem(destino, kind, copia, 'novo-waiver')]);
     }).catch(function (e) {
       Log.erro('herdar', 'não consegui gravar a cópia no relatório de destino', e,
         'o item de origem não foi tocado. Tente de novo; se insistir, faça um backup ' +
@@ -21281,13 +21960,18 @@ if(isWorker){
       b.addEventListener('click', function () {
         var n = currentNcr();
         if (n.status === op.id) return;
+        var antes = n.status;
         Store.setStatus(n, op.id);
+        anotarTroca(n, antes);
         touch(n);
+        var proj = state.project, kind = state.kind;
         flushSave().then(function () {
           renderNcrList();
           renderEditor();
           toast('Situação: ' + op.nome +
-            (op.id === Store.STATUS_CONCLUIDO ? ' — item concluído.' : '.'));
+            (op.id === Store.STATUS_CONCLUIDO ? ' — item concluído.' : '.'),
+            op.id === Store.STATUS_CONCLUIDO ? 9000 : 0,
+            op.id === Store.STATUS_CONCLUIDO ? ofertaDoItem(proj, kind, n, 'waiver-aceito', antes) : null);
         });
       });
       grupo.appendChild(b);
@@ -21317,6 +22001,32 @@ if(isWorker){
     linha.appendChild(grupo);
     linha.appendChild(adiante);
     linha.appendChild(next);
+    /* 📣 só nos relatórios dos marcos de Config.MARCOS_COMUNICADOS: nos
+       outros o botão não teria o que fazer, e apareceria em todo item à toa.
+       Aparece mesmo com o número em branco (o item que acabou de nascer):
+       a barra não é redesenhada enquanto se digita, e o clique diz o que falta. */
+    if (!Leitura.ativo() && Comunicados.doRelatorio(state.project, state.kind)) {
+      var ja = ultimoComunicadoDoItem(state.project, state.kind, ncr);
+      var com = el('button', 'btn btn--comunicar', '📣 Comunicar');
+      com.type = 'button';
+      com.id = 'comunicarItemBtn';
+      com.title = 'Publicar um comunicado sobre este item para quem usa o visualizador' +
+        (ja ? '\nÚltimo: ' + Comunicados.rotulo(ja.tipo) + ', em ' + shortDate(ja.em) +
+          (ja.autor ? ' por ' + ja.autor : '') : '');
+      com.addEventListener('click', function () {
+        var n = currentNcr();
+        if (!String(n.ncrId || '').trim()) {
+          toast('Escreva o número do item antes — o comunicado precisa dele.', 5000);
+          var f = $('#f-ncrId');
+          if (f) f.focus();
+          return;
+        }
+        /* o aceito primeiro: é o acontecimento mais recente de um item aceito */
+        abrirComunicar(propostaDoItem(state.project, state.kind, n),
+          { project: state.project, kind: state.kind, item: n });
+      });
+      linha.appendChild(com);
+    }
     bar.appendChild(linha);
     if (!av.pode && Store.statusInfo(ncr.status).id === Store.STATUS_CONCLUIDO) {
       /* aceito e mesmo assim não dá: o motivo é acionável (falta a data, ou
@@ -22740,8 +23450,12 @@ if(isWorker){
     }
     var projects = all ? state.projects : [state.project];
     var data = Store.toBackup(projects);
-    /* o "backup de tudo" leva também o banco NCR — backup pela metade não é backup */
-    if (all) data.ncrBase = Ncrs.paraBackup();
+    /* o "backup de tudo" leva também o banco NCR — backup pela metade não é backup —
+       e os comunicados (poucos, sem imagem) */
+    if (all) {
+      data.ncrBase = Ncrs.paraBackup();
+      data.comunicados = comunicados;
+    }
     var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     var name = all
       ? 'WaiverRequest_TODOS_' + Report.timeStamp(true) + '.json'
@@ -23075,6 +23789,15 @@ if(isWorker){
           (raw.tipo === 'ncr' ? '"Importar / Atualizar Banco NCR".' : '"Importar histórico NCR".'));
         return;
       }
+      /* comunicados dentro do arquivo: união pelo id, como na pasta. Abrir um
+         backup nunca cria comunicado — só traz os que já existiam, com o
+         mesmo id, e o visualizador que já os leu não os vê de novo */
+      var comDoArquivo = Comunicados.deArquivo(raw);
+      if (comDoArquivo.length) {
+        comunicados = Comunicados.juntar(comunicados, comDoArquivo);
+        Comunicados.gravarLocais(comunicados);
+        sincronizarComunicados();
+      }
       /* banco NCR dentro do arquivo: junta pelas regras da pasta (vale o mais
          recente, nada é apagado) */
       var nb = raw && (raw.ncrBase || (raw.format === 'derrogacao-ncr-base' ? raw : null));
@@ -23161,10 +23884,19 @@ if(isWorker){
     leitura: Leitura.ativo(),
     projects: function () { return state.projects; },
     editar: function (rec, campo, valor) {
+      var antes = rec.waiver[campo];
       return Ncrs.editarWaiver(rec, campo, valor, Store.getUser())
-        .then(function () { agendarGravacaoPasta(); })
+        .then(function () {
+          agendarGravacaoPasta();
+          /* Marco Atual passou a ser um marco dos comunicados: oferece — e
+             só oferece; quem decide é quem editou */
+          if (campo === 'marcoAtual' && valor !== antes && Comunicados.daNcr(rec)) {
+            toast('Marco Atual da ' + rec.numero + ': ' + valor + '.', 9000, ofertaDaNcr(rec));
+          }
+        })
         .catch(function (e) { markError(e); });
     },
+    comunicar: function (rec) { abrirComunicar(Comunicados.daNcr(rec), { rec: rec }); },
     adicionar: function (rec, project) { return adicionarAoWaiver(rec, project); },
     abrir: function (project, item) { abrirItemDoWaiver(project, item); },
     importar: function (tipo) { importarNcr(tipo); },
@@ -23258,7 +23990,8 @@ if(isWorker){
         renderSessionInfo();
         agendarGravacaoPasta();
         Log.ok('banco NCR', 'NCR levada ao relatório', { marco: project.marco || '' });
-        toast('NCR ' + rec.numero + ' adicionada ao ' + nome + '.');
+        var oferta = ofertaDoItem(project, 'ncr', item, 'novo-waiver');
+        toast('NCR ' + rec.numero + ' adicionada ao ' + nome + '.', oferta ? 9000 : 0, oferta);
         return true;
       })
       .catch(function (e) {
@@ -23411,14 +24144,18 @@ if(isWorker){
   function mudarSituacaoDe(project, item, id) {
     if (Leitura.ativo()) return Promise.resolve(false);   /* visualizador: nada grava */
     if (item.status === id) return Promise.resolve(false);
+    var antes = item.status;
     Store.setStatus(item, id);
+    anotarTroca(item, antes);
     Store.logChange(project, SESSION_ID, 'ncr', item, 'editou');
     return Store.save(project).then(function () {
       if (state.project && state.project.id === project.id) renderNcrList();
       renderTabs();
       renderSessionInfo();
       agendarGravacaoPasta();
-      toast((item.ncrId || 'Item') + ': ' + Store.statusInfo(id).nome + '.');
+      var aceito = id === Store.STATUS_CONCLUIDO;
+      toast((item.ncrId || 'Item') + ': ' + Store.statusInfo(id).nome + '.', aceito ? 9000 : 0,
+        aceito ? ofertaDoItem(project, 'ncr', item, 'waiver-aceito', antes) : null);
       return true;
     }).catch(function (e) {
       markError(e);
@@ -24080,6 +24817,7 @@ if(isWorker){
           return guardarBases();
         })
         .then(function () { return sincronizarRevisoes(); })
+        .then(function () { return sincronizarComunicados(); })
         .then(function () {
           /* além do retrato feito antes de cada junção, uma linha do tempo a
              cada dez minutos — sem transformar a pasta num depósito */
@@ -24380,9 +25118,12 @@ if(isWorker){
     Promise.all([
       Pasta.mudouLaFora(),
       Pasta.mudouArquivo(Pasta.ARQ_NCR_BANCO),
-      Pasta.mudouArquivo(Pasta.ARQ_NCR_WAIVER)
+      Pasta.mudouArquivo(Pasta.ARQ_NCR_WAIVER),
+      Pasta.mudouArquivo(Comunicados.ARQUIVO)
     ]).then(function (r) {
       if (r[0] || r[1] || r[2]) sincronizar({ semRedesenhar: true });
+      /* só os comunicados mudaram: troca só eles, sem regravar os dados */
+      else if (r[3]) sincronizarComunicados();
     });
   }
 
@@ -24439,9 +25180,12 @@ if(isWorker){
     return Promise.all([
       Pasta.mudouLaFora(),
       Pasta.mudouArquivo(Pasta.ARQ_NCR_BANCO),
-      Pasta.mudouArquivo(Pasta.ARQ_NCR_WAIVER)
+      Pasta.mudouArquivo(Pasta.ARQ_NCR_WAIVER),
+      Pasta.mudouArquivo(Comunicados.ARQUIVO)
     ]).then(function (mudou) {
-      if (!mudou[0] && !mudou[1] && !mudou[2]) return 'sem novidade';
+      if (!mudou[0] && !mudou[1] && !mudou[2]) {
+        return mudou[3] ? sincronizarComunicados() : 'sem novidade';
+      }
       return sincronizar({ silencioso: true, semRedesenhar: true }).then(conferir);
     });
   }
@@ -24840,7 +25584,7 @@ if(isWorker){
       ? hidratarImagens(copia).catch(function () { return copia; })
       : Promise.resolve(copia);
     return pronto.then(function () {
-      var payload = Publicacao.montar(copia.projects, Store.getUser(), Ncrs.paraBackup());
+      var payload = Publicacao.montar(copia.projects, Store.getUser(), Ncrs.paraBackup(), comunicados);
       var faltam = Publicacao.imagensSemConteudo(payload);
       if (faltam) {
         Log.aviso('publicação', faltam + ' imagem(ns) sem o conteúdo na publicação',
@@ -24857,6 +25601,7 @@ if(isWorker){
    * trabalho de todos, não só o deste navegador.
    *
    * @param opts.auto  chamada automática: silenciosa, e não regrava se nada mudou
+   * @param opts.silencioso  sem o aviso de "publicado" (quem chamou dá o seu)
    */
   function publicar(opts) {
     opts = opts || {};
@@ -24868,7 +25613,7 @@ if(isWorker){
       ? sincronizar({ silencioso: true })
       : Promise.resolve();
     return antes.then(function () {
-      var conteudo = Publicacao.conteudo(state.projects, Ncrs.paraBackup());
+      var conteudo = Publicacao.conteudo(state.projects, Ncrs.paraBackup(), comunicados);
       if (opts.auto && conteudo === pubUltimoConteudo) return false;
       return montarPublicacao().then(function (payload) {
         return Pasta.publicacao.gravarTexto(Publicacao.ARQUIVO, Publicacao.texto(payload)).then(function () {
@@ -24878,7 +25623,7 @@ if(isWorker){
             relatorios: payload.projects.length, automatico: !!opts.auto
           });
           renderPublicar();
-          if (!opts.auto) toast('Publicado para os visualizadores: ' + contagemPublicada(payload.projects) + '.');
+          if (!opts.auto && !opts.silencioso) toast('Publicado para os visualizadores: ' + contagemPublicada(payload.projects) + '.');
           return true;
         });
       });
@@ -24887,7 +25632,7 @@ if(isWorker){
       renderPublicar();
       Log.erro('publicação', 'não consegui gravar na pasta dos visualizadores', e,
         Pasta.explicar(e) + ' Os visualizadores continuam vendo a publicação anterior.');
-      if (!opts.auto) toast('Não foi possível gravar na pasta dos visualizadores.');
+      if (!opts.auto && !opts.silencioso) toast('Não foi possível gravar na pasta dos visualizadores.');
       return false;
     }).then(function (r) { publicando = false; return r; });
   }
@@ -24996,6 +25741,466 @@ if(isWorker){
   }
 
   /* ---------------------------------------------------------------------- */
+  /* comunicados — avisos do editor para o visualizador (comunicados.js)     */
+  /* ---------------------------------------------------------------------- */
+
+  /* Nem toda edição vira aviso: salvar continua automático, e o comunicado
+     é uma ação a mais, explícita — o botão 📣, a prévia, "Publicar
+     comunicado". No editor a lista é a desta máquina junto com a da pasta
+     (comunicados.json); no visualizador, a que veio na publicação. */
+
+  var comunicados = [];
+  var sincronizandoComunicados = false;
+  var comunicadosPendente = false;   /* pediram uma troca enquanto outra corria */
+  var comunicarAlvo = null;          /* a janela de prévia aberta: { proposta, origem, tipos, statusAntes } */
+  var comAdiados = {};               /* visualizador: "Depois" — voltam na próxima abertura */
+  var situacaoAnterior = {};         /* id do item → { antes, depois }: a última troca desta sessão */
+
+  /** Anota a troca de situação, para a prévia dizer "antes: …" mesmo pelo botão da barra. */
+  function anotarTroca(item, antes) {
+    situacaoAnterior[item.id] = { antes: antes, depois: item.status };
+  }
+
+  /** A situação de antes da última troca, se o item ainda está onde a troca o deixou. */
+  function situacaoDeAntes(item) {
+    var t = situacaoAnterior[item.id];
+    return t && t.depois === item.status ? t.antes : '';
+  }
+
+  /** A proposta para o item aberto, pelo botão: o aceito primeiro, se houver. */
+  function propostaDoItem(project, kind, item) {
+    var t = Comunicados.tiposDoItem(project, kind, item);
+    if (!t.length) return null;
+    return Comunicados.doItem(project, kind, item,
+      t.indexOf('waiver-aceito') >= 0 ? 'waiver-aceito' : t[0], situacaoDeAntes(item));
+  }
+
+  /** O último comunicado de qualquer acontecimento deste item, ou null. */
+  function ultimoComunicadoDoItem(project, kind, item) {
+    var achado = null;
+    Comunicados.tiposDoItem(project, kind, item).forEach(function (t) {
+      var c = Comunicados.jaComunicado(comunicados, Comunicados.doItem(project, kind, item, t));
+      if (c && (!achado || c.em > achado.em)) achado = c;
+    });
+    return achado;
+  }
+
+  /**
+   * O botão "📣 Comunicar" que vai no aviso logo depois de uma mudança que
+   * pode ser comunicada — ou null. A proposta é refeita no clique: o que se
+   * comunica é o item como está naquele instante.
+   */
+  function ofertaDoItem(project, kind, item, tipo, statusAntes) {
+    if (Leitura.ativo() || !Comunicados.doItem(project, kind, item, tipo, statusAntes)) return null;
+    return {
+      rotulo: '📣 Comunicar',
+      fn: function () {
+        abrirComunicar(Comunicados.doItem(project, kind, item, tipo, statusAntes),
+          { project: project, kind: kind, item: item });
+      }
+    };
+  }
+
+  function ofertaDaNcr(rec) {
+    if (Leitura.ativo() || !Comunicados.daNcr(rec)) return null;
+    return {
+      rotulo: '📣 Comunicar',
+      fn: function () { abrirComunicar(Comunicados.daNcr(rec), { rec: rec }); }
+    };
+  }
+
+  /* --- a janela de prévia (editor) --------------------------------------- */
+
+  function abrirComunicar(proposta, origem) {
+    if (Leitura.ativo()) return;   /* visualizador: não cria comunicado */
+    if (!proposta) {
+      toast('Isto não pode mais ser comunicado: confira o marco, o número e a situação.', 6000);
+      return;
+    }
+    if (!Store.getUser()) {
+      openUserDialog(function () { abrirComunicar(proposta, origem); });
+      toast('Informe o seu nome — é ele que assina o comunicado.');
+      return;
+    }
+    comunicarAlvo = {
+      proposta: proposta,
+      origem: origem || {},
+      statusAntes: proposta.statusAntes,
+      tipos: origem && origem.rec ? ['nova-ncr']
+        : Comunicados.tiposDoItem(origem.project, origem.kind, origem.item)
+    };
+    $('#comunicarMsg').value = '';
+    renderComunicar();
+    $('#comunicarDialog').showModal();
+    $('#comunicarMsg').focus();
+  }
+
+  function trocarTipoComunicar(tipo) {
+    var a = comunicarAlvo;
+    if (!a || !a.origem.item) return;
+    var p = Comunicados.doItem(a.origem.project, a.origem.kind, a.origem.item, tipo, a.statusAntes);
+    if (p) a.proposta = p;
+    renderComunicar();
+  }
+
+  function onde(c) {
+    return c.tipo === 'nova-ncr' ? 'Banco NCR' : (c.kind === 'dev' ? 'Waiver DEV' : 'Waiver NCR');
+  }
+
+  function renderComunicar() {
+    var a = comunicarAlvo;
+    if (!a) return;
+    var p = a.proposta;
+
+    var tipos = $('#comunicarTipos');
+    tipos.innerHTML = '';
+    tipos.hidden = a.tipos.length < 2;
+    if (a.tipos.length > 1) {
+      tipos.appendChild(el('legend', null, 'O que comunicar'));
+      a.tipos.forEach(function (t) {
+        var lab = el('label', 'com-tipo');
+        var r = document.createElement('input');
+        r.type = 'radio';
+        r.name = 'comunicarTipo';
+        r.value = t;
+        r.checked = t === p.tipo;
+        r.addEventListener('change', function () { if (r.checked) trocarTipoComunicar(t); });
+        lab.appendChild(r);
+        lab.appendChild(document.createTextNode(' ' + Comunicados.rotulo(t)));
+        tipos.appendChild(lab);
+      });
+    }
+
+    var msg = $('#comunicarMsg').value;
+    var previa = Comunicados.criar(p, msg, Store.getUser());
+    var box = $('#comunicarPrevia');
+    box.innerHTML = '';
+    box.appendChild(cartaoComunicado(previa, {}));
+
+    var dl = $('#comunicarCampos');
+    dl.innerHTML = '';
+    var situacao = p.tipo === 'nova-ncr' ? '—'
+      : Store.statusInfo(p.statusNovo).nome +
+        (p.statusAntes && p.statusAntes !== p.statusNovo
+          ? ' (antes: ' + Store.statusInfo(p.statusAntes).nome + ')' : '');
+    [['Tipo', Comunicados.rotulo(p.tipo)],
+     ['Marco', p.marco],
+     ['Número', p.numero + ' · ' + onde(p)],
+     ['Situação nova', situacao],
+     ['Título', p.resumo || '—'],
+     ['Autor', Store.getUser()],
+     ['Data e hora', 'ao publicar — agora são ' + shortDate(previa.em)]
+    ].forEach(function (l) {
+      dl.appendChild(el('dt', null, l[0]));
+      dl.appendChild(el('dd', null, l[1]));
+    });
+
+    $('#comunicarConta').textContent = msg.length + ' / ' + Comunicados.MAX_MENSAGEM;
+
+    var ja = Comunicados.jaComunicado(comunicados, p);
+    var aviso = $('#comunicarJa');
+    aviso.hidden = !ja;
+    aviso.textContent = ja
+      ? 'Este acontecimento já foi comunicado em ' + shortDate(ja.em) + (ja.autor ? ' por ' + ja.autor : '') +
+        '. Publicar de novo faz o pop-up aparecer outra vez para todos os visualizadores.'
+      : '';
+    $('#comunicarOk').textContent = ja ? '📣 Comunicar de novo' : '📣 Publicar comunicado';
+
+    var pasta = Pasta.ligada() && pastaEstado === 'on';
+    var pub = Pasta.publicacao.ligada() && pubEstado === 'on';
+    $('#comunicarDestino').textContent =
+      (pasta ? 'Vai para a pasta da equipe (' + Comunicados.ARQUIVO + '), junto com os dos colegas. '
+             : 'Sem a pasta da equipe, fica neste navegador até ela ser ligada. ') +
+      (pub ? 'E é publicado agora para os visualizadores: eles veem na próxima leitura (até 5 minutos).'
+           : 'Os visualizadores recebem na próxima publicação (⋯ Mais → Publicar para visualizadores).');
+  }
+
+  /** O clique em "Publicar comunicado": é aqui, e só aqui, que um comunicado nasce. */
+  function publicarComunicado() {
+    var a = comunicarAlvo;
+    if (!a || Leitura.ativo()) return;
+    var c = Comunicados.criar(a.proposta, $('#comunicarMsg').value, Store.getUser());
+    comunicados = Comunicados.juntar([c], comunicados);
+    Comunicados.gravarLocais(comunicados);
+    comunicarAlvo = null;
+    $('#comunicarDialog').close();
+    /* só o tipo, o marco e o id: o número e a mensagem ficam fora do diário */
+    Log.ok('comunicados', 'comunicado criado', { tipo: c.tipo, marco: c.marco, id: c.id });
+    var btn = $('#comunicarItemBtn');
+    if (btn) btn.title = 'Publicar um comunicado sobre este item para quem usa o visualizador\n' +
+      'Último: ' + Comunicados.rotulo(c.tipo) + ', em ' + shortDate(c.em) + ' por ' + c.autor;
+    renderComunicadosDialog();
+
+    sincronizarComunicados({}).then(function (r) {
+      var pub = Pasta.publicacao.ligada() && pubEstado === 'on';
+      if (pub) {
+        return publicar({ silencioso: true }).then(function (ok) {
+          toast(ok ? '📣 Comunicado publicado. Os visualizadores veem na próxima leitura (até 5 minutos).'
+                   : '📣 Comunicado guardado, mas a publicação falhou — veja ⋯ Mais → Publicar para visualizadores.',
+            7000);
+        });
+      }
+      toast('📣 Comunicado guardado' + (r === 'ok' ? ' na pasta da equipe' : ' neste navegador') +
+        '. Ele chega aos visualizadores na próxima publicação.', 9000,
+        { rotulo: 'Publicar…', fn: abrirPublicarDialog });
+    });
+  }
+
+  /**
+   * Troca os comunicados com a pasta: lê, junta pelo id, grava se aqui há
+   * algum que lá não há. Resolve 'ok', 'sem-pasta', 'erro' ou 'na-fila'.
+   * Nunca derruba a gravação dos dados: o comunicado já está guardado neste
+   * navegador antes desta tentativa, e vai na próxima.
+   */
+  function sincronizarComunicados() {
+    if (Leitura.ativo()) return Promise.resolve('leitura');
+    if (!Pasta.ligada() || pastaEstado !== 'on') return Promise.resolve('sem-pasta');
+    if (sincronizandoComunicados) { comunicadosPendente = true; return Promise.resolve('na-fila'); }
+    sincronizandoComunicados = true;
+    var ids = {};
+    comunicados.forEach(function (c) { ids[c.id] = true; });
+    var chegaram = false;
+    return Pasta.lerArquivo(Comunicados.ARQUIVO)
+      .then(function (r) {
+        var remotos = Comunicados.deArquivo(r.dados);
+        comunicados = Comunicados.juntar(comunicados, remotos);
+        chegaram = comunicados.some(function (c) { return !ids[c.id]; });
+        Comunicados.gravarLocais(comunicados);
+        /* página velha diante de dados novos, ou arquivo de uma versão mais
+           nova: lê, não regrava */
+        if (versaoDesatualizada) return false;
+        if (r.dados && Number(r.dados.schema) > Comunicados.SCHEMA) return false;
+        if (!Comunicados.faltamLa(comunicados, remotos)) return false;
+        return Pasta.gravarArquivo(Comunicados.ARQUIVO, Comunicados.envelope(comunicados));
+      })
+      .then(function () {
+        if (chegaram) {
+          renderComunicadosDialog();
+          /* o que se publica leva os comunicados de todos */
+          agendarPublicacao();
+        }
+        return 'ok';
+      }, function (e) {
+        Log.aviso('comunicados', 'os comunicados não foram trocados com a pasta desta vez',
+          Pasta.explicar(e) + ' Os daqui continuam guardados neste navegador e vão na ' +
+          'próxima sincronização.', { erro: e && e.name });
+        return 'erro';
+      })
+      .then(function (r) {
+        sincronizandoComunicados = false;
+        if (comunicadosPendente) {
+          comunicadosPendente = false;
+          setTimeout(sincronizarComunicados, 0);
+        }
+        return r;
+      });
+  }
+
+  /* --- o cartão, o pop-up e o histórico ----------------------------------- */
+
+  /**
+   * Um comunicado como se lê: a frase, o título curto, a mensagem, quem e
+   * quando. `opts.abrir` acrescenta "Abrir waiver"/"Ver NCR"; `opts.novo`
+   * marca o não lido.
+   */
+  function cartaoComunicado(c, opts) {
+    opts = opts || {};
+    var box = el('div', 'com-cartao');
+    var topo = el('div', 'com-topo');
+    topo.appendChild(el('span', 'com-tipo-tag com-tipo-tag--' + c.tipo, Comunicados.rotulo(c.tipo)));
+    if (opts.novo) topo.appendChild(el('span', 'com-novo', 'novo'));
+    box.appendChild(topo);
+    box.appendChild(el('p', 'com-frase', Comunicados.frase(c)));
+    if (c.resumo) box.appendChild(el('p', 'com-resumo', c.resumo));
+    if (c.mensagem) box.appendChild(el('p', 'com-msg', '“' + c.mensagem + '”'));
+    var pe = el('div', 'com-pe');
+    pe.appendChild(el('span', 'com-meta', (c.autor || 'sem nome') + ' · ' + shortDate(c.em)));
+    if (opts.abrir) {
+      var b = el('button', 'btn btn--sm com-abrir', c.tipo === 'nova-ncr' ? 'Ver NCR' : 'Abrir waiver');
+      b.type = 'button';
+      b.setAttribute('data-mostra', '');
+      b.addEventListener('click', function () { opts.abrir(c); });
+      pe.appendChild(b);
+    }
+    box.appendChild(pe);
+    return box;
+  }
+
+  /** Leva ao item do comunicado. Resolve false (com aviso) se ele não está aqui. */
+  function abrirDoComunicado(c) {
+    if (c.tipo === 'nova-ncr') {
+      var rec = Ncrs.get(c.ncrKey) || Ncrs.get(c.numero);
+      if (!rec) { toast('A NCR ' + c.numero + ' não está no banco NCR ' + (Leitura.ativo() ? 'publicado.' : 'deste navegador.')); return false; }
+      if ($('#comunicadosDialog').open) $('#comunicadosDialog').close();
+      switchKind('banco');
+      NcrView.abrirFicha(rec.key);
+      return true;
+    }
+    var chaveMarco = Config.chaveMarco(c.marco);
+    var p = state.projects.filter(function (x) { return x.id === c.projetoId; })[0] ||
+      state.projects.filter(function (x) {
+        return Config.chaveMarco(Report.marcoOf(x, c.kind)) === chaveMarco;
+      })[0];
+    var num = Store.numeroChave({ ncrId: c.numero });
+    var lista = p ? p[Store.itemsKey(c.kind)] : [];
+    var it = lista.filter(function (n) { return n.id === c.itemId; })[0] ||
+      lista.filter(function (n) { return Store.numeroChave(n) === num; })[0];
+    if (!it) {
+      toast('A ' + c.numero + ' não está no relatório do ' + c.marco +
+        (Leitura.ativo() ? ' desta publicação.' : ' neste navegador.'), 6000);
+      return false;
+    }
+    if ($('#comunicadosDialog').open) $('#comunicadosDialog').close();
+    abrirDaTabela({ projetoId: p.id, kind: c.kind, item: it, marco: Report.marcoOf(p, c.kind) || p.name });
+    return true;
+  }
+
+  /* Visualizador: os que ainda não foram lidos neste navegador. */
+  function comunicadosNaoLidos() {
+    return Leitura.ativo() ? Comunicados.naoLidos(comunicados) : [];
+  }
+
+  /** Chegou a publicação (abertura, ciclo de 5 min, botão Atualizar, arquivo à mão). */
+  function receberComunicados(lista) {
+    comunicados = Comunicados.juntar(lista || [], []);
+    renderComChip();
+    renderComunicadosDialog();
+    renderComPop();
+  }
+
+  function marcarComunicadosLidos(ids) {
+    Comunicados.marcarLidos(ids);
+    renderComChip();
+    renderComunicadosDialog();
+    renderComPop();
+  }
+
+  function renderComChip() {
+    var chip = $('#comChip');
+    if (!Leitura.ativo()) { chip.hidden = true; return; }
+    var n = comunicadosNaoLidos().length;
+    chip.hidden = !comunicados.length;
+    chip.classList.toggle('com-chip--novo', n > 0);
+    $('#comChipConta').textContent = n ? String(n) : '';
+    chip.title = n
+      ? n + ' comunicado(s) ainda não lido(s). Clique para ver.'
+      : 'Comunicados da equipe — nenhum novo. Clique para ver o histórico.';
+    chip.setAttribute('aria-label', n ? 'Comunicados: ' + n + ' não lido(s)' : 'Comunicados');
+  }
+
+  /**
+   * O pop-up do visualizador: discreto, no canto, sem tomar o foco. Vários de
+   * uma vez viram uma lista só, nunca pop-ups empilhados. Some com "Depois"
+   * (volta na próxima abertura) ou quando tudo foi lido.
+   */
+  function renderComPop() {
+    var pop = $('#comPop');
+    var novos = comunicadosNaoLidos().filter(function (c) { return !comAdiados[c.id]; });
+    pop.innerHTML = '';
+    if (!novos.length) { pop.hidden = true; return; }
+
+    function depois() {
+      novos.forEach(function (c) { comAdiados[c.id] = true; });
+      renderComPop();
+    }
+    function abrir(c) {
+      if (abrirDoComunicado(c)) marcarComunicadosLidos([c.id]);
+    }
+
+    var cab = el('div', 'com-pop-cab');
+    cab.appendChild(el('strong', 'com-pop-tit', novos.length === 1
+      ? '📣 Comunicado · ' + novos[0].marco
+      : '📣 ' + novos.length + ' comunicados novos'));
+    var x = el('button', 'com-pop-x', '✕');
+    x.type = 'button';
+    x.title = 'Depois: fecha agora e volta na próxima abertura';
+    x.setAttribute('aria-label', 'Fechar — ver depois');
+    x.addEventListener('click', depois);
+    cab.appendChild(x);
+    pop.appendChild(cab);
+
+    var lista = el('div', 'com-pop-lista');
+    novos.forEach(function (c) {
+      lista.appendChild(cartaoComunicado(c, { abrir: abrir }));
+    });
+    pop.appendChild(lista);
+
+    var acoes = el('div', 'com-pop-acoes');
+    var lido = el('button', 'btn btn--sm btn--accent',
+      novos.length === 1 ? 'Marcar como lido' : 'Marcar todos como lidos');
+    lido.type = 'button';
+    lido.addEventListener('click', function () {
+      marcarComunicadosLidos(novos.map(function (c) { return c.id; }));
+    });
+    acoes.appendChild(lido);
+    if (novos.length > 1) {
+      var hist = el('button', 'btn btn--sm', 'Ver histórico');
+      hist.type = 'button';
+      hist.addEventListener('click', abrirComunicadosDialog);
+      acoes.appendChild(hist);
+    }
+    var dep = el('button', 'btn btn--sm btn--quiet', 'Depois');
+    dep.type = 'button';
+    dep.title = 'Fecha agora e volta na próxima abertura';
+    dep.addEventListener('click', depois);
+    acoes.appendChild(dep);
+    pop.appendChild(acoes);
+    pop.hidden = false;
+  }
+
+  function abrirComunicadosDialog() {
+    $('#comunicadosDialog').showModal();
+    renderComunicadosDialog();
+  }
+
+  function renderComunicadosDialog() {
+    var dlg = $('#comunicadosDialog');
+    if (!dlg.open) return;
+    var leitura = Leitura.ativo();
+    var marcos = Comunicados.marcosMonitorados().join(', ') || '(nenhum)';
+    $('#comunicadosIntro').textContent = leitura
+      ? 'Os avisos publicados pela equipe. Os marcados como “novo” ainda não foram lidos neste navegador.'
+      : 'Os comunicados publicados para quem usa o visualizador — os últimos ' + Comunicados.MAX +
+        '. Salvar continua automático; o comunicado é um aviso a mais, e só nasce do botão ' +
+        '📣 Comunicar: na barra de situação de um item, na ficha de uma NCR do banco ou no ' +
+        'aviso logo depois de uma mudança que pode ser comunicada. Marcos que geram comunicados: ' +
+        marcos + '.';
+
+    var naoLidos = {};
+    comunicadosNaoLidos().forEach(function (c) { naoLidos[c.id] = true; });
+    var lidosBtn = $('#comunicadosLidosBtn');
+    lidosBtn.hidden = !leitura;
+    lidosBtn.disabled = !Object.keys(naoLidos).length;
+
+    var novoBtn = $('#comunicadosNovoBtn');
+    var n = !leitura && !telaCheia() ? currentNcr() : null;
+    var podeItem = n && Comunicados.tiposDoItem(state.project, state.kind, n).length;
+    novoBtn.hidden = !podeItem;
+    if (podeItem) novoBtn.textContent = '📣 Comunicar o item aberto (' + n.ncrId + ')';
+
+    var ul = $('#comunicadosLista');
+    ul.innerHTML = '';
+    /* o visualizador vê um por acontecimento; o editor vê o registro inteiro */
+    var lista = leitura ? Comunicados.paraVer(comunicados) : comunicados;
+    if (!lista.length) {
+      ul.appendChild(el('li', 'com-vazio', leitura
+        ? 'Nenhum comunicado publicado ainda.'
+        : 'Nenhum comunicado ainda.'));
+      return;
+    }
+    lista.forEach(function (c) {
+      var li = el('li', 'com-hist-item' + (naoLidos[c.id] ? ' is-novo' : ''));
+      li.appendChild(cartaoComunicado(c, {
+        novo: !!naoLidos[c.id],
+        abrir: function (x) {
+          if (abrirDoComunicado(x) && leitura) marcarComunicadosLidos([x.id]);
+        }
+      }));
+      ul.appendChild(li);
+    });
+  }
+
+  /* ---------------------------------------------------------------------- */
   /* modo leitura — o visualizador (leitura.js)                              */
   /* ---------------------------------------------------------------------- */
 
@@ -25055,6 +26260,9 @@ if(isWorker){
       if (x) {
         leitura.falhou = false;
         var novo = aplicarPublicacao(x.res, x.fonte, opts);
+        /* os comunicados vêm na mesma leitura, pelo mesmo ciclo: abertura,
+           os 5 minutos e o botão Atualizar — sem um relógio a mais */
+        receberComunicados(x.res.comunicados);
         renderAvisoLeitura(falhouCaminho
           ? 'Não consegui ler a pasta dos dados (' + pd.caminho + '). O que está à vista veio do ' +
             ROTULO_FONTE[x.fonte.tipo] + '.'
@@ -25261,6 +26469,7 @@ if(isWorker){
       var res = Publicacao.interpretar(txt);
       leitura.falhou = false;
       aplicarPublicacao(res, { tipo: 'arquivo', nome: file.name }, { silencioso: true });
+      receberComunicados(res.comunicados);
       renderAvisoLeitura('');
       if ($('#fonteDialog').open) $('#fonteDialog').close();
       toast('Aberto: ' + file.name + ' — ' + res.projects.length + ' relatório(s).');
@@ -25319,6 +26528,7 @@ if(isWorker){
     document.body.classList.add('modo-leitura');
     document.title = 'Waiver Request — Visualizador (somente leitura)';
     $('#brandSub').textContent = 'visualizador de derrogações';
+    $('#comunicadosBtnSub').textContent = 'os avisos da equipe, e quais você já leu';
     $('#leituraSelo').hidden = false;
     $('#fonteChip').hidden = false;
     $('#atualizaBox').hidden = false;
@@ -25715,6 +26925,29 @@ if(isWorker){
       abrirDiarioDialog();
     });
     $('#logCloseBtn').addEventListener('click', function () { $('#logDialog').close(); });
+
+    /* comunicados: o histórico (editor e visualizador), a prévia (editor) */
+    $('#comunicadosBtn').addEventListener('click', function () {
+      $('#menuPop').hidden = true;
+      $('#menuBtn').setAttribute('aria-expanded', 'false');
+      abrirComunicadosDialog();
+    });
+    $('#comChip').addEventListener('click', abrirComunicadosDialog);
+    $('#comunicadosFecharBtn').addEventListener('click', function () { $('#comunicadosDialog').close(); });
+    $('#comunicadosLidosBtn').addEventListener('click', function () {
+      marcarComunicadosLidos(comunicadosNaoLidos().map(function (c) { return c.id; }));
+    });
+    $('#comunicadosNovoBtn').addEventListener('click', function () {
+      var n = currentNcr();
+      var p = n ? propostaDoItem(state.project, state.kind, n) : null;
+      if (!p) return;
+      $('#comunicadosDialog').close();
+      abrirComunicar(p, { project: state.project, kind: state.kind, item: n });
+    });
+    $('#comunicarCancelarBtn').addEventListener('click', function () { $('#comunicarDialog').close(); });
+    $('#comunicarDialog').addEventListener('close', function () { comunicarAlvo = null; });
+    $('#comunicarOk').addEventListener('click', publicarComunicado);
+    $('#comunicarMsg').addEventListener('input', renderComunicar);
     $('#logCopiarBtn').addEventListener('click', function () { mostrarNoDiario(copiarODiario()); });
 
     $('#pdfCancelBtn').addEventListener('click', function () { $('#pdfDialog').close(); });
@@ -26031,6 +27264,7 @@ if(isWorker){
       });
       abrindo.fim('relatórios abertos', { relatorios: state.projects.length, itens: itens });
       revisoes = Revisoes.locais();
+      comunicados = Comunicados.locais();
       return Store.getBase().then(function (b) {
         mesclaBase = b ? b.base : null;
         baseLida = b ? b.lida : null;

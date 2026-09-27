@@ -53,6 +53,10 @@
           title="A publicação automática para os visualizadores precisa da sua permissão para gravar na pasta deles. Clique aqui.">
     👁 permitir publicação
   </button>
+  <!-- só no visualizador: os comunicados da equipe (comunicados.js) -->
+  <button class="pasta-chip com-chip" id="comChip" hidden aria-label="Comunicados">
+    📣<span class="com-chip-conta" id="comChipConta"></span>
+  </button>
   <!-- só no visualizador: de quando são os dados, e reler -->
   <button class="pasta-chip leitura-fonte" id="fonteChip" hidden data-estado="erro">
     <span id="fonteChipLabel">📄 sem dados</span>
@@ -115,6 +119,9 @@
         <div class="menu-title">Este programa <small>vale para tudo, não só para o marco aberto</small></div>
         <button class="menu-item" id="logBtn">
           🩺 Diagnóstico e diário do console <small id="logBtnSub">ver o que o programa está fazendo e o que deu errado</small>
+        </button>
+        <button class="menu-item" id="comunicadosBtn">
+          📣 Comunicados <small id="comunicadosBtnSub">os avisos publicados para quem usa o visualizador</small>
         </button>
 
 
@@ -802,6 +809,47 @@
   </div>
 </dialog>
 
+<!-- ====================== comunicados (comunicados.js) ====================== -->
+<!-- A prévia: o comunicado só nasce do botão "Publicar comunicado". -->
+<dialog id="comunicarDialog" class="dlg--wide com-dlg" aria-labelledby="comunicarTitulo">
+  <div class="dlg-body">
+    <h3 id="comunicarTitulo">📣 Comunicar no visualizador</h3>
+    <p>A alteração já está salva — isto é só o aviso. Quem usa o visualizador vê
+       este comunicado num pop-up discreto, na próxima vez que os dados forem lidos.
+       Nada é enviado sem o botão abaixo.</p>
+    <fieldset class="com-tipos" id="comunicarTipos" hidden></fieldset>
+    <div class="com-previa-rot">Prévia do que o visualizador vai mostrar</div>
+    <div class="com-previa" id="comunicarPrevia"></div>
+    <dl class="com-campos" id="comunicarCampos"></dl>
+    <label class="com-msg-rot" for="comunicarMsg">Mensagem curta <small>(opcional — o comunicado se entende sem ela)</small></label>
+    <textarea id="comunicarMsg" rows="2" maxlength="280" placeholder="ex.: aceito na reunião de hoje"></textarea>
+    <div class="hint com-conta" id="comunicarConta">0 / 280</div>
+    <p class="com-ja" id="comunicarJa" role="alert" hidden></p>
+    <p class="hint" id="comunicarDestino"></p>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="comunicarCancelarBtn">Cancelar</button>
+    <button class="btn btn--accent" id="comunicarOk">📣 Publicar comunicado</button>
+  </div>
+</dialog>
+
+<!-- O histórico: no editor, o registro inteiro; no visualizador, um por
+     acontecimento, com os não lidos marcados. -->
+<dialog id="comunicadosDialog" class="dlg--wide com-dlg" aria-labelledby="comunicadosTitulo">
+  <div class="dlg-body">
+    <h3 id="comunicadosTitulo">📣 Comunicados</h3>
+    <p id="comunicadosIntro"></p>
+    <div class="com-hist-acoes">
+      <button class="btn btn--sm btn--accent" id="comunicadosNovoBtn" data-so-editor hidden>📣 Comunicar o item aberto</button>
+      <button class="btn btn--sm" id="comunicadosLidosBtn" hidden>Marcar todos como lidos</button>
+    </div>
+    <ul class="com-lista" id="comunicadosLista"></ul>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn btn--primary" id="comunicadosFecharBtn">Fechar</button>
+  </div>
+</dialog>
+
 <!-- ====================== visualizador: de onde vêm os dados ====================== -->
 <dialog id="fonteDialog" class="dlg--wide">
   <div class="dlg-body">
@@ -835,6 +883,10 @@
 </dialog>
 <input type="file" id="abrirDadosInput" accept=".js,.json,application/json,text/javascript" hidden>
 
+<!-- visualizador: o pop-up dos comunicados novos. Não é janela modal e não
+     toma o foco; vários de uma vez viram uma lista só. -->
+<aside class="com-pop" id="comPop" role="region" aria-label="Comunicados novos" aria-live="polite" hidden></aside>
+
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <!-- conteúdo montado apenas para impressão -->
@@ -859,6 +911,7 @@
 <script src="assets/js/xlsx.js"></script>
 <script src="assets/js/tabela.js"></script>
 <script src="assets/js/chat.js"></script>
+<script src="assets/js/comunicados.js"></script>
 <script src="assets/js/lado.js"></script>
 <script src="assets/js/ncrview.js"></script>
 <script src="assets/js/kanban.js"></script>

@@ -26,6 +26,10 @@ login e nenhum dado sai do computador.
   programa, num arquivo à parte (`derrogacao-visualizador.html`), com todas
   as abas e exportações — e nada que grave. Os dados chegam por publicação a
   partir do editor. Ver [Visualizador](#visualizador-somente-leitura).
+- **Comunicados para o visualizador.** Um waiver novo no J09, uma NCR nova no
+  J09, um waiver do J09 aceito: quem está editando decide se vale avisar, com
+  o botão **📣 Comunicar**, e quem usa o visualizador recebe um pop-up
+  discreto. Ver [Comunicados](#comunicados-avisos-para-quem-usa-o-visualizador).
 
 - **Aba Banco NCR.** As NCRs do **SBR4** importadas do banco NCR (o mesmo
   export que o NCR Control lê), com **Marco Original**, **Marco Atual**,
@@ -554,6 +558,61 @@ espaço, acento e `#` no nome da pasta. Por isso a publicação é um `.js`
 > acesso** à pasta do banco de dados. O `visualizador-dados.js` tem os dados
 > completos dos relatórios publicados e do banco NCR — trate-o com o mesmo
 > cuidado dos backups.
+
+## Comunicados: avisos para quem usa o visualizador
+
+Nem toda edição merece aviso. Três acontecimentos podem virar **comunicado**,
+e só nos marcos escolhidos (hoje o **J09**):
+
+| Acontecimento | O que o visualizador lê |
+| --- | --- |
+| **Novo waiver** — um item no relatório Waiver do J09 | "Um novo waiver foi adicionado ao marco J09: NCR-1234." |
+| **Nova NCR** — uma NCR do banco com Marco Atual J09 | "Uma nova NCR foi adicionada ao marco J09: NCR-5678." |
+| **Waiver accepted** — um item do J09 em "Waiver accepted" | "O waiver da NCR-1234, no marco J09, foi aceito." |
+
+**No editor.** Salvar continua automático, como sempre. O comunicado é uma
+ação **a mais**, que só acontece com o seu clique:
+
+- logo depois de uma mudança que pode ser comunicada (aceitar o waiver, levar
+  a NCR para o relatório do J09, trocar o Marco Atual para J09), o aviso do pé
+  da tela traz o botão **📣 Comunicar**;
+- o mesmo botão fica na **barra de situação** de todo item do J09 e na
+  **ficha** da NCR com Marco Atual J09 — para comunicar depois;
+- **⋯ Mais → 📣 Comunicados** mostra os que já foram publicados.
+
+O botão abre a **prévia**: o tipo, o marco, o número, a situação nova (com a
+de antes), o título curto, o autor e a hora — e um campo para uma **mensagem
+curta opcional** (até 280 caracteres). Nada é enviado sem **📣 Publicar
+comunicado**. Se o mesmo acontecimento já foi comunicado, a janela diz
+quando e por quem, e o botão passa a dizer **Comunicar de novo**.
+
+O comunicado vai para a pasta da equipe (arquivo `comunicados.json`) e sai
+com a próxima publicação para os visualizadores. Com a pasta dos
+visualizadores ligada, é publicado **na hora**.
+
+**No visualizador.** Na abertura, a cada 5 minutos e no **⟳ Atualizar**, o
+que chegou e ainda não foi lido aparece num **pop-up no canto de baixo**, que
+não bloqueia a tela nem toma o foco. Vários de uma vez viram uma lista só.
+
+- **Abrir waiver** / **Ver NCR** leva direto ao item (e conta como lido).
+- **Marcar como lido** — ele não aparece mais neste navegador.
+- **Depois** — fecha agora; volta na próxima vez que o visualizador for aberto.
+- A etiqueta **📣** na barra de cima mostra quantos faltam ler e abre o
+  histórico.
+
+Na primeira vez que um visualizador é aberto, só os comunicados da última
+semana viram pop-up; os mais velhos ficam no histórico.
+
+**O que o comunicado leva:** o mínimo para ser lido e para achar o item —
+tipo, marco, número, título curto, situação, mensagem, autor e hora. Nada de
+imagem nem de texto longo. São guardados **os últimos 100**. O comunicado só
+nasce do clique: abrir um backup, importar o banco NCR ou juntar o trabalho
+de um colega nunca cria comunicado. O **backup de tudo** leva os comunicados;
+backups antigos continuam abrindo, com a lista vazia.
+
+> Para acompanhar outro marco, é uma linha em `assets/js/config.js`:
+> `MARCOS_COMUNICADOS = ['J09', 'J10']`. A comparação é a mesma da abertura:
+> "J09 Ind", "J09Cer" e "J19" não contam como J09.
 
 ## O caminho do waiver (aba Fluxos)
 
@@ -1454,7 +1513,8 @@ assets/icons/            ícones do aplicativo instalado
 assets/css/app.css       estilos do editor
 assets/css/report.css    layout do relatório (tela e impressão A4)
 assets/js/log.js         o diário do console, em português
-assets/js/config.js      o marco que abre primeiro e o ritmo da atualização
+assets/js/config.js      o marco que abre primeiro, o ritmo da atualização e
+                         os marcos que geram comunicados
 assets/js/atualizacao.js a atualização automática: o ciclo e o contador
 assets/js/leitura.js     o modo leitura (o visualizador): liga e blinda
 assets/js/store.js       modelo de dados, persistência (IndexedDB) e mesclagem
@@ -1471,6 +1531,7 @@ assets/js/painel.js      o painel de um marco: o que está chegando nele
 assets/js/xlsx.js        gera a planilha .xlsx (sem biblioteca)
 assets/js/tabela.js      a aba Tabela: todos os itens, filtros e exportação
 assets/js/chat.js        a conversa da equipe, dentro da pasta da rede
+assets/js/comunicados.js os comunicados para o visualizador: formato, junção e lidos
 assets/js/xlsxler.js     LÊ planilhas .xlsx (o motor do NCR Control)
 assets/js/ncrs.js        banco NCR: importações, correlação, histórico, junção
 assets/js/ncrfluxo.js    o desenho do fluxo da NCR, igual ao do NCR Control

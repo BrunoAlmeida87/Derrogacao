@@ -39,7 +39,12 @@ const path = require('path');
     const dados = JSON.parse(bk.buffer.toString('utf8'));
     L.ok(Array.isArray(dados.projects) && dados.projects.every(p => Array.isArray(p.ncrs) && Array.isArray(p.devs)),
       'o backup novo tem o mesmo formato (projects[].ncrs/devs)');
-    L.ok(!('comunicados' in dados) && !('kanban' in dados), 'e nada novo dentro dele: as mudanças são só de tela');
+    /* a única chave nova é a lista de comunicados (comunicados.js), que as
+       versões anteriores ignoram — Store.fromBackup só lê `projects` */
+    L.ok(Array.isArray(dados.comunicados) && !('kanban' in dados),
+      'e só uma chave nova, a lista de comunicados, que as versões anteriores ignoram');
+    const antigo = await pg.evaluate((d) => Store.fromBackup(d).length, dados);
+    L.igual(antigo, dados.projects.length, 'o leitor de backup continua lendo só os relatórios');
 
     console.log('o PDF do relatório não mudou de cara');
     await pg.click('#pdfBtn');

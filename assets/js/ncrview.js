@@ -1215,6 +1215,16 @@
     autor.id = 'nbAutor';
     autor.textContent = w.editedAt ? 'Última edição: ' + (w.editedBy || 'sem nome') + ' · ' + Ncrs.data(w.editedAt) : 'Ainda não preenchido.';
     sw.appendChild(autor);
+    /* Marco Atual num marco dos comunicados (Config.MARCOS_COMUNICADOS): a
+       "nova NCR" pode ser avisada a quem usa o visualizador — só com o clique */
+    var prop = !leitura() && ctx.comunicar && global.Comunicados ? Comunicados.daNcr(rec) : null;
+    if (prop) {
+      var com = botao('📣 Comunicar: nova NCR no ' + prop.marco, 'btn--sm btn--comunicar', function () {
+        ctx.comunicar(rec);
+      });
+      com.title = 'Publicar um comunicado para quem usa o visualizador. Nada é enviado sem a sua confirmação.';
+      sw.appendChild(com);
+    }
 
     /* relatórios de Waiver */
     var sr = secao(esq, 'Relatórios de Waiver', 'A NCR entra como um item novo do relatório: Description vem do banco NCR; Observation, da Observação acima.');

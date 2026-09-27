@@ -2,7 +2,7 @@
    config.js — as preferências do programa que mudam com o tempo
    --------------------------------------------------------------------------
    Um lugar só para o que hoje vale e amanhã será outro — o marco da vez, o
-   ritmo da atualização automática. Mudou o marco prioritário? É aqui, e em
+   ritmo da atualização automática, os marcos que geram comunicados. Mudou o marco prioritário? É aqui, e em
    nenhum outro arquivo.
 
    Carrega logo depois do log.js e não usa ninguém: só guarda valores e as
@@ -19,6 +19,12 @@
   /* De quanto em quanto tempo os dados de fora são conferidos sozinhos: a
      pasta da equipe no editor, a publicação no visualizador. */
   var INTERVALO_ATUALIZACAO_MS = 5 * 60 * 1000;
+
+  /* Os marcos cujos acontecimentos podem virar comunicado para o
+     visualizador (comunicados.js): um waiver novo, uma NCR nova, um waiver
+     aceito. Para acompanhar outro marco, acrescente-o aqui — ['J09', 'J10'].
+     A comparação é a de `ehMarco`: "J09 Ind" não é o J09. */
+  var MARCOS_COMUNICADOS = ['J09'];
 
   function str(v) { return v == null ? '' : String(v); }
 
@@ -67,6 +73,7 @@
   global.Config = {
     MARCO_INICIAL: MARCO_INICIAL,
     INTERVALO_ATUALIZACAO_MS: INTERVALO_ATUALIZACAO_MS,
+    MARCOS_COMUNICADOS: MARCOS_COMUNICADOS,
     chaveMarco: chaveMarco,
     ehMarco: ehMarco,
     relatorioInicial: relatorioInicial

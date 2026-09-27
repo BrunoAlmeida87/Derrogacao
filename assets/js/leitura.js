@@ -107,6 +107,9 @@
     if (global.Revisoes && Revisoes.gravarLocais) Revisoes.gravarLocais = function () {};
     if (global.Chat && Chat.gravarLocais) Chat.gravarLocais = function () {};
     if (global.Chat && Chat.ligado) Chat.ligado = function () { return false; };
+    /* o visualizador recebe comunicados, nunca cria: a cópia local é do
+       editor. O que ele guarda é só quais já leu (Comunicados.marcarLidos). */
+    if (global.Comunicados && Comunicados.gravarLocais) Comunicados.gravarLocais = function () {};
   }
 
   global.Leitura = {

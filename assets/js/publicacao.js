@@ -14,8 +14,8 @@
    Quando o arquivo chega por outro caminho (aberto à mão), ele é lido como
    TEXTO e interpretado — nunca executado.
 
-   Vai o que o relatório mostra, a situação interna, quem editou cada item e
-   o banco NCR. Não vão as sessões de trabalho, as lápides de exclusão, os
+   Vai o que o relatório mostra, a situação interna, quem editou cada item,
+   o banco NCR e os comunicados (comunicados.js). Não vão as sessões de trabalho, as lápides de exclusão, os
    campos de controle da mesclagem nem a anotação interna do item (`nota`),
    que a tela promete ficar "só aqui e na pasta da equipe".
    ========================================================================== */
@@ -64,23 +64,31 @@
    * Ficam de fora os carimbos que toda gravação renova (updatedAt,
    * lastEditedAt) — senão cada salvamento sem mudança republicaria.
    */
-  function conteudo(projects, ncrBase) {
+  function conteudo(projects, ncrBase, comunicados) {
     return JSON.stringify([publicaveis(projects).map(function (p) {
       var c = limpar(p);
       delete c.updatedAt;
       delete c.lastEditedAt;
       return c;
-    }), ncrBase ? ncrBase.ncrs : null]);
+    }), ncrBase ? ncrBase.ncrs : null, idsDe(comunicados)]);
+  }
+
+  /* os comunicados não se editam: a lista de ids diz se chegou algum */
+  function idsDe(comunicados) {
+    return (comunicados || []).map(function (c) { return c.id; });
   }
 
   /* Os metadados vêm antes dos dados: assim dá para ler quem publicou e
      quando só pelo começo do arquivo, sem trazer as imagens pela rede. */
-  function montar(projects, quem, ncrBase) {
+  function montar(projects, quem, ncrBase, comunicados) {
     return {
       format: FORMATO,
       schema: Store.SCHEMA,
       publishedAt: new Date().toISOString(),
       publishedBy: str(quem),
+      /* os comunicados antes dos dados: são poucos, e um visualizador
+         antigo simplesmente ignora a chave */
+      comunicados: comunicados || [],
       projects: publicaveis(projects).map(limpar),
       ncrBase: ncrBase || null
     };
@@ -114,7 +122,7 @@
 
   /**
    * Transforma o que veio (objeto já carregado ou texto de arquivo) em
-   * { projects, ncrBase, quando, quem, formato, schema, assinatura }.
+   * { projects, ncrBase, comunicados, quando, quem, formato, schema, assinatura }.
    * Aceita a publicação, o banco da pasta (derrogacao-dados.json) e os
    * backups do editor (que trazem o banco NCR em `ncrBase`).
    */
@@ -124,6 +132,8 @@
     return {
       projects: projects,
       ncrBase: (d.ncrBase && typeof d.ncrBase === 'object') ? d.ncrBase : null,
+      /* publicação ou backup sem a coleção (os antigos): lista vazia */
+      comunicados: Comunicados.deArquivo(d),
       formato: str(d.format) || 'backup',
       schema: Number(d.schema) || 0,
       quando: str(d.publishedAt || d.updatedAt || d.exportedAt),

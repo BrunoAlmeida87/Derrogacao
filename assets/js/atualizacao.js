@@ -7,9 +7,10 @@
    página e sem perder nada do que está aqui.
 
    Um relógio só para o programa inteiro: trocar de aba não cria outro, e
-   ninguém mais agenda releitura por conta própria. Quem quiser saber de cada
-   rodada (os comunicados do visualizador, quando existirem) se inscreve em
-   `aoConcluir` — em vez de criar um segundo mecanismo concorrente.
+   ninguém mais agenda releitura por conta própria. Os comunicados do
+   visualizador vêm dentro da própria publicação, na mesma leitura desta
+   rodada. Quem mais quiser saber de cada rodada se inscreve em `aoConcluir`
+   — em vez de criar um segundo mecanismo concorrente.
 
    - Com a página em segundo plano o relógio para: nada é conferido nem
      redesenhado. Ao voltar, se a última rodada tiver mais de um minuto,

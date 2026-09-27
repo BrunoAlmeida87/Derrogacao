@@ -37,7 +37,8 @@ Nenhuma suíte escreve dentro do repositório.
 | `resumo.test.js` | mini cards de marco no lugar do dropdown: "Todos os marcos", troca geral × marco (clique e teclado), filtros juntos, CSV e PDF do escopo, backup do marco sempre inteiro |
 | `atualizacao.test.js` | atualização automática: contador, um temporizador só, o que o colega gravou chegando sozinho, o que se escreve aqui preservado, botão manual, pausa em segundo plano, falha que não apaga os dados à vista (editor com a pasta e visualizador) |
 | `banco.test.js` | Banco NCR: zebra e separadores, certos depois de filtrar/ordenar/editar; estados por cima (mouse, foco, fechada, linha presa); cabeçalho alinhado |
-| `compat.test.js` | backup antigo abrindo, formato do backup e chaves internas inalterados, o PDF do relatório com as folhas de sempre |
+| `compat.test.js` | backup antigo abrindo, formato do backup e chaves internas inalterados (a única chave nova é `comunicados`), o PDF do relatório com as folhas de sempre |
+| `comunicados.test.js` | comunicados: quais marcos (J09 sim; J08 e J09 Ind não), nada criado sem o clique, a prévia com todos os campos, `comunicados.json` na pasta, "já comunicado", comunicado do colega pela pasta, retenção de 100, backup (com e sem a coleção), diário sem o texto, publicação; no visualizador, o pop-up consolidado, "Abrir waiver", lido que sobrevive ao recarregar, "Depois", histórico, a regra dos 7 dias e a publicação antiga |
 | `arquivo-unico.test.js` | `derrogacao.html` e `derrogacao-visualizador.html` gerados na hora e abertos de `file://` sem flag |
 
 A pasta da rede, nos testes, é um diretório OPFS no lugar do seletor do
