@@ -144,8 +144,18 @@ body {
   color: rgba(255, 255, 255, .55);
   white-space: nowrap;
 }
-.topbar-field--grow { flex: 1 1 170px; min-width: 140px; }
+.topbar-field--grow { flex: 1 1 170px; min-width: 120px; }
 .topbar-field select { width: auto; min-width: 152px; max-width: 260px; }
+.topbar-field select:disabled { opacity: .55; cursor: not-allowed; }
+/* por que o seletor está desabilitado, dito ao lado dele (e lido pelo leitor
+   de tela: o select aponta para cá com aria-describedby) */
+.topbar-nota {
+  font-size: 11px;
+  font-style: italic;
+  color: rgba(255, 255, 255, .72);
+  max-width: 190px;
+  line-height: 1.25;
+}
 .topbar-spacer { flex: 1 1 auto; }
 
 /* ações e estado andam juntos e sempre à direita — assim, quando a barra
@@ -168,6 +178,33 @@ body {
   align-items: flex-end;
   gap: 1px;
   min-width: 118px;
+}
+/* a atualização automática: o botão e o contador ao lado dele */
+/* A atualização automática: um botão só, de duas linhas — "⟳ Atualizar" e,
+   embaixo, o contador ("próxima em 04:32"). Junto, cabe na barra sem
+   empurrar as ações para uma segunda linha; a frase inteira fica na dica. */
+.topbar-atualiza { display: flex; align-items: center; }
+.topbar-atualiza-btn {
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0;
+  height: 32px; padding: 0 10px; line-height: 1.1; text-align: left;
+}
+.topbar-atualiza-rot { font-size: 12.5px; }
+.topbar-conta {
+  font-size: 10px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, .72);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.topbar-conta:empty { display: none; }
+.topbar-conta.is-aviso { color: #f2cf8a; }
+/* Com a pasta ligada, as abas Waiver NCR e DEV têm a barra mais cheia do
+   programa (relatório, marco, pasta, atualização, ações e o salvo). Abaixo
+   de uns 1760 px o subtítulo da marca sai, para ela continuar numa linha só
+   por mais tempo — o nome continua, e no visualizador o selo "somente
+   leitura" diz o que o subtítulo dizia. */
+@media (max-width: 1760px) {
+  .brand-text small { display: none; }
 }
 #saveState {
   font-size: 12px;
@@ -302,7 +339,10 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
 
 /* Com cinco abas, largura igual para todas cortava o rótulo mais comprido
    ("Conversa"). Cada uma leva a largura do seu texto e divide a sobra; se um
-   dia não couber, a fila quebra em duas linhas em vez de esconder alguma. */
+   dia não couber, a fila quebra em duas linhas em vez de esconder alguma.
+   Com as sete de hoje (e "Waiver NCR"/"Waiver DEV" por extenso) a letra é
+   um pouco menor e o respiro lateral mais curto: assim elas cabem em duas
+   linhas nos 332 px — Banco NCR, Kanban, Tabela e Waiver NCR na primeira. */
 .tabs {
   display: flex;
   flex-wrap: wrap;
@@ -315,18 +355,18 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   white-space: nowrap;
   font: inherit;
   font-weight: 700;
-  font-size: 13px;
-  letter-spacing: .02em;
+  font-size: 12px;
+  letter-spacing: .01em;
   color: var(--muted);
   background: none;
   border: none;
   border-bottom: 3px solid transparent;
-  padding: 11px 5px 9px;
+  padding: 11px 4px 9px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 4px;
   transition: background .12s, color .12s;
 }
 .tab[data-kind="ncr"]    { --tab: #4B0082; --tab-sf: #f3ecfb; }
@@ -343,6 +383,22 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   border-bottom-color: var(--tab);
   background: var(--tab-sf);
 }
+/* Cada área tem a sua cor (pedido do Bruno: saber de relance onde se está).
+   Discreta: um ponto antes do nome, sempre à vista; a aba aberta ganha o
+   fundo, o texto e a barra na cor. A cor nunca é o único sinal — o nome
+   está escrito, a aba aberta tem barra e fundo, e o leitor de tela ouve
+   "selecionada" (aria-selected). */
+.tab::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tab, var(--muted));
+}
+.tab:focus-visible { outline: 2px solid var(--tab, var(--kind)); outline-offset: -3px; }
+/* a mesma cor numa faixa fina no alto da área aberta */
+.editor { border-top: 3px solid var(--kind); }
 .tab-count {
   font-size: 11px;
   font-weight: 700;
@@ -2784,6 +2840,25 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   border-radius: 999px; padding: 0 6px; font-size: 11px;
 }
 .tb-chip.is-on .tb-chip-n { background: rgba(255, 255, 255, .28); }
+/* a escolha não depende só da cor: a pastilha escolhida leva um ✓ */
+.tb-chip.is-on:not(.tb-chip--card)::before,
+.tb-chip--card.is-on .tb-chip-nome::before { content: '✓'; font-weight: 700; }
+.tb-chip--card.is-on .tb-chip-nome::before { margin-right: 5px; }
+
+/* Mini cards de marco (aba Resumo): a mesma pastilha, com duas linhas — o
+   marco e o total; embaixo, discretos, os aceitos e a divisão NCR/DEV. */
+.tb-chip--card {
+  flex-direction: column; align-items: flex-start; gap: 2px;
+  min-width: 124px; min-height: 44px; padding: 6px 12px;
+  border-radius: 10px; text-align: left; line-height: 1.2;
+}
+.tb-chip-l1 { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; }
+.tb-chip-sub { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.tb-chip--card.is-on .tb-chip-sub { color: rgba(255, 255, 255, .9); }
+.tb-chip--card:not(.is-on):hover { border-color: var(--kind-br); background: var(--kind-sf); }
+/* alinhados com o resto da aba (a mesma coluna de 980 px) */
+.sm-marcos { max-width: 980px; margin: 0 auto 12px; }
+.sm-escopo strong { color: var(--kind); }
 
 /* ==========================================================================
    aba Banco NCR
@@ -2908,17 +2983,30 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .nb2-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
 .nb2-table th {
   position: sticky; top: 0; z-index: 2;
-  text-align: left; padding: 2px 10px; background: #f4f6f9;
-  border-bottom: 2px solid var(--line); white-space: nowrap;
+  text-align: left; padding: 2px 10px; background: #eef1f5;
+  border-bottom: 2px solid #c9ced8; white-space: nowrap;
 }
 .nb2-table th.is-waiver { background: #e9eef4; }
+/* Legibilidade (pedido do Bruno): separador um pouco mais forte e linhas
+   alternadas em dois tons bem próximos — o bastante para o olho seguir a
+   linha de 13 colunas sem virar listra. A alternância é pela posição na
+   tabela (nth-child), então continua certa depois de filtrar, ordenar ou
+   trocar uma linha só (NcrView.atualizarLinha). Os estados (passar o mouse,
+   foco, fixada, fechada em destaque) vêm depois e vencem as duas cores. */
 .nb2-table td {
-  padding: 7px 10px; vertical-align: top; border-bottom: 1px solid var(--line-2);
+  padding: 7px 10px; vertical-align: top; border-bottom: 1px solid #dde1e8;
   line-height: 1.4;
 }
 .nb2-table td.is-waiver { background: #f7f9fb; }
+.nb2-table tbody tr:nth-child(even) td { background: #f5f7fa; }
+.nb2-table tbody tr:nth-child(even) td.is-waiver { background: #eef2f6; }
 .nb2-table td.is-longo { min-width: 150px; max-width: 420px; overflow-wrap: anywhere; }
-.nb2-table tbody tr:hover td { background: #f3f6fa; }
+.nb2-table tbody tr:hover td,
+.nb2-table tbody tr:hover td.is-waiver { background: #e8eef7; }
+/* a linha em que está o foco do teclado (um botão ou uma lista dentro dela) */
+.nb2-table tbody tr:focus-within td,
+.nb2-table tbody tr:focus-within td.is-waiver { background: #e3ebf8; }
+.nb2-table tbody tr:focus-within td:first-child { box-shadow: inset 3px 0 0 var(--kind); }
 .nb2-sort {
   font: inherit; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
   color: #4b5261; background: none; border: none; cursor: pointer;
@@ -2961,14 +3049,16 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .nb2-rel:hover { background: var(--accent-hi); }
 .nb2-add { white-space: nowrap; }
 
-/* fechadas em vermelho, quando o botão está ligado */
-.nb2-table.is-destacando tr.is-fechada td { background: #fdecec; }
-.nb2-table.is-destacando tr.is-fechada td:first-child { box-shadow: inset 4px 0 0 #c62828; }
+/* fechadas em vermelho, quando o botão está ligado (vence a zebra) */
+.nb2-table.is-destacando tbody tr.is-fechada td { background: #fdecec; }
+.nb2-table.is-destacando tbody tr.is-fechada:nth-child(even) td { background: #fbe3e3; }
+.nb2-table.is-destacando tbody tr.is-fechada td:first-child { box-shadow: inset 4px 0 0 #c62828; }
 .nb2-table.is-destacando tr.is-fechada .nb2-tag-fechada { background: #c62828; color: #fff; }
-.nb2-table.is-destacando tr.is-fechada:hover td { background: #fbdcdc; }
+.nb2-table.is-destacando tbody tr.is-fechada:hover td { background: #f8d4d4; }
 /* a linha editada que saiu do filtro continua, marcada, até o filtro mudar */
-.nb2-table tr.is-fixada td { background: #fff8e1; }
-.nb2-table tr.is-fixada td:first-child { box-shadow: inset 4px 0 0 #d9a441; }
+.nb2-table tbody tr.is-fixada td,
+.nb2-table tbody tr.is-fixada:nth-child(even) td { background: #fff8e1; }
+.nb2-table tbody tr.is-fixada td:first-child { box-shadow: inset 4px 0 0 #d9a441; }
 .nb2-table tr.is-ausente td { color: var(--muted); }
 
 .nb2-vazio {
@@ -3100,6 +3190,8 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
 .st-cor--justificar  { --st-cor: #eb6834; --st-sf: #fde9df; --st-tx: #97390f; }
 .st-cor--aceito      { --st-cor: #1baf7a; --st-sf: #dff5ec; --st-tx: #0c6645; }
 .st-cor--fora        { --st-cor: #6b4f9e; --st-sf: #f2eef9; --st-tx: #4a3278; }
+/* a área das encerradas (CEDOC Closure) no Kanban: cinza, de coisa arquivada */
+.st-cor--encerrada   { --st-cor: #7b8494; --st-sf: #f1f2f4; --st-tx: #3f4654; }
 .st-cor-ponto {
   display: inline-block; width: 9px; height: 9px; border-radius: 50%;
   background: var(--st-cor, #9aa1ae); flex: 0 0 auto;
@@ -3177,7 +3269,8 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
 /* ==========================================================================
    aba Kanban
    Cinco colunas lado a lado, cada uma com a cor da situação; o cartão é a
-   NCR. Tudo aqui é tela — o Kanban não tem folha de impressão.
+   NCR. Esta seção é a tela; a folha impressa do Kanban (.kbp-*, A4 ou A3)
+   fica no fim dela, em medidas de papel.
    ========================================================================== */
 .kanban-scroll { overflow: auto; padding: 14px 14px 40px; background: #f4f5f8; }
 .kb { display: flex; flex-direction: column; gap: 12px; min-height: 100%; }
@@ -3245,69 +3338,193 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
 .kb-col-corpo { display: flex; flex-direction: column; gap: 8px; padding: 2px 10px 12px; min-height: 90px; }
 .kb-col-vazia { margin: 8px 2px; font-size: 12px; color: var(--muted); font-style: italic; }
 
+.kb-acoes { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kb-exporta { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+
+/* O cartão nasce recolhido, quase uma linha de lista (pedido do Bruno: ver
+   mais NCRs de uma vez): número, status da NCR, função em poucas letras,
+   sistema, caminho e as ações. O "+" abre a descrição e o resto. A altura
+   recolhida não depende do texto: nada de descrição ali. */
 .kb-card {
-  position: relative; display: flex; flex-direction: column; gap: 6px;
-  background: #fff; border: 1px solid #e3e5ea; border-radius: 10px;
-  padding: 10px 12px 9px 14px; box-shadow: 0 1px 2px rgba(20, 22, 28, .06);
+  position: relative; display: flex; flex-direction: column; gap: 3px;
+  background: #fff; border: 1px solid #e3e5ea; border-radius: 8px;
+  padding: 5px 8px 5px 12px; box-shadow: 0 1px 2px rgba(20, 22, 28, .06);
   transition: box-shadow .12s, transform .12s;
 }
 .kb-card::before {
-  content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 4px;
+  content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 4px;
   border-radius: 0 4px 4px 0; background: var(--st-cor);
 }
 .kb-card[draggable="true"] { cursor: grab; }
-.kb-card:hover { box-shadow: 0 6px 18px rgba(20, 22, 28, .12); transform: translateY(-1px); }
+.kb-card:hover { box-shadow: 0 4px 12px rgba(20, 22, 28, .12); }
 .kb-card.is-arrastando { opacity: .5; transform: rotate(1.5deg); }
 .kb-card.is-alerta { border-color: #f2c7c2; background: #fffafa; }
 .kb-card.is-alerta::before { background: #b42318; }
-.kb-card-topo { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.kb-card.is-aberto { box-shadow: 0 4px 14px rgba(20, 22, 28, .14); }
+.kb-card-topo { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .kb-card-num {
   font: inherit; font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-  font-size: 12.5px; font-weight: 700; color: var(--ink);
-  background: none; border: none; padding: 2px 0; min-height: 24px; cursor: pointer; text-align: left;
-  overflow-wrap: anywhere;
+  font-size: 12px; font-weight: 700; color: var(--ink);
+  background: none; border: none; padding: 1px 0; min-height: 24px; cursor: pointer; text-align: left;
+  min-width: 0; overflow-wrap: anywhere; margin-right: auto;
 }
 .kb-card-num:hover { color: var(--kind); text-decoration: underline; }
 .kb-st-ncr {
-  margin-left: auto; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 10px;
+  font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 10px;
   background: #e7f4ec; color: #1d6b45; white-space: nowrap;
+  max-width: 62%; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto;
 }
 .kb-st-ncr.is-fechada { background: #fdecec; color: #b42318; }
 .kb-st-ncr.is-sem { background: #f1f2f5; color: var(--muted); }
 .kb-st-ncr.is-ok { background: #dff5ec; color: #0c6645; }
 .kb-st-ncr.is-falta { background: #fdf4e3; color: #8a4b00; }
+.kb-alerta-ic { color: #b42318; font-size: 13px; line-height: 1; flex: 0 0 auto; }
+.kb-card-mais {
+  flex: 0 0 auto; width: 24px; height: 24px; padding: 0;
+  font: inherit; font-size: 15px; font-weight: 700; line-height: 1;
+  color: var(--ink-2); background: #fff; border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+}
+.kb-card-mais:hover { color: var(--kind); background: var(--kind-sf); border-color: var(--kind-br); }
+.kb-card-mais[aria-expanded="true"] { color: var(--kind); background: var(--kind-sf); border-color: var(--kind); }
+.kb-card-mais:focus-visible { outline: 2px solid var(--kind); outline-offset: 1px; }
+.kb-card-linha { display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; min-width: 0; }
+.kb-card-meta {
+  display: flex; align-items: center; gap: 5px; flex: 1 1 150px; min-width: 0;
+  font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden;
+}
+.kb-fv {
+  flex: 0 0 auto; font-size: 10.5px; font-weight: 700; color: #34506b; background: #e9eef4;
+  border-radius: 4px; padding: 1px 5px;
+}
+.kb-sis { flex: 0 0 auto; background: #f1f2f5; border-radius: 4px; padding: 1px 5px; color: var(--ink-2); }
+.kb-caminho { font-weight: 700; color: var(--ink-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.kb-nota { font-size: 12px; flex: 0 0 auto; }
+.kb-card-acoes { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; margin-left: auto; }
+.kb-card-acoes .btn--sm { padding: 2px 7px; font-size: 11.5px; min-height: 24px; }
+.kb-sel {
+  font-size: 11.5px; font-weight: 700; color: var(--st-tx); background-color: var(--st-sf);
+  border: 1.5px solid var(--st-cor); border-radius: 6px; padding: 1px 3px; min-height: 24px; max-width: 158px;
+}
+.kb-sem-rel { font-size: 11px; color: var(--muted); font-style: italic; }
+/* o cartão aberto: o que dá contexto */
+.kb-card-det {
+  display: flex; flex-direction: column; gap: 5px;
+  border-top: 1px solid var(--line-2); padding-top: 6px; margin-top: 2px;
+}
 .kb-alerta {
   font-size: 11.5px; color: #7a1b12; background: #fdecec; border-radius: 6px; padding: 4px 8px;
 }
 .kb-alerta strong { color: #b42318; }
 .kb-origem { font-size: 11.5px; color: var(--ink-2); background: #f4f5f8; border-radius: 6px; padding: 3px 8px; }
 .kb-origem--caminho { background: #f3ecfb; color: #4b1d7a; }
-.kb-fv {
-  align-self: flex-start; max-width: 100%;
-  font-size: 11px; font-weight: 700; color: #34506b; background: #e9eef4;
-  border-radius: 6px; padding: 2px 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
+.kb-fv-inteira { font-size: 11px; font-weight: 700; color: #34506b; }
 .kb-desc {
   margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-2);
-  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+  white-space: pre-wrap; overflow-wrap: anywhere;
 }
-.kb-card-pe { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
-.kb-caminho { font-weight: 700; color: var(--ink-2); }
-.kb-sis { background: #f1f2f5; border-radius: 4px; padding: 1px 6px; }
-.kb-nota { font-size: 12px; }
-.kb-card-acoes {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  border-top: 1px solid var(--line-2); padding-top: 7px; margin-top: 2px;
+.kb-desc--vazia { color: var(--muted); font-style: italic; }
+.kb-quem { font-size: 11px; color: var(--muted); }
+.kb-col-enc {
+  display: block; margin-top: 2px; padding: 2px 0; min-height: 24px;
+  font: inherit; font-size: 11.5px; text-align: left; color: var(--st-tx);
+  background: none; border: 0; cursor: pointer; text-decoration: underline;
 }
-.kb-sel {
-  font-size: 12px; font-weight: 700; color: var(--st-tx); background-color: var(--st-sf);
-  border: 1.5px solid var(--st-cor); border-radius: 6px; padding: 2px 4px; min-height: 26px; max-width: 100%;
+.kb-ir-enc { align-self: center; }
+
+/* As encerradas no CEDOC: fora da coluna "NCR to be closed", numa área própria
+   abaixo do quadro. O título, com a quantidade, fica sempre à vista. */
+.kb-enc {
+  background: var(--st-sf); border: 1px solid var(--line); border-radius: 12px;
+  border-top: 4px solid var(--st-cor);
 }
-.kb-quem { font-size: 11px; color: var(--muted); margin-left: auto; }
+.kb-enc-tit { margin: 0; }
+.kb-enc-btn {
+  width: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 12px; min-height: 44px;
+  font: inherit; text-align: left; color: var(--st-tx);
+  background: none; border: 0; border-radius: 10px; cursor: pointer;
+}
+.kb-enc-btn:hover { background: rgba(255, 255, 255, .6); }
+.kb-enc-btn:focus-visible { outline: 2px solid var(--st-tx); outline-offset: -2px; }
+.kb-enc-seta { width: 12px; font-size: 12px; }
+.kb-enc-nome { font-size: 13px; font-weight: 700; }
+.kb-enc-btn .kb-col-n { font-size: 12px; }
+.kb-enc-dica { flex: 1 1 280px; font-size: 11.5px; font-weight: 400; color: var(--ink-2); }
+.kb-enc-corpo {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px;
+  padding: 2px 12px 12px; align-items: start;
+}
+
+/* a janela da exportação visual */
+.kb-imp-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; margin: 10px 0; }
+.kb-imp-grupo { margin: 0; padding: 8px 12px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.kb-imp-grupo legend { padding: 0 4px; font-size: 12px; font-weight: 700; color: var(--ink-2); }
+.kb-imp-op { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; cursor: pointer; }
+.kb-imp-op input { width: auto; margin: 0; accent-color: var(--kind); }
+.kb-imp-previa { margin: 6px 0 0; font-size: 13px; font-weight: 600; color: var(--kind); }
+.kb-imp-previa:empty { display: none; }
+
 @media (max-width: 900px) {
   .kb-cab { grid-template-columns: 1fr; }
   .kb-ferr { justify-content: flex-start; }
+  .kb-exporta { margin-left: 0; }
+  .kb-imp-grade { grid-template-columns: 1fr; }
 }
+
+/* --- o Kanban impresso (kanban.js, montarFolhas) ------------------------------
+   Folha própria, A4 ou A3, retrato ou paisagem, com as margens feitas de
+   padding como as do relatório (report.css). Tudo em mm/pt e relativo a
+   --kbp-fs, a letra que a escala automática escolhe; nada depende da
+   largura da tela — as media queries de tela estreita também valem no papel
+   (CLAUDE.md, §6), e aqui nenhuma alcança estas classes. */
+/* duas classes: .rep-page (report.css, carregado depois) fixa 11pt */
+.rep-page.rep-page--kanban { font-family: Arial, Helvetica, sans-serif; font-size: var(--kbp-fs, 8pt); line-height: 1.25; color: #111; }
+.kbp-cab { margin-bottom: 3mm; }
+.kbp-tit { font-size: 1.9em; font-weight: 700; line-height: 1.15; }
+.kbp-tit strong { color: #8b1e5b; }
+.kbp-cont { font-size: .6em; font-weight: 400; color: #555; }
+.kbp-info { margin-top: .6mm; color: #444; }
+.kbp-nums { margin-top: .8mm; font-weight: 700; color: #222; }
+.kbp-quadro { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2mm; align-items: start; }
+.kbp-col { min-width: 0; background: var(--st-sf); border-top: 1.2mm solid var(--st-cor); border-radius: 1.2mm; }
+.kbp-col-cab {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 1mm;
+  padding: 1mm 1.5mm; font-size: 1.05em; font-weight: 700; color: var(--st-tx);
+}
+.kbp-col-n { font-weight: 700; white-space: nowrap; }
+.kbp-col-corpo { padding: 0 1.2mm 1.2mm; }
+.kbp-card {
+  margin: 0 0 1.2mm; padding: .8mm 1.2mm;
+  background: #fff; border: .2mm solid #d5d8de; border-left: .9mm solid var(--st-cor); border-radius: .8mm;
+  break-inside: avoid; page-break-inside: avoid;
+}
+.kbp-card.is-alerta { border-left-color: #b42318; background: #fff7f7; }
+.kbp-num { font-weight: 700; overflow-wrap: anywhere; }
+.kbp-st { font-weight: 700; color: #1d6b45; }
+.kbp-st.is-fechada { color: #b42318; }
+.kbp-st.is-sem { color: #777; font-weight: 400; }
+.st-cor--fora .kbp-st { color: #8a4b00; }
+.st-cor--fora .kbp-st.is-fechada, .st-cor--encerrada .kbp-st.is-fechada { color: #0c6645; }
+.kbp-l2 { font-size: .92em; color: #333; overflow-wrap: anywhere; }
+.kbp-alerta { font-size: .9em; font-weight: 700; color: #b42318; }
+.kbp-origem { font-size: .88em; font-style: italic; color: #555; }
+.kbp-fv { font-size: .9em; font-weight: 700; color: #34506b; }
+.kbp-desc { margin-top: .5mm; font-size: .92em; color: #222; white-space: pre-wrap; overflow-wrap: anywhere; }
+.kbp-quem { font-size: .85em; color: #666; }
+.kbp-vazia { padding: 1mm; font-style: italic; color: #777; }
+.kbp-pe { margin-top: auto; padding-top: 2mm; font-size: .9em; color: #666; text-align: right; }
+.kbp-enc { margin-top: 4mm; }
+.kbp-enc-tit {
+  margin-bottom: 1mm; padding-bottom: .8mm; font-size: 1.1em; font-weight: 700;
+  color: #3f4654; border-bottom: .3mm solid #7b8494;
+}
+.kbp-enc-linha {
+  display: flex; gap: 2mm; padding: .6mm 0; border-bottom: .15mm solid #e1e3e8;
+  break-inside: avoid; page-break-inside: avoid;
+}
+.kbp-enc-linha .kbp-num { flex: 0 0 auto; }
+.kbp-enc-st { flex: 0 0 auto; font-weight: 700; color: #0c6645; }
+.kbp-enc-txt { flex: 1 1 auto; min-width: 0; color: #333; }
 
 /* ==========================================================================
    publicação para os visualizadores (editor)
@@ -3447,6 +3664,23 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
 .rep-page--landscape {
   width: 297mm;
   min-height: 210mm;
+}
+
+/* O Kanban impresso (kanban.js) é a única folha que também sai em A3, e com
+   margens menores: são cinco colunas lado a lado. Nenhuma folha do relatório
+   usa estas classes. */
+.rep-page--a3 {
+  width: 297mm;
+  min-height: 420mm;
+}
+.rep-page--a3.rep-page--landscape {
+  width: 420mm;
+  min-height: 297mm;
+}
+.rep-page--kanban {
+  --rep-pad-x: 10mm;
+  --rep-pad-top: 10mm;
+  --rep-pad-bottom: 10mm;
 }
 
 /* Enquanto a paginação faz as contas, a área útil encolhe um pouco: é a
@@ -3705,6 +3939,14 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
   size: A4 landscape;
   margin: 0;
 }
+@page rep-a3 {
+  size: A3 portrait;
+  margin: 0;
+}
+@page rep-a3-landscape {
+  size: A3 landscape;
+  margin: 0;
+}
 
 @media print {
   html, body {
@@ -3727,6 +3969,8 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
     page-break-after: auto;
   }
   .print-root .rep-page--landscape { page: rep-landscape; }
+  .print-root .rep-page--a3 { page: rep-a3; }
+  .print-root .rep-page--a3.rep-page--landscape { page: rep-a3-landscape; }
 
   .rep-page { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .rep-page--summary,
@@ -3754,15 +3998,19 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
           title="Este é o visualizador: mostra e exporta, mas não altera nada dos relatórios">somente leitura</span>
   </div>
 
+  <!-- O relatório aberto só manda nas abas Waiver NCR e Waiver DEV (e na
+       aba Fluxos, quando ela olha "este relatório"). Nas outras o campo some
+       — cada uma tem o próprio recorte. Ver renderSeletorGlobal() no app.js. -->
   <div class="topbar-group">
-    <div class="topbar-field">
+    <div class="topbar-field" id="relatorioCampo">
       <label for="projectSelect">Relatório</label>
-      <select id="projectSelect"></select>
+      <select id="projectSelect" aria-describedby="relatorioNota"></select>
+      <span class="topbar-nota" id="relatorioNota" hidden></span>
     </div>
     <button data-so-editor class="btn btn--onDark" id="newProjectTopBtn" title="Criar um relatório para outro marco">+ Novo relatório</button>
   </div>
 
-  <div data-so-editor class="topbar-field topbar-field--grow">
+  <div data-so-editor class="topbar-field topbar-field--grow" id="marcoCampo">
     <label for="marcoInput">Marco</label>
     <input type="text" id="marcoInput" placeholder="ex.: RANAE J06">
   </div>
@@ -3779,7 +4027,16 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
   <button class="pasta-chip leitura-fonte" id="fonteChip" hidden data-estado="erro">
     <span id="fonteChipLabel">📄 sem dados</span>
   </button>
-  <button class="btn btn--onDark" id="atualizarBtn" hidden title="Ler de novo a publicação">⟳ Atualizar</button>
+  <!-- a atualização automática (atualizacao.js): o botão de agora e o
+       contador da próxima. No editor só aparece com a pasta da equipe; no
+       visualizador, sempre. -->
+  <div class="topbar-atualiza" id="atualizaBox" hidden>
+    <button class="btn btn--onDark topbar-atualiza-btn" id="atualizarBtn" aria-label="Atualizar agora"
+            aria-describedby="atualizarConta">
+      <span class="topbar-atualiza-rot">⟳ Atualizar</span>
+      <span class="topbar-conta" id="atualizarConta" role="timer" aria-live="off"></span>
+    </button>
+  </div>
   <div class="topbar-actions">
     <button class="btn btn--onDark" id="previewBtn">Pré-visualizar</button>
     <button class="btn btn--go" id="pdfBtn">Exportar PDF…</button>
@@ -3892,38 +4149,45 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
 <div class="layout">
 
   <aside class="sidebar">
-    <div class="tabs" role="tablist" aria-label="Tipo de derrogação">
-      <button class="tab" role="tab" id="tabNcr" data-kind="ncr"
-              aria-selected="true" aria-controls="editorScroll" tabindex="0">
-        NCR <span class="tab-count">0</span>
-      </button>
-      <button class="tab" role="tab" id="tabDev" data-kind="dev"
-              aria-selected="false" aria-controls="editorScroll" tabindex="-1">
-        DEV <span class="tab-count">0</span>
-      </button>
-      <button class="tab" role="tab" id="tabResumo" data-kind="resumo"
-              aria-selected="false" aria-controls="summaryScroll" tabindex="-1">
-        Resumo
-      </button>
-      <button class="tab" role="tab" id="tabFluxos" data-kind="fluxos"
-              aria-selected="false" aria-controls="fluxosScroll" tabindex="-1"
-              title="O caminho dos waivers de cada item, lido do Waiver Historic">
-        Fluxos
-      </button>
-      <button class="tab" role="tab" id="tabTabela" data-kind="tabela"
-              aria-selected="false" aria-controls="tabelaScroll" tabindex="-1"
-              title="Todos os itens de todos os relatórios, em tabela: busca, filtros e exportação">
-        Tabela
-      </button>
+    <!-- A ordem é a do trabalho, pedida pelo Bruno: o banco de NCRs, o quadro
+         do marco, a tabela de todos os itens e só então os dois relatórios de
+         Waiver. As chaves internas (data-kind "ncr" e "dev") não mudaram: só
+         os rótulos. Resumo, Fluxos e Conversa vêm depois. -->
+    <div class="tabs" role="tablist" aria-label="Áreas do programa">
       <button class="tab" role="tab" id="tabBanco" data-kind="banco"
               aria-selected="false" aria-controls="bancoScroll" tabindex="-1"
-              title="As NCRs do SBR4 importadas do banco NCR, com marcos, função vital e observação">
+              title="Banco NCR — as NCRs do SBR4 importadas do banco NCR, com marcos, função vital e observação">
         Banco NCR
       </button>
       <button class="tab" role="tab" id="tabKanban" data-kind="kanban"
               aria-selected="false" aria-controls="kanbanScroll" tabindex="-1"
-              title="As NCRs de um marco em cartões, por situação do waiver">
+              title="Kanban — as NCRs de um marco em cartões, por situação do waiver">
         Kanban
+      </button>
+      <button class="tab" role="tab" id="tabTabela" data-kind="tabela"
+              aria-selected="false" aria-controls="tabelaScroll" tabindex="-1"
+              title="Tabela — todos os itens de todos os relatórios: busca, filtros e exportação">
+        Tabela
+      </button>
+      <button class="tab" role="tab" id="tabNcr" data-kind="ncr"
+              aria-selected="true" aria-controls="editorScroll" tabindex="0"
+              title="Waiver NCR — o relatório de waiver das NCRs do marco aberto: a lista de itens e o formulário">
+        Waiver NCR <span class="tab-count">0</span>
+      </button>
+      <button class="tab" role="tab" id="tabDev" data-kind="dev"
+              aria-selected="false" aria-controls="editorScroll" tabindex="-1"
+              title="Waiver DEV — o relatório de waiver dos desvios (DEV) do marco aberto: a lista de itens e o formulário">
+        Waiver DEV <span class="tab-count">0</span>
+      </button>
+      <button class="tab" role="tab" id="tabResumo" data-kind="resumo"
+              aria-selected="false" aria-controls="summaryScroll" tabindex="-1"
+              title="Resumo — números, gráficos e tabelas de todos os marcos">
+        Resumo
+      </button>
+      <button class="tab" role="tab" id="tabFluxos" data-kind="fluxos"
+              aria-selected="false" aria-controls="fluxosScroll" tabindex="-1"
+              title="Fluxos — o caminho dos waivers de cada item, lido do Waiver Historic">
+        Fluxos
       </button>
       <button data-so-editor class="tab" role="tab" id="tabConversa" data-kind="conversa"
               aria-selected="false" aria-controls="conversaScroll" tabindex="-1" hidden
@@ -4282,7 +4546,7 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
   <div class="dlg-body">
     <h3>Ajustes do relatório</h3>
     <p>Textos fixos que aparecem nas páginas. Valem para este relatório
-       (as duas abas) e quase nunca precisam ser mudados.</p>
+       (Waiver NCR e Waiver DEV) e quase nunca precisam ser mudados.</p>
     <div id="settingsBody"></div>
   </div>
   <div class="dlg-actions">
@@ -4376,6 +4640,11 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
   <div class="nb-ficha-corpo"></div>
 </dialog>
 <dialog id="nbColsDialog" class="dlg--wide nb-dlg">
+  <div class="dlg-body"></div>
+  <div class="dlg-actions"></div>
+</dialog>
+<!-- exportação visual do Kanban: papel, orientação, escala — montada por kanban.js -->
+<dialog id="kbExportDialog" class="dlg--wide" aria-label="Exportar o Kanban para impressão">
   <div class="dlg-body"></div>
   <div class="dlg-actions"></div>
 </dialog>
@@ -4858,6 +5127,278 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
   }
 
   global.Log.ajuda = ajuda;
+})(window);
+
+</script>
+<script>
+/* assets/js/config.js */
+/* ==========================================================================
+   config.js — as preferências do programa que mudam com o tempo
+   --------------------------------------------------------------------------
+   Um lugar só para o que hoje vale e amanhã será outro — o marco da vez, o
+   ritmo da atualização automática. Mudou o marco prioritário? É aqui, e em
+   nenhum outro arquivo.
+
+   Carrega logo depois do log.js e não usa ninguém: só guarda valores e as
+   funções que os comparam.
+   ========================================================================== */
+(function (global) {
+  'use strict';
+
+  /* O marco que abre primeiro: o relatório dele vem selecionado na abertura
+     (editor e visualizador), e o Resumo nasce detalhando-o. Pedido do Bruno:
+     "priorizar o Marco 9". Quando o marco da vez mudar, troque só esta linha. */
+  var MARCO_INICIAL = 'J09';
+
+  /* De quanto em quanto tempo os dados de fora são conferidos sozinhos: a
+     pasta da equipe no editor, a publicação no visualizador. */
+  var INTERVALO_ATUALIZACAO_MS = 5 * 60 * 1000;
+
+  function str(v) { return v == null ? '' : String(v); }
+
+  /**
+   * A chave de comparação de um marco: sem diferença de maiúsculas, sem
+   * espaços e sem zero à esquerda no número ("j 9" = "J09"). Nada além disso:
+   * "J09 Ind" (o industrial), "J09Cer" e "J19" continuam sendo outros marcos.
+   */
+  function chaveMarco(t) {
+    return str(t).toUpperCase().replace(/\s+/g, '').replace(/^J0*(\d)/, 'J$1');
+  }
+
+  /**
+   * O texto é este marco? Aceita também o prefixo "RANAE", que é como a
+   * equipe chama os relatórios ("RANAE J06" é o J06) — e só esse prefixo.
+   * Devolve 2 para igual, 1 para "RANAE <marco>", 0 para outro marco.
+   */
+  function ehMarco(texto, alvo) {
+    var a = chaveMarco(alvo);
+    if (!a) return 0;
+    var t = str(texto).replace(/\s+/g, '');
+    if (chaveMarco(t) === a) return 2;
+    var m = /^RANAE(J.*)$/i.exec(t);
+    return m && chaveMarco(m[1]) === a ? 1 : 0;
+  }
+
+  /**
+   * O relatório do marco inicial, entre os que existem — ou null. Nunca cria
+   * nada: sem o marco, quem chamou segue a regra de antes (o mais recente).
+   * Com dois relatórios do mesmo marco, vale o escrito igual e depois o
+   * mexido por último.
+   */
+  function relatorioInicial(projects) {
+    var melhor = null, nota = 0;
+    (projects || []).forEach(function (p) {
+      var n = ehMarco(p && p.marco, MARCO_INICIAL);
+      if (!n) return;
+      if (n > nota || (n === nota && str(p.updatedAt) > str(melhor.updatedAt))) {
+        melhor = p;
+        nota = n;
+      }
+    });
+    return melhor;
+  }
+
+  global.Config = {
+    MARCO_INICIAL: MARCO_INICIAL,
+    INTERVALO_ATUALIZACAO_MS: INTERVALO_ATUALIZACAO_MS,
+    chaveMarco: chaveMarco,
+    ehMarco: ehMarco,
+    relatorioInicial: relatorioInicial
+  };
+})(window);
+
+</script>
+<script>
+/* assets/js/atualizacao.js */
+/* ==========================================================================
+   atualizacao.js — o ciclo da atualização automática, e o contador dele
+   --------------------------------------------------------------------------
+   Pedido do Bruno: os dados de fora (a pasta da equipe no editor, a
+   publicação no visualizador) conferidos sozinhos a cada 5 minutos, com um
+   contador à vista — "Próxima atualização em 04:32" —, sem recarregar a
+   página e sem perder nada do que está aqui.
+
+   Um relógio só para o programa inteiro: trocar de aba não cria outro, e
+   ninguém mais agenda releitura por conta própria. Quem quiser saber de cada
+   rodada (os comunicados do visualizador, quando existirem) se inscreve em
+   `aoConcluir` — em vez de criar um segundo mecanismo concorrente.
+
+   - Com a página em segundo plano o relógio para: nada é conferido nem
+     redesenhado. Ao voltar, se a última rodada tiver mais de um minuto,
+     confere na hora; senão, continua a contagem.
+   - `podeAgora()` (de quem configurou) pode adiar a rodada — alguém
+     digitando, uma janela aberta: tenta de novo em 15 s.
+   - A rodada que falha não apaga nada: fica anotada ("falhou"), e o contador
+     recomeça do mesmo jeito.
+   - Um clique em "Atualizar" roda na hora e recomeça a contagem.
+
+   Não conhece Store, Pasta nem app: recebe as funções em `iniciar`.
+   ========================================================================== */
+(function (global) {
+  'use strict';
+
+  var ADIA_MS = 15 * 1000;       /* adiada (digitando, janela aberta): tenta de novo em */
+  var VOLTA_MS = 60 * 1000;      /* ao voltar para a janela, confere se passou disto */
+
+  var cfg = null;         /* { intervalo, executar(origem) -> Promise, podeAgora() -> true|motivo, aoMudar(estado) } */
+  var prazo = 0;          /* quando é a próxima rodada (Date.now) */
+  var tique = null;       /* o setInterval de 1 s — só com a página à vista */
+  var rodando = false;
+  var adiado = '';        /* por que a rodada que venceu ainda não aconteceu */
+  var ultima = { quando: 0, ok: true, erro: '' };
+  var ouvintes = [];
+  var ligadoVisibilidade = false;
+
+  function agoraMs() { return Date.now(); }
+
+  function avisar() {
+    if (cfg && cfg.aoMudar) {
+      try { cfg.aoMudar(estado()); } catch (e) { /* o contador nunca derruba o ciclo */ }
+    }
+  }
+
+  function ligarTique() {
+    if (document.hidden) { desligarTique(); return; }
+    if (!tique) tique = setInterval(passo, 1000);
+  }
+  function desligarTique() {
+    if (tique) { clearInterval(tique); tique = null; }
+  }
+
+  /** Um segundo passou: atualiza o contador e, vencido o prazo, roda. */
+  function passo() {
+    if (!cfg) return;
+    if (rodando || agoraMs() < prazo) { avisar(); return; }
+    var pode = cfg.podeAgora ? cfg.podeAgora() : true;
+    if (pode !== true) {
+      adiado = typeof pode === 'string' ? pode : 'aguardando';
+      prazo = agoraMs() + ADIA_MS;
+      avisar();
+      return;
+    }
+    rodar('automatica');
+  }
+
+  /**
+   * Roda uma rodada agora. `origem`: 'automatica', 'manual' ou 'volta'.
+   * Resolve com o que `executar` devolveu (ou null, se falhou ou já havia
+   * uma rodada em curso).
+   */
+  function rodar(origem) {
+    if (!cfg || rodando) return Promise.resolve(null);
+    rodando = true;
+    adiado = '';
+    avisar();
+    var p;
+    try { p = Promise.resolve(cfg.executar(origem)); } catch (e) { p = Promise.reject(e); }
+    return p.then(function (r) {
+      ultima = { quando: agoraMs(), ok: true, erro: '' };
+      ouvintes.forEach(function (fn) {
+        try { fn(r, origem); } catch (e) { /* um ouvinte com defeito não para os outros */ }
+      });
+      return r;
+    }, function (e) {
+      ultima = { quando: agoraMs(), ok: false, erro: (e && e.message) || String(e || 'falhou') };
+      return null;
+    }).then(function (r) {
+      rodando = false;
+      prazo = agoraMs() + cfg.intervalo;
+      ligarTique();
+      avisar();
+      return r;
+    });
+  }
+
+  function aoVisibilidade() {
+    if (!cfg) return;
+    if (document.hidden) { desligarTique(); avisar(); return; }
+    ligarTique();
+    /* voltou para a janela depois de um tempo: confere já, em vez de mostrar
+       o que pode estar velho até o fim da contagem */
+    if (!rodando && agoraMs() - ultima.quando > VOLTA_MS) {
+      var pode = cfg.podeAgora ? cfg.podeAgora() : true;
+      if (pode === true) { rodar('volta'); return; }
+    }
+    passo();
+  }
+
+  /**
+   * Liga o ciclo. Chamar de novo troca a configuração — nunca cria um
+   * segundo relógio.
+   * @param c.intervalo  ms entre as rodadas
+   * @param c.executar   function(origem) -> Promise; rejeitar = falhou
+   * @param c.podeAgora  function() -> true, ou o motivo para adiar (texto)
+   * @param c.aoMudar    function(estado) — desenha o contador
+   * @param c.imediata   roda a primeira já (senão, só depois do intervalo)
+   */
+  function iniciar(c) {
+    desligarTique();
+    cfg = c;
+    rodando = false;
+    adiado = '';
+    prazo = agoraMs() + cfg.intervalo;
+    if (!ligadoVisibilidade) {
+      document.addEventListener('visibilitychange', aoVisibilidade);
+      ligadoVisibilidade = true;
+    }
+    ligarTique();
+    avisar();
+    if (c.imediata) rodar('automatica');
+  }
+
+  function parar() {
+    desligarTique();
+    cfg = null;
+    rodando = false;
+  }
+
+  /**
+   * Uma troca com a fonte aconteceu por outro caminho (a gravação do editor
+   * lê a pasta antes de gravar): os dados à vista são de agora, e a
+   * contagem recomeça — o contador diz quanto falta para a próxima
+   * conferência se nada mais acontecer.
+   */
+  function marcarFeita(ok) {
+    if (!cfg || rodando) return;
+    ultima = { quando: agoraMs(), ok: ok !== false, erro: ok === false ? 'falhou' : '' };
+    adiado = '';
+    prazo = agoraMs() + cfg.intervalo;
+    avisar();
+  }
+
+  function estado() {
+    return {
+      ligado: !!cfg,
+      falta: cfg ? Math.max(0, prazo - agoraMs()) : 0,
+      rodando: rodando,
+      adiado: adiado,
+      pausado: !!cfg && document.hidden,
+      ultima: { quando: ultima.quando, ok: ultima.ok, erro: ultima.erro }
+    };
+  }
+
+  /** 272000 → "04:32" */
+  function mmss(ms) {
+    var s = Math.max(0, Math.ceil(ms / 1000));
+    var m = Math.floor(s / 60);
+    s = s % 60;
+    return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  /** Quem quer saber de cada rodada concluída: fn(resultado, origem). */
+  function aoConcluir(fn) { if (typeof fn === 'function') ouvintes.push(fn); }
+
+  global.Atualizacao = {
+    iniciar: iniciar,
+    parar: parar,
+    agora: function () { return rodar('manual'); },
+    marcarFeita: marcarFeita,
+    estado: estado,
+    aoConcluir: aoConcluir,
+    mmss: mmss,
+    ADIA_MS: ADIA_MS,
+    VOLTA_MS: VOLTA_MS
+  };
 })(window);
 
 </script>
@@ -10474,9 +11015,11 @@ if(isWorker){
     return valor * umMm;
   }
 
-  /** Altura da folha, em pixels. */
+  /** Altura da folha, em pixels. A A3 só existe no Kanban impresso. */
   function limite(p) {
-    return mm(p.classList.contains('rep-page--landscape') ? 210 : 297);
+    var deitada = p.classList.contains('rep-page--landscape');
+    if (p.classList.contains('rep-page--a3')) return mm(deitada ? 297 : 420);
+    return mm(deitada ? 210 : 297);
   }
 
   /* A folha tem `min-height` de uma página inteira, então altura igual ao
@@ -10940,6 +11483,9 @@ if(isWorker){
     paginar: paginar,
     abrirMedida: abrirMedida,
     fecharMedida: fecharMedida,
+    /* quem monta folha própria (o Kanban impresso) mede com a mesma régua */
+    limite: limite,
+    mm: mm,
     itensLongos: itensLongos,
     zerarContagem: zerarContagem,
     buildMany: buildMany,
@@ -12665,15 +13211,30 @@ if(isWorker){
     return '"' + v.replace(/"/g, '""') + '"';
   }
 
+  var CAB_CSV = ['Marco', 'Tipo', 'Numero', 'Sistemas', 'Funcao/Descricao',
+                 'Situacao (controle interno)',
+                 'Arch Status', 'Request Expiry', 'Approved Expiry', 'Concluido',
+                 'Certificados', 'Anexos', 'Imagens', 'Alterado por', 'Alterado em',
+                 'Dias sem edicao'];
+
   /** Planilha com uma linha por NCR/DEV, para abrir no Excel. */
   function toCsv(project, filtros) {
+    /* BOM para o Excel reconhecer os acentos */
+    return '\ufeff' + CAB_CSV.map(csvCampo).join(';') + '\n' + linhasCsv(project, filtros).join('\n');
+  }
+
+  /** A mesma planilha com todos os marcos, na fila dos marcos. */
+  function toCsvTodos(projects, filtros) {
+    var linhas = [];
+    ordenarPorMarco((projects || []).map(function (p) { return S.statsDe(p, filtros); })).forEach(function (st) {
+      linhas = linhas.concat(linhasCsv(st.project, filtros));
+    });
+    return '\ufeff' + CAB_CSV.map(csvCampo).join(';') + '\n' + linhas.join('\n');
+  }
+
+  function linhasCsv(project, filtros) {
     var st = S.statsDe(project, filtros);
-    var cab = ['Marco', 'Tipo', 'Numero', 'Sistemas', 'Funcao/Descricao',
-               'Situacao (controle interno)',
-               'Arch Status', 'Request Expiry', 'Approved Expiry', 'Concluido',
-               'Certificados', 'Anexos', 'Imagens', 'Alterado por', 'Alterado em',
-               'Dias sem edicao'];
-    var linhas = st.linhas.map(function (r) {
+    return st.linhas.map(function (r) {
       var n = r.item;
       var imgs = (n.evidence || []).reduce(function (a, e) { return a + (e.images || []).length; }, 0);
       return [
@@ -12688,8 +13249,60 @@ if(isWorker){
         S.diasSemMexer(n) === null ? '' : S.diasSemMexer(n)
       ].map(csvCampo).join(';');
     });
-    /* BOM para o Excel reconhecer os acentos */
-    return '﻿' + cab.map(csvCampo).join(';') + '\n' + linhas.join('\n');
+  }
+
+  /** Os marcos na fila combinada (Fluxo.cmpMarco), os sem marco no fim. */
+  function ordenarPorMarco(stats) {
+    return stats.slice().sort(function (a, b) {
+      var sa = String(a.project.marco || '').trim(), sb = String(b.project.marco || '').trim();
+      if (!sa || !sb) return sa ? -1 : (sb ? 1 : 0);
+      return Fluxo.cmpMarco(sa, sb);
+    });
+  }
+
+  /**
+   * Os marcos em mini cards — a mesma pastilha (tb-chip) do filtro de marcos
+   * da Tabela e do Kanban, na mesma fila (Fluxo.cmpMarco). Cada uma diz o
+   * total de itens e quantos já estão aceitos (com os filtros aplicados, como
+   * os números logo abaixo). Escolha única: um marco, ou "Todos os marcos".
+   * Era um <select>; trocar de marco pedia abrir a lista e ler texto
+   * corrido.
+   */
+  function miniCardsDeMarco(host, dados, filtro, acoes) {
+    var box = el('div', 'tb-marcos sm-marcos');
+    box.setAttribute('role', 'group');
+    box.setAttribute('aria-label', 'Marco do resumo');
+    box.appendChild(el('span', 'tb-marcos-rot', 'Marco'));
+    function card(id, nome, st) {
+      var on = (filtro || '') === id;
+      var b = el('button', 'tb-chip tb-chip--card' + (on ? ' is-on' : ''));
+      b.type = 'button';
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.dataset.marco = id;
+      var l1 = el('span', 'tb-chip-l1');
+      l1.appendChild(el('span', 'tb-chip-nome', nome));
+      l1.appendChild(el('span', 'tb-chip-n', num(st.total)));
+      b.appendChild(l1);
+      b.appendChild(el('span', 'tb-chip-sub',
+        pct(st.concluidos, st.total) + ' aceitos · ' + st.ncr + ' NCR · ' + st.dev + ' DEV'));
+      var falar = nome + ': ' + st.total + ' ite' + (st.total === 1 ? 'm' : 'ns') + ', ' +
+        st.concluidos + ' aceito' + (st.concluidos === 1 ? '' : 's') + ' (' + pct(st.concluidos, st.total) + '), ' +
+        st.ncr + ' NCR e ' + st.dev + ' DEV';
+      b.setAttribute('aria-label', falar);
+      b.title = falar + ' · ' + st.pendentes + ' pendente' + (st.pendentes === 1 ? '' : 's') +
+        (id ? '' : '\nO resumo consolidado de todos os relatórios deste navegador.');
+      b.addEventListener('click', function () {
+        if ((filtro || '') === id) return;
+        acoes.onFiltro(id);
+        /* a aba se redesenha inteira: o foco volta para o marco escolhido */
+        var novo = host.querySelector('.sm-marcos .tb-chip.is-on');
+        if (novo) novo.focus();
+      });
+      return b;
+    }
+    box.appendChild(card('', 'Todos os marcos', dados.geral));
+    ordenarPorMarco(dados.porMarco).forEach(function (m) { box.appendChild(card(m.project.id, m.marco, m)); });
+    return box;
   }
 
   /* --- a aba inteira ---------------------------------------------------- */
@@ -12721,7 +13334,9 @@ if(isWorker){
     filtros = filtros || {};
     var dados = S.compute(projects, filtros);
     var alvo = filtro ? dados.porMarco.filter(function (m) { return m.project.id === filtro; })[0] : null;
-    var escopo = alvo ? [alvo] : dados.porMarco;
+    /* o marco escolhido pode ter sido excluído: volta ao consolidado */
+    if (!alvo) filtro = '';
+    var escopo = alvo ? [alvo] : ordenarPorMarco(dados.porMarco);
     var opc = S.opcoesDe(projects);
     var mudar = function (campo) {
       return function (v) {
@@ -12732,37 +13347,35 @@ if(isWorker){
       };
     };
 
-    /* --- barra 1: escolha do marco + exportações --- */
+    /* --- os marcos (mini cards) --- */
+    host.appendChild(miniCardsDeMarco(host, dados, filtro, acoes));
+
+    /* --- barra: o escopo, dito por extenso, e as exportações dele --- */
     var barra = el('div', 'sm-bar');
-    var todosMarcos = [{ valor: '', nome: 'Todos os marcos (' + dados.porMarco.length + ')' }]
-      .concat(dados.porMarco.map(function (m) {
-        return { valor: m.project.id, nome: m.marco + ' — ' + m.total + ' itens' };
-      }));
-    barra.appendChild(campoSelect('Marco', filtro || '', todosMarcos,
-      function (v) { acoes.onFiltro(v); }, true));
+    var info = el('div', 'fx-info sm-escopo');
+    info.appendChild(el('strong', null, alvo ? 'Marco ' + alvo.marco : 'Todos os marcos'));
+    info.appendChild(el('span', null, alvo
+      ? 'Os números, os gráficos, as tabelas, a planilha e o PDF abaixo são só deste marco.'
+      : 'O consolidado de ' + dados.porMarco.length + ' relatório(s) deste navegador. Escolha um marco acima para o detalhe dele.'));
+    barra.appendChild(info);
 
     var acoesBox = el('div', 'sm-bar-actions');
-    if (alvo) {
-      var botoes = [['Resumo em PDF', function () { acoes.onPdf(alvo.project); }, 'btn--primary'],
-       ['Planilha (CSV)', function () { acoes.onCsv(alvo.project); }, '']];
-      /* o visualizador não gera arquivo de dados: sem onBackup, sem o botão */
-      if (acoes.onBackup) {
-        botoes.push(['Backup deste marco', function () { acoes.onBackup(alvo.project); }, '']);
-      }
-      botoes.forEach(function (a) {
-        var b = el('button', 'btn btn--sm ' + a[2], a[0]);
-        b.type = 'button';
-        b.addEventListener('click', a[1]);
-        acoesBox.appendChild(b);
-      });
-    } else {
-      acoesBox.appendChild(el('span', 'sm-hint',
-        'Escolha um marco acima para exportar o resumo dele.'));
-      var bt = el('button', 'btn btn--sm btn--primary', 'Resumo geral em PDF');
-      bt.type = 'button';
-      bt.addEventListener('click', function () { acoes.onPdf(null); });
-      acoesBox.appendChild(bt);
+    var botoes = alvo
+      ? [['Resumo em PDF', function () { acoes.onPdf(alvo.project); }, 'btn--primary'],
+         ['Planilha (CSV)', function () { acoes.onCsv(alvo.project); }, '']]
+      : [['Resumo geral em PDF', function () { acoes.onPdf(null); }, 'btn--primary'],
+         ['Planilha (CSV)', function () { acoes.onCsv(null); }, '']];
+    /* o visualizador não gera arquivo de dados: sem onBackup, sem o botão; e
+       o backup é sempre do marco inteiro — os filtros não o recortam */
+    if (alvo && acoes.onBackup) {
+      botoes.push(['Backup deste marco', function () { acoes.onBackup(alvo.project); }, '']);
     }
+    botoes.forEach(function (a) {
+      var b = el('button', 'btn btn--sm ' + a[2], a[0]);
+      b.type = 'button';
+      b.addEventListener('click', a[1]);
+      acoesBox.appendChild(b);
+    });
     barra.appendChild(acoesBox);
     host.appendChild(barra);
 
@@ -12870,7 +13483,7 @@ if(isWorker){
         { titulo: 'Última edição', valor: function (m) {
             return m.project.lastEditedBy || '—';
           } }
-      ], dados.porMarco, { vazio: 'Nenhum relatório neste navegador.' }));
+      ], ordenarPorMarco(dados.porMarco), { vazio: 'Nenhum relatório neste navegador.' }));
       host.appendChild(b4);
 
       if (dados.geral.parados.length) {
@@ -12937,6 +13550,8 @@ if(isWorker){
     blocoLista: blocoLista,
     colunasParados: colunasParados,
     toCsv: toCsv,
+    toCsvTodos: toCsvTodos,
+    ordenarPorMarco: ordenarPorMarco,
     kpiRow: kpiRow,
     tabela: tabela,
     bloco: bloco,
@@ -14309,7 +14924,13 @@ if(isWorker){
     var escolhidos = marcosDoFiltro(f);
     var chips = el('div', 'tb-marcos');
     chips.appendChild(el('span', 'tb-marcos-rot', 'Marcos'));
-    (projects || []).forEach(function (p) {
+    /* na fila combinada dos marcos, como as pastilhas do Kanban e os mini
+       cards do Resumo; relatório sem marco vai para o fim */
+    (projects || []).slice().sort(function (a, b) {
+      var ma = txt(a.marco), mb = txt(b.marco);
+      if (!ma || !mb) return ma ? -1 : (mb ? 1 : 0);
+      return Fluxo.cmpMarco(ma, mb);
+    }).forEach(function (p) {
       var n = (p.ncrs || []).length + (p.devs || []).length;
       var ligado = escolhidos.indexOf(p.id) >= 0;
       var b = el('button', 'tb-chip' + (ligado ? ' is-on' : ''),
@@ -16542,23 +17163,42 @@ if(isWorker){
    precisa ser fechada até o marco. Nessa coluna, fechada é o resultado bom
    (verde); aberta é o que ainda falta.
 
+   As que já estão em "CEDOC Closure" no banco NCR saíram dessa coluna (pedido
+   do Bruno): estão encerradas, e misturadas às que ainda faltam fechar só
+   atrapalhavam a leitura. Ficam numa área própria, abaixo do quadro,
+   recolhível — com a quantidade sempre à vista.
+
+   O cartão nasce recolhido: número, status da NCR, função, sistema e as
+   ações, quase uma linha de lista. O "+" mostra a descrição e o resto; abrir
+   ou fechar um cartão é só tela — não grava nada nem muda a coluna dele.
+
    Marco casa com relatório pelo texto igual (Ncrs.marcoChave), a mesma
    regra do Banco NCR: "J06 Ind" não é o "J06".
 
-   Só desenha e repassa: gravar, abrir o item e adicionar ao relatório é
-   com o app.js (recebido em `ctx`). O PDF do relatório não é tocado.
+   Duas exportações, as duas do que está à vista (marco e filtros): a visual,
+   para imprimir (A4 ou A3, retrato ou paisagem, pela janela de impressão do
+   navegador — o mesmo caminho do PDF do relatório), e a planilha .xlsx com
+   uma linha por NCR.
+
+   Só desenha e repassa: gravar, abrir o item, adicionar ao relatório,
+   imprimir e baixar é com o app.js (recebido em `ctx`). O PDF do relatório
+   não é tocado.
    ========================================================================== */
 (function (global) {
   'use strict';
 
   var FORA = 'fora';
+  var ENCERRADA = 'encerrada';
+  var CHAVE_ENCERRADAS = 'derrogacao:kanbanEncerradas';   /* a área aberta ou recolhida */
+  var CHAVE_IMPRESSAO = 'derrogacao:kanbanImpressao';     /* papel, orientação, escala */
 
   var st = {
     marco: '',          // o marco escolhido (texto, como está no relatório)
     busca: '',
     soAlertas: false,
     caminho: true,      // mostrar os que vêm de outros marcos
-    ind: false          // mostrar os marcos industriais ("J09 Ind")
+    ind: false,         // mostrar os marcos industriais ("J09 Ind")
+    abertos: {}         // cartões com a descrição à vista — só tela, nunca gravado
   };
   var ctx = null;
   var host = null;
@@ -16583,13 +17223,28 @@ if(isWorker){
   }
   function marcoRel(p) { return p.marco || p.name || ''; }
   /* Modo leitura (o visualizador): o quadro mostra, mas não arrasta, não
-     troca situação e não adiciona NCR a relatório. */
+     troca situação e não adiciona NCR a relatório. Exportar, pode. */
   function leitura() { return !!(ctx && ctx.leitura); }
+
+  function lerPref(chave, padrao) {
+    try { var v = global.localStorage.getItem(chave); return v == null ? padrao : JSON.parse(v); }
+    catch (e) { return padrao; }
+  }
+  function gravarPref(chave, v) {
+    try { global.localStorage.setItem(chave, JSON.stringify(v)); } catch (e) { /* só preferência */ }
+  }
 
   /* "J09 Ind" é o marco industrial: para o Bruno, de pouca relevância. Ele
      nunca entra no quadro do J09 (o marco casa pelo texto igual) e o seletor
      só o oferece quando pedido. */
   function ehInd(t) { return /\bind\b/i.test(str(t)); }
+
+  /* A NCR já encerrada no CEDOC ("CEDOC Closure", e o "Unfounded" dela). Só
+     estas saem da coluna "NCR to be closed"; uma "Closed" ainda sem o CEDOC
+     continua lá, verde, como antes. */
+  function emCedoc(rec) {
+    return !!(rec && /\bcedoc closure\b/.test(Ncrs.norm(rec.fonte.status)));
+  }
 
   /* --- quem está em cada marco -------------------------------------------- */
 
@@ -16619,6 +17274,7 @@ if(isWorker){
   /**
    * Os cartões do quadro de um marco.
    * { coluna, tipo: 'item'|'banco'|'caminho', project, item, rec, chave, alerta }
+   * A coluna é uma das de colunasDef() — ou ENCERRADA, a área de baixo.
    */
   function cartoes(marco, projects) {
     var k = Ncrs.marcoChave(marco);
@@ -16664,11 +17320,27 @@ if(isWorker){
     out.forEach(function (c) {
       c.fechada = c.rec ? Ncrs.fechada(c.rec) : false;
       c.alerta = c.fechada && c.tipo === 'item' && c.coluna !== Store.STATUS_CONCLUIDO;
+      /* encerrada no CEDOC: sai de "to be closed" para a área de baixo */
+      if (c.coluna === FORA && emCedoc(c.rec)) c.coluna = ENCERRADA;
+      c.id = c.item ? c.tipo + ':' + (c.project ? c.project.id : '') + ':' + c.item.id : 'banco:' + c.rec.key;
     });
     return out;
   }
 
   function numeroDe(c) { return c.item ? (c.item.ncrId || '(sem número)') : c.rec.numero; }
+  function descricaoDe(c) { return (c.item && c.item.description) || (c.rec && c.rec.fonte.descricao) || ''; }
+  function funcaoDe(c) { return (c.item && c.item.func) || (c.rec && c.rec.waiver.funcaoVital) || ''; }
+  function sistemaDe(c) { return (c.item && c.item.systems) || (c.rec && c.rec.fonte.sistema) || ''; }
+
+  /**
+   * A função vital em poucas letras, para o cartão recolhido: "FV03 - EMERGENCY
+   * SHUT-OFF…" e "03 - Emergency shut-off…" viram "FV03". O texto inteiro fica
+   * na dica e no cartão aberto.
+   */
+  function funcaoCurta(fv) {
+    var m = /^\s*(?:fv\s*)?(?:n\s*[°º]\s*)?(\d{1,3})\b/i.exec(str(fv));
+    return m ? 'FV' + (m[1].length < 2 ? '0' : '') + m[1] : curto(fv, 14);
+  }
 
   function textoBusca(c) {
     var partes = [numeroDe(c)];
@@ -16695,6 +17367,22 @@ if(isWorker){
       if (a.coluna === FORA && a.fechada !== b.fechada) return a.fechada ? 1 : -1;
       return Store.cmpTexto(numeroDe(a), numeroDe(b));
     });
+  }
+
+  function colunasDef() {
+    return [{ id: FORA, nome: 'NCR to be closed',
+      ajuda: 'NCRs deste marco que não estão no Waiver dele: sem waiver, precisam ser fechadas até o marco' }]
+      .concat(Store.STATUS.map(function (s) { return { id: s.id, nome: s.nome, ajuda: s.ajuda }; }));
+  }
+
+  var AREA_ENCERRADAS = { id: ENCERRADA, nome: 'Encerradas — CEDOC Closure',
+    ajuda: 'NCRs deste marco fora do Waiver que já estão em “CEDOC Closure” no banco NCR: encerradas, nada mais a fechar' };
+
+  /** O quadro montado: o marco, os cartões e os que passam nos filtros. */
+  function estado(projects) {
+    var lista = marcos(projects);
+    var todos = st.marco ? cartoes(st.marco, projects) : [];
+    return { lista: lista, todos: todos, vis: todos.filter(passa) };
   }
 
   /* --- desenho ---------------------------------------------------------------- */
@@ -16724,12 +17412,11 @@ if(isWorker){
       return;
     }
 
-    var todos = cartoes(st.marco, projects);
-    var vis = todos.filter(passa);
-
-    raiz.appendChild(cabecalho(lista, projects, todos));
-    raiz.appendChild(resumo(todos));
-    raiz.appendChild(quadro(vis, todos));
+    var e = estado(projects);
+    raiz.appendChild(cabecalho(e.lista, projects, e.todos, e.vis));
+    raiz.appendChild(resumo(e.todos));
+    raiz.appendChild(quadro(e.vis, e.todos));
+    raiz.appendChild(areaEncerradas(e.vis, e.todos));
     host.scrollTop = topo;
     if (buscando) {
       var b = document.getElementById('kbBusca');
@@ -16737,7 +17424,7 @@ if(isWorker){
     }
   }
 
-  function cabecalho(lista, projects, todos) {
+  function cabecalho(lista, projects, todos, vis) {
     var cab = el('div', 'kb-cab');
     var tit = el('div', 'kb-tit');
     tit.appendChild(el('span', 'kb-sobre', 'Kanban do marco'));
@@ -16806,6 +17493,26 @@ if(isWorker){
       fila.appendChild(b);
     });
     cab.appendChild(fila);
+
+    /* ver e levar embora: abrir/recolher os cartões e as duas exportações */
+    var acoes = el('div', 'kb-acoes');
+    var todosAbertos = vis.length > 0 && vis.every(function (c) { return st.abertos[c.id]; });
+    var bt = botao(todosAbertos ? '− Recolher os cartões' : '＋ Abrir todos os cartões', 'btn--sm', function () {
+      if (todosAbertos) st.abertos = {};
+      else vis.forEach(function (c) { st.abertos[c.id] = true; });
+      render(host, ctx);
+      var nb = host.querySelector('.kb-acoes .btn');
+      if (nb) nb.focus();
+    }, 'Mostra (ou recolhe) a descrição de todos os cartões à vista. Só muda a tela.');
+    bt.setAttribute('aria-pressed', todosAbertos ? 'true' : 'false');
+    acoes.appendChild(bt);
+    var ex = el('div', 'kb-exporta');
+    ex.appendChild(botao('🖨 Exportar visual para impressão…', 'btn--sm btn--primary', function () { abrirImpressao(); },
+      'O quadro como está na tela (marco e filtros), em A4 ou A3, retrato ou paisagem — em PDF, pela janela de impressão'));
+    ex.appendChild(botao('⤓ Excel', 'btn--sm', function () { exportarPlanilha(); },
+      'Planilha .xlsx com uma linha por NCR do quadro à vista, e uma aba dizendo o recorte'));
+    acoes.appendChild(ex);
+    cab.appendChild(acoes);
     return cab;
   }
 
@@ -16813,27 +17520,27 @@ if(isWorker){
   function resumo(todos) {
     var box = el('div', 'kb-resumo');
     var total = todos.length;
-    var noRel = todos.filter(function (c) { return c.tipo === 'item'; });
-    var aceitos = noRel.filter(function (c) { return c.coluna === Store.STATUS_CONCLUIDO; }).length;
+    var nEnc = todos.filter(function (c) { return c.coluna === ENCERRADA; }).length;
     var nums = el('div', 'kb-resumo-nums');
-    [[String(total), 'NCRs neste marco'],
-     [String(noRel.length), 'no relatório'],
-     [noRel.length ? Math.round(aceitos * 100 / noRel.length) + '%' : '—', 'aceitas (do relatório)'],
-     [String(todos.filter(function (c) { return c.coluna === FORA && !c.fechada; }).length), 'to be closed (ainda abertas)'],
-     [String(todos.filter(function (c) { return c.alerta; }).length), 'fechadas com waiver pendente']
-    ].forEach(function (p, i) {
-      var d = el('div', 'kb-num' + (i === 4 && p[0] !== '0' ? ' is-alerta' : ''));
-      d.appendChild(el('strong', null, p[0]));
-      d.appendChild(el('span', null, p[1]));
+    numerosDoResumo(todos).forEach(function (p) {
+      var d = el('div', 'kb-num' + (p.alerta && p.n !== '0' ? ' is-alerta' : ''));
+      d.appendChild(el('strong', null, p.n));
+      d.appendChild(el('span', null, p.rot));
       nums.appendChild(d);
     });
+    if (nEnc) {
+      /* a área de baixo pode estar recolhida: daqui se chega nela */
+      var ir = botao('ver as encerradas', 'btn--sm btn--quiet kb-ir-enc', function () { abrirEncerradas(true); },
+        'Abre a área das NCRs encerradas (CEDOC Closure), abaixo do quadro');
+      nums.appendChild(ir);
+    }
     box.appendChild(nums);
 
     if (total) {
       var barra = el('div', 'kb-barra');
       barra.setAttribute('role', 'img');
       var partes = [];
-      colunasDef().forEach(function (col) {
+      colunasDef().concat([AREA_ENCERRADAS]).forEach(function (col) {
         var n = todos.filter(function (c) { return c.coluna === col.id; }).length;
         if (!n) return;
         var s = el('span', 'kb-barra-seg st-cor--' + col.id);
@@ -16848,10 +17555,18 @@ if(isWorker){
     return box;
   }
 
-  function colunasDef() {
-    return [{ id: FORA, nome: 'NCR to be closed',
-      ajuda: 'NCRs deste marco que não estão no Waiver dele: sem waiver, precisam ser fechadas até o marco' }]
-      .concat(Store.STATUS.map(function (s) { return { id: s.id, nome: s.nome, ajuda: s.ajuda }; }));
+  /** Os números da faixa — os mesmos na tela e na folha impressa. */
+  function numerosDoResumo(todos) {
+    var noRel = todos.filter(function (c) { return c.tipo === 'item'; });
+    var aceitos = noRel.filter(function (c) { return c.coluna === Store.STATUS_CONCLUIDO; }).length;
+    return [
+      { n: String(todos.length), rot: 'NCRs neste marco' },
+      { n: String(noRel.length), rot: 'no relatório' },
+      { n: noRel.length ? Math.round(aceitos * 100 / noRel.length) + '%' : '—', rot: 'aceitas (do relatório)' },
+      { n: String(todos.filter(function (c) { return c.coluna === FORA && !c.fechada; }).length), rot: 'to be closed (ainda abertas)' },
+      { n: String(todos.filter(function (c) { return c.alerta; }).length), rot: 'fechadas com waiver pendente', alerta: true },
+      { n: String(todos.filter(function (c) { return c.coluna === ENCERRADA; }).length), rot: 'encerradas (CEDOC Closure)' }
+    ];
   }
 
   function quadro(vis, todos) {
@@ -16869,11 +17584,21 @@ if(isWorker){
       ch.title = col.ajuda;
       coluna.appendChild(ch);
       var corpo = el('div', 'kb-col-corpo');
-      if (col.id === FORA && nTot) {
-        var nFech = todos.filter(function (c) { return c.coluna === FORA && c.fechada; }).length;
-        var sub = el('div', 'kb-col-sub', nFech + ' de ' + nTot + ' já fechada' + (nTot > 1 ? 's' : '') +
-          ' · ' + (nTot - nFech) + ' a fechar');
-        ch.appendChild(sub);
+      if (col.id === FORA) {
+        var nEnc = todos.filter(function (c) { return c.coluna === ENCERRADA; }).length;
+        if (nTot) {
+          var nFech = todos.filter(function (c) { return c.coluna === FORA && c.fechada; }).length;
+          ch.appendChild(el('div', 'kb-col-sub', nFech + ' de ' + nTot + ' já fechada' + (nTot > 1 ? 's' : '') +
+            ' · ' + (nTot - nFech) + ' a fechar'));
+        }
+        if (nEnc) {
+          var enc = el('button', 'kb-col-sub kb-col-enc', '+ ' + nEnc + ' encerrada' + (nEnc > 1 ? 's' : '') +
+            ' (CEDOC Closure) — abaixo do quadro');
+          enc.type = 'button';
+          enc.title = 'Já encerradas no banco NCR: estão na área própria, abaixo do quadro';
+          enc.addEventListener('click', function () { abrirEncerradas(true); });
+          ch.appendChild(enc);
+        }
       }
       if (!cs.length) corpo.appendChild(el('p', 'kb-col-vazia', col.id === FORA ? 'Nenhuma NCR fora do Waiver.' : 'Nenhuma NCR aqui.'));
       cs.forEach(function (c) { corpo.appendChild(cartao(c)); });
@@ -16884,11 +17609,59 @@ if(isWorker){
     return q;
   }
 
+  /**
+   * As encerradas no CEDOC, numa área à parte: a mesma cara de cartão, em
+   * grade, abaixo do quadro. Recolhível — a escolha fica neste navegador —,
+   * mas o título, com a quantidade, está sempre à vista.
+   */
+  function areaEncerradas(vis, todos) {
+    var cs = ordenar(vis.filter(function (c) { return c.coluna === ENCERRADA; }));
+    var nTot = todos.filter(function (c) { return c.coluna === ENCERRADA; }).length;
+    var aberta = !!lerPref(CHAVE_ENCERRADAS, false);
+    var box = el('section', 'kb-enc st-cor--' + ENCERRADA);
+    box.id = 'kbEncerradas';
+    var h = el('h3', 'kb-enc-tit');
+    var b = el('button', 'kb-enc-btn');
+    b.type = 'button';
+    b.id = 'kbEncBtn';
+    b.setAttribute('aria-expanded', aberta ? 'true' : 'false');
+    b.setAttribute('aria-controls', 'kbEncCorpo');
+    b.appendChild(el('span', 'kb-enc-seta', aberta ? '▾' : '▸'));
+    b.appendChild(el('span', 'kb-enc-nome', '✓ ' + AREA_ENCERRADAS.nome));
+    b.appendChild(el('span', 'kb-col-n', cs.length === nTot ? String(nTot) : cs.length + '/' + nTot));
+    b.appendChild(el('span', 'kb-enc-dica', nTot
+      ? 'NCRs deste marco fora do Waiver, já encerradas no banco NCR — ' + (aberta ? 'clique para recolher' : 'clique para ver')
+      : 'Nenhuma NCR deste marco em “CEDOC Closure”.'));
+    b.addEventListener('click', function () { abrirEncerradas(!lerPref(CHAVE_ENCERRADAS, false)); });
+    h.appendChild(b);
+    box.appendChild(h);
+    var corpo = el('div', 'kb-enc-corpo');
+    corpo.id = 'kbEncCorpo';
+    corpo.hidden = !aberta;
+    if (!cs.length) corpo.appendChild(el('p', 'kb-col-vazia', nTot ? 'Nenhuma encerrada passa nos filtros.' : 'Nada aqui.'));
+    cs.forEach(function (c) { corpo.appendChild(cartao(c)); });
+    box.appendChild(corpo);
+    return box;
+  }
+
+  function abrirEncerradas(abrir) {
+    gravarPref(CHAVE_ENCERRADAS, !!abrir);
+    render(host, ctx);
+    var b = document.getElementById('kbEncBtn');
+    if (b) {
+      b.focus();
+      if (abrir && b.scrollIntoView) b.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+  }
+
   /* --- o cartão ---------------------------------------------------------------- */
 
   function cartao(c) {
-    var card = el('article', 'kb-card' + (c.alerta ? ' is-alerta' : '') + (c.tipo !== 'item' ? ' is-fora' : ''));
+    var aberto = !!st.abertos[c.id];
+    var card = el('article', 'kb-card' + (c.alerta ? ' is-alerta' : '') + (c.tipo !== 'item' ? ' is-fora' : '') +
+      (aberto ? ' is-aberto' : ''));
     card.dataset.tipo = c.tipo;
+    card.dataset.id = c.id;
     var arrasta = !leitura() && (c.tipo === 'item' || (c.tipo === 'banco' && c.relatorio));
     if (arrasta) {
       card.draggable = true;
@@ -16904,7 +17677,7 @@ if(isWorker){
       });
     }
 
-    /* cabeça: número e status da NCR no banco */
+    /* linha 1: o número (inteiro — é ele que identifica), o alerta e o "+" */
     var topo = el('div', 'kb-card-topo');
     var num = el('button', 'kb-card-num', numeroDe(c));
     num.type = 'button';
@@ -16914,99 +17687,170 @@ if(isWorker){
       else ctx.abrir(c.project, c.item);
     });
     topo.appendChild(num);
-    if (c.rec && c.rec.fonte.status && c.coluna === FORA) {
-      /* aqui a meta é fechar: fechada é o verde, aberta é o que falta */
-      var chip = el('span', 'kb-st-ncr ' + (c.fechada ? 'is-ok' : 'is-falta'),
-        (c.fechada ? '✓ ' : '') + curto(c.rec.fonte.status, 26));
-      chip.title = c.fechada ? 'NCR já fechada no banco NCR' : 'NCR ainda aberta: precisa ser fechada (não está no Waiver deste marco)';
-      topo.appendChild(chip);
-    } else if (c.rec && c.rec.fonte.status) {
-      topo.appendChild(el('span', 'kb-st-ncr' + (c.fechada ? ' is-fechada' : ''), curto(c.rec.fonte.status, 26)));
-    } else if (!c.rec) {
-      var sb = el('span', 'kb-st-ncr is-sem', 'fora do banco');
-      sb.title = 'Este item não corresponde a nenhuma NCR importada do banco NCR (SBR4)';
-      topo.appendChild(sb);
+    if (c.alerta) {
+      var al = el('span', 'kb-alerta-ic', '⚠');
+      al.title = 'NCR fechada no banco e o waiver ainda em “' + Store.statusInfo(c.coluna).nome + '”';
+      al.setAttribute('role', 'img');
+      al.setAttribute('aria-label', 'Alerta: ' + al.title);
+      topo.appendChild(al);
     }
+    var det = el('div', 'kb-card-det');
+    det.id = 'kbd-' + c.id.replace(/[^\w-]/g, '_');
+    var mais = el('button', 'kb-card-mais', aberto ? '−' : '+');
+    mais.type = 'button';
+    mais.setAttribute('aria-expanded', aberto ? 'true' : 'false');
+    mais.setAttribute('aria-controls', det.id);
+    mais.setAttribute('aria-label', (aberto ? 'Recolher ' : 'Mostrar a descrição de ') + numeroDe(c));
+    mais.title = aberto ? 'Recolher o cartão' : 'Mostrar a descrição e os detalhes';
+    mais.addEventListener('click', function () {
+      /* só a tela: o cartão não muda de coluna nem grava nada */
+      if (st.abertos[c.id]) delete st.abertos[c.id]; else st.abertos[c.id] = true;
+      var agora = !!st.abertos[c.id];
+      card.classList.toggle('is-aberto', agora);
+      det.hidden = !agora;
+      mais.textContent = agora ? '−' : '+';
+      mais.setAttribute('aria-expanded', agora ? 'true' : 'false');
+      mais.setAttribute('aria-label', (agora ? 'Recolher ' : 'Mostrar a descrição de ') + numeroDe(c));
+      mais.title = agora ? 'Recolher o cartão' : 'Mostrar a descrição e os detalhes';
+    });
+    topo.appendChild(mais);
     card.appendChild(topo);
 
-    if (c.alerta) {
-      var al = el('div', 'kb-alerta');
-      al.appendChild(el('strong', null, '⚠ NCR fechada'));
-      al.appendChild(document.createTextNode(' e o waiver ainda em “' + Store.statusInfo(c.coluna).nome + '”'));
-      card.appendChild(al);
-    }
-
-    if (c.tipo === 'banco') {
-      var outros = Ncrs.vinculos(c.rec, ctx.projects()).map(function (v) { return marcoRel(v.project); });
-      card.appendChild(el('div', 'kb-origem', 'No banco: Marco Atual ' + c.rec.waiver.marcoAtual +
-        (outros.length ? ' · no Waiver de ' + outros.sort(Fluxo.cmpMarco).join(', ') : ' · em nenhum Waiver')));
-    }
-    if (c.tipo === 'caminho') {
-      card.appendChild(el('div', 'kb-origem kb-origem--caminho', 'Vem do ' + marcoRel(c.project) + ' — ' +
-        Store.statusInfo(c.item.status).nome + (c.aprovado ? ' (Approved Expiry)' : ' (Request Expiry)')));
-    }
-
-    var fv = (c.item && c.item.func) || (c.rec && c.rec.waiver.funcaoVital) || '';
+    /* linha 2: o status da NCR no banco, a função em poucas letras, o
+       sistema e o caminho — e as ações, que descem de linha se não couberem */
+    var linha = el('div', 'kb-card-linha');
+    var meta = el('div', 'kb-card-meta');
+    var chip = chipStatus(c);
+    if (chip) meta.appendChild(chip);
+    var fv = funcaoDe(c);
     if (fv) {
-      var f = el('div', 'kb-fv', curto(fv, 60));
+      var f = el('span', 'kb-fv', funcaoCurta(fv));
       f.title = fv;
-      card.appendChild(f);
+      meta.appendChild(f);
     }
-
-    var desc = (c.item && c.item.description) || (c.rec && c.rec.fonte.descricao) || '';
-    if (desc) {
-      var d = el('p', 'kb-desc', curto(desc, 220));
-      if (desc.length > 220) d.title = curto(desc, 1200);
-      card.appendChild(d);
+    var sis = sistemaDe(c);
+    if (sis) {
+      var s = el('span', 'kb-sis', curto(sis, 14));
+      s.title = 'Sistema(s): ' + sis;
+      meta.appendChild(s);
     }
-
-    var pe = el('div', 'kb-card-pe');
     var caminho = caminhoDe(c);
-    if (caminho) pe.appendChild(el('span', 'kb-caminho', caminho));
-    var sis = (c.item && c.item.systems) || (c.rec && c.rec.fonte.sistema) || '';
-    if (sis) pe.appendChild(el('span', 'kb-sis', curto(sis, 24)));
+    if (caminho) {
+      var cm = el('span', 'kb-caminho', caminho);
+      cm.title = c.tipo === 'caminho'
+        ? 'Vem do ' + marcoRel(c.project) + ' — ' + Store.statusInfo(c.item.status).nome + (c.aprovado ? ' (Approved Expiry)' : ' (Request Expiry)')
+        : 'Caminho do waiver';
+      meta.appendChild(cm);
+    }
     if (c.item && c.item.nota) {
       var nt = el('span', 'kb-nota', '📝');
       nt.title = 'Anotação: ' + curto(c.item.nota, 300);
+      nt.setAttribute('role', 'img');
       nt.setAttribute('aria-label', 'Tem anotação');
-      pe.appendChild(nt);
+      meta.appendChild(nt);
     }
     if (c.item && c.item.herdadoDe) {
       var hd = el('span', 'kb-nota', '⤵');
       hd.title = 'Veio do ' + c.item.herdadoDe;
+      hd.setAttribute('role', 'img');
       hd.setAttribute('aria-label', hd.title);
-      pe.appendChild(hd);
+      meta.appendChild(hd);
     }
-    card.appendChild(pe);
+    linha.appendChild(meta);
+    linha.appendChild(acoesDoCartao(c));
+    card.appendChild(linha);
 
+    /* aberto: o que dá contexto — o alerta por extenso, de onde vem, a
+       descrição inteira e quem mexeu por último */
+    det.hidden = !aberto;
+    if (c.alerta) {
+      var ala = el('div', 'kb-alerta');
+      ala.appendChild(el('strong', null, '⚠ NCR fechada'));
+      ala.appendChild(document.createTextNode(' e o waiver ainda em “' + Store.statusInfo(c.coluna).nome + '”'));
+      det.appendChild(ala);
+    }
+    var origem = origemDe(c);
+    if (origem) det.appendChild(el('div', 'kb-origem' + (c.tipo === 'caminho' ? ' kb-origem--caminho' : ''), origem));
+    if (fv && funcaoCurta(fv) !== fv) det.appendChild(el('div', 'kb-fv-inteira', fv));
+    var desc = descricaoDe(c);
+    det.appendChild(desc ? el('p', 'kb-desc', desc) : el('p', 'kb-desc kb-desc--vazia', 'Sem descrição.'));
+    var quem = quemDe(c);
+    if (quem) det.appendChild(el('div', 'kb-quem', quem));
+    card.appendChild(det);
+    return card;
+  }
+
+  /** O status da NCR no banco, com a leitura certa para cada coluna. */
+  function chipStatus(c) {
+    if (c.rec && c.rec.fonte.status && (c.coluna === FORA || c.coluna === ENCERRADA)) {
+      /* aqui a meta é fechar: fechada é o verde, aberta é o que falta */
+      var chip = el('span', 'kb-st-ncr ' + (c.fechada ? 'is-ok' : 'is-falta'),
+        (c.fechada ? '✓ ' : '') + curto(c.rec.fonte.status, 26));
+      chip.title = (c.coluna === ENCERRADA ? 'NCR encerrada no banco NCR: ' : c.fechada ? 'NCR já fechada no banco NCR: '
+        : 'NCR ainda aberta: precisa ser fechada (não está no Waiver deste marco). Status: ') + c.rec.fonte.status;
+      return chip;
+    }
+    if (c.rec && c.rec.fonte.status) {
+      var ch = el('span', 'kb-st-ncr' + (c.fechada ? ' is-fechada' : ''), curto(c.rec.fonte.status, 26));
+      ch.title = 'Status da NCR no banco NCR: ' + c.rec.fonte.status;
+      return ch;
+    }
+    if (!c.rec) {
+      var sb = el('span', 'kb-st-ncr is-sem', 'fora do banco');
+      sb.title = 'Este item não corresponde a nenhuma NCR importada do banco NCR (SBR4)';
+      return sb;
+    }
+    return null;
+  }
+
+  /** As ações de sempre, cada uma no seu tipo de cartão — nenhuma sumiu. */
+  function acoesDoCartao(c) {
     var acoes = el('div', 'kb-card-acoes');
     if (c.tipo === 'item' && leitura()) {
       var stInfo = Store.statusInfo(c.coluna);
       acoes.appendChild(el('span', 'kb-sel kb-sel--so st-cor--' + c.coluna, stInfo.nome));
-      if (c.item.editedAt) acoes.appendChild(el('span', 'kb-quem', (c.item.editedBy || 'sem nome') + ' · ' + Ncrs.data(c.item.editedAt).slice(0, 10)));
     } else if (c.tipo === 'item') {
       acoes.appendChild(seletorSituacao(c));
-      if (c.item.editedAt) acoes.appendChild(el('span', 'kb-quem', (c.item.editedBy || 'sem nome') + ' · ' + Ncrs.data(c.item.editedAt).slice(0, 10)));
     } else if (c.tipo === 'banco' && leitura()) {
       /* no visualizador não se adiciona: fica só a ficha, abaixo */
-      acoes.appendChild(botao('Ficha', 'btn--sm btn--quiet', function () { ctx.abrirFicha(c.rec.key); }, 'Abrir a ficha da NCR no Banco NCR'));
     } else if (c.tipo === 'banco') {
       if (c.relatorio) {
         acoes.appendChild(botao('+ ' + marcoRel(c.relatorio) + ' Waiver', 'btn--sm', function () {
           ctx.adicionar(c.rec, c.relatorio).then(function () { render(host, ctx); });
         }, 'Adicionar esta NCR ao relatório ' + marcoRel(c.relatorio) + ' Waiver (entra em "Em preenchimento")'));
       } else {
-        acoes.appendChild(el('span', 'kb-quem', 'crie o relatório ' + st.marco + ' para adicionar'));
+        var sem = el('span', 'kb-sem-rel', 'sem relatório');
+        sem.title = 'Crie o relatório ' + st.marco + ' para adicionar esta NCR a ele';
+        acoes.appendChild(sem);
       }
     } else if (c.tipo === 'caminho') {
       acoes.appendChild(botao('Abrir no ' + marcoRel(c.project), 'btn--sm', function () { ctx.abrir(c.project, c.item); },
         'Abre o item no relatório de origem; o botão “⤵ Levar para o marco seguinte” fica na barra de situação'));
     }
-    if (c.rec && c.tipo !== 'banco') {
+    if (c.rec) {
       acoes.appendChild(botao('Ficha', 'btn--sm btn--quiet', function () { ctx.abrirFicha(c.rec.key); }, 'Abrir a ficha da NCR no Banco NCR'));
     }
-    card.appendChild(acoes);
-    return card;
+    return acoes;
+  }
+
+  /** De onde a NCR vem, por extenso — o cartão aberto e a folha impressa. */
+  function origemDe(c) {
+    if (c.tipo === 'banco') {
+      var outros = Ncrs.vinculos(c.rec, ctx.projects()).map(function (v) { return marcoRel(v.project); });
+      return 'No banco: Marco Atual ' + c.rec.waiver.marcoAtual +
+        (outros.length ? ' · no Waiver de ' + outros.sort(Fluxo.cmpMarco).join(', ') : ' · em nenhum Waiver');
+    }
+    if (c.tipo === 'caminho') {
+      return 'Vem do ' + marcoRel(c.project) + ' — ' + Store.statusInfo(c.item.status).nome +
+        (c.aprovado ? ' (Approved Expiry)' : ' (Request Expiry)');
+    }
+    return '';
+  }
+
+  function quemDe(c) {
+    var w = c.item ? { por: c.item.editedBy, em: c.item.editedAt } : (c.rec ? { por: c.rec.waiver.editedBy, em: c.rec.waiver.editedAt } : null);
+    if (!w || !w.em) return '';
+    return 'Última alteração: ' + (w.por || 'sem nome') + ' · ' + Ncrs.data(w.em);
   }
 
   /** De onde veio → este marco → (para onde vai), como o "Caminho do waiver". */
@@ -17079,10 +17923,438 @@ if(isWorker){
     ctx.mudarSituacao(c.project, c.item, id).then(function () { render(host, ctx); });
   }
 
+  /* ==========================================================================
+     Exportações — sempre do que está à vista: o marco e os filtros da tela
+     ========================================================================== */
+
+  /** Os filtros ligados, em palavras: vão para a folha e para a planilha. */
+  function descricaoDosFiltros() {
+    var partes = [];
+    if (st.busca) partes.push('busca: “' + st.busca + '”');
+    if (st.soAlertas) partes.push('só com alerta (NCR fechada com waiver pendente)');
+    partes.push(st.caminho ? 'com as que vêm de outros marcos' : 'sem as que vêm de outros marcos');
+    return partes.join(' · ');
+  }
+
+  function nomeColuna(id) {
+    if (id === ENCERRADA) return AREA_ENCERRADAS.nome;
+    var d = colunasDef().filter(function (x) { return x.id === id; })[0];
+    return d ? d.nome : id;
+  }
+
+  function origemCurta(c) {
+    if (c.tipo === 'item') return 'No relatório ' + marcoRel(c.project) + ' Waiver';
+    if (c.tipo === 'banco') return 'Só no banco NCR (fora do Waiver)';
+    return 'Vem do ' + marcoRel(c.project) + (c.aprovado ? ' (Approved Expiry)' : ' (Request Expiry)');
+  }
+
+  function dataCurta(iso) {
+    return iso ? Ncrs.data(iso) : '';
+  }
+
+  /**
+   * A planilha: uma linha por NCR à vista (a área das encerradas incluída),
+   * na ordem das colunas do quadro, e a aba "Recorte" dizendo de que marco e
+   * de que filtro ela saiu — a regra das outras planilhas do programa.
+   */
+  function planilha() {
+    var projects = ctx.projects();
+    var e = estado(projects);
+    var ordem = colunasDef().map(function (c) { return c.id; }).concat([ENCERRADA]);
+    var linhas = [];
+    ordem.forEach(function (id) {
+      ordenar(e.vis.filter(function (c) { return c.coluna === id; })).forEach(function (c) {
+        var edit = c.item ? { por: c.item.editedBy, em: c.item.editedAt } : { por: c.rec.waiver.editedBy, em: c.rec.waiver.editedAt };
+        linhas.push([
+          numeroDe(c),
+          st.marco,
+          nomeColuna(c.coluna),
+          c.tipo === 'item' ? Store.statusInfo(c.item.status).nome : (c.tipo === 'caminho' ? Store.statusInfo(c.item.status).nome + ' (no ' + marcoRel(c.project) + ')' : ''),
+          origemCurta(c),
+          sistemaDe(c),
+          funcaoDe(c),
+          c.rec ? str(c.rec.fonte.status) : '',
+          c.rec ? (c.fechada ? 'sim' : 'não') : '',
+          c.alerta ? 'NCR fechada com waiver pendente' : '',
+          caminhoDe(c),
+          descricaoDe(c),
+          (c.rec && c.rec.fonte.responsavel) || '',
+          edit.por || '',
+          dataCurta(edit.em)
+        ]);
+      });
+    });
+    var colunas = [
+      { titulo: 'Número da NCR', larg: 26 }, { titulo: 'Marco', larg: 10 }, { titulo: 'Coluna do Kanban', larg: 26 },
+      { titulo: 'Situação do waiver', larg: 22 }, { titulo: 'Origem', larg: 30 }, { titulo: 'Sistema', larg: 12 },
+      { titulo: 'Função / função vital', larg: 40 }, { titulo: 'Status da NCR (banco)', larg: 22 },
+      { titulo: 'NCR fechada?', larg: 12 }, { titulo: 'Alerta', larg: 30 }, { titulo: 'Caminho do waiver', larg: 24 },
+      { titulo: 'Descrição', larg: 80 }, { titulo: 'Responsável (banco)', larg: 20 },
+      { titulo: 'Última alteração por', larg: 20 }, { titulo: 'Última alteração em', larg: 18 }
+    ];
+    var rel = projects.filter(function (p) { return Ncrs.marcoChave(p.marco) === Ncrs.marcoChave(st.marco); })[0];
+    var recorte = [
+      ['Gerado em', new Date().toLocaleString('pt-BR')],
+      ['Gerado por', ctx.usuario ? (ctx.usuario() || '(sem nome)') : ''],
+      ['Marco do quadro', st.marco],
+      ['Relatório de Waiver', rel ? marcoRel(rel) + ' Waiver' : 'ainda não há relatório deste marco'],
+      ['NCRs nesta planilha', linhas.length],
+      ['NCRs no quadro (sem filtro)', e.todos.length],
+      ['Filtros', descricaoDosFiltros()],
+      ['Observação', 'Uma linha por NCR, na ordem das colunas do quadro. “Encerradas — CEDOC Closure” é a área ' +
+        'abaixo do quadro. Situação do waiver: a do relatório (ou a do relatório de origem, para as que vêm de outro marco).']
+    ];
+    return { nome: 'Kanban_' + str(st.marco).replace(/[^\w-]+/g, '_'), colunas: colunas, linhas: linhas, recorte: recorte };
+  }
+
+  function exportarPlanilha() {
+    if (!st.marco) return;
+    ctx.exportarPlanilha(planilha());
+  }
+
+  /* --- a folha para impressão -------------------------------------------------- */
+
+  var PAPEIS = {
+    'A4': { nome: 'A4', retrato: [210, 297] },
+    'A3': { nome: 'A3', retrato: [297, 420] }
+  };
+  /* Letra de saída de cada folha (pt): o que ainda se lê bem impresso com as
+     cinco colunas lado a lado. A escala automática parte daqui. */
+  var LETRA_BASE = { 'A4-retrato': 6.5, 'A4-paisagem': 7.5, 'A3-retrato': 8, 'A3-paisagem': 9.5 };
+  var LETRA_MIN = 5.5;
+  var CRESCE_ATE = 1.4;
+
+  function prefsImpressao() {
+    var p = lerPref(CHAVE_IMPRESSAO, null) || {};
+    return {
+      papel: PAPEIS[p.papel] ? p.papel : 'A3',
+      orientacao: p.orientacao === 'retrato' ? 'retrato' : 'paisagem',
+      escala: p.escala === 'uma' ? 'uma' : 'largura',
+      descricao: !!p.descricao,
+      encerradas: p.encerradas !== false
+    };
+  }
+
+  function classesDaFolha(o) {
+    return 'rep-page rep-page--kanban' + (o.papel === 'A3' ? ' rep-page--a3' : '') +
+      (o.orientacao === 'paisagem' ? ' rep-page--landscape' : '');
+  }
+
+  /** Um cartão para o papel: só texto, sem botão nem lista. */
+  function cartaoImpresso(c, comDescricao) {
+    var k = el('div', 'kbp-card st-cor--' + c.coluna + (c.alerta ? ' is-alerta' : ''));
+    k.appendChild(el('div', 'kbp-num', numeroDe(c)));
+    /* a segunda linha é a mesma do cartão da tela: status da NCR, função,
+       sistema e caminho */
+    var l2 = el('div', 'kbp-l2');
+    if (c.rec && c.rec.fonte.status) {
+      l2.appendChild(el('span', 'kbp-st' + (c.fechada ? ' is-fechada' : ''),
+        (c.fechada && (c.coluna === FORA || c.coluna === ENCERRADA) ? '✓ ' : '') + c.rec.fonte.status));
+    } else if (!c.rec) {
+      l2.appendChild(el('span', 'kbp-st is-sem', 'fora do banco'));
+    }
+    var partes = [funcaoDe(c) ? funcaoCurta(funcaoDe(c)) : '', curto(sistemaDe(c), 18), caminhoDe(c)].filter(Boolean);
+    if (partes.length) l2.appendChild(document.createTextNode((l2.childNodes.length ? ' · ' : '') + partes.join(' · ')));
+    if (l2.childNodes.length) k.appendChild(l2);
+    if (c.alerta) k.appendChild(el('div', 'kbp-alerta', '⚠ NCR fechada e o waiver ainda em “' + Store.statusInfo(c.coluna).nome + '”'));
+    if (c.tipo !== 'item') k.appendChild(el('div', 'kbp-origem', origemCurta(c)));
+    if (comDescricao) {
+      if (funcaoDe(c) && funcaoCurta(funcaoDe(c)) !== funcaoDe(c)) k.appendChild(el('div', 'kbp-fv', funcaoDe(c)));
+      var d = descricaoDe(c);
+      if (d) k.appendChild(el('div', 'kbp-desc', d));
+      var q = quemDe(c);
+      if (q) k.appendChild(el('div', 'kbp-quem', q));
+    }
+    return k;
+  }
+
+  function cabecalhoImpresso(o, e, rel, cont) {
+    var cab = el('header', 'kbp-cab');
+    var t = el('div', 'kbp-tit');
+    t.appendChild(document.createTextNode('Kanban do marco '));
+    t.appendChild(el('strong', null, st.marco));
+    if (cont) t.appendChild(el('span', 'kbp-cont', ' (cont.)'));
+    cab.appendChild(t);
+    if (cont) return cab;
+    cab.appendChild(el('div', 'kbp-info', (rel ? 'Relatório: ' + marcoRel(rel) + ' Waiver' : 'Ainda não há relatório de Waiver deste marco') +
+      ' · Gerado em ' + new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) +
+      (ctx.usuario && ctx.usuario() ? ' por ' + ctx.usuario() : '')));
+    var filtros = descricaoDosFiltros();
+    var n = e.vis.length;
+    cab.appendChild(el('div', 'kbp-info kbp-filtros', 'Filtros: ' + filtros + ' · ' + n + ' de ' + e.todos.length +
+      ' NCR(s) à vista' + (o.encerradas ? '' : ' · sem a área das encerradas')));
+    cab.appendChild(el('div', 'kbp-nums', numerosDoResumo(e.todos).map(function (p) { return p.n + ' ' + p.rot; }).join(' · ')));
+    return cab;
+  }
+
+  /**
+   * Monta as folhas no #printRoot (já com layout: abrirMedida) e devolve
+   * { folhas, letra }. As cinco colunas dividem a largura da folha; os
+   * cartões de cada coluna vão enchendo a folha até o pé e continuam na
+   * seguinte, com o cabeçalho das colunas repetido. Nenhum cartão é partido.
+   */
+  function montarFolhas(root, o, letra) {
+    root.innerHTML = '';
+    var projects = ctx.projects();
+    var e = estado(projects);
+    var rel = projects.filter(function (p) { return Ncrs.marcoChave(p.marco) === Ncrs.marcoChave(st.marco); })[0];
+    var defs = colunasDef();
+    var porColuna = defs.map(function (d) {
+      return { def: d, cs: ordenar(e.vis.filter(function (c) { return c.coluna === d.id; })) };
+    });
+
+    function novaFolha(cont) {
+      var f = el('section', classesDaFolha(o));
+      f.lang = 'pt-BR';
+      f.style.setProperty('--kbp-fs', letra + 'pt');
+      f.appendChild(cabecalhoImpresso(o, e, rel, cont));
+      var q = el('div', 'kbp-quadro');
+      defs.forEach(function (d) {
+        var col = el('div', 'kbp-col st-cor--' + d.id);
+        var ch = el('div', 'kbp-col-cab');
+        ch.appendChild(el('span', 'kbp-col-nome', d.nome));
+        col.appendChild(ch);
+        col.appendChild(el('div', 'kbp-col-corpo'));
+        q.appendChild(col);
+      });
+      f.appendChild(q);
+      f.appendChild(pe());
+      root.appendChild(f);
+      return f;
+    }
+
+    /* o pé já nasce com texto: vazio ele mediria uma linha a menos, e a
+       conta das folhas sairia curta (a numeração certa entra no fim) */
+    function pe() { return el('footer', 'kbp-pe', 'Waiver Request · Kanban do marco ' + st.marco + ' · folha 1 de 1'); }
+
+    /* quanto cabe de cartão numa folha: da borda de cima do corpo da coluna
+       até o pé da folha, descontada a folga contra o arredondamento */
+    function alturaUtil(f) {
+      var corpo = f.querySelector('.kbp-col-corpo');
+      var pe = f.querySelector('.kbp-pe');
+      var r = f.getBoundingClientRect();
+      var util = Report.limite(f) - (corpo.getBoundingClientRect().top - r.top) -
+        pe.getBoundingClientRect().height - parseFloat(getComputedStyle(f).paddingBottom) - Report.mm(2);
+      return Math.max(util, Report.mm(20));
+    }
+
+    var folhas = [novaFolha(false)];
+    /* mede os cartões uma vez, na largura da coluna */
+    var medidas = porColuna.map(function (pc, i) {
+      var corpo = folhas[0].querySelectorAll('.kbp-col-corpo')[i];
+      return pc.cs.map(function (c) {
+        var k = cartaoImpresso(c, o.descricao);
+        corpo.appendChild(k);
+        var h = k.getBoundingClientRect().height;
+        var mb = parseFloat(getComputedStyle(k).marginBottom) || 0;
+        corpo.removeChild(k);
+        return { c: c, h: h + mb };
+      });
+    });
+    var utilPrimeira = alturaUtil(folhas[0]);
+    var sonda = novaFolha(true);
+    var utilDemais = alturaUtil(sonda);
+    root.removeChild(sonda);
+
+    /* distribui cada coluna pelas folhas */
+    var paginas = porColuna.map(function (pc, i) {
+      var pgs = [[]], usado = 0, p = 0;
+      medidas[i].forEach(function (m) {
+        var util = p === 0 ? utilPrimeira : utilDemais;
+        if (usado + m.h > util && pgs[p].length) { pgs.push([]); p++; usado = 0; }
+        pgs[p].push(m.c);
+        usado += m.h;
+      });
+      return pgs;
+    });
+    var n = Math.max.apply(null, paginas.map(function (pgs) { return pgs.length; }));
+    for (var k = 1; k < n; k++) folhas.push(novaFolha(true));
+    folhas.forEach(function (f, fi) {
+      var corpos = f.querySelectorAll('.kbp-col-corpo');
+      var cabs = f.querySelectorAll('.kbp-col-cab');
+      porColuna.forEach(function (pc, i) {
+        var pgs = paginas[i];
+        var aqui = pgs[fi] || [];
+        /* a contagem vai na primeira folha; nas outras, "(cont.)" se a
+           coluna continua ali, e um traço se ela já acabou antes */
+        var rot = fi === 0 ? String(pc.cs.length) : (aqui.length ? '(cont.)' : '—');
+        cabs[i].appendChild(el('span', 'kbp-col-n', rot));
+        if (fi === 0 && !pc.cs.length) corpos[i].appendChild(el('div', 'kbp-vazia', 'Nenhuma NCR.'));
+        aqui.forEach(function (c) { corpos[i].appendChild(cartaoImpresso(c, o.descricao)); });
+      });
+    });
+
+    /* as encerradas: em lista, depois do quadro — a mesma paginação do
+       relatório (Report.paginar) leva as linhas que não couberem */
+    var enc = ordenar(e.vis.filter(function (c) { return c.coluna === ENCERRADA; }));
+    if (o.encerradas && enc.length) {
+      var ult = folhas[folhas.length - 1];
+      var lista = el('div', 'kbp-enc');
+      lista.setAttribute('data-fluido', '');
+      lista.setAttribute('data-lista', '');
+      var tl = el('div', 'kbp-enc-tit', '✓ ' + AREA_ENCERRADAS.nome + ' — ' + enc.length + ' NCR(s), já encerradas no banco NCR');
+      tl.setAttribute('data-cabecalho', '');
+      lista.appendChild(tl);
+      enc.forEach(function (c) {
+        var l = el('div', 'kbp-enc-linha');
+        l.appendChild(el('span', 'kbp-num', numeroDe(c)));
+        l.appendChild(el('span', 'kbp-enc-st', c.rec ? c.rec.fonte.status : ''));
+        l.appendChild(el('span', 'kbp-enc-txt', [funcaoDe(c) ? funcaoCurta(funcaoDe(c)) : '', sistemaDe(c), caminhoDe(c), origemCurta(c)]
+          .filter(Boolean).join(' · ') + (o.descricao && descricaoDe(c) ? ' — ' + curto(descricaoDe(c), 400) : '')));
+        lista.appendChild(l);
+      });
+      var rodape = ult.querySelector('.kbp-pe');
+      ult.insertBefore(lista, rodape);
+      /* o pé entra na conta e é repetido em cada continuação */
+      var mais = Report.paginar(ult, root, function () { return novaFolhaDeLista(); }, rodape);
+      mais.slice(1).forEach(function (f) { folhas.push(f); });
+    }
+
+    function novaFolhaDeLista() {
+      var f = el('section', classesDaFolha(o) + ' rep-page--cont');
+      f.lang = 'pt-BR';
+      f.style.setProperty('--kbp-fs', letra + 'pt');
+      f.appendChild(cabecalhoImpresso(o, e, rel, true));
+      return f;
+    }
+
+    var total = folhas.length;
+    folhas.forEach(function (f, i) {
+      var p = f.querySelector('.kbp-pe');
+      if (p) p.textContent = 'Waiver Request · Kanban do marco ' + st.marco + ' · folha ' + (i + 1) + ' de ' + total;
+    });
+    return { folhas: folhas, letra: letra };
+  }
+
+  /**
+   * Acha a letra que aproveita a folha. "largura": a letra de saída do papel;
+   * se tudo couber numa folha só, cresce até 40% enquanto continuar cabendo.
+   * "uma": a maior letra com que tudo cabe numa folha (até o mínimo de 5 pt;
+   * nem assim coube, vai no mínimo em quantas folhas precisar).
+   */
+  function planejar(root, o) {
+    var base = LETRA_BASE[o.papel + '-' + o.orientacao];
+    var cabe = function (letra) { return montarFolhas(root, o, letra).folhas.length === 1; };
+    /* a maior letra entre lo e hi com que tudo cabe numa folha (lo já cabe) */
+    var procurar = function (lo, hi, voltas) {
+      for (var i = 0; i < voltas; i++) {
+        var meio = (lo + hi) / 2;
+        if (cabe(meio)) lo = meio; else hi = meio;
+      }
+      return montarFolhas(root, o, Math.floor(lo * 10) / 10);
+    };
+    var r = montarFolhas(root, o, base);
+    if (r.folhas.length === 1) return procurar(base, base * CRESCE_ATE, 7);
+    /* passou um pouco de uma folha: vale diminuir a letra em até 15% para
+       não imprimir uma segunda folha quase vazia */
+    var quase = base * 0.85;
+    if (cabe(quase)) return procurar(quase, base, 6);
+    if (o.escala !== 'uma') return montarFolhas(root, o, base);
+    /* "caber numa folha só": nem com a letra mínima? vai no mínimo, em várias */
+    if (!cabe(LETRA_MIN)) return montarFolhas(root, o, LETRA_MIN);
+    return procurar(LETRA_MIN, quase, 8);
+  }
+
+  /* --- a janela de escolhas ------------------------------------------------------ */
+
+  function abrirImpressao() {
+    if (!st.marco) return;
+    var dlg = document.getElementById('kbExportDialog');
+    if (!dlg) return;
+    var o = prefsImpressao();
+    var body = dlg.querySelector('.dlg-body');
+    var ac = dlg.querySelector('.dlg-actions');
+    body.innerHTML = '';
+    ac.innerHTML = '';
+    body.appendChild(el('h3', null, 'Exportar o Kanban para impressão'));
+    body.appendChild(el('p', null, 'Sai o quadro do marco ' + st.marco + ' como está na tela — os mesmos filtros —, ' +
+      'em PDF pela janela de impressão do navegador. Lá, escolha “Salvar como PDF” e, em Margens, “Nenhuma”: ' +
+      'o tamanho do papel já vai certo.'));
+
+    function grupo(rotulo, nome, opcoes, atual) {
+      var fs = el('fieldset', 'kb-imp-grupo');
+      fs.appendChild(el('legend', null, rotulo));
+      opcoes.forEach(function (op) {
+        var lab = el('label', 'kb-imp-op');
+        var r = document.createElement('input');
+        r.type = 'radio';
+        r.name = nome;
+        r.value = op[0];
+        r.checked = op[0] === atual;
+        r.addEventListener('change', atualizar);
+        lab.appendChild(r);
+        lab.appendChild(el('span', null, op[1]));
+        fs.appendChild(lab);
+      });
+      return fs;
+    }
+    function caixa(nome, rotulo, marcado) {
+      var lab = el('label', 'kb-imp-op');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.name = nome;
+      cb.checked = marcado;
+      cb.addEventListener('change', atualizar);
+      lab.appendChild(cb);
+      lab.appendChild(el('span', null, rotulo));
+      return lab;
+    }
+    var grade = el('div', 'kb-imp-grade');
+    grade.appendChild(grupo('Papel', 'kbPapel', [['A4', 'A4'], ['A3', 'A3']], o.papel));
+    grade.appendChild(grupo('Orientação', 'kbOrient', [['paisagem', 'Paisagem (deitada)'], ['retrato', 'Retrato (em pé)']], o.orientacao));
+    grade.appendChild(grupo('Escala', 'kbEscala', [['largura', 'Caber na largura — quantas folhas precisar'],
+      ['uma', 'Caber numa folha só — a letra diminui']], o.escala));
+    var cont = el('fieldset', 'kb-imp-grupo');
+    cont.appendChild(el('legend', null, 'Conteúdo'));
+    cont.appendChild(caixa('kbDesc', 'Descrição das NCRs nos cartões', o.descricao));
+    cont.appendChild(caixa('kbEnc', 'Encerradas (CEDOC Closure), em lista no fim', o.encerradas));
+    grade.appendChild(cont);
+    body.appendChild(grade);
+    var previa = el('p', 'kb-imp-previa');
+    previa.id = 'kbImpPrevia';
+    previa.setAttribute('role', 'status');
+    body.appendChild(previa);
+
+    function lidas() {
+      var v = function (nome) { var x = body.querySelector('input[name="' + nome + '"]:checked'); return x ? x.value : ''; };
+      return {
+        papel: v('kbPapel') || 'A3', orientacao: v('kbOrient') || 'paisagem', escala: v('kbEscala') || 'largura',
+        descricao: body.querySelector('input[name="kbDesc"]').checked,
+        encerradas: body.querySelector('input[name="kbEnc"]').checked
+      };
+    }
+    function atualizar() {
+      var op = lidas();
+      gravarPref(CHAVE_IMPRESSAO, op);
+      var res = ctx.medirImpressao(function (root) { return planejar(root, op); });
+      var n = res ? res.folhas.length : 0;
+      previa.textContent = res
+        ? 'Vai sair em ' + n + ' folha' + (n > 1 ? 's' : '') + ' ' + op.papel + ' ' + (op.orientacao === 'paisagem' ? 'paisagem' : 'retrato') +
+          ', com letra de ' + String(res.letra).replace('.', ',') + ' pt' +
+          (op.escala === 'uma' && n > 1 ? ' — não coube numa folha nem com a letra mínima.' : '.')
+        : '';
+    }
+
+    ac.appendChild(botao('Cancelar', '', function () { dlg.close(); }));
+    ac.appendChild(botao('Gerar PDF', 'btn--primary', function () {
+      var op = lidas();
+      gravarPref(CHAVE_IMPRESSAO, op);
+      dlg.close();
+      ctx.imprimir(function (root) { return planejar(root, op); }, 'Kanban_' + str(st.marco).replace(/[^\w-]+/g, '_'));
+    }));
+    dlg.showModal();
+    atualizar();
+  }
+
   global.Kanban = {
     render: render,
     cartoes: cartoes,
-    marcos: marcos
+    marcos: marcos,
+    planilha: planilha,
+    funcaoCurta: funcaoCurta,
+    emCedoc: emCedoc,
+    FORA: FORA,
+    ENCERRADA: ENCERRADA
   };
 })(window);
 
@@ -17404,10 +18676,17 @@ if(isWorker){
     $('#kanbanScroll').hidden = !isKanban();
     $('#previewBtn').hidden = telaCheia();
     renderAoLado();     /* o item ao lado só existe onde há editor ao lado dele */
+    renderSeletorGlobal();
     if (telaCheia()) {
-      $('#pdfBtn').textContent = 'Exportar PDF…';
+      /* nas abas que têm exportação própria (o Kanban, a Tabela, o Resumo…),
+         o botão de cima diz de quem é o PDF que ele gera */
+      $('#pdfBtn').textContent = 'PDF dos relatórios…';
+      $('#pdfBtn').title = 'Gerar o PDF dos relatórios de Waiver (NCR e DEV) — o documento Waiver Request. ' +
+        'A exportação desta tela fica na própria tela.';
       return;
     }
+    $('#pdfBtn').textContent = 'Exportar PDF…';
+    $('#pdfBtn').title = 'Gerar o PDF dos relatórios de Waiver (NCR e DEV)';
 
     var t = kindName();
     $('#addNcrBtn').textContent = '+ Nova ' + t;
@@ -17418,6 +18697,37 @@ if(isWorker){
     $('#ncrFilter').placeholder = 'Buscar em todo o texto da ' + t + '…';
     $('#previewBtn').textContent = 'Pré-visualizar';
     $('#previewBtn').title = 'Ver as folhas do relatório de ' + t + ' como sairão no PDF';
+  }
+
+  /**
+   * O seletor "Relatório" (e o campo "Marco") da barra de cima só aparece
+   * onde o relatório aberto decide o que está na tela: nas abas Waiver NCR e
+   * Waiver DEV, e na aba Fluxos quando ela olha "este relatório". O Banco
+   * NCR, o Kanban, a Tabela, o Resumo e a Conversa têm o próprio recorte
+   * (pastilhas de marco, filtros) e o seletor não mudava nada neles — era um
+   * filtro que não filtra ao lado do que filtra. Ali ele some.
+   *
+   * Na aba Fluxos ele fica no lugar (trocar de vista não deve fazer a barra
+   * pular), mas desabilitado e dizendo por quê, quando a vista escolhida
+   * olha todos os marcos. O campo "Marco" é edição do relatório: só nas abas
+   * dele.
+   */
+  function renderSeletorGlobal() {
+    var doRelatorio = !telaCheia();
+    var fluxosTodos = isFluxos() && (fluxosFiltro.escopo === 'todos' || fluxosFiltro.vista === 'painel');
+    $('#relatorioCampo').hidden = !(doRelatorio || isFluxos());
+    $('#marcoCampo').hidden = !doRelatorio;
+    var sel = $('#projectSelect');
+    var nota = $('#relatorioNota');
+    /* sem dados no visualizador o seletor já vem desabilitado por outro motivo */
+    if (Leitura.ativo() && !state.projects.length) return;
+    sel.disabled = fluxosTodos;
+    nota.hidden = !fluxosTodos;
+    nota.textContent = fluxosTodos ? 'não se aplica: a vista mostra todos os marcos' : '';
+    sel.title = fluxosTodos
+      ? 'Esta vista dos Fluxos olha todos os relatórios deste navegador: o relatório escolhido aqui não muda o que aparece. ' +
+        'Em “Itens de: este relatório” ele volta a valer.'
+      : 'O relatório aberto nas abas Waiver NCR e Waiver DEV';
   }
 
   function switchKind(kind) {
@@ -17439,7 +18749,11 @@ if(isWorker){
   /* aba de resumo                                                           */
   /* ---------------------------------------------------------------------- */
 
-  var summaryFilter = '';
+  /* O marco do Resumo: o id do relatório, ou '' para todos os marcos. Nasce
+     null — "ninguém escolheu ainda" — e na primeira vez vale o marco da vez
+     (Config.MARCO_INICIAL), ou todos se ele não existir. Depois fica o que a
+     pessoa escolheu, até fechar a página. */
+  var summaryFilter = null;
   var summaryFiltros = {};
   /* aba Fluxos: recorte do que está à vista */
   var fluxosFiltro = {
@@ -17450,6 +18764,10 @@ if(isWorker){
   };
 
   function renderSummary(semRolar) {
+    if (summaryFilter === null) {
+      var inicial = Config.relatorioInicial(state.projects);
+      summaryFilter = inicial ? inicial.id : '';
+    }
     SummaryView.render($('#summaryScroll'), state.projects, summaryFilter, {
       onFiltro: function (id) { summaryFilter = id; renderSummary(); },
       onFiltros: function (f) {
@@ -17475,11 +18793,15 @@ if(isWorker){
     if (!semRolar) $('#summaryScroll').scrollTop = 0;
   }
 
+  /** A planilha do resumo: do marco escolhido, ou de todos (project null). */
   function exportarCsv(project) {
-    var csv = SummaryView.toCsv(project, summaryFiltros);
+    var csv = project ? SummaryView.toCsv(project, summaryFiltros)
+      : SummaryView.toCsvTodos(state.projects, summaryFiltros);
     var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    download(blob, Report.suggestedFileName(project, 'csv').replace('WaiverRequest_', 'Resumo_'));
-    toast('Planilha do marco salva.');
+    download(blob, project
+      ? Report.suggestedFileName(project, 'csv').replace('WaiverRequest_', 'Resumo_')
+      : 'Resumo_todos_os_marcos_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.csv');
+    toast(project ? 'Planilha do marco salva.' : 'Planilha de todos os marcos salva.');
   }
 
   /** Monta as folhas A4 do resumo e manda para a impressão. */
@@ -17529,6 +18851,8 @@ if(isWorker){
     }
     var alvos = project ? [project] : state.projects;
     var dados = Summary.compute(alvos, summaryFiltros);
+    /* os gráficos na fila dos marcos, como os mini cards da tela */
+    dados.porMarco = SummaryView.ordenarPorMarco(dados.porMarco);
     var st = project ? dados.porMarco[0] : dados.geral;
 
     var titulo = project
@@ -17740,6 +19064,8 @@ if(isWorker){
   function renderFluxos(semRolar) {
     var host = $('#fluxosScroll');
     if (!state.project) return;
+    /* a vista e o escopo decidem se o relatório da barra de cima vale aqui */
+    renderSeletorGlobal();
     var antes = host.scrollTop;
     host.innerHTML = '';
 
@@ -18183,6 +19509,7 @@ if(isWorker){
     var alvo = state.projects.filter(function (p) { return p.id === r.projetoId; })[0];
     if (!alvo) { toast('Esse relatório não está mais neste navegador.'); return; }
     function ir() {
+      aberturaPendente = false;
       state.kind = r.kind;
       if (!state.project || alvo.id !== state.project.id) loadProject(alvo);
       renderTabs();
@@ -21946,6 +23273,7 @@ if(isWorker){
     var d = $('#ncrDialog');
     if (d && d.open) d.close();
     function ir() {
+      aberturaPendente = false;
       state.kind = 'ncr';
       if (!state.project || state.project.id !== project.id) loadProject(project);
       renderTabs();
@@ -22010,11 +23338,69 @@ if(isWorker){
       });
     },
     adicionar: function (rec, project, situacao) { return adicionarAoWaiver(rec, project, situacao); },
-    mudarSituacao: function (project, item, id) { return mudarSituacaoDe(project, item, id); }
+    mudarSituacao: function (project, item, id) { return mudarSituacaoDe(project, item, id); },
+    usuario: function () { return Store.getUser(); },
+    exportarPlanilha: function (d) { exportarKanbanXlsx(d); },
+    medirImpressao: function (montar) { return montarKanbanImpresso(montar, true); },
+    imprimir: function (montar, nome) { imprimirKanban(montar, nome); }
   };
 
   function renderKanban() {
     Kanban.render($('#kanbanScroll'), ctxKanban);
+  }
+
+  /**
+   * Monta as folhas do Kanban no #printRoot, com layout emprestado enquanto
+   * mede (Report.abrirMedida). `soMedir` é a prévia da janela de escolhas:
+   * conta as folhas e limpa o que montou.
+   */
+  function montarKanbanImpresso(montar, soMedir) {
+    var root = $('#printRoot');
+    root.innerHTML = '';
+    var medida = Report.abrirMedida(root);
+    var r = null;
+    try {
+      r = montar(root);
+    } catch (e) {
+      Log.erro('kanban', 'não consegui montar o Kanban para impressão', e,
+        'tente outro papel ou orientação; se continuar, mande Derrogacao.copiar().');
+    } finally {
+      Report.fecharMedida(medida);
+    }
+    if (soMedir) root.innerHTML = '';
+    return r;
+  }
+
+  /** O Kanban em PDF: as folhas montadas e a janela de impressão. */
+  function imprimirKanban(montar, nome) {
+    var r = montarKanbanImpresso(montar, false);
+    if (!r) { toast('Não foi possível montar o Kanban para impressão.'); return; }
+    Log.ok('kanban', 'Kanban montado para impressão', { folhas: r.folhas.length });
+    var doc = document.title;
+    document.title = nome + '_' + Report.timeStamp(true);
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.title = doc; }, 500);
+    }, 60);
+  }
+
+  /**
+   * A planilha do Kanban: uma linha por NCR à vista, e a aba "Recorte" — a
+   * mesma regra da Tabela e do Banco NCR (planilha filtrada que não diz que
+   * é filtrada é lida como o total).
+   */
+  function exportarKanbanXlsx(d) {
+    try {
+      download(Xlsx.blob([
+        { nome: 'Kanban', colunas: d.colunas, linhas: d.linhas },
+        { nome: 'Recorte', colunas: [{ titulo: 'Campo', larg: 28 }, { titulo: 'Valor', larg: 90 }],
+          linhas: d.recorte, filtros: false }
+      ]), d.nome + '_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.xlsx');
+      toast('Planilha salva em Downloads: ' + d.linhas.length + ' NCR(s).', 4000);
+    } catch (e) {
+      markError(e);
+      toast('Não foi possível gerar a planilha.');
+    }
   }
 
   /**
@@ -22324,6 +23710,10 @@ if(isWorker){
   var sincronizando = false;
   var gravarPendente = false;
   var ultimaTecla = 0;
+  /* A abertura caiu no "mais recente" porque o marco da vez ainda não estava
+     neste navegador (ver o boot). Fica armado até a primeira troca com a
+     pasta ou até a pessoa escolher ou escrever alguma coisa. */
+  var aberturaPendente = false;
   var ultimaVersao = 0;
   var ultimaPoda = 0;
   var ultimoSucesso = 0;        // última vez que a pasta respondeu
@@ -22829,6 +24219,8 @@ if(isWorker){
         return adotar(resumo).then(function () {
           sincronizando = false;
           marcarPasta('on');
+          /* a pasta acabou de ser lida: o contador recomeça daqui */
+          Atualizacao.marcarFeita(true);
           /* o que se publica é a junção: o trabalho de todos */
           agendarPublicacao();
           ciclo.fim('sincronizado', resumo ? {
@@ -22856,6 +24248,7 @@ if(isWorker){
         return fim.then(function () {
           sincronizando = false;
           marcarPasta(pastaEstado);
+          Atualizacao.marcarFeita(false);
           if (!opts.silencioso) {
             toast(pastaEstado === 'permissao'
               ? 'A pasta precisa da sua permissão — clique em “Pasta” na barra de cima.'
@@ -22955,9 +24348,30 @@ if(isWorker){
     }
   }
 
+  /**
+   * Quem liga a pasta pela primeira vez abre o programa sem o relatório do
+   * marco da vez: ele chega na primeira troca com a pasta. Se ninguém mexeu
+   * em nada até lá, é ele que passa a estar aberto — é a mesma regra da
+   * abertura, só que com os dados da equipe. Uma vez só, e nunca por cima
+   * de uma escolha da pessoa.
+   */
+  function abrirMarcoInicial() {
+    if (!aberturaPendente) return;
+    aberturaPendente = false;
+    var p = Config.relatorioInicial(state.projects);
+    if (!p || (state.project && state.project.id === p.id)) return;
+    flushSave().then(function () {
+      loadProject(p);
+      Log.passo('abertura', 'o relatório do marco inicial chegou pela pasta e foi aberto', { marco: p.marco });
+    });
+  }
+
   /** Verificação barata, de tempos em tempos: alguém gravou lá fora? */
   function pollPasta() {
     if (!Pasta.ligada() || pastaEstado !== 'on' || sincronizando) return;
+    /* em segundo plano não confere: ao voltar para a janela, o ciclo da
+       atualização automática confere na hora (atualizacao.js) */
+    if (document.hidden) return;
     if (Date.now() - ultimaTecla < 4000) return;   /* não mexe enquanto digita */
     /* com um diálogo de decisão aberto, espera; a ficha da NCR não conta —
        ela sabe se redesenhar quando o que mostra muda por fora */
@@ -22975,6 +24389,123 @@ if(isWorker){
   function agendarPoll() {
     clearInterval(pollTimer);
     if (Pasta.ligada()) pollTimer = setInterval(pollPasta, POLL_MS);
+  }
+
+  /* --- atualização automática (atualizacao.js), no editor -------------------
+     A conferência barata de 20 s continua (pollPasta): é ela que traz o
+     trabalho do colega em segundos. O ciclo de 5 minutos é a garantia com
+     hora marcada e contador à vista, e o botão "⟳ Atualizar" — e é ele que
+     confere na hora quando a pessoa volta para a janela. Só existe com a
+     pasta: sem ela nada muda por fora. */
+
+  function podeAtualizarDaPasta() {
+    if (!Pasta.ligada()) return 'sem pasta';
+    if (pastaEstado === 'permissao') return 'a pasta precisa de permissão';
+    if (sincronizando) return 'sincronizando';
+    if (Date.now() - ultimaTecla < 4000) return 'você está digitando';
+    if (document.querySelector('dialog[open]:not(.nb-dlg)') || !$('#preview').hidden) return 'janela aberta';
+    return true;
+  }
+
+  /**
+   * Uma rodada do ciclo. A automática olha primeiro se algum dos arquivos
+   * mudou (só a data, barato) e só então lê e junta — não relê nem
+   * redesenha à toa. A do botão lê e junta sempre, depois de gravar aqui o
+   * que estava esperando os 500 ms: nada do que foi escrito se perde, a
+   * junção é campo a campo. Rejeita quando a pasta não respondeu.
+   */
+  function atualizarDaPasta(origem) {
+    function conferir(r) {
+      if (pastaEstado !== 'on') throw new Error('a pasta não respondeu (' + pastaEstado + ')');
+      return r;
+    }
+    if (origem === 'manual') {
+      /* o clique é o gesto que o navegador exige para pedir a permissão */
+      if (pastaEstado === 'permissao') return conectarPasta().then(conferir);
+      return flushSave().then(function () {
+        /* a gravação que o flushSave agendou para daqui a 2,5 s é esta mesma
+           rodada: ler-juntar-gravar leva tudo o que está aqui */
+        clearTimeout(gravaTimer);
+        return sincronizar({});
+      }).then(conferir).then(function (r) {
+        var nada = r && !(r.entraram || r.atualizados || r.removidos || r.novosRelatorios ||
+          (r.ncr && (r.ncr.entraram || r.ncr.atualizados)));
+        if (nada) toast('Tudo em dia com a pasta da equipe.');
+        return r;
+      });
+    }
+    /* depois de uma falha, a rodada automática tenta religar sozinha */
+    if (pastaEstado === 'erro') return sincronizar({ silencioso: true }).then(conferir);
+    return Promise.all([
+      Pasta.mudouLaFora(),
+      Pasta.mudouArquivo(Pasta.ARQ_NCR_BANCO),
+      Pasta.mudouArquivo(Pasta.ARQ_NCR_WAIVER)
+    ]).then(function (mudou) {
+      if (!mudou[0] && !mudou[1] && !mudou[2]) return 'sem novidade';
+      return sincronizar({ silencioso: true, semRedesenhar: true }).then(conferir);
+    });
+  }
+
+  /** O ciclo só existe com a pasta; o botão e o contador também. */
+  function ajustarAtualizacao() {
+    if (Leitura.ativo()) return;
+    var ligada = Pasta.suportado() && Pasta.ligada();
+    $('#atualizaBox').hidden = !ligada;
+    if (ligada && !Atualizacao.estado().ligado) {
+      Atualizacao.iniciar({
+        intervalo: Config.INTERVALO_ATUALIZACAO_MS,
+        podeAgora: podeAtualizarDaPasta,
+        executar: atualizarDaPasta,
+        aoMudar: renderContador
+      });
+    } else if (!ligada && Atualizacao.estado().ligado) {
+      Atualizacao.parar();
+    } else {
+      renderContador(Atualizacao.estado());
+    }
+  }
+
+  /**
+   * O contador, na segunda linha do botão "⟳ Atualizar": curto ali
+   * ("próxima em 04:32") e por extenso na dica ("Próxima atualização em
+   * 04:32 — …"), que é também o que o leitor de tela lê como descrição.
+   */
+  function renderContador(e) {
+    var n = $('#atualizarConta');
+    if (!n) return;
+    var curto = '', longo = '', aviso = false;
+    var falta = Atualizacao.mmss(e.falta);
+    if (!e.ligado) {
+      curto = '';
+    } else if (e.rodando) {
+      curto = 'atualizando…';
+      longo = 'Atualizando os dados agora.';
+    } else if (Leitura.ativo() && leitura.fonte && leitura.fonte.tipo === 'arquivo' && state.projects.length) {
+      curto = 'sem atualização automática';
+      longo = 'Os dados vieram de um arquivo aberto à mão: não há de onde reler sozinho. ' +
+        'O botão procura a publicação de novo.';
+    } else if (!Leitura.ativo() && pastaEstado === 'permissao') {
+      curto = 'sem acesso à pasta';
+      longo = 'A pasta da equipe precisa da sua permissão nesta sessão: clique para permitir e atualizar.';
+      aviso = true;
+    } else if (e.adiado) {
+      curto = 'em espera';
+      longo = 'A atualização venceu, mas espera: ' + e.adiado + '. Tenta de novo em alguns segundos.';
+    } else if (!e.ultima.ok) {
+      curto = 'falhou · de novo em ' + falta;
+      longo = 'A última atualização falhou; os dados à vista são os de antes, nada se perdeu. ' +
+        'Nova tentativa em ' + falta + '.';
+      aviso = true;
+    } else {
+      curto = 'próxima em ' + falta;
+      longo = 'Próxima atualização em ' + falta + '.';
+    }
+    if (n.textContent !== curto) n.textContent = curto;
+    n.classList.toggle('is-aviso', aviso);
+    var quando = e.ultima.quando ? new Date(e.ultima.quando).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+    $('#atualizarBtn').title = longo + (quando ? ' Última atualização às ' + quando + '.' : '') +
+      ' A cada ' + Math.round(Config.INTERVALO_ATUALIZACAO_MS / 60000) + ' minutos os dados são conferidos sozinhos ' +
+      '(com a janela à vista). Clique para conferir agora — a contagem recomeça.';
   }
 
   /* --- interface ---------------------------------------------------------- */
@@ -23008,6 +24539,7 @@ if(isWorker){
     var item = $('#pastaBtn');
     if (item) item.hidden = !Pasta.suportado();
     renderPastaNotice();
+    ajustarAtualizacao();
     if (!chip) return;
     /* a etiqueta só existe quando há pasta: sem ela não há nada a mostrar */
     chip.hidden = !Pasta.suportado() || !Pasta.ligada();
@@ -23053,6 +24585,7 @@ if(isWorker){
       agendarPoll();
       sincronizarConversas({});
       return sincronizar({}).then(function (r) {
+        abrirMarcoInicial();
         /* a janela costuma continuar aberta depois de escolher a pasta:
            o histórico e o tamanho só aparecem se forem redesenhados aqui */
         if ($('#pastaDialog').open) {
@@ -23150,6 +24683,7 @@ if(isWorker){
       return sincronizar({});
     }).then(function (r) {
       if (r === null) return;
+      abrirMarcoInicial();
       if ($('#pastaDialog').open) $('#pastaDialog').close();
       toast('Pasta ligada: "' + Pasta.nome() + '". A partir de agora tudo vai e vem de lá.');
     }).catch(function (e) {
@@ -23472,8 +25006,8 @@ if(isWorker){
      e, se a pessoa quiser, 3. um arquivo aberto à mão (só até fechar).
      Se nada der certo, a tela pede um clique só: "Tentar de novo". */
 
-  var LEITURA_RELE_MS = 5 * 60 * 1000;   // conferência periódica, com a janela à vista
-  var LEITURA_VOLTA_MS = 60 * 1000;      // ao voltar para a janela, se passou disto
+  /* A releitura periódica é a do ciclo único (atualizacao.js), a cada
+     Config.INTERVALO_ATUALIZACAO_MS, com o contador na barra de cima. */
 
   var leitura = {
     ordens: {},        // a ordem escolhida aqui, por relatório: não é gravada
@@ -23590,8 +25124,11 @@ if(isWorker){
       mostrarSemDados('A publicação não tem nenhum relatório.');
       return novidade;
     }
+    /* na primeira leitura não há nada aberto: vale o marco da vez
+       (Config.MARCO_INICIAL), e sem ele o primeiro da publicação */
     var alvo = state.projects.filter(function (p) { return p.id === abertoId; })[0] ||
       (abertoMarco ? state.projects.filter(function (p) { return Store.marcoChave(p) === abertoMarco; })[0] : null) ||
+      Config.relatorioInicial(state.projects) ||
       state.projects[0];
 
     $('#semDados').hidden = true;
@@ -23706,6 +25243,7 @@ if(isWorker){
     }
     Leitura.setPastaDoNavegador(valor);
     carregarLeitura({}).then(function () {
+      Atualizacao.marcarFeita(!leitura.falhou);
       renderFonte();
       var pd = Leitura.pastaDados();
       if (leitura.fonte && leitura.fonte.tipo === 'caminho') {
@@ -23731,14 +25269,26 @@ if(isWorker){
     });
   }
 
-  /* Relê de tempos em tempos e ao voltar para a janela: quem deixa o
-     visualizador aberto o dia inteiro vê a publicação nova sem recarregar. */
-  function conferirLeitura(forcar) {
-    if (document.hidden) return;
-    if (document.querySelector('dialog[open]') || !$('#preview').hidden) return;
-    if (leitura.fonte && leitura.fonte.tipo === 'arquivo' && state.projects.length) return;
-    if (!forcar && leitura.fonte && Date.now() - leitura.fonte.lidoEm < LEITURA_VOLTA_MS) return;
-    carregarLeitura({ automatico: true });
+  /* Relê a cada ciclo da atualização automática e ao voltar para a janela:
+     quem deixa o visualizador aberto o dia inteiro vê a publicação nova sem
+     recarregar. Com uma janela aberta, espera; com os dados vindos de um
+     arquivo aberto à mão, não relê sozinho — não há de onde. */
+  function podeReler() {
+    if (document.querySelector('dialog[open]') || !$('#preview').hidden) return 'janela aberta';
+    if (leitura.fonte && leitura.fonte.tipo === 'arquivo' && state.projects.length) return 'arquivo aberto à mão';
+    return true;
+  }
+
+  /** Uma rodada do ciclo, no visualizador. Rejeita quando a leitura falha. */
+  function relerPublicacao(origem) {
+    return carregarLeitura({ automatico: origem !== 'manual' }).then(function (novo) {
+      if (leitura.falhou) throw new Error('não consegui ler a publicação');
+      if (origem === 'manual' && !novo && leitura.fonte && leitura.fonte.tipo !== 'arquivo' && state.projects.length) {
+        toast('Nenhuma publicação nova — os dados continuam os de ' +
+          (shortDate(leitura.fonte.quando) || 'antes') + '.');
+      }
+      return novo;
+    });
   }
 
   /**
@@ -23771,19 +25321,12 @@ if(isWorker){
     $('#brandSub').textContent = 'visualizador de derrogações';
     $('#leituraSelo').hidden = false;
     $('#fonteChip').hidden = false;
-    $('#atualizarBtn').hidden = false;
+    $('#atualizaBox').hidden = false;
     $('#menuBtn').title = 'Diagnóstico e versão';
     renderFonte();
     Log.passo('leitura', 'modo leitura: este é o visualizador — nada aqui é gravado');
 
-    $('#atualizarBtn').addEventListener('click', function () {
-      carregarLeitura({}).then(function (novo) {
-        if (!novo && !leitura.falhou && leitura.fonte && leitura.fonte.tipo !== 'arquivo' && state.projects.length) {
-          toast('Nenhuma publicação nova — os dados continuam os de ' +
-            (shortDate(leitura.fonte.quando) || 'antes') + '.');
-        }
-      });
-    });
+    /* o botão "⟳ Atualizar" é ligado no wire(): roda o ciclo na hora */
     $('#leituraAvisoBtn').addEventListener('click', function () { $('#atualizarBtn').click(); });
     $('#fonteChip').addEventListener('click', function () {
       $('#fonteDialog').showModal();
@@ -23800,7 +25343,7 @@ if(isWorker){
       if (this.files && this.files[0]) abrirArquivoDeDados(this.files[0]);
       this.value = '';
     });
-    $('#semDadosTentarBtn').addEventListener('click', function () { carregarLeitura({}); });
+    $('#semDadosTentarBtn').addEventListener('click', function () { $('#atualizarBtn').click(); });
     $('#semDadosConfigBtn').addEventListener('click', function () {
       $('#fonteDialog').showModal();
       renderFonte();
@@ -23812,36 +25355,54 @@ if(isWorker){
     });
     $('#caminhoLimparBtn').addEventListener('click', function () { salvarCaminho(''); });
 
-    document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) conferirLeitura(false);
-    });
-    setInterval(function () { conferirLeitura(true); }, LEITURA_RELE_MS);
-
     mostrarSemDados(null);
-    return carregarLeitura({ silencioso: true });
+    return carregarLeitura({ silencioso: true }).then(function (r) {
+      /* o relógio começa depois da primeira leitura: dali a 5 minutos, a próxima */
+      Atualizacao.iniciar({
+        intervalo: Config.INTERVALO_ATUALIZACAO_MS,
+        podeAgora: podeReler,
+        executar: relerPublicacao,
+        aoMudar: renderContador
+      });
+      if (leitura.falhou) Atualizacao.marcarFeita(false);
+      return r;
+    });
   }
 
   function wire() {
+    /* "⟳ Atualizar": a rodada do ciclo, agora — e a contagem recomeça */
+    $('#atualizarBtn').addEventListener('click', function () { Atualizacao.agora(); });
+
     $('#marcoInput').addEventListener('input', function () {
       state.project.marco = this.value;
       state.project.name = this.value || 'Relatório sem nome';
       scheduleSave();
     });
 
-    var abas = $$('.tab');
-    abas.forEach(function (t, i) {
+    /* Faixa de abas (WAI-ARIA "tabs"): as setas andam entre as abas, na
+       ordem da tela — no trilho estreito elas ficam empilhadas, então as
+       setas de cima e de baixo valem também —, Home e End vão às pontas. A
+       aba escondida (a Conversa desligada) não entra na roda: antes a seta
+       caía nela e abria uma aba que não aparecia. */
+    var TECLAS_ABA = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+    $$('.tab').forEach(function (t) {
       t.addEventListener('click', function () { switchKind(t.dataset.kind); });
       t.addEventListener('keydown', function (e) {
-        var passo = e.key === 'ArrowRight' ? 1 : (e.key === 'ArrowLeft' ? -1 : 0);
-        if (!passo) return;
+        var abas = $$('.tab').filter(function (a) { return !a.hidden; });
+        var i = abas.indexOf(t);
+        var prox = null;
+        if (TECLAS_ABA[e.key]) prox = abas[(i + TECLAS_ABA[e.key] + abas.length) % abas.length];
+        else if (e.key === 'Home') prox = abas[0];
+        else if (e.key === 'End') prox = abas[abas.length - 1];
+        if (!prox) return;
         e.preventDefault();
-        var prox = abas[(i + passo + abas.length) % abas.length];
         switchKind(prox.dataset.kind);
         prox.focus();
       });
     });
     $('#projectSelect').addEventListener('change', function () {
       var sel = this.value;
+      aberturaPendente = false;
       flushSave().then(function () {
         var p = state.projects.filter(function (x) { return x.id === sel; })[0];
         if (p) loadProject(p);
@@ -23851,6 +25412,7 @@ if(isWorker){
     $('#newProjectTopBtn').addEventListener('click', function () {
       var marco = prompt('Marco do novo relatório (ex.: RANAE J06):', '');
       if (marco === null) return;
+      aberturaPendente = false;
       var p = Store.newProject(marco.trim());
       flushSave().then(function () { return Store.save(p); }).then(function () {
         state.projects.unshift(p);
@@ -24007,7 +25569,10 @@ if(isWorker){
     $('#backupDoneBtn').addEventListener('click', function () { $('#backupDoneDialog').close(); });
 
     /* pasta compartilhada */
-    document.addEventListener('input', function () { ultimaTecla = Date.now(); }, true);
+    document.addEventListener('input', function () {
+      ultimaTecla = Date.now();
+      aberturaPendente = false;   /* a pessoa já está trabalhando: nada troca sozinho */
+    }, true);
     document.addEventListener('keydown', function () { ultimaTecla = Date.now(); }, true);
 
     $('#pastaNoticeBtn').addEventListener('click', function () {
@@ -24453,7 +26018,12 @@ if(isWorker){
           loadProject(p);
         });
       }
-      loadProject(list[0]);
+      /* O marco da vez (Config.MARCO_INICIAL) abre primeiro; sem ele, o mais
+         recente, como sempre foi. Se ele ainda não está neste navegador, a
+         primeira troca com a pasta pode trazê-lo — ver `abrirMarcoInicial`. */
+      var inicial = Config.relatorioInicial(list);
+      aberturaPendente = !inicial;
+      loadProject(inicial || list[0]);
     }).then(function () {
       var itens = 0;
       state.projects.forEach(function (p) {
@@ -24502,6 +26072,7 @@ if(isWorker){
           pastaEstado = 'on';
           agendarPoll();
           return sincronizar({}).then(function () {
+            abrirMarcoInicial();
             agendarPoll();
             return sincronizarConversas({});
           });

@@ -127,8 +127,18 @@ body {
   color: rgba(255, 255, 255, .55);
   white-space: nowrap;
 }
-.topbar-field--grow { flex: 1 1 170px; min-width: 140px; }
+.topbar-field--grow { flex: 1 1 170px; min-width: 120px; }
 .topbar-field select { width: auto; min-width: 152px; max-width: 260px; }
+.topbar-field select:disabled { opacity: .55; cursor: not-allowed; }
+/* por que o seletor está desabilitado, dito ao lado dele (e lido pelo leitor
+   de tela: o select aponta para cá com aria-describedby) */
+.topbar-nota {
+  font-size: 11px;
+  font-style: italic;
+  color: rgba(255, 255, 255, .72);
+  max-width: 190px;
+  line-height: 1.25;
+}
 .topbar-spacer { flex: 1 1 auto; }
 
 /* ações e estado andam juntos e sempre à direita — assim, quando a barra
@@ -151,6 +161,33 @@ body {
   align-items: flex-end;
   gap: 1px;
   min-width: 118px;
+}
+/* a atualização automática: o botão e o contador ao lado dele */
+/* A atualização automática: um botão só, de duas linhas — "⟳ Atualizar" e,
+   embaixo, o contador ("próxima em 04:32"). Junto, cabe na barra sem
+   empurrar as ações para uma segunda linha; a frase inteira fica na dica. */
+.topbar-atualiza { display: flex; align-items: center; }
+.topbar-atualiza-btn {
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0;
+  height: 32px; padding: 0 10px; line-height: 1.1; text-align: left;
+}
+.topbar-atualiza-rot { font-size: 12.5px; }
+.topbar-conta {
+  font-size: 10px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, .72);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.topbar-conta:empty { display: none; }
+.topbar-conta.is-aviso { color: #f2cf8a; }
+/* Com a pasta ligada, as abas Waiver NCR e DEV têm a barra mais cheia do
+   programa (relatório, marco, pasta, atualização, ações e o salvo). Abaixo
+   de uns 1760 px o subtítulo da marca sai, para ela continuar numa linha só
+   por mais tempo — o nome continua, e no visualizador o selo "somente
+   leitura" diz o que o subtítulo dizia. */
+@media (max-width: 1760px) {
+  .brand-text small { display: none; }
 }
 #saveState {
   font-size: 12px;
@@ -285,7 +322,10 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
 
 /* Com cinco abas, largura igual para todas cortava o rótulo mais comprido
    ("Conversa"). Cada uma leva a largura do seu texto e divide a sobra; se um
-   dia não couber, a fila quebra em duas linhas em vez de esconder alguma. */
+   dia não couber, a fila quebra em duas linhas em vez de esconder alguma.
+   Com as sete de hoje (e "Waiver NCR"/"Waiver DEV" por extenso) a letra é
+   um pouco menor e o respiro lateral mais curto: assim elas cabem em duas
+   linhas nos 332 px — Banco NCR, Kanban, Tabela e Waiver NCR na primeira. */
 .tabs {
   display: flex;
   flex-wrap: wrap;
@@ -298,18 +338,18 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   white-space: nowrap;
   font: inherit;
   font-weight: 700;
-  font-size: 13px;
-  letter-spacing: .02em;
+  font-size: 12px;
+  letter-spacing: .01em;
   color: var(--muted);
   background: none;
   border: none;
   border-bottom: 3px solid transparent;
-  padding: 11px 5px 9px;
+  padding: 11px 4px 9px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 4px;
   transition: background .12s, color .12s;
 }
 .tab[data-kind="ncr"]    { --tab: #4B0082; --tab-sf: #f3ecfb; }
@@ -326,6 +366,22 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   border-bottom-color: var(--tab);
   background: var(--tab-sf);
 }
+/* Cada área tem a sua cor (pedido do Bruno: saber de relance onde se está).
+   Discreta: um ponto antes do nome, sempre à vista; a aba aberta ganha o
+   fundo, o texto e a barra na cor. A cor nunca é o único sinal — o nome
+   está escrito, a aba aberta tem barra e fundo, e o leitor de tela ouve
+   "selecionada" (aria-selected). */
+.tab::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tab, var(--muted));
+}
+.tab:focus-visible { outline: 2px solid var(--tab, var(--kind)); outline-offset: -3px; }
+/* a mesma cor numa faixa fina no alto da área aberta */
+.editor { border-top: 3px solid var(--kind); }
 .tab-count {
   font-size: 11px;
   font-weight: 700;
@@ -2767,6 +2823,25 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   border-radius: 999px; padding: 0 6px; font-size: 11px;
 }
 .tb-chip.is-on .tb-chip-n { background: rgba(255, 255, 255, .28); }
+/* a escolha não depende só da cor: a pastilha escolhida leva um ✓ */
+.tb-chip.is-on:not(.tb-chip--card)::before,
+.tb-chip--card.is-on .tb-chip-nome::before { content: '✓'; font-weight: 700; }
+.tb-chip--card.is-on .tb-chip-nome::before { margin-right: 5px; }
+
+/* Mini cards de marco (aba Resumo): a mesma pastilha, com duas linhas — o
+   marco e o total; embaixo, discretos, os aceitos e a divisão NCR/DEV. */
+.tb-chip--card {
+  flex-direction: column; align-items: flex-start; gap: 2px;
+  min-width: 124px; min-height: 44px; padding: 6px 12px;
+  border-radius: 10px; text-align: left; line-height: 1.2;
+}
+.tb-chip-l1 { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; }
+.tb-chip-sub { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.tb-chip--card.is-on .tb-chip-sub { color: rgba(255, 255, 255, .9); }
+.tb-chip--card:not(.is-on):hover { border-color: var(--kind-br); background: var(--kind-sf); }
+/* alinhados com o resto da aba (a mesma coluna de 980 px) */
+.sm-marcos { max-width: 980px; margin: 0 auto 12px; }
+.sm-escopo strong { color: var(--kind); }
 
 /* ==========================================================================
    aba Banco NCR
@@ -2891,17 +2966,30 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .nb2-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
 .nb2-table th {
   position: sticky; top: 0; z-index: 2;
-  text-align: left; padding: 2px 10px; background: #f4f6f9;
-  border-bottom: 2px solid var(--line); white-space: nowrap;
+  text-align: left; padding: 2px 10px; background: #eef1f5;
+  border-bottom: 2px solid #c9ced8; white-space: nowrap;
 }
 .nb2-table th.is-waiver { background: #e9eef4; }
+/* Legibilidade (pedido do Bruno): separador um pouco mais forte e linhas
+   alternadas em dois tons bem próximos — o bastante para o olho seguir a
+   linha de 13 colunas sem virar listra. A alternância é pela posição na
+   tabela (nth-child), então continua certa depois de filtrar, ordenar ou
+   trocar uma linha só (NcrView.atualizarLinha). Os estados (passar o mouse,
+   foco, fixada, fechada em destaque) vêm depois e vencem as duas cores. */
 .nb2-table td {
-  padding: 7px 10px; vertical-align: top; border-bottom: 1px solid var(--line-2);
+  padding: 7px 10px; vertical-align: top; border-bottom: 1px solid #dde1e8;
   line-height: 1.4;
 }
 .nb2-table td.is-waiver { background: #f7f9fb; }
+.nb2-table tbody tr:nth-child(even) td { background: #f5f7fa; }
+.nb2-table tbody tr:nth-child(even) td.is-waiver { background: #eef2f6; }
 .nb2-table td.is-longo { min-width: 150px; max-width: 420px; overflow-wrap: anywhere; }
-.nb2-table tbody tr:hover td { background: #f3f6fa; }
+.nb2-table tbody tr:hover td,
+.nb2-table tbody tr:hover td.is-waiver { background: #e8eef7; }
+/* a linha em que está o foco do teclado (um botão ou uma lista dentro dela) */
+.nb2-table tbody tr:focus-within td,
+.nb2-table tbody tr:focus-within td.is-waiver { background: #e3ebf8; }
+.nb2-table tbody tr:focus-within td:first-child { box-shadow: inset 3px 0 0 var(--kind); }
 .nb2-sort {
   font: inherit; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
   color: #4b5261; background: none; border: none; cursor: pointer;
@@ -2944,14 +3032,16 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .nb2-rel:hover { background: var(--accent-hi); }
 .nb2-add { white-space: nowrap; }
 
-/* fechadas em vermelho, quando o botão está ligado */
-.nb2-table.is-destacando tr.is-fechada td { background: #fdecec; }
-.nb2-table.is-destacando tr.is-fechada td:first-child { box-shadow: inset 4px 0 0 #c62828; }
+/* fechadas em vermelho, quando o botão está ligado (vence a zebra) */
+.nb2-table.is-destacando tbody tr.is-fechada td { background: #fdecec; }
+.nb2-table.is-destacando tbody tr.is-fechada:nth-child(even) td { background: #fbe3e3; }
+.nb2-table.is-destacando tbody tr.is-fechada td:first-child { box-shadow: inset 4px 0 0 #c62828; }
 .nb2-table.is-destacando tr.is-fechada .nb2-tag-fechada { background: #c62828; color: #fff; }
-.nb2-table.is-destacando tr.is-fechada:hover td { background: #fbdcdc; }
+.nb2-table.is-destacando tbody tr.is-fechada:hover td { background: #f8d4d4; }
 /* a linha editada que saiu do filtro continua, marcada, até o filtro mudar */
-.nb2-table tr.is-fixada td { background: #fff8e1; }
-.nb2-table tr.is-fixada td:first-child { box-shadow: inset 4px 0 0 #d9a441; }
+.nb2-table tbody tr.is-fixada td,
+.nb2-table tbody tr.is-fixada:nth-child(even) td { background: #fff8e1; }
+.nb2-table tbody tr.is-fixada td:first-child { box-shadow: inset 4px 0 0 #d9a441; }
 .nb2-table tr.is-ausente td { color: var(--muted); }
 
 .nb2-vazio {
@@ -3083,6 +3173,8 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
 .st-cor--justificar  { --st-cor: #eb6834; --st-sf: #fde9df; --st-tx: #97390f; }
 .st-cor--aceito      { --st-cor: #1baf7a; --st-sf: #dff5ec; --st-tx: #0c6645; }
 .st-cor--fora        { --st-cor: #6b4f9e; --st-sf: #f2eef9; --st-tx: #4a3278; }
+/* a área das encerradas (CEDOC Closure) no Kanban: cinza, de coisa arquivada */
+.st-cor--encerrada   { --st-cor: #7b8494; --st-sf: #f1f2f4; --st-tx: #3f4654; }
 .st-cor-ponto {
   display: inline-block; width: 9px; height: 9px; border-radius: 50%;
   background: var(--st-cor, #9aa1ae); flex: 0 0 auto;
@@ -3160,7 +3252,8 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
 /* ==========================================================================
    aba Kanban
    Cinco colunas lado a lado, cada uma com a cor da situação; o cartão é a
-   NCR. Tudo aqui é tela — o Kanban não tem folha de impressão.
+   NCR. Esta seção é a tela; a folha impressa do Kanban (.kbp-*, A4 ou A3)
+   fica no fim dela, em medidas de papel.
    ========================================================================== */
 .kanban-scroll { overflow: auto; padding: 14px 14px 40px; background: #f4f5f8; }
 .kb { display: flex; flex-direction: column; gap: 12px; min-height: 100%; }
@@ -3228,69 +3321,193 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
 .kb-col-corpo { display: flex; flex-direction: column; gap: 8px; padding: 2px 10px 12px; min-height: 90px; }
 .kb-col-vazia { margin: 8px 2px; font-size: 12px; color: var(--muted); font-style: italic; }
 
+.kb-acoes { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kb-exporta { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+
+/* O cartão nasce recolhido, quase uma linha de lista (pedido do Bruno: ver
+   mais NCRs de uma vez): número, status da NCR, função em poucas letras,
+   sistema, caminho e as ações. O "+" abre a descrição e o resto. A altura
+   recolhida não depende do texto: nada de descrição ali. */
 .kb-card {
-  position: relative; display: flex; flex-direction: column; gap: 6px;
-  background: #fff; border: 1px solid #e3e5ea; border-radius: 10px;
-  padding: 10px 12px 9px 14px; box-shadow: 0 1px 2px rgba(20, 22, 28, .06);
+  position: relative; display: flex; flex-direction: column; gap: 3px;
+  background: #fff; border: 1px solid #e3e5ea; border-radius: 8px;
+  padding: 5px 8px 5px 12px; box-shadow: 0 1px 2px rgba(20, 22, 28, .06);
   transition: box-shadow .12s, transform .12s;
 }
 .kb-card::before {
-  content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 4px;
+  content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 4px;
   border-radius: 0 4px 4px 0; background: var(--st-cor);
 }
 .kb-card[draggable="true"] { cursor: grab; }
-.kb-card:hover { box-shadow: 0 6px 18px rgba(20, 22, 28, .12); transform: translateY(-1px); }
+.kb-card:hover { box-shadow: 0 4px 12px rgba(20, 22, 28, .12); }
 .kb-card.is-arrastando { opacity: .5; transform: rotate(1.5deg); }
 .kb-card.is-alerta { border-color: #f2c7c2; background: #fffafa; }
 .kb-card.is-alerta::before { background: #b42318; }
-.kb-card-topo { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.kb-card.is-aberto { box-shadow: 0 4px 14px rgba(20, 22, 28, .14); }
+.kb-card-topo { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .kb-card-num {
   font: inherit; font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-  font-size: 12.5px; font-weight: 700; color: var(--ink);
-  background: none; border: none; padding: 2px 0; min-height: 24px; cursor: pointer; text-align: left;
-  overflow-wrap: anywhere;
+  font-size: 12px; font-weight: 700; color: var(--ink);
+  background: none; border: none; padding: 1px 0; min-height: 24px; cursor: pointer; text-align: left;
+  min-width: 0; overflow-wrap: anywhere; margin-right: auto;
 }
 .kb-card-num:hover { color: var(--kind); text-decoration: underline; }
 .kb-st-ncr {
-  margin-left: auto; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 10px;
+  font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 10px;
   background: #e7f4ec; color: #1d6b45; white-space: nowrap;
+  max-width: 62%; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto;
 }
 .kb-st-ncr.is-fechada { background: #fdecec; color: #b42318; }
 .kb-st-ncr.is-sem { background: #f1f2f5; color: var(--muted); }
 .kb-st-ncr.is-ok { background: #dff5ec; color: #0c6645; }
 .kb-st-ncr.is-falta { background: #fdf4e3; color: #8a4b00; }
+.kb-alerta-ic { color: #b42318; font-size: 13px; line-height: 1; flex: 0 0 auto; }
+.kb-card-mais {
+  flex: 0 0 auto; width: 24px; height: 24px; padding: 0;
+  font: inherit; font-size: 15px; font-weight: 700; line-height: 1;
+  color: var(--ink-2); background: #fff; border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+}
+.kb-card-mais:hover { color: var(--kind); background: var(--kind-sf); border-color: var(--kind-br); }
+.kb-card-mais[aria-expanded="true"] { color: var(--kind); background: var(--kind-sf); border-color: var(--kind); }
+.kb-card-mais:focus-visible { outline: 2px solid var(--kind); outline-offset: 1px; }
+.kb-card-linha { display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; min-width: 0; }
+.kb-card-meta {
+  display: flex; align-items: center; gap: 5px; flex: 1 1 150px; min-width: 0;
+  font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden;
+}
+.kb-fv {
+  flex: 0 0 auto; font-size: 10.5px; font-weight: 700; color: #34506b; background: #e9eef4;
+  border-radius: 4px; padding: 1px 5px;
+}
+.kb-sis { flex: 0 0 auto; background: #f1f2f5; border-radius: 4px; padding: 1px 5px; color: var(--ink-2); }
+.kb-caminho { font-weight: 700; color: var(--ink-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.kb-nota { font-size: 12px; flex: 0 0 auto; }
+.kb-card-acoes { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; margin-left: auto; }
+.kb-card-acoes .btn--sm { padding: 2px 7px; font-size: 11.5px; min-height: 24px; }
+.kb-sel {
+  font-size: 11.5px; font-weight: 700; color: var(--st-tx); background-color: var(--st-sf);
+  border: 1.5px solid var(--st-cor); border-radius: 6px; padding: 1px 3px; min-height: 24px; max-width: 158px;
+}
+.kb-sem-rel { font-size: 11px; color: var(--muted); font-style: italic; }
+/* o cartão aberto: o que dá contexto */
+.kb-card-det {
+  display: flex; flex-direction: column; gap: 5px;
+  border-top: 1px solid var(--line-2); padding-top: 6px; margin-top: 2px;
+}
 .kb-alerta {
   font-size: 11.5px; color: #7a1b12; background: #fdecec; border-radius: 6px; padding: 4px 8px;
 }
 .kb-alerta strong { color: #b42318; }
 .kb-origem { font-size: 11.5px; color: var(--ink-2); background: #f4f5f8; border-radius: 6px; padding: 3px 8px; }
 .kb-origem--caminho { background: #f3ecfb; color: #4b1d7a; }
-.kb-fv {
-  align-self: flex-start; max-width: 100%;
-  font-size: 11px; font-weight: 700; color: #34506b; background: #e9eef4;
-  border-radius: 6px; padding: 2px 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
+.kb-fv-inteira { font-size: 11px; font-weight: 700; color: #34506b; }
 .kb-desc {
   margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-2);
-  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+  white-space: pre-wrap; overflow-wrap: anywhere;
 }
-.kb-card-pe { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
-.kb-caminho { font-weight: 700; color: var(--ink-2); }
-.kb-sis { background: #f1f2f5; border-radius: 4px; padding: 1px 6px; }
-.kb-nota { font-size: 12px; }
-.kb-card-acoes {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  border-top: 1px solid var(--line-2); padding-top: 7px; margin-top: 2px;
+.kb-desc--vazia { color: var(--muted); font-style: italic; }
+.kb-quem { font-size: 11px; color: var(--muted); }
+.kb-col-enc {
+  display: block; margin-top: 2px; padding: 2px 0; min-height: 24px;
+  font: inherit; font-size: 11.5px; text-align: left; color: var(--st-tx);
+  background: none; border: 0; cursor: pointer; text-decoration: underline;
 }
-.kb-sel {
-  font-size: 12px; font-weight: 700; color: var(--st-tx); background-color: var(--st-sf);
-  border: 1.5px solid var(--st-cor); border-radius: 6px; padding: 2px 4px; min-height: 26px; max-width: 100%;
+.kb-ir-enc { align-self: center; }
+
+/* As encerradas no CEDOC: fora da coluna "NCR to be closed", numa área própria
+   abaixo do quadro. O título, com a quantidade, fica sempre à vista. */
+.kb-enc {
+  background: var(--st-sf); border: 1px solid var(--line); border-radius: 12px;
+  border-top: 4px solid var(--st-cor);
 }
-.kb-quem { font-size: 11px; color: var(--muted); margin-left: auto; }
+.kb-enc-tit { margin: 0; }
+.kb-enc-btn {
+  width: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 12px; min-height: 44px;
+  font: inherit; text-align: left; color: var(--st-tx);
+  background: none; border: 0; border-radius: 10px; cursor: pointer;
+}
+.kb-enc-btn:hover { background: rgba(255, 255, 255, .6); }
+.kb-enc-btn:focus-visible { outline: 2px solid var(--st-tx); outline-offset: -2px; }
+.kb-enc-seta { width: 12px; font-size: 12px; }
+.kb-enc-nome { font-size: 13px; font-weight: 700; }
+.kb-enc-btn .kb-col-n { font-size: 12px; }
+.kb-enc-dica { flex: 1 1 280px; font-size: 11.5px; font-weight: 400; color: var(--ink-2); }
+.kb-enc-corpo {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px;
+  padding: 2px 12px 12px; align-items: start;
+}
+
+/* a janela da exportação visual */
+.kb-imp-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; margin: 10px 0; }
+.kb-imp-grupo { margin: 0; padding: 8px 12px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.kb-imp-grupo legend { padding: 0 4px; font-size: 12px; font-weight: 700; color: var(--ink-2); }
+.kb-imp-op { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; cursor: pointer; }
+.kb-imp-op input { width: auto; margin: 0; accent-color: var(--kind); }
+.kb-imp-previa { margin: 6px 0 0; font-size: 13px; font-weight: 600; color: var(--kind); }
+.kb-imp-previa:empty { display: none; }
+
 @media (max-width: 900px) {
   .kb-cab { grid-template-columns: 1fr; }
   .kb-ferr { justify-content: flex-start; }
+  .kb-exporta { margin-left: 0; }
+  .kb-imp-grade { grid-template-columns: 1fr; }
 }
+
+/* --- o Kanban impresso (kanban.js, montarFolhas) ------------------------------
+   Folha própria, A4 ou A3, retrato ou paisagem, com as margens feitas de
+   padding como as do relatório (report.css). Tudo em mm/pt e relativo a
+   --kbp-fs, a letra que a escala automática escolhe; nada depende da
+   largura da tela — as media queries de tela estreita também valem no papel
+   (CLAUDE.md, §6), e aqui nenhuma alcança estas classes. */
+/* duas classes: .rep-page (report.css, carregado depois) fixa 11pt */
+.rep-page.rep-page--kanban { font-family: Arial, Helvetica, sans-serif; font-size: var(--kbp-fs, 8pt); line-height: 1.25; color: #111; }
+.kbp-cab { margin-bottom: 3mm; }
+.kbp-tit { font-size: 1.9em; font-weight: 700; line-height: 1.15; }
+.kbp-tit strong { color: #8b1e5b; }
+.kbp-cont { font-size: .6em; font-weight: 400; color: #555; }
+.kbp-info { margin-top: .6mm; color: #444; }
+.kbp-nums { margin-top: .8mm; font-weight: 700; color: #222; }
+.kbp-quadro { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2mm; align-items: start; }
+.kbp-col { min-width: 0; background: var(--st-sf); border-top: 1.2mm solid var(--st-cor); border-radius: 1.2mm; }
+.kbp-col-cab {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 1mm;
+  padding: 1mm 1.5mm; font-size: 1.05em; font-weight: 700; color: var(--st-tx);
+}
+.kbp-col-n { font-weight: 700; white-space: nowrap; }
+.kbp-col-corpo { padding: 0 1.2mm 1.2mm; }
+.kbp-card {
+  margin: 0 0 1.2mm; padding: .8mm 1.2mm;
+  background: #fff; border: .2mm solid #d5d8de; border-left: .9mm solid var(--st-cor); border-radius: .8mm;
+  break-inside: avoid; page-break-inside: avoid;
+}
+.kbp-card.is-alerta { border-left-color: #b42318; background: #fff7f7; }
+.kbp-num { font-weight: 700; overflow-wrap: anywhere; }
+.kbp-st { font-weight: 700; color: #1d6b45; }
+.kbp-st.is-fechada { color: #b42318; }
+.kbp-st.is-sem { color: #777; font-weight: 400; }
+.st-cor--fora .kbp-st { color: #8a4b00; }
+.st-cor--fora .kbp-st.is-fechada, .st-cor--encerrada .kbp-st.is-fechada { color: #0c6645; }
+.kbp-l2 { font-size: .92em; color: #333; overflow-wrap: anywhere; }
+.kbp-alerta { font-size: .9em; font-weight: 700; color: #b42318; }
+.kbp-origem { font-size: .88em; font-style: italic; color: #555; }
+.kbp-fv { font-size: .9em; font-weight: 700; color: #34506b; }
+.kbp-desc { margin-top: .5mm; font-size: .92em; color: #222; white-space: pre-wrap; overflow-wrap: anywhere; }
+.kbp-quem { font-size: .85em; color: #666; }
+.kbp-vazia { padding: 1mm; font-style: italic; color: #777; }
+.kbp-pe { margin-top: auto; padding-top: 2mm; font-size: .9em; color: #666; text-align: right; }
+.kbp-enc { margin-top: 4mm; }
+.kbp-enc-tit {
+  margin-bottom: 1mm; padding-bottom: .8mm; font-size: 1.1em; font-weight: 700;
+  color: #3f4654; border-bottom: .3mm solid #7b8494;
+}
+.kbp-enc-linha {
+  display: flex; gap: 2mm; padding: .6mm 0; border-bottom: .15mm solid #e1e3e8;
+  break-inside: avoid; page-break-inside: avoid;
+}
+.kbp-enc-linha .kbp-num { flex: 0 0 auto; }
+.kbp-enc-st { flex: 0 0 auto; font-weight: 700; color: #0c6645; }
+.kbp-enc-txt { flex: 1 1 auto; min-width: 0; color: #333; }
 
 /* ==========================================================================
    publicação para os visualizadores (editor)

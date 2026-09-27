@@ -28,15 +28,19 @@
           title="Este é o visualizador: mostra e exporta, mas não altera nada dos relatórios">somente leitura</span>
   </div>
 
+  <!-- O relatório aberto só manda nas abas Waiver NCR e Waiver DEV (e na
+       aba Fluxos, quando ela olha "este relatório"). Nas outras o campo some
+       — cada uma tem o próprio recorte. Ver renderSeletorGlobal() no app.js. -->
   <div class="topbar-group">
-    <div class="topbar-field">
+    <div class="topbar-field" id="relatorioCampo">
       <label for="projectSelect">Relatório</label>
-      <select id="projectSelect"></select>
+      <select id="projectSelect" aria-describedby="relatorioNota"></select>
+      <span class="topbar-nota" id="relatorioNota" hidden></span>
     </div>
     <button data-so-editor class="btn btn--onDark" id="newProjectTopBtn" title="Criar um relatório para outro marco">+ Novo relatório</button>
   </div>
 
-  <div data-so-editor class="topbar-field topbar-field--grow">
+  <div data-so-editor class="topbar-field topbar-field--grow" id="marcoCampo">
     <label for="marcoInput">Marco</label>
     <input type="text" id="marcoInput" placeholder="ex.: RANAE J06">
   </div>
@@ -53,7 +57,16 @@
   <button class="pasta-chip leitura-fonte" id="fonteChip" hidden data-estado="erro">
     <span id="fonteChipLabel">📄 sem dados</span>
   </button>
-  <button class="btn btn--onDark" id="atualizarBtn" hidden title="Ler de novo a publicação">⟳ Atualizar</button>
+  <!-- a atualização automática (atualizacao.js): o botão de agora e o
+       contador da próxima. No editor só aparece com a pasta da equipe; no
+       visualizador, sempre. -->
+  <div class="topbar-atualiza" id="atualizaBox" hidden>
+    <button class="btn btn--onDark topbar-atualiza-btn" id="atualizarBtn" aria-label="Atualizar agora"
+            aria-describedby="atualizarConta">
+      <span class="topbar-atualiza-rot">⟳ Atualizar</span>
+      <span class="topbar-conta" id="atualizarConta" role="timer" aria-live="off"></span>
+    </button>
+  </div>
   <div class="topbar-actions">
     <button class="btn btn--onDark" id="previewBtn">Pré-visualizar</button>
     <button class="btn btn--go" id="pdfBtn">Exportar PDF…</button>
@@ -166,38 +179,45 @@
 <div class="layout">
 
   <aside class="sidebar">
-    <div class="tabs" role="tablist" aria-label="Tipo de derrogação">
-      <button class="tab" role="tab" id="tabNcr" data-kind="ncr"
-              aria-selected="true" aria-controls="editorScroll" tabindex="0">
-        NCR <span class="tab-count">0</span>
-      </button>
-      <button class="tab" role="tab" id="tabDev" data-kind="dev"
-              aria-selected="false" aria-controls="editorScroll" tabindex="-1">
-        DEV <span class="tab-count">0</span>
-      </button>
-      <button class="tab" role="tab" id="tabResumo" data-kind="resumo"
-              aria-selected="false" aria-controls="summaryScroll" tabindex="-1">
-        Resumo
-      </button>
-      <button class="tab" role="tab" id="tabFluxos" data-kind="fluxos"
-              aria-selected="false" aria-controls="fluxosScroll" tabindex="-1"
-              title="O caminho dos waivers de cada item, lido do Waiver Historic">
-        Fluxos
-      </button>
-      <button class="tab" role="tab" id="tabTabela" data-kind="tabela"
-              aria-selected="false" aria-controls="tabelaScroll" tabindex="-1"
-              title="Todos os itens de todos os relatórios, em tabela: busca, filtros e exportação">
-        Tabela
-      </button>
+    <!-- A ordem é a do trabalho, pedida pelo Bruno: o banco de NCRs, o quadro
+         do marco, a tabela de todos os itens e só então os dois relatórios de
+         Waiver. As chaves internas (data-kind "ncr" e "dev") não mudaram: só
+         os rótulos. Resumo, Fluxos e Conversa vêm depois. -->
+    <div class="tabs" role="tablist" aria-label="Áreas do programa">
       <button class="tab" role="tab" id="tabBanco" data-kind="banco"
               aria-selected="false" aria-controls="bancoScroll" tabindex="-1"
-              title="As NCRs do SBR4 importadas do banco NCR, com marcos, função vital e observação">
+              title="Banco NCR — as NCRs do SBR4 importadas do banco NCR, com marcos, função vital e observação">
         Banco NCR
       </button>
       <button class="tab" role="tab" id="tabKanban" data-kind="kanban"
               aria-selected="false" aria-controls="kanbanScroll" tabindex="-1"
-              title="As NCRs de um marco em cartões, por situação do waiver">
+              title="Kanban — as NCRs de um marco em cartões, por situação do waiver">
         Kanban
+      </button>
+      <button class="tab" role="tab" id="tabTabela" data-kind="tabela"
+              aria-selected="false" aria-controls="tabelaScroll" tabindex="-1"
+              title="Tabela — todos os itens de todos os relatórios: busca, filtros e exportação">
+        Tabela
+      </button>
+      <button class="tab" role="tab" id="tabNcr" data-kind="ncr"
+              aria-selected="true" aria-controls="editorScroll" tabindex="0"
+              title="Waiver NCR — o relatório de waiver das NCRs do marco aberto: a lista de itens e o formulário">
+        Waiver NCR <span class="tab-count">0</span>
+      </button>
+      <button class="tab" role="tab" id="tabDev" data-kind="dev"
+              aria-selected="false" aria-controls="editorScroll" tabindex="-1"
+              title="Waiver DEV — o relatório de waiver dos desvios (DEV) do marco aberto: a lista de itens e o formulário">
+        Waiver DEV <span class="tab-count">0</span>
+      </button>
+      <button class="tab" role="tab" id="tabResumo" data-kind="resumo"
+              aria-selected="false" aria-controls="summaryScroll" tabindex="-1"
+              title="Resumo — números, gráficos e tabelas de todos os marcos">
+        Resumo
+      </button>
+      <button class="tab" role="tab" id="tabFluxos" data-kind="fluxos"
+              aria-selected="false" aria-controls="fluxosScroll" tabindex="-1"
+              title="Fluxos — o caminho dos waivers de cada item, lido do Waiver Historic">
+        Fluxos
       </button>
       <button data-so-editor class="tab" role="tab" id="tabConversa" data-kind="conversa"
               aria-selected="false" aria-controls="conversaScroll" tabindex="-1" hidden
@@ -556,7 +576,7 @@
   <div class="dlg-body">
     <h3>Ajustes do relatório</h3>
     <p>Textos fixos que aparecem nas páginas. Valem para este relatório
-       (as duas abas) e quase nunca precisam ser mudados.</p>
+       (Waiver NCR e Waiver DEV) e quase nunca precisam ser mudados.</p>
     <div id="settingsBody"></div>
   </div>
   <div class="dlg-actions">
@@ -650,6 +670,11 @@
   <div class="nb-ficha-corpo"></div>
 </dialog>
 <dialog id="nbColsDialog" class="dlg--wide nb-dlg">
+  <div class="dlg-body"></div>
+  <div class="dlg-actions"></div>
+</dialog>
+<!-- exportação visual do Kanban: papel, orientação, escala — montada por kanban.js -->
+<dialog id="kbExportDialog" class="dlg--wide" aria-label="Exportar o Kanban para impressão">
   <div class="dlg-body"></div>
   <div class="dlg-actions"></div>
 </dialog>
@@ -816,6 +841,8 @@
 <div class="print-root" id="printRoot"></div>
 
 <script src="assets/js/log.js"></script>
+<script src="assets/js/config.js"></script>
+<script src="assets/js/atualizacao.js"></script>
 <script src="assets/js/leitura.js"></script>
 <script src="assets/js/store.js"></script>
 <script src="assets/js/revisoes.js"></script>

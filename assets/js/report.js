@@ -113,9 +113,11 @@
     return valor * umMm;
   }
 
-  /** Altura da folha, em pixels. */
+  /** Altura da folha, em pixels. A A3 só existe no Kanban impresso. */
   function limite(p) {
-    return mm(p.classList.contains('rep-page--landscape') ? 210 : 297);
+    var deitada = p.classList.contains('rep-page--landscape');
+    if (p.classList.contains('rep-page--a3')) return mm(deitada ? 297 : 420);
+    return mm(deitada ? 210 : 297);
   }
 
   /* A folha tem `min-height` de uma página inteira, então altura igual ao
@@ -579,6 +581,9 @@
     paginar: paginar,
     abrirMedida: abrirMedida,
     fecharMedida: fecharMedida,
+    /* quem monta folha própria (o Kanban impresso) mede com a mesma régua */
+    limite: limite,
+    mm: mm,
     itensLongos: itensLongos,
     zerarContagem: zerarContagem,
     buildMany: buildMany,

@@ -8,6 +8,20 @@ login e nenhum dado sai do computador.
 
 ## O que faz
 
+- **As áreas, nesta ordem** (as abas do canto de cima, cada uma com a sua
+  cor): **Banco NCR**, **Kanban**, **Tabela**, **Waiver NCR**, **Waiver DEV**
+  — e depois **Resumo** e **Fluxos**. As setas do teclado andam entre elas;
+  Home e End vão às pontas. O seletor **Relatório** da barra de cima só
+  aparece onde o relatório aberto decide o que está na tela (as duas abas
+  Waiver e a aba Fluxos, quando ela olha "este relatório"); nas outras cada
+  aba tem o próprio recorte. Ver [As áreas e o seletor de relatório](#as-áreas-e-o-seletor-de-relatório).
+- **Abre no marco da vez.** Hoje o **J09**: o relatório dele vem aberto, o
+  Kanban e o Resumo nascem nele. Sem o J09, abre o relatório mexido por último,
+  como sempre foi. Ver [O marco que abre primeiro](#o-marco-que-abre-primeiro).
+- **Atualização automática.** Com a pasta da equipe (e no visualizador), os
+  dados são conferidos sozinhos a cada **5 minutos**, com o contador à vista
+  no botão **⟳ Atualizar** ("próxima em 04:32"). Ver
+  [Atualização automática](#atualização-automática).
 - **Visualizador somente leitura.** Para quem só acompanha: o mesmo
   programa, num arquivo à parte (`derrogacao-visualizador.html`), com todas
   as abas e exportações — e nada que grave. Os dados chegam por publicação a
@@ -19,11 +33,13 @@ login e nenhum dado sai do computador.
   desenhado como no NCR Control e o botão que leva a NCR ao relatório de
   Waiver do marco. Ver [Aba Banco NCR](#aba-banco-ncr).
 
-- **Aba Kanban.** As NCRs de um marco (J09, por exemplo) em cartões, uma
-  coluna por situação do waiver, com as cores de sempre. Arrastar o cartão
-  muda a situação. Ver [Aba Kanban](#aba-kanban).
+- **Aba Kanban.** As NCRs de um marco (J09, por exemplo) em cartões
+  compactos, uma coluna por situação do waiver, com as cores de sempre; as já
+  encerradas em *CEDOC Closure* numa área à parte. Arrastar o cartão muda a
+  situação. Exporta em **PDF para imprimir (A4 ou A3)** e em **Excel**. Ver
+  [Aba Kanban](#aba-kanban).
 
-- **Duas abas: NCR e DEV.** As duas categorias seguem o mesmo layout e são
+- **Duas abas: Waiver NCR e Waiver DEV.** As duas categorias seguem o mesmo layout e são
   preenchidas ao mesmo tempo, cada uma com o seu marco, e **exportadas como
   dois PDFs independentes**. As diferenças da DEV, conforme o relatório
   original: capa com prefixo `DEV:`, número e descrição num campo só
@@ -104,8 +120,8 @@ login e nenhum dado sai do computador.
 
 ## Como usar
 
-1. Escolha a aba **NCR** ou **DEV** e preencha o **Marco** no topo (cada aba
-   tem o seu; a DEV usa o marco da NCR se ficar em branco).
+1. Escolha a aba **Waiver NCR** ou **Waiver DEV** e preencha o **Marco** no
+   topo (cada aba tem o seu; a DEV usa o marco da NCR se ficar em branco).
 2. **+ Nova NCR** / **+ Nova DEV** na lateral esquerda e preencha os campos de
    identificação. O título da página é montado como `NCR-...|RM|FV 01 - ...`
    ou `DEV-78154|BQ - ...`, igual ao original.
@@ -162,6 +178,66 @@ mesmo o valor usado quando o campo fica em branco.
 Os títulos de capa, o rodapé, a data de emissão e o marco alternativo da capa
 da DEV ficam em **⋯ Mais → Ajustes de capa e rodapé** — textos fixos que quase
 nunca mudam.
+
+## As áreas e o seletor de relatório
+
+| Área | Para quê |
+| --- | --- |
+| **Banco NCR** | as NCRs do SBR4 importadas do banco NCR |
+| **Kanban** | as NCRs de um marco, por situação do waiver |
+| **Tabela** | todos os itens de todos os marcos, com busca e exportação |
+| **Waiver NCR** | o relatório de waiver das NCRs do marco aberto (lista e formulário) |
+| **Waiver DEV** | o mesmo, para os desvios (DEV) |
+| **Resumo** · **Fluxos** | números e gráficos; o caminho dos waivers |
+
+Cada área tem a sua cor — um ponto antes do nome, e a aba aberta com o fundo e
+a barra na cor. A cor ajuda a reconhecer de relance, mas nunca é o único sinal:
+o nome está escrito e a aba aberta tem barra e fundo.
+
+O seletor **Relatório** (e o campo **Marco**) da barra de cima escolhe o
+relatório aberto nas abas **Waiver NCR** e **Waiver DEV**. No **Banco NCR**,
+no **Kanban**, na **Tabela** e no **Resumo** ele não mudava nada — cada uma
+tem o próprio recorte (as pastilhas de marco, os filtros) — e por isso some
+ali. Na aba **Fluxos** ele fica, e vale quando a vista olha "este relatório";
+com "todos os marcos" (ou no painel) ele aparece desabilitado, dizendo que não
+se aplica. Nas abas com exportação própria, o botão de cima passa a se chamar
+**PDF dos relatórios…** — é o PDF do Waiver Request, não o da tela.
+
+## O marco que abre primeiro
+
+Ao abrir, o programa vai direto ao relatório do **J09** (o editor e o
+visualizador), e o Kanban e o Resumo nascem nele. A comparação ignora
+maiúsculas, espaços e zero à esquerda (`j 9` é o `J09`) e aceita o prefixo
+`RANAE` (`RANAE J09`), mas não confunde com outro marco: `J09 Ind`, `J09Cer` e
+`J19` não são o J09. Sem o J09 neste navegador, abre o relatório mexido por
+último, como sempre foi — nada é criado para cumprir a regra. Se o J09 só
+chegar pela pasta da equipe, ele passa a estar aberto na primeira troca com a
+pasta, desde que você ainda não tenha escolhido nem escrito nada.
+
+O marco da vez fica num lugar só (`assets/js/config.js`, `MARCO_INICIAL`):
+quando for outro, é uma linha.
+
+## Atualização automática
+
+Quando os dados podem mudar por fora — com a **pasta da equipe** ligada, no
+editor, e sempre no **visualizador** —, o programa confere sozinho a cada
+**5 minutos**. O botão **⟳ Atualizar**, na barra de cima, mostra embaixo quanto
+falta ("próxima em 04:32"); clicando, confere na hora e a contagem recomeça.
+
+- Nada é recarregado: o que chegou entra na tela, e o que você está vendo
+  (relatório, aba, item) continua.
+- Nada do que você escreveu se perde: com alguém digitando ou uma janela
+  aberta, a conferência espera alguns segundos; o botão grava o que está aqui
+  antes de ler, e a junção com o que veio da pasta é campo a campo, como
+  sempre.
+- Com a janela do programa em segundo plano, o contador para e nada é lido. Ao
+  voltar, se passou mais de um minuto, confere na hora.
+- Se a conferência falhar, os dados à vista ficam como estão e o botão diz
+  "falhou · de novo em …" (no visualizador aparece também o aviso de cima,
+  com **⟳ Atualizar**).
+- No editor, a conferência rápida de 20 s continua trazendo o trabalho do
+  colega em segundos; o ciclo de 5 minutos é a garantia com hora marcada.
+  Sem a pasta, nada muda por fora — e o botão nem aparece.
 
 ## Anotação do item
 
@@ -705,17 +781,21 @@ fila, cada uma com quantas NCRs tem) e veja cada NCR num cartão.
 | --- | --- |
 | **NCR to be closed** | toda NCR do marco que **não está no Waiver dele**: as do banco com **Marco Atual** igual ao marco (o cartão diz se ela está no Waiver de outro marco ou em nenhum, e tem o botão **+ J09 Waiver**) e os itens de **outros marcos** cujo waiver vale até este (*Approved Expiry*, ou *Request Expiry*) e ainda não foram levados. Sem waiver, a NCR precisa ser fechada até o marco: aqui o status **fechada fica verde (✓)** e a aberta em âmbar, as abertas vêm primeiro, e o alto da coluna conta "37 de 114 já fechadas · 77 a fechar" |
 | **Em preenchimento · Waiver requested · Improve justification · Waiver accepted** | os itens NCR do relatório do marco, pela situação |
+| **Encerradas — CEDOC Closure** (abaixo do quadro) | as NCRs da primeira coluna que já estão em **CEDOC Closure** no banco NCR: encerradas, saíram de "NCR to be closed". A área recolhe (a escolha fica neste navegador), mas o título mostra sempre quantas são; a primeira coluna e a faixa de números também avisam |
 
+- **Cartões compactos.** Recolhido, o cartão é quase uma linha de lista: o
+  número, o status da NCR no banco, a função vital em poucas letras (`FV03`),
+  os bigramas, o caminho e as ações. O **+** abre a descrição inteira, a
+  origem, o alerta por extenso e quem mexeu por último; o **−** recolhe.
+  **＋ Abrir todos os cartões** faz o mesmo com todos. Abrir e recolher é só
+  tela: não grava nada nem muda a coluna.
 - O marco casa com o relatório pelo **texto igual**, a mesma regra do Banco
   NCR: **nada de *J09 Ind* entra no quadro do J09** — nem a NCR com Marco
   Atual *J09 Ind*, nem o item cujo waiver vale até *J09 Ind*. Os marcos
   industriais (*Ind*) nem aparecem no seletor, a não ser que você ligue
   **Marcos industriais (Ind)**.
-- O cartão mostra o número, o **status da NCR no banco** (vermelho quando
-  fechada), a função vital, o começo da descrição, o caminho
-  (`J06 → J08 → (J10)`), os bigramas e quem mexeu por último. NCR fechada com
-  waiver pendente sobe para o alto da coluna, em vermelho; **⚠ Só com
-  alerta** mostra só essas.
+- NCR fechada com waiver pendente sobe para o alto da coluna, em vermelho, com
+  **⚠**; **⚠ Só com alerta** mostra só essas.
 - **Arrastar o cartão para outra coluna muda a situação** do item (grava com
   autoria e vai para a pasta como qualquer edição). Sem arrastar: a lista
   de situação em cada cartão. Tirar um item de *Waiver accepted* pede
@@ -723,7 +803,18 @@ fila, cada uma com quantas NCRs tem) e veja cada NCR num cartão.
   relatório já nessa situação.
 - Clicar no número abre o item no editor (ou a ficha, para a NCR que ainda
   não está no relatório).
-- O Kanban é só tela: **o PDF do relatório não muda**.
+
+### Exportar o Kanban
+
+As duas exportações levam **o que está à vista**: o marco escolhido e os
+filtros ligados (a busca, "só com alerta", "as que vêm de outros marcos").
+
+| Botão | O que sai |
+| --- | --- |
+| **🖨 Exportar visual para impressão…** | o quadro em PDF, pela janela de impressão do navegador: papel **A4 ou A3**, **retrato ou paisagem**; escala "caber na largura" (quantas folhas precisar, sem cortar coluna nem cartão, com o cabeçalho das colunas repetido) ou "caber numa folha só" (a letra diminui); com ou sem a descrição nos cartões e a lista das encerradas no fim. A folha diz o marco, os filtros, a data e a hora; a janela avisa antes quantas folhas sairão e com que tamanho de letra. Na impressão: **Salvar como PDF** e margens **Nenhuma** — o papel já vai certo |
+| **⤓ Excel** | uma linha por NCR, com número, marco, coluna do Kanban, situação do waiver, origem, sistema, função vital, status da NCR, se está fechada, alerta, caminho, descrição completa, responsável, quem alterou por último e quando — e a aba **Recorte** dizendo de que marco e de que filtro a planilha saiu |
+
+O Kanban continua sem tocar no **PDF do relatório**.
 
 ## Aba Banco NCR
 
@@ -748,6 +839,11 @@ de correlação e os relatórios têm em comum.
 - **A tabela é a página inteira** e mostra **todas** as NCRs, rolando para
   baixo; o cabeçalho fica grudado no alto. A barra lateral vira um trilho
   estreito, só com as abas.
+- **Linhas alternadas** em dois tons bem próximos e separadores um pouco mais
+  fortes, para o olho seguir a linha de uma ponta à outra. A alternância
+  acompanha o filtro e a ordem; passar o mouse, a linha com o foco do teclado,
+  a linha presa depois de editar (amarela) e as fechadas em destaque
+  (vermelhas) continuam com cor própria.
 - **Barra de cima** (sempre à vista): busca em qualquer campo, **● Destacar
   fechadas** (pinta de vermelho as NCRs com status *Closed*, *CEDOC
   Closure*…), **Só abertas**, **Colunas…**, **Excel**, **CSV** e **Recolher
@@ -899,8 +995,15 @@ backup nem em nenhuma página do PDF — relatório é relatório.
 
 ## Aba Resumo
 
-A terceira aba reúne **todos os marcos deste navegador**, não só o relatório
-aberto:
+A aba reúne **todos os marcos deste navegador**, não só o relatório aberto.
+
+No alto, os **marcos em mini cards** — a mesma pastilha do Kanban e da Tabela,
+na ordem da fila: **Todos os marcos** e um card por marco, cada um com o total
+de itens, a porcentagem já aceita e a divisão NCR/DEV (com os filtros de baixo
+aplicados). Um clique (ou Tab e Enter) escolhe o marco; o escolhido tem ✓. A
+aba abre no **J09**, se ele existir; depois fica o que você escolheu, até
+fechar a página. A barra logo abaixo diz o escopo por extenso — "Marco J09" ou
+"Todos os marcos" — e traz as exportações dele.
 
 - **Números do escopo**: itens em derrogação (com a divisão NCR/DEV), em
   *waiver accepted*, em andamento e páginas de evidência.
@@ -917,7 +1020,8 @@ aberto:
 
 ### Filtros
 
-Abaixo do seletor de marco há uma linha de filtros, que se somam:
+Abaixo dos mini cards há uma linha de filtros, que se somam ao marco
+escolhido:
 
 | Filtro | Serve para |
 | --- | --- |
@@ -933,15 +1037,16 @@ filtrado** — e é isso que sai no **Resumo em PDF** (que traz uma linha dizend
 qual foi o recorte) e na **planilha CSV**. O **Backup deste marco** é a exceção
 proposital: sai sempre inteiro, porque backup pela metade não é backup.
 
-Escolhendo um marco no seletor (ou clicando no nome dele na tabela), a aba passa
-ao detalhe daquele marco: os mesmos gráficos, a lista completa de NCRs e DEVs e a
-contagem por certificado impactado. Nesse modo aparecem três exportações:
+Escolhendo um marco nos mini cards (ou clicando no nome dele na tabela), a aba
+passa ao detalhe daquele marco: os mesmos gráficos, a lista completa de NCRs e
+DEVs e a contagem por certificado impactado. As exportações acompanham o
+escopo:
 
 | Botão | O que sai |
 | --- | --- |
-| **Resumo em PDF** | Folhas A4 com os números, os gráficos e a lista de itens — com quantas folhas forem precisas, o título repetido e as mesmas margens em todas |
-| **Planilha (CSV)** | Uma linha por NCR/DEV, com todos os campos — abre no Excel |
-| **Backup deste marco** | O `.json` só desse marco, para enviar a alguém |
+| **Resumo em PDF** / **Resumo geral em PDF** | Folhas A4 com os números, os gráficos e a lista de itens — do marco escolhido, ou de todos — com quantas folhas forem precisas, o título repetido e as mesmas margens em todas |
+| **Planilha (CSV)** | Uma linha por NCR/DEV, com todos os campos — do marco, ou de todos os marcos — abre no Excel |
+| **Backup deste marco** (com um marco escolhido) | O `.json` só desse marco, inteiro, para enviar a alguém |
 
 Um texto que comece por `=`, `+`, `-` ou `@` sai da planilha com um apóstrofo à
 frente: sem isso o Excel o trataria como fórmula. O apóstrofo não aparece na
@@ -1349,6 +1454,8 @@ assets/icons/            ícones do aplicativo instalado
 assets/css/app.css       estilos do editor
 assets/css/report.css    layout do relatório (tela e impressão A4)
 assets/js/log.js         o diário do console, em português
+assets/js/config.js      o marco que abre primeiro e o ritmo da atualização
+assets/js/atualizacao.js a atualização automática: o ciclo e o contador
 assets/js/leitura.js     o modo leitura (o visualizador): liga e blinda
 assets/js/store.js       modelo de dados, persistência (IndexedDB) e mesclagem
 assets/js/revisoes.js    o histórico do texto: quem escreveu o quê, campo a campo
@@ -1373,6 +1480,7 @@ assets/js/app.js         lógica do editor
 derrogacao.html          o programa inteiro num arquivo só (gerado)
 derrogacao-visualizador.html  o visualizador somente leitura (gerado)
 tools/build-standalone.py  gera (e confere) os dois arquivos únicos
+tests/                   testes de ponta a ponta (Playwright) — ver tests/README.md
 exemplos/                relatórios .json prontos para importar
 CLAUDE.md                notas de manutenção: decisões, armadilhas, porquês
 ```

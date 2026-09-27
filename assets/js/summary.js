@@ -545,15 +545,30 @@
     return '"' + v.replace(/"/g, '""') + '"';
   }
 
+  var CAB_CSV = ['Marco', 'Tipo', 'Numero', 'Sistemas', 'Funcao/Descricao',
+                 'Situacao (controle interno)',
+                 'Arch Status', 'Request Expiry', 'Approved Expiry', 'Concluido',
+                 'Certificados', 'Anexos', 'Imagens', 'Alterado por', 'Alterado em',
+                 'Dias sem edicao'];
+
   /** Planilha com uma linha por NCR/DEV, para abrir no Excel. */
   function toCsv(project, filtros) {
+    /* BOM para o Excel reconhecer os acentos */
+    return '\ufeff' + CAB_CSV.map(csvCampo).join(';') + '\n' + linhasCsv(project, filtros).join('\n');
+  }
+
+  /** A mesma planilha com todos os marcos, na fila dos marcos. */
+  function toCsvTodos(projects, filtros) {
+    var linhas = [];
+    ordenarPorMarco((projects || []).map(function (p) { return S.statsDe(p, filtros); })).forEach(function (st) {
+      linhas = linhas.concat(linhasCsv(st.project, filtros));
+    });
+    return '\ufeff' + CAB_CSV.map(csvCampo).join(';') + '\n' + linhas.join('\n');
+  }
+
+  function linhasCsv(project, filtros) {
     var st = S.statsDe(project, filtros);
-    var cab = ['Marco', 'Tipo', 'Numero', 'Sistemas', 'Funcao/Descricao',
-               'Situacao (controle interno)',
-               'Arch Status', 'Request Expiry', 'Approved Expiry', 'Concluido',
-               'Certificados', 'Anexos', 'Imagens', 'Alterado por', 'Alterado em',
-               'Dias sem edicao'];
-    var linhas = st.linhas.map(function (r) {
+    return st.linhas.map(function (r) {
       var n = r.item;
       var imgs = (n.evidence || []).reduce(function (a, e) { return a + (e.images || []).length; }, 0);
       return [
@@ -568,8 +583,60 @@
         S.diasSemMexer(n) === null ? '' : S.diasSemMexer(n)
       ].map(csvCampo).join(';');
     });
-    /* BOM para o Excel reconhecer os acentos */
-    return '﻿' + cab.map(csvCampo).join(';') + '\n' + linhas.join('\n');
+  }
+
+  /** Os marcos na fila combinada (Fluxo.cmpMarco), os sem marco no fim. */
+  function ordenarPorMarco(stats) {
+    return stats.slice().sort(function (a, b) {
+      var sa = String(a.project.marco || '').trim(), sb = String(b.project.marco || '').trim();
+      if (!sa || !sb) return sa ? -1 : (sb ? 1 : 0);
+      return Fluxo.cmpMarco(sa, sb);
+    });
+  }
+
+  /**
+   * Os marcos em mini cards — a mesma pastilha (tb-chip) do filtro de marcos
+   * da Tabela e do Kanban, na mesma fila (Fluxo.cmpMarco). Cada uma diz o
+   * total de itens e quantos já estão aceitos (com os filtros aplicados, como
+   * os números logo abaixo). Escolha única: um marco, ou "Todos os marcos".
+   * Era um <select>; trocar de marco pedia abrir a lista e ler texto
+   * corrido.
+   */
+  function miniCardsDeMarco(host, dados, filtro, acoes) {
+    var box = el('div', 'tb-marcos sm-marcos');
+    box.setAttribute('role', 'group');
+    box.setAttribute('aria-label', 'Marco do resumo');
+    box.appendChild(el('span', 'tb-marcos-rot', 'Marco'));
+    function card(id, nome, st) {
+      var on = (filtro || '') === id;
+      var b = el('button', 'tb-chip tb-chip--card' + (on ? ' is-on' : ''));
+      b.type = 'button';
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.dataset.marco = id;
+      var l1 = el('span', 'tb-chip-l1');
+      l1.appendChild(el('span', 'tb-chip-nome', nome));
+      l1.appendChild(el('span', 'tb-chip-n', num(st.total)));
+      b.appendChild(l1);
+      b.appendChild(el('span', 'tb-chip-sub',
+        pct(st.concluidos, st.total) + ' aceitos · ' + st.ncr + ' NCR · ' + st.dev + ' DEV'));
+      var falar = nome + ': ' + st.total + ' ite' + (st.total === 1 ? 'm' : 'ns') + ', ' +
+        st.concluidos + ' aceito' + (st.concluidos === 1 ? '' : 's') + ' (' + pct(st.concluidos, st.total) + '), ' +
+        st.ncr + ' NCR e ' + st.dev + ' DEV';
+      b.setAttribute('aria-label', falar);
+      b.title = falar + ' · ' + st.pendentes + ' pendente' + (st.pendentes === 1 ? '' : 's') +
+        (id ? '' : '\nO resumo consolidado de todos os relatórios deste navegador.');
+      b.addEventListener('click', function () {
+        if ((filtro || '') === id) return;
+        acoes.onFiltro(id);
+        /* a aba se redesenha inteira: o foco volta para o marco escolhido */
+        var novo = host.querySelector('.sm-marcos .tb-chip.is-on');
+        if (novo) novo.focus();
+      });
+      return b;
+    }
+    box.appendChild(card('', 'Todos os marcos', dados.geral));
+    ordenarPorMarco(dados.porMarco).forEach(function (m) { box.appendChild(card(m.project.id, m.marco, m)); });
+    return box;
   }
 
   /* --- a aba inteira ---------------------------------------------------- */
@@ -601,7 +668,9 @@
     filtros = filtros || {};
     var dados = S.compute(projects, filtros);
     var alvo = filtro ? dados.porMarco.filter(function (m) { return m.project.id === filtro; })[0] : null;
-    var escopo = alvo ? [alvo] : dados.porMarco;
+    /* o marco escolhido pode ter sido excluído: volta ao consolidado */
+    if (!alvo) filtro = '';
+    var escopo = alvo ? [alvo] : ordenarPorMarco(dados.porMarco);
     var opc = S.opcoesDe(projects);
     var mudar = function (campo) {
       return function (v) {
@@ -612,37 +681,35 @@
       };
     };
 
-    /* --- barra 1: escolha do marco + exportações --- */
+    /* --- os marcos (mini cards) --- */
+    host.appendChild(miniCardsDeMarco(host, dados, filtro, acoes));
+
+    /* --- barra: o escopo, dito por extenso, e as exportações dele --- */
     var barra = el('div', 'sm-bar');
-    var todosMarcos = [{ valor: '', nome: 'Todos os marcos (' + dados.porMarco.length + ')' }]
-      .concat(dados.porMarco.map(function (m) {
-        return { valor: m.project.id, nome: m.marco + ' — ' + m.total + ' itens' };
-      }));
-    barra.appendChild(campoSelect('Marco', filtro || '', todosMarcos,
-      function (v) { acoes.onFiltro(v); }, true));
+    var info = el('div', 'fx-info sm-escopo');
+    info.appendChild(el('strong', null, alvo ? 'Marco ' + alvo.marco : 'Todos os marcos'));
+    info.appendChild(el('span', null, alvo
+      ? 'Os números, os gráficos, as tabelas, a planilha e o PDF abaixo são só deste marco.'
+      : 'O consolidado de ' + dados.porMarco.length + ' relatório(s) deste navegador. Escolha um marco acima para o detalhe dele.'));
+    barra.appendChild(info);
 
     var acoesBox = el('div', 'sm-bar-actions');
-    if (alvo) {
-      var botoes = [['Resumo em PDF', function () { acoes.onPdf(alvo.project); }, 'btn--primary'],
-       ['Planilha (CSV)', function () { acoes.onCsv(alvo.project); }, '']];
-      /* o visualizador não gera arquivo de dados: sem onBackup, sem o botão */
-      if (acoes.onBackup) {
-        botoes.push(['Backup deste marco', function () { acoes.onBackup(alvo.project); }, '']);
-      }
-      botoes.forEach(function (a) {
-        var b = el('button', 'btn btn--sm ' + a[2], a[0]);
-        b.type = 'button';
-        b.addEventListener('click', a[1]);
-        acoesBox.appendChild(b);
-      });
-    } else {
-      acoesBox.appendChild(el('span', 'sm-hint',
-        'Escolha um marco acima para exportar o resumo dele.'));
-      var bt = el('button', 'btn btn--sm btn--primary', 'Resumo geral em PDF');
-      bt.type = 'button';
-      bt.addEventListener('click', function () { acoes.onPdf(null); });
-      acoesBox.appendChild(bt);
+    var botoes = alvo
+      ? [['Resumo em PDF', function () { acoes.onPdf(alvo.project); }, 'btn--primary'],
+         ['Planilha (CSV)', function () { acoes.onCsv(alvo.project); }, '']]
+      : [['Resumo geral em PDF', function () { acoes.onPdf(null); }, 'btn--primary'],
+         ['Planilha (CSV)', function () { acoes.onCsv(null); }, '']];
+    /* o visualizador não gera arquivo de dados: sem onBackup, sem o botão; e
+       o backup é sempre do marco inteiro — os filtros não o recortam */
+    if (alvo && acoes.onBackup) {
+      botoes.push(['Backup deste marco', function () { acoes.onBackup(alvo.project); }, '']);
     }
+    botoes.forEach(function (a) {
+      var b = el('button', 'btn btn--sm ' + a[2], a[0]);
+      b.type = 'button';
+      b.addEventListener('click', a[1]);
+      acoesBox.appendChild(b);
+    });
     barra.appendChild(acoesBox);
     host.appendChild(barra);
 
@@ -750,7 +817,7 @@
         { titulo: 'Última edição', valor: function (m) {
             return m.project.lastEditedBy || '—';
           } }
-      ], dados.porMarco, { vazio: 'Nenhum relatório neste navegador.' }));
+      ], ordenarPorMarco(dados.porMarco), { vazio: 'Nenhum relatório neste navegador.' }));
       host.appendChild(b4);
 
       if (dados.geral.parados.length) {
@@ -817,6 +884,8 @@
     blocoLista: blocoLista,
     colunasParados: colunasParados,
     toCsv: toCsv,
+    toCsvTodos: toCsvTodos,
+    ordenarPorMarco: ordenarPorMarco,
     kpiRow: kpiRow,
     tabela: tabela,
     bloco: bloco,

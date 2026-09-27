@@ -313,10 +313,17 @@
     $('#kanbanScroll').hidden = !isKanban();
     $('#previewBtn').hidden = telaCheia();
     renderAoLado();     /* o item ao lado só existe onde há editor ao lado dele */
+    renderSeletorGlobal();
     if (telaCheia()) {
-      $('#pdfBtn').textContent = 'Exportar PDF…';
+      /* nas abas que têm exportação própria (o Kanban, a Tabela, o Resumo…),
+         o botão de cima diz de quem é o PDF que ele gera */
+      $('#pdfBtn').textContent = 'PDF dos relatórios…';
+      $('#pdfBtn').title = 'Gerar o PDF dos relatórios de Waiver (NCR e DEV) — o documento Waiver Request. ' +
+        'A exportação desta tela fica na própria tela.';
       return;
     }
+    $('#pdfBtn').textContent = 'Exportar PDF…';
+    $('#pdfBtn').title = 'Gerar o PDF dos relatórios de Waiver (NCR e DEV)';
 
     var t = kindName();
     $('#addNcrBtn').textContent = '+ Nova ' + t;
@@ -327,6 +334,37 @@
     $('#ncrFilter').placeholder = 'Buscar em todo o texto da ' + t + '…';
     $('#previewBtn').textContent = 'Pré-visualizar';
     $('#previewBtn').title = 'Ver as folhas do relatório de ' + t + ' como sairão no PDF';
+  }
+
+  /**
+   * O seletor "Relatório" (e o campo "Marco") da barra de cima só aparece
+   * onde o relatório aberto decide o que está na tela: nas abas Waiver NCR e
+   * Waiver DEV, e na aba Fluxos quando ela olha "este relatório". O Banco
+   * NCR, o Kanban, a Tabela, o Resumo e a Conversa têm o próprio recorte
+   * (pastilhas de marco, filtros) e o seletor não mudava nada neles — era um
+   * filtro que não filtra ao lado do que filtra. Ali ele some.
+   *
+   * Na aba Fluxos ele fica no lugar (trocar de vista não deve fazer a barra
+   * pular), mas desabilitado e dizendo por quê, quando a vista escolhida
+   * olha todos os marcos. O campo "Marco" é edição do relatório: só nas abas
+   * dele.
+   */
+  function renderSeletorGlobal() {
+    var doRelatorio = !telaCheia();
+    var fluxosTodos = isFluxos() && (fluxosFiltro.escopo === 'todos' || fluxosFiltro.vista === 'painel');
+    $('#relatorioCampo').hidden = !(doRelatorio || isFluxos());
+    $('#marcoCampo').hidden = !doRelatorio;
+    var sel = $('#projectSelect');
+    var nota = $('#relatorioNota');
+    /* sem dados no visualizador o seletor já vem desabilitado por outro motivo */
+    if (Leitura.ativo() && !state.projects.length) return;
+    sel.disabled = fluxosTodos;
+    nota.hidden = !fluxosTodos;
+    nota.textContent = fluxosTodos ? 'não se aplica: a vista mostra todos os marcos' : '';
+    sel.title = fluxosTodos
+      ? 'Esta vista dos Fluxos olha todos os relatórios deste navegador: o relatório escolhido aqui não muda o que aparece. ' +
+        'Em “Itens de: este relatório” ele volta a valer.'
+      : 'O relatório aberto nas abas Waiver NCR e Waiver DEV';
   }
 
   function switchKind(kind) {
@@ -348,7 +386,11 @@
   /* aba de resumo                                                           */
   /* ---------------------------------------------------------------------- */
 
-  var summaryFilter = '';
+  /* O marco do Resumo: o id do relatório, ou '' para todos os marcos. Nasce
+     null — "ninguém escolheu ainda" — e na primeira vez vale o marco da vez
+     (Config.MARCO_INICIAL), ou todos se ele não existir. Depois fica o que a
+     pessoa escolheu, até fechar a página. */
+  var summaryFilter = null;
   var summaryFiltros = {};
   /* aba Fluxos: recorte do que está à vista */
   var fluxosFiltro = {
@@ -359,6 +401,10 @@
   };
 
   function renderSummary(semRolar) {
+    if (summaryFilter === null) {
+      var inicial = Config.relatorioInicial(state.projects);
+      summaryFilter = inicial ? inicial.id : '';
+    }
     SummaryView.render($('#summaryScroll'), state.projects, summaryFilter, {
       onFiltro: function (id) { summaryFilter = id; renderSummary(); },
       onFiltros: function (f) {
@@ -384,11 +430,15 @@
     if (!semRolar) $('#summaryScroll').scrollTop = 0;
   }
 
+  /** A planilha do resumo: do marco escolhido, ou de todos (project null). */
   function exportarCsv(project) {
-    var csv = SummaryView.toCsv(project, summaryFiltros);
+    var csv = project ? SummaryView.toCsv(project, summaryFiltros)
+      : SummaryView.toCsvTodos(state.projects, summaryFiltros);
     var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    download(blob, Report.suggestedFileName(project, 'csv').replace('WaiverRequest_', 'Resumo_'));
-    toast('Planilha do marco salva.');
+    download(blob, project
+      ? Report.suggestedFileName(project, 'csv').replace('WaiverRequest_', 'Resumo_')
+      : 'Resumo_todos_os_marcos_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.csv');
+    toast(project ? 'Planilha do marco salva.' : 'Planilha de todos os marcos salva.');
   }
 
   /** Monta as folhas A4 do resumo e manda para a impressão. */
@@ -438,6 +488,8 @@
     }
     var alvos = project ? [project] : state.projects;
     var dados = Summary.compute(alvos, summaryFiltros);
+    /* os gráficos na fila dos marcos, como os mini cards da tela */
+    dados.porMarco = SummaryView.ordenarPorMarco(dados.porMarco);
     var st = project ? dados.porMarco[0] : dados.geral;
 
     var titulo = project
@@ -649,6 +701,8 @@
   function renderFluxos(semRolar) {
     var host = $('#fluxosScroll');
     if (!state.project) return;
+    /* a vista e o escopo decidem se o relatório da barra de cima vale aqui */
+    renderSeletorGlobal();
     var antes = host.scrollTop;
     host.innerHTML = '';
 
@@ -1092,6 +1146,7 @@
     var alvo = state.projects.filter(function (p) { return p.id === r.projetoId; })[0];
     if (!alvo) { toast('Esse relatório não está mais neste navegador.'); return; }
     function ir() {
+      aberturaPendente = false;
       state.kind = r.kind;
       if (!state.project || alvo.id !== state.project.id) loadProject(alvo);
       renderTabs();
@@ -4855,6 +4910,7 @@
     var d = $('#ncrDialog');
     if (d && d.open) d.close();
     function ir() {
+      aberturaPendente = false;
       state.kind = 'ncr';
       if (!state.project || state.project.id !== project.id) loadProject(project);
       renderTabs();
@@ -4919,11 +4975,69 @@
       });
     },
     adicionar: function (rec, project, situacao) { return adicionarAoWaiver(rec, project, situacao); },
-    mudarSituacao: function (project, item, id) { return mudarSituacaoDe(project, item, id); }
+    mudarSituacao: function (project, item, id) { return mudarSituacaoDe(project, item, id); },
+    usuario: function () { return Store.getUser(); },
+    exportarPlanilha: function (d) { exportarKanbanXlsx(d); },
+    medirImpressao: function (montar) { return montarKanbanImpresso(montar, true); },
+    imprimir: function (montar, nome) { imprimirKanban(montar, nome); }
   };
 
   function renderKanban() {
     Kanban.render($('#kanbanScroll'), ctxKanban);
+  }
+
+  /**
+   * Monta as folhas do Kanban no #printRoot, com layout emprestado enquanto
+   * mede (Report.abrirMedida). `soMedir` é a prévia da janela de escolhas:
+   * conta as folhas e limpa o que montou.
+   */
+  function montarKanbanImpresso(montar, soMedir) {
+    var root = $('#printRoot');
+    root.innerHTML = '';
+    var medida = Report.abrirMedida(root);
+    var r = null;
+    try {
+      r = montar(root);
+    } catch (e) {
+      Log.erro('kanban', 'não consegui montar o Kanban para impressão', e,
+        'tente outro papel ou orientação; se continuar, mande Derrogacao.copiar().');
+    } finally {
+      Report.fecharMedida(medida);
+    }
+    if (soMedir) root.innerHTML = '';
+    return r;
+  }
+
+  /** O Kanban em PDF: as folhas montadas e a janela de impressão. */
+  function imprimirKanban(montar, nome) {
+    var r = montarKanbanImpresso(montar, false);
+    if (!r) { toast('Não foi possível montar o Kanban para impressão.'); return; }
+    Log.ok('kanban', 'Kanban montado para impressão', { folhas: r.folhas.length });
+    var doc = document.title;
+    document.title = nome + '_' + Report.timeStamp(true);
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.title = doc; }, 500);
+    }, 60);
+  }
+
+  /**
+   * A planilha do Kanban: uma linha por NCR à vista, e a aba "Recorte" — a
+   * mesma regra da Tabela e do Banco NCR (planilha filtrada que não diz que
+   * é filtrada é lida como o total).
+   */
+  function exportarKanbanXlsx(d) {
+    try {
+      download(Xlsx.blob([
+        { nome: 'Kanban', colunas: d.colunas, linhas: d.linhas },
+        { nome: 'Recorte', colunas: [{ titulo: 'Campo', larg: 28 }, { titulo: 'Valor', larg: 90 }],
+          linhas: d.recorte, filtros: false }
+      ]), d.nome + '_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.xlsx');
+      toast('Planilha salva em Downloads: ' + d.linhas.length + ' NCR(s).', 4000);
+    } catch (e) {
+      markError(e);
+      toast('Não foi possível gerar a planilha.');
+    }
   }
 
   /**
@@ -5233,6 +5347,10 @@
   var sincronizando = false;
   var gravarPendente = false;
   var ultimaTecla = 0;
+  /* A abertura caiu no "mais recente" porque o marco da vez ainda não estava
+     neste navegador (ver o boot). Fica armado até a primeira troca com a
+     pasta ou até a pessoa escolher ou escrever alguma coisa. */
+  var aberturaPendente = false;
   var ultimaVersao = 0;
   var ultimaPoda = 0;
   var ultimoSucesso = 0;        // última vez que a pasta respondeu
@@ -5738,6 +5856,8 @@
         return adotar(resumo).then(function () {
           sincronizando = false;
           marcarPasta('on');
+          /* a pasta acabou de ser lida: o contador recomeça daqui */
+          Atualizacao.marcarFeita(true);
           /* o que se publica é a junção: o trabalho de todos */
           agendarPublicacao();
           ciclo.fim('sincronizado', resumo ? {
@@ -5765,6 +5885,7 @@
         return fim.then(function () {
           sincronizando = false;
           marcarPasta(pastaEstado);
+          Atualizacao.marcarFeita(false);
           if (!opts.silencioso) {
             toast(pastaEstado === 'permissao'
               ? 'A pasta precisa da sua permissão — clique em “Pasta” na barra de cima.'
@@ -5864,9 +5985,30 @@
     }
   }
 
+  /**
+   * Quem liga a pasta pela primeira vez abre o programa sem o relatório do
+   * marco da vez: ele chega na primeira troca com a pasta. Se ninguém mexeu
+   * em nada até lá, é ele que passa a estar aberto — é a mesma regra da
+   * abertura, só que com os dados da equipe. Uma vez só, e nunca por cima
+   * de uma escolha da pessoa.
+   */
+  function abrirMarcoInicial() {
+    if (!aberturaPendente) return;
+    aberturaPendente = false;
+    var p = Config.relatorioInicial(state.projects);
+    if (!p || (state.project && state.project.id === p.id)) return;
+    flushSave().then(function () {
+      loadProject(p);
+      Log.passo('abertura', 'o relatório do marco inicial chegou pela pasta e foi aberto', { marco: p.marco });
+    });
+  }
+
   /** Verificação barata, de tempos em tempos: alguém gravou lá fora? */
   function pollPasta() {
     if (!Pasta.ligada() || pastaEstado !== 'on' || sincronizando) return;
+    /* em segundo plano não confere: ao voltar para a janela, o ciclo da
+       atualização automática confere na hora (atualizacao.js) */
+    if (document.hidden) return;
     if (Date.now() - ultimaTecla < 4000) return;   /* não mexe enquanto digita */
     /* com um diálogo de decisão aberto, espera; a ficha da NCR não conta —
        ela sabe se redesenhar quando o que mostra muda por fora */
@@ -5884,6 +6026,123 @@
   function agendarPoll() {
     clearInterval(pollTimer);
     if (Pasta.ligada()) pollTimer = setInterval(pollPasta, POLL_MS);
+  }
+
+  /* --- atualização automática (atualizacao.js), no editor -------------------
+     A conferência barata de 20 s continua (pollPasta): é ela que traz o
+     trabalho do colega em segundos. O ciclo de 5 minutos é a garantia com
+     hora marcada e contador à vista, e o botão "⟳ Atualizar" — e é ele que
+     confere na hora quando a pessoa volta para a janela. Só existe com a
+     pasta: sem ela nada muda por fora. */
+
+  function podeAtualizarDaPasta() {
+    if (!Pasta.ligada()) return 'sem pasta';
+    if (pastaEstado === 'permissao') return 'a pasta precisa de permissão';
+    if (sincronizando) return 'sincronizando';
+    if (Date.now() - ultimaTecla < 4000) return 'você está digitando';
+    if (document.querySelector('dialog[open]:not(.nb-dlg)') || !$('#preview').hidden) return 'janela aberta';
+    return true;
+  }
+
+  /**
+   * Uma rodada do ciclo. A automática olha primeiro se algum dos arquivos
+   * mudou (só a data, barato) e só então lê e junta — não relê nem
+   * redesenha à toa. A do botão lê e junta sempre, depois de gravar aqui o
+   * que estava esperando os 500 ms: nada do que foi escrito se perde, a
+   * junção é campo a campo. Rejeita quando a pasta não respondeu.
+   */
+  function atualizarDaPasta(origem) {
+    function conferir(r) {
+      if (pastaEstado !== 'on') throw new Error('a pasta não respondeu (' + pastaEstado + ')');
+      return r;
+    }
+    if (origem === 'manual') {
+      /* o clique é o gesto que o navegador exige para pedir a permissão */
+      if (pastaEstado === 'permissao') return conectarPasta().then(conferir);
+      return flushSave().then(function () {
+        /* a gravação que o flushSave agendou para daqui a 2,5 s é esta mesma
+           rodada: ler-juntar-gravar leva tudo o que está aqui */
+        clearTimeout(gravaTimer);
+        return sincronizar({});
+      }).then(conferir).then(function (r) {
+        var nada = r && !(r.entraram || r.atualizados || r.removidos || r.novosRelatorios ||
+          (r.ncr && (r.ncr.entraram || r.ncr.atualizados)));
+        if (nada) toast('Tudo em dia com a pasta da equipe.');
+        return r;
+      });
+    }
+    /* depois de uma falha, a rodada automática tenta religar sozinha */
+    if (pastaEstado === 'erro') return sincronizar({ silencioso: true }).then(conferir);
+    return Promise.all([
+      Pasta.mudouLaFora(),
+      Pasta.mudouArquivo(Pasta.ARQ_NCR_BANCO),
+      Pasta.mudouArquivo(Pasta.ARQ_NCR_WAIVER)
+    ]).then(function (mudou) {
+      if (!mudou[0] && !mudou[1] && !mudou[2]) return 'sem novidade';
+      return sincronizar({ silencioso: true, semRedesenhar: true }).then(conferir);
+    });
+  }
+
+  /** O ciclo só existe com a pasta; o botão e o contador também. */
+  function ajustarAtualizacao() {
+    if (Leitura.ativo()) return;
+    var ligada = Pasta.suportado() && Pasta.ligada();
+    $('#atualizaBox').hidden = !ligada;
+    if (ligada && !Atualizacao.estado().ligado) {
+      Atualizacao.iniciar({
+        intervalo: Config.INTERVALO_ATUALIZACAO_MS,
+        podeAgora: podeAtualizarDaPasta,
+        executar: atualizarDaPasta,
+        aoMudar: renderContador
+      });
+    } else if (!ligada && Atualizacao.estado().ligado) {
+      Atualizacao.parar();
+    } else {
+      renderContador(Atualizacao.estado());
+    }
+  }
+
+  /**
+   * O contador, na segunda linha do botão "⟳ Atualizar": curto ali
+   * ("próxima em 04:32") e por extenso na dica ("Próxima atualização em
+   * 04:32 — …"), que é também o que o leitor de tela lê como descrição.
+   */
+  function renderContador(e) {
+    var n = $('#atualizarConta');
+    if (!n) return;
+    var curto = '', longo = '', aviso = false;
+    var falta = Atualizacao.mmss(e.falta);
+    if (!e.ligado) {
+      curto = '';
+    } else if (e.rodando) {
+      curto = 'atualizando…';
+      longo = 'Atualizando os dados agora.';
+    } else if (Leitura.ativo() && leitura.fonte && leitura.fonte.tipo === 'arquivo' && state.projects.length) {
+      curto = 'sem atualização automática';
+      longo = 'Os dados vieram de um arquivo aberto à mão: não há de onde reler sozinho. ' +
+        'O botão procura a publicação de novo.';
+    } else if (!Leitura.ativo() && pastaEstado === 'permissao') {
+      curto = 'sem acesso à pasta';
+      longo = 'A pasta da equipe precisa da sua permissão nesta sessão: clique para permitir e atualizar.';
+      aviso = true;
+    } else if (e.adiado) {
+      curto = 'em espera';
+      longo = 'A atualização venceu, mas espera: ' + e.adiado + '. Tenta de novo em alguns segundos.';
+    } else if (!e.ultima.ok) {
+      curto = 'falhou · de novo em ' + falta;
+      longo = 'A última atualização falhou; os dados à vista são os de antes, nada se perdeu. ' +
+        'Nova tentativa em ' + falta + '.';
+      aviso = true;
+    } else {
+      curto = 'próxima em ' + falta;
+      longo = 'Próxima atualização em ' + falta + '.';
+    }
+    if (n.textContent !== curto) n.textContent = curto;
+    n.classList.toggle('is-aviso', aviso);
+    var quando = e.ultima.quando ? new Date(e.ultima.quando).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+    $('#atualizarBtn').title = longo + (quando ? ' Última atualização às ' + quando + '.' : '') +
+      ' A cada ' + Math.round(Config.INTERVALO_ATUALIZACAO_MS / 60000) + ' minutos os dados são conferidos sozinhos ' +
+      '(com a janela à vista). Clique para conferir agora — a contagem recomeça.';
   }
 
   /* --- interface ---------------------------------------------------------- */
@@ -5917,6 +6176,7 @@
     var item = $('#pastaBtn');
     if (item) item.hidden = !Pasta.suportado();
     renderPastaNotice();
+    ajustarAtualizacao();
     if (!chip) return;
     /* a etiqueta só existe quando há pasta: sem ela não há nada a mostrar */
     chip.hidden = !Pasta.suportado() || !Pasta.ligada();
@@ -5962,6 +6222,7 @@
       agendarPoll();
       sincronizarConversas({});
       return sincronizar({}).then(function (r) {
+        abrirMarcoInicial();
         /* a janela costuma continuar aberta depois de escolher a pasta:
            o histórico e o tamanho só aparecem se forem redesenhados aqui */
         if ($('#pastaDialog').open) {
@@ -6059,6 +6320,7 @@
       return sincronizar({});
     }).then(function (r) {
       if (r === null) return;
+      abrirMarcoInicial();
       if ($('#pastaDialog').open) $('#pastaDialog').close();
       toast('Pasta ligada: "' + Pasta.nome() + '". A partir de agora tudo vai e vem de lá.');
     }).catch(function (e) {
@@ -6381,8 +6643,8 @@
      e, se a pessoa quiser, 3. um arquivo aberto à mão (só até fechar).
      Se nada der certo, a tela pede um clique só: "Tentar de novo". */
 
-  var LEITURA_RELE_MS = 5 * 60 * 1000;   // conferência periódica, com a janela à vista
-  var LEITURA_VOLTA_MS = 60 * 1000;      // ao voltar para a janela, se passou disto
+  /* A releitura periódica é a do ciclo único (atualizacao.js), a cada
+     Config.INTERVALO_ATUALIZACAO_MS, com o contador na barra de cima. */
 
   var leitura = {
     ordens: {},        // a ordem escolhida aqui, por relatório: não é gravada
@@ -6499,8 +6761,11 @@
       mostrarSemDados('A publicação não tem nenhum relatório.');
       return novidade;
     }
+    /* na primeira leitura não há nada aberto: vale o marco da vez
+       (Config.MARCO_INICIAL), e sem ele o primeiro da publicação */
     var alvo = state.projects.filter(function (p) { return p.id === abertoId; })[0] ||
       (abertoMarco ? state.projects.filter(function (p) { return Store.marcoChave(p) === abertoMarco; })[0] : null) ||
+      Config.relatorioInicial(state.projects) ||
       state.projects[0];
 
     $('#semDados').hidden = true;
@@ -6615,6 +6880,7 @@
     }
     Leitura.setPastaDoNavegador(valor);
     carregarLeitura({}).then(function () {
+      Atualizacao.marcarFeita(!leitura.falhou);
       renderFonte();
       var pd = Leitura.pastaDados();
       if (leitura.fonte && leitura.fonte.tipo === 'caminho') {
@@ -6640,14 +6906,26 @@
     });
   }
 
-  /* Relê de tempos em tempos e ao voltar para a janela: quem deixa o
-     visualizador aberto o dia inteiro vê a publicação nova sem recarregar. */
-  function conferirLeitura(forcar) {
-    if (document.hidden) return;
-    if (document.querySelector('dialog[open]') || !$('#preview').hidden) return;
-    if (leitura.fonte && leitura.fonte.tipo === 'arquivo' && state.projects.length) return;
-    if (!forcar && leitura.fonte && Date.now() - leitura.fonte.lidoEm < LEITURA_VOLTA_MS) return;
-    carregarLeitura({ automatico: true });
+  /* Relê a cada ciclo da atualização automática e ao voltar para a janela:
+     quem deixa o visualizador aberto o dia inteiro vê a publicação nova sem
+     recarregar. Com uma janela aberta, espera; com os dados vindos de um
+     arquivo aberto à mão, não relê sozinho — não há de onde. */
+  function podeReler() {
+    if (document.querySelector('dialog[open]') || !$('#preview').hidden) return 'janela aberta';
+    if (leitura.fonte && leitura.fonte.tipo === 'arquivo' && state.projects.length) return 'arquivo aberto à mão';
+    return true;
+  }
+
+  /** Uma rodada do ciclo, no visualizador. Rejeita quando a leitura falha. */
+  function relerPublicacao(origem) {
+    return carregarLeitura({ automatico: origem !== 'manual' }).then(function (novo) {
+      if (leitura.falhou) throw new Error('não consegui ler a publicação');
+      if (origem === 'manual' && !novo && leitura.fonte && leitura.fonte.tipo !== 'arquivo' && state.projects.length) {
+        toast('Nenhuma publicação nova — os dados continuam os de ' +
+          (shortDate(leitura.fonte.quando) || 'antes') + '.');
+      }
+      return novo;
+    });
   }
 
   /**
@@ -6680,19 +6958,12 @@
     $('#brandSub').textContent = 'visualizador de derrogações';
     $('#leituraSelo').hidden = false;
     $('#fonteChip').hidden = false;
-    $('#atualizarBtn').hidden = false;
+    $('#atualizaBox').hidden = false;
     $('#menuBtn').title = 'Diagnóstico e versão';
     renderFonte();
     Log.passo('leitura', 'modo leitura: este é o visualizador — nada aqui é gravado');
 
-    $('#atualizarBtn').addEventListener('click', function () {
-      carregarLeitura({}).then(function (novo) {
-        if (!novo && !leitura.falhou && leitura.fonte && leitura.fonte.tipo !== 'arquivo' && state.projects.length) {
-          toast('Nenhuma publicação nova — os dados continuam os de ' +
-            (shortDate(leitura.fonte.quando) || 'antes') + '.');
-        }
-      });
-    });
+    /* o botão "⟳ Atualizar" é ligado no wire(): roda o ciclo na hora */
     $('#leituraAvisoBtn').addEventListener('click', function () { $('#atualizarBtn').click(); });
     $('#fonteChip').addEventListener('click', function () {
       $('#fonteDialog').showModal();
@@ -6709,7 +6980,7 @@
       if (this.files && this.files[0]) abrirArquivoDeDados(this.files[0]);
       this.value = '';
     });
-    $('#semDadosTentarBtn').addEventListener('click', function () { carregarLeitura({}); });
+    $('#semDadosTentarBtn').addEventListener('click', function () { $('#atualizarBtn').click(); });
     $('#semDadosConfigBtn').addEventListener('click', function () {
       $('#fonteDialog').showModal();
       renderFonte();
@@ -6721,36 +6992,54 @@
     });
     $('#caminhoLimparBtn').addEventListener('click', function () { salvarCaminho(''); });
 
-    document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) conferirLeitura(false);
-    });
-    setInterval(function () { conferirLeitura(true); }, LEITURA_RELE_MS);
-
     mostrarSemDados(null);
-    return carregarLeitura({ silencioso: true });
+    return carregarLeitura({ silencioso: true }).then(function (r) {
+      /* o relógio começa depois da primeira leitura: dali a 5 minutos, a próxima */
+      Atualizacao.iniciar({
+        intervalo: Config.INTERVALO_ATUALIZACAO_MS,
+        podeAgora: podeReler,
+        executar: relerPublicacao,
+        aoMudar: renderContador
+      });
+      if (leitura.falhou) Atualizacao.marcarFeita(false);
+      return r;
+    });
   }
 
   function wire() {
+    /* "⟳ Atualizar": a rodada do ciclo, agora — e a contagem recomeça */
+    $('#atualizarBtn').addEventListener('click', function () { Atualizacao.agora(); });
+
     $('#marcoInput').addEventListener('input', function () {
       state.project.marco = this.value;
       state.project.name = this.value || 'Relatório sem nome';
       scheduleSave();
     });
 
-    var abas = $$('.tab');
-    abas.forEach(function (t, i) {
+    /* Faixa de abas (WAI-ARIA "tabs"): as setas andam entre as abas, na
+       ordem da tela — no trilho estreito elas ficam empilhadas, então as
+       setas de cima e de baixo valem também —, Home e End vão às pontas. A
+       aba escondida (a Conversa desligada) não entra na roda: antes a seta
+       caía nela e abria uma aba que não aparecia. */
+    var TECLAS_ABA = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+    $$('.tab').forEach(function (t) {
       t.addEventListener('click', function () { switchKind(t.dataset.kind); });
       t.addEventListener('keydown', function (e) {
-        var passo = e.key === 'ArrowRight' ? 1 : (e.key === 'ArrowLeft' ? -1 : 0);
-        if (!passo) return;
+        var abas = $$('.tab').filter(function (a) { return !a.hidden; });
+        var i = abas.indexOf(t);
+        var prox = null;
+        if (TECLAS_ABA[e.key]) prox = abas[(i + TECLAS_ABA[e.key] + abas.length) % abas.length];
+        else if (e.key === 'Home') prox = abas[0];
+        else if (e.key === 'End') prox = abas[abas.length - 1];
+        if (!prox) return;
         e.preventDefault();
-        var prox = abas[(i + passo + abas.length) % abas.length];
         switchKind(prox.dataset.kind);
         prox.focus();
       });
     });
     $('#projectSelect').addEventListener('change', function () {
       var sel = this.value;
+      aberturaPendente = false;
       flushSave().then(function () {
         var p = state.projects.filter(function (x) { return x.id === sel; })[0];
         if (p) loadProject(p);
@@ -6760,6 +7049,7 @@
     $('#newProjectTopBtn').addEventListener('click', function () {
       var marco = prompt('Marco do novo relatório (ex.: RANAE J06):', '');
       if (marco === null) return;
+      aberturaPendente = false;
       var p = Store.newProject(marco.trim());
       flushSave().then(function () { return Store.save(p); }).then(function () {
         state.projects.unshift(p);
@@ -6916,7 +7206,10 @@
     $('#backupDoneBtn').addEventListener('click', function () { $('#backupDoneDialog').close(); });
 
     /* pasta compartilhada */
-    document.addEventListener('input', function () { ultimaTecla = Date.now(); }, true);
+    document.addEventListener('input', function () {
+      ultimaTecla = Date.now();
+      aberturaPendente = false;   /* a pessoa já está trabalhando: nada troca sozinho */
+    }, true);
     document.addEventListener('keydown', function () { ultimaTecla = Date.now(); }, true);
 
     $('#pastaNoticeBtn').addEventListener('click', function () {
@@ -7362,7 +7655,12 @@
           loadProject(p);
         });
       }
-      loadProject(list[0]);
+      /* O marco da vez (Config.MARCO_INICIAL) abre primeiro; sem ele, o mais
+         recente, como sempre foi. Se ele ainda não está neste navegador, a
+         primeira troca com a pasta pode trazê-lo — ver `abrirMarcoInicial`. */
+      var inicial = Config.relatorioInicial(list);
+      aberturaPendente = !inicial;
+      loadProject(inicial || list[0]);
     }).then(function () {
       var itens = 0;
       state.projects.forEach(function (p) {
@@ -7411,6 +7709,7 @@
           pastaEstado = 'on';
           agendarPoll();
           return sincronizar({}).then(function () {
+            abrirMarcoInicial();
             agendarPoll();
             return sincronizarConversas({});
           });

@@ -14,8 +14,14 @@ RANAE, Naval Group). O usuário é o **Bruno** e mais duas ou três pessoas da
 mesma equipe.
 
 Duas categorias, mesmo layout, exportadas como relatórios **independentes**:
-**NCR** e **DEV**. Cada item vira uma página A4 retrato; os anexos viram
-páginas A4 paisagem no fim.
+**NCR** e **DEV** — na tela, as abas **Waiver NCR** e **Waiver DEV** (os
+rótulos mudaram a pedido do Bruno; as chaves internas continuam `ncr` e
+`dev`, e o backup, `ncrs`/`devs`). Cada item vira uma página A4 retrato; os
+anexos viram páginas A4 paisagem no fim.
+
+A navegação, na ordem pedida: **Banco NCR · Kanban · Tabela · Waiver NCR ·
+Waiver DEV**, e depois Resumo, Fluxos e (opcional) Conversa (§5, "A
+navegação").
 
 Desde a integração com o NCR Control há também a aba **Banco NCR**: as NCRs
 do SBR4 importadas do banco NCR, com campos próprios do Waiver (marcos, função
@@ -59,6 +65,9 @@ assets/css/app.css         estilos do editor
 assets/css/report.css      layout do relatório — tela e impressão A4
 assets/js/log.js           o diário do console: o que está acontecendo, e o
                            que fazer quando dá errado (carrega primeiro)
+assets/js/config.js        o que muda com o tempo: o marco que abre primeiro
+                           (MARCO_INICIAL) e o ritmo da atualização
+assets/js/atualizacao.js   o ciclo único da atualização automática e o contador
 assets/js/leitura.js       o modo leitura (o visualizador): liga e blinda
 assets/js/store.js         modelo, persistência, mesclagem, ordenação
 assets/js/revisoes.js      o diário: quem escreveu o quê, campo a campo
@@ -85,16 +94,18 @@ assets/js/app.js           o editor (o maior; ~3000 linhas)
 derrogacao.html            o programa inteiro num arquivo só — gerado, e versionado
 derrogacao-visualizador.html  o mesmo, em modo leitura — gerado, e versionado
 tools/build-standalone.py  gera (e confere) os dois arquivos únicos
+tests/                     suítes de ponta a ponta (Playwright, Node) — §7
 exemplos/                  .json prontos para importar
 .github/workflows/pages.yml  publicação
 ```
 
 Ordem de carga dos scripts (importa: cada um usa o anterior):
-`log.js → leitura.js → store.js → revisoes.js → pasta.js → publicacao.js → xlsxler.js → ncrs.js →
+`log.js → config.js → atualizacao.js → leitura.js → store.js → revisoes.js → pasta.js → publicacao.js → xlsxler.js → ncrs.js →
 ncrfluxo.js → report.js → fluxo.js → herdar.js → summary.js → painel.js →
 xlsx.js → tabela.js → chat.js → lado.js → ncrview.js → kanban.js → app.js`.
 (`log.js` vem primeiro porque todo mundo o usa — e **por isso mesmo não usa
-ninguém**: ele não conhece `Store`, `Pasta` nem `app`.)
+ninguém**: ele não conhece `Store`, `Pasta` nem `app`. `config.js` e
+`atualizacao.js` também não usam ninguém: guardam valores e recebem funções.)
 (`tabela.js` usa `Summary`, `Fluxo`, `Report` e `SummaryView.csvCampo`;
 `revisoes.js` usa `Store.CAMPOS_MESCLA`, `valorCampo` e `rotuloCampo`;
 `herdar.js` usa `Store`, `Fluxo` e `Report`; `painel.js` usa esses três mais
@@ -847,6 +858,14 @@ tela que responde "onde está a NCR-018?" sem abrir marco por marco.
   Tabela); colunas, painel recolhido e "destacar fechadas" são preferência do
   navegador (`localStorage`). Excel/CSV exportam o que está à vista, com a
   aba "Recorte".
+- **Zebra e separadores** (pedido do Bruno: legibilidade). `nth-child(even)`
+  no `tbody`, então a alternância acompanha filtro, ordem e a troca de uma
+  linha só (`atualizarLinha`). Os estados vêm **depois** e com especificidade
+  igual ou maior: passar o mouse, `:focus-within` (a linha do foco do teclado,
+  com barra na cor da aba), `is-fixada` (amarelo) e `is-fechada` com o
+  destaque ligado (vermelho, um tom em linha par). As regras de estado ganharam
+  `tbody` justamente para vencer a zebra — quem mexer aqui confira no
+  navegador, não de cabeça.
 - **Pasta**: `derrogacao-ncr-banco.json` (grande; vale a fonte com
   `importadoEm` mais novo; histórico é união) e `derrogacao-ncr-waiver.json`
   (pequeno; vale o `waiver.editedAt` mais novo). Separados para preencher um
@@ -889,11 +908,48 @@ Deduplicado pela chave da NCR.
   e nunca somados ao marco sem Ind. Cuidado: `Fluxo.marco("J09 Ind")` é o
   J09 (ignora o Ind), então a porta "a caminho" confere o **texto** do
   Expiry (`ehInd`) — senão um waiver até "J09 Ind" cairia no quadro do J09.
-- Não há PDF do Kanban.
+- **Cartão compacto** (pedido do Bruno: ver mais NCRs de uma vez). Recolhido:
+  número (inteiro — é ele que identifica), ⚠ e o "+" na linha 1; status da
+  NCR no banco, função em poucas letras (`Kanban.funcaoCurta`: "FV03 - …" e
+  "03 - …" viram "FV03"), bigramas e caminho na linha 2, e as ações — que
+  descem de linha quando não cabem. **A descrição não existe no recolhido**,
+  por isso texto longo não estica o cartão. O "+" (`aria-expanded`,
+  `aria-controls`) mostra a descrição inteira, a origem, o alerta por extenso
+  e a autoria. `st.abertos` (por `c.id`) só vive na memória: abrir não grava
+  e não muda a coluna, e sobrevive ao redesenho.
+- **Encerradas em CEDOC Closure numa área própria** (pedido do Bruno). Em
+  `cartoes()`, a carta da coluna `fora` cujo status é CEDOC Closure
+  (`Kanban.emCedoc`, pelo texto normalizado — pega o "Unfounded" também)
+  passa para a coluna `encerrada`, que não é coluna do quadro: é a seção
+  recolhível abaixo dele (`areaEncerradas`), com o mesmo cartão (as mesmas
+  ações). **Só CEDOC Closure sai**: uma "Closed" ainda sem o CEDOC continua
+  em "NCR to be closed", verde, como antes — se o Bruno quiser tirar as
+  "Closed" também, é trocar `emCedoc` por `c.fechada` naquela linha. A área
+  aberta/recolhida fica em `derrogacao:kanbanEncerradas` (preferência de
+  tela); a quantidade fica sempre à vista (título, faixa de números e aviso
+  no alto da primeira coluna).
+- **Duas exportações, do que está à vista** (marco e filtros): a **visual**
+  (`montarFolhas`/`planejar`) monta folhas próprias em `#printRoot` —
+  `rep-page--kanban`, A4 ou A3 (`rep-page--a3`, com `@page rep-a3` e
+  `rep-a3-landscape` no report.css; `Report.limite` conhece a A3), retrato ou
+  paisagem — e usa a impressão do navegador, como o relatório. As cinco
+  colunas dividem a largura; cada coluna enche a folha até o pé e continua na
+  seguinte com o cabeçalho repetido ("(cont.)", ou "—" se já acabou); nenhum
+  cartão é partido. A letra (`--kbp-fs`) sai de `LETRA_BASE` por papel e
+  orientação; "caber na largura" cresce até 40% se tudo couber numa folha e
+  encolhe até 15% para não imprimir uma segunda folha quase vazia; "caber numa
+  folha só" desce até 5,5 pt. A janela (`#kbExportDialog`) mostra antes
+  quantas folhas e que letra — a mesma conta da impressão. As encerradas vão
+  numa lista no fim (`Report.paginar`, com o pé como rodapé). A **planilha**
+  (`Kanban.planilha`) sai pelo `Xlsx.blob`: uma linha por NCR, com a aba
+  "Recorte" (§10). As escolhas de papel ficam em `derrogacao:kanbanImpressao`.
 
 A **Tabela**, o **Banco NCR** e o **Kanban** usam o trilho estreito na
 lateral (pedido do Bruno: "diminua as margens para caber tudo"); a Tabela
 também perdeu o padding lateral. Só tela — o PDF da tabela é o de antes.
+(Em setembro o Bruno pediu para essas três abas não terem barra lateral
+nenhuma — "layout vertical" —; ficou para confirmar com ele o que isso quer
+dizer, porque no código o trilho já é "as abas na vertical".)
 
 ### Aba Resumo (`summary.js`)
 Gráficos em **SVG escrito à mão** — sem biblioteca, imprimem em vetor e
@@ -905,6 +961,19 @@ tabelas, **CSV e resumo em PDF** — e o PDF filtrado diz qual foi o recorte. O
 **Parados há 30+ dias** (`Summary.DIAS_PARADO`): pendentes sem edição há um mês
 ou mais, do mais esquecido para o menos. Sai do `editedAt` que já existia — item
 aceito nunca conta, porque está pronto, não parado.
+
+**O marco em mini cards** (`miniCardsDeMarco`), no lugar do `<select>`: a mesma
+pastilha `tb-chip` do Kanban e da Tabela (com o modificador `tb-chip--card`,
+de duas linhas), na fila dos marcos (`SummaryView.ordenarPorMarco`, que usa
+`Fluxo.cmpMarco`) — "Todos os marcos" primeiro. Escolha única,
+`aria-pressed`, ✓ no escolhido (a escolha não é só cor; o ✓ vale para toda
+`tb-chip.is-on`, inclusive na Tabela e no Kanban). Os números do card são os
+do escopo **com os filtros** — os mesmos do `<select>` de antes e dos
+indicadores logo abaixo. `summaryFilter` nasce `null`: na primeira vez vale
+`Config.relatorioInicial` (o J09), senão "todos"; depois fica o que a pessoa
+escolheu, até fechar a página. "Todos os marcos" ganhou CSV também
+(`toCsvTodos`); o backup continua só por marco, e inteiro. Os gráficos (tela e
+PDF) seguem a mesma fila dos cards.
 
 ### O caminho padrão da pasta
 `Store.CAMINHO_PADRAO` é o caminho combinado pela equipe
@@ -1048,7 +1117,9 @@ como programa separado, feita sobre uma base velha; foi refeita assim.)
   `#leituraAviso` com o botão. Arquivo aberto à mão é lido como texto
   (`Publicacao.interpretar`), nunca executado. UNC (`file://servidor/…`) não
   foi testável aqui (Linux): confirmar no Edge da empresa quando a pasta existir.
-- **Releitura** no Atualizar, ao voltar para a janela (>60 s) e a cada 5 min;
+- **Releitura** no Atualizar, ao voltar para a janela (>60 s) e a cada 5 min
+  — pelo ciclo único (`atualizacao.js`, §5 "A atualização automática"), com
+  `podeReler` (janela aberta, arquivo aberto à mão) e `relerPublicacao`;
   compara o conteúdo **bruto** (a normalização preenche carimbos com "agora").
   Relatório, aba, item e a ordem escolhida ali sobrevivem. O banco NCR é
   trocado inteiro, só na memória (`Ncrs.adotarBase`).
@@ -1069,6 +1140,97 @@ como programa separado, feita sobre uma base velha; foi refeita assim.)
   mudança; o visualizador não deixa nenhum campo editável, não arrasta, não
   grava no IndexedDB nem no localStorage de relatórios e não faz requisição
   externa.
+
+### A navegação: ordem, nomes e cores
+A ordem das abas é a do trabalho, pedida pelo Bruno: **Banco NCR · Kanban ·
+Tabela · Waiver NCR · Waiver DEV**, depois Resumo, Fluxos e a Conversa
+(opcional). É a ordem do `index.html` — a do DOM é a da tela e a do leitor de
+tela. "NCR" e "DEV" viraram "Waiver NCR" e "Waiver DEV" **só no rótulo**:
+`data-kind`, `state.kind`, `Store.itemsKey` e o backup continuam `ncr`/`dev`.
+Os textos que falam do item ("+ Nova NCR", "NCRs") continuam falando do item.
+
+- **Cada área com a sua cor**, as que já existiam (`.tab[data-kind] --tab`):
+  um ponto de 7 px antes do nome (`.tab::before`), sempre à vista; a aba aberta
+  com fundo, texto e barra na cor; e uma faixa de 3 px na cor da área no alto
+  do `.editor`. A cor nunca é o único sinal (nome, barra, fundo,
+  `aria-selected`).
+- **Duas linhas nos 332 px**: com os rótulos longos, a letra da aba desceu
+  para 12 px e o respiro lateral para 4 px — Banco NCR, Kanban, Tabela e
+  Waiver NCR na primeira linha, o resto na segunda. Com outra fonte (Segoe UI)
+  pode virar três linhas; ninguém some.
+- **Teclado** (padrão WAI-ARIA de abas): setas (as quatro, porque no trilho as
+  abas ficam empilhadas), Home e End; a aba escondida (a Conversa desligada)
+  **não entra na roda** — antes a seta caía nela e abria uma aba invisível.
+
+### O seletor de relatório só onde ele manda (`renderSeletorGlobal`)
+O "Relatório" (e o campo "Marco") da barra de cima escolhe o relatório das
+abas Waiver NCR/DEV. No Banco NCR, no Kanban, na Tabela, no Resumo e na
+Conversa ele não mudava nada — cada uma tem o próprio recorte —, e ficava à
+vista como um filtro que não filtra ao lado do que filtra (o Kanban, por
+exemplo, só lia o relatório aberto uma vez, na abertura). Ali ele **some**
+(`hidden` em `#relatorioCampo` e `#marcoCampo`). Na aba Fluxos ele fica —
+"este relatório" depende dele —, e com "todos os marcos" ou no painel fica
+**desabilitado**, com `#relatorioNota` dizendo que não se aplica (o select
+aponta para ela com `aria-describedby`). "+ Novo relatório" continua em
+todas. Nas abas de tela cheia o botão de cima vira "PDF dos relatórios…":
+o PDF dele é o do Waiver Request, não o da tela.
+
+A barra de cima das abas Waiver, com a pasta ligada, é a mais cheia do
+programa: abaixo de uns 1560 px ela quebra em duas linhas (antes, uns
+1500 px). O subtítulo da marca some abaixo de 1760 px para adiar isso.
+
+### O marco da vez (`config.js`)
+`Config.MARCO_INICIAL` (hoje `'J09'`) é o único lugar do marco prioritário.
+`Config.ehMarco(texto, alvo)` compara sem maiúsculas, espaços e zero à
+esquerda (`j 9` = `J09`) e aceita o prefixo `RANAE` — com nota menor, para o
+"J09" escrito igual ganhar de "RANAE J09" —, e mais nada: `J09 Ind`, `J09Cer`,
+`J19`, `J090` não são o J09. `Config.relatorioInicial(projects)` devolve o
+relatório (o escrito igual primeiro, depois o mexido por último) ou `null`.
+
+- **Editor**: o boot abre esse relatório; sem ele, `list[0]` (o mais recente),
+  como sempre. Nunca cria relatório.
+- **A pasta pode trazê-lo depois** (quem liga a pasta pela primeira vez):
+  `aberturaPendente` fica armado quando a abertura caiu no mais recente, e
+  `abrirMarcoInicial()` troca para o J09 depois da primeira sincronização —
+  **só se a pessoa ainda não escolheu nem escreveu nada** (qualquer `input`,
+  troca de relatório, "+ Novo relatório" ou abrir item desarma).
+- **Visualizador**: a primeira leitura abre o J09; as releituras mantêm o que
+  a pessoa escolheu.
+- **Kanban**: já nascia no marco do relatório aberto — logo, no J09.
+- **Resumo**: `summaryFilter` nasce `null` e vira o J09 (ou "todos") na
+  primeira vez (§5, "Aba Resumo").
+- A Tabela continua abrindo com todos os marcos: ela responde "onde está a
+  NCR-018?", e nascer recortada esconderia itens.
+
+### A atualização automática (`atualizacao.js`)
+Um relógio só para o programa inteiro (`Atualizacao.iniciar` troca a
+configuração, nunca cria outro), de `Config.INTERVALO_ATUALIZACAO_MS` (5 min).
+O contador vai na segunda linha do botão "⟳ Atualizar" ("próxima em 04:32";
+a frase inteira na dica e no `aria-describedby`) — botão e contador juntos
+para caber na barra.
+
+- **Editor**: só existe com a pasta (`ajustarAtualizacao`, chamado por
+  `marcarPasta`); sem ela nada muda por fora e o botão nem aparece. A rodada
+  automática (`atualizarDaPasta`) primeiro olha a data dos três arquivos
+  (barato) e só lê e junta se algum mudou — o que evita reler e redesenhar à
+  toa, e evita uma gravação a mais na pasta a cada 5 minutos (toda
+  `sincronizar` grava). Depois de uma falha, a automática tenta religar
+  sozinha. O botão faz `flushSave` e `sincronizar({})` — e cancela a
+  gravação que o `flushSave` agendou para dali a 2,5 s, que seria a mesma
+  rodada de novo. Toda `sincronizar` bem-sucedida (gravar, a conferência de
+  20 s, o botão) recomeça a contagem (`marcarFeita`).
+- A **conferência de 20 s** (`pollPasta`) continua — é ela que traz o colega
+  em segundos —, mas **não roda com a janela em segundo plano**.
+- **Visualizador**: `podeReler` + `relerPublicacao`; o relógio começa depois
+  da primeira leitura. Arquivo aberto à mão não relê sozinho.
+- `podeAgora` adia (15 s) com alguém digitando (4 s desde a última tecla),
+  janela aberta (menos a ficha da NCR) ou a pré-visualização; a falha deixa
+  os dados como estão e o contador diz "falhou · de novo em …".
+- Em segundo plano o relógio para (nada de tique de 1 s nem de leitura); ao
+  voltar, se a última rodada tem mais de um minuto, confere na hora.
+- **Quem precisar de uma rodada** (os comunicados do visualizador, quando
+  vierem) se inscreve em `Atualizacao.aoConcluir(fn)` — não cria outro
+  temporizador.
 
 ### Instalação e uso sem rede
 `manifest.webmanifest` + `sw.js`, registrados só em `https:` ou `localhost`
@@ -1214,14 +1376,42 @@ permissão da pasta entre sessões.
   volta o problema de HTML novo com JS velho que o `?v=<sha>` existe para
   evitar. O `sw.js` também é carimbado na publicação: sem mudar de conteúdo,
   o navegador não o atualiza.
+- **`.rep-page` (report.css) vem depois do app.css.** Uma regra de uma classe
+  só no app.css (`.rep-page--kanban { font-size: … }`) perde para o
+  `.rep-page { font-size: 11pt }` de lá, sem erro nenhum: a escala do Kanban
+  impresso não mudava nada e a prévia errava a conta de folhas. Folha nova de
+  impressão estilizada no app.css leva as duas classes
+  (`.rep-page.rep-page--kanban`).
+- **Rodapé vazio na hora de medir mede uma linha a menos.** O pé do Kanban
+  impresso nascia vazio e ganhava "folha 1 de 3" depois da paginação; com o
+  texto, a folha passava 3 px da A3 e o Chrome cuspia uma folha em branco. O
+  pé nasce com texto de mesmo tamanho, e a numeração certa entra no fim.
+- **`flushSave()` sempre agenda uma sincronização** (2,5 s depois, via
+  `agendarGravacaoPasta`). Quem chama `flushSave` e logo em seguida
+  `sincronizar` (o botão "⟳ Atualizar") cancela esse `gravaTimer`, senão a
+  mesma rodada acontece duas vezes — e a segunda relê a pasta num momento em
+  que ninguém pediu.
+- **"J09 " no começo do texto também é o "J09 Ind".** Um teste que procurava a
+  opção do J09 com `/^J09 /` pegava o industrial quando ele vinha primeiro na
+  lista, e falhava só às vezes. Use `/^J09 \(/` — ou `Config.ehMarco`.
 
 ## 7. Conferir antes de publicar
 
-Não há mais suíte automatizada no repositório. O que resta é olhar, e vale
-para toda mudança de interface: **abra o PDF exportado** (relatório, resumo e
-fluxos), confira a capa, uma folha de continuação e uma página de evidência.
-Mais de uma vez uma mudança de tela vazou para a impressão sem ninguém
-perceber — é o §2, "o PDF é sagrado", e agora ninguém confere isso por você.
+A suíte voltou, menor e em Node (`tests/`, ver `tests/README.md`): o Bruno
+pediu testes automatizados para os comportamentos novos. `node tests/rodar.js`
+roda todas (navegação, abertura no marco da vez, Kanban e suas exportações,
+Resumo, atualização automática, Banco NCR, compatibilidade e os arquivos
+únicos de `file://`). Elas abrem o programa de verdade, semeiam pela API do
+programa, conferem arquivos baixados e o número de folhas e o papel dos PDFs.
+Não é o programa: nada ali entra no `derrogacao.html`, e o programa continua
+sem build e sem dependência.
+
+A suíte não substitui olhar, e vale para toda mudança de interface: **abra o
+PDF exportado** (relatório, resumo e fluxos), confira a capa, uma folha de
+continuação e uma página de evidência. Mais de uma vez uma mudança de tela
+vazou para a impressão sem ninguém perceber — é o §2, "o PDF é sagrado". Nesta
+rodada o PDF do relatório J06 de exemplo foi comparado **pixel a pixel** com o
+da versão anterior (52 folhas, idênticas).
 
 Abra também de `file://` e pelo `derrogacao.html`: são os dois caminhos que o
 Bruno usa e os que mais escapam. E abra o `derrogacao-visualizador.html` com um
@@ -1341,4 +1531,23 @@ desta máquina às vezes bloqueia `github.io`.
 | Kanban esconde os marcos "Ind" e nunca os soma ao marco sem Ind | decisão do Bruno: o marco industrial tem pouca relevância |
 | Primeira coluna do Kanban é "NCR to be closed" | pedido do Bruno: NCR do marco fora do Waiver dele precisa ser fechada |
 | Arrastar no Kanban muda a situação; sair de "aceito" confirma | é o gesto natural de um quadro; a confirmação protege a trava do item aceito |
+| Navegação: Banco NCR · Kanban · Tabela · Waiver NCR · Waiver DEV (depois Resumo, Fluxos) | pedido do Bruno; só os rótulos mudaram — `ncr`/`dev` continuam as chaves |
+| Cada área com a sua cor (ponto, e a aba aberta com fundo e barra) | pedido do Bruno: saber de relance onde se está; a cor nunca é o único sinal |
+| Seletor "Relatório" some onde não manda; nos Fluxos fica desabilitado com o motivo | um filtro que não filtra ao lado do que filtra confundia (pedido do Bruno) |
+| Marco que abre primeiro em `Config.MARCO_INICIAL` (J09), sem criar relatório | pedido do Bruno, "priorizar o Marco 9"; num lugar só porque o marco da vez muda |
+| A comparação do marco aceita caixa, espaço, zero à esquerda e "RANAE", e mais nada | "J09 Ind", "J09Cer" e "J19" são outros marcos |
+| A Tabela continua abrindo com todos os marcos | ela responde "onde está a NCR-018?"; nascer recortada esconderia itens |
+| Atualização automática: um relógio só, 5 min, contador no botão; no editor só com a pasta | pedido do Bruno; sem a pasta nada muda por fora, e dois mecanismos concorrentes brigariam |
+| No editor, a rodada automática só lê se algum arquivo mudou | toda `sincronizar` grava na pasta: reler sempre seria uma gravação a mais a cada 5 min em cada máquina |
+| A conferência de 20 s não roda em segundo plano | ao voltar, o ciclo confere na hora; ler a pasta com a janela escondida é trabalho para ninguém |
+| Cartão do Kanban recolhido, "+" para a descrição; abrir não grava | pedido do Bruno: mais NCRs à vista |
+| Só "CEDOC Closure" sai de "NCR to be closed" (as "Closed" ficam, verdes) | foi o status que o Bruno nomeou; trocar para "qualquer fechada" é uma linha (`emCedoc` → `c.fechada`) |
+| A área das encerradas fica abaixo do quadro, recolhível, com a quantidade sempre à vista | pedido do Bruno; recolhida por padrão, a escolha fica no navegador |
+| Kanban impresso pela janela de impressão, A4/A3, com escala automática | o mesmo caminho do relatório (§5): fidelidade e zero dependência; "Margens: Nenhuma" continua valendo |
+| Planilha do Kanban em .xlsx, com a aba "Recorte" | a regra das outras planilhas (§10, "Toda exportação leva a aba Recorte") |
+| Resumo: mini cards (`tb-chip`) no lugar do dropdown, números com os filtros | pedido do Bruno; a mesma pastilha e a mesma fila das outras áreas |
+| O ✓ na pastilha escolhida vale em todo lugar (Tabela, Kanban, Resumo) | a escolha não pode ser só cor, e a mesma pastilha tem de se comportar igual |
+| Pastilhas de marco da Tabela na fila dos marcos | a mesma ordem do Kanban e do Resumo ("marcos em ordem de fila em todo lugar") |
+| Zebra no Banco NCR, com os estados por cima | pedido do Bruno: legibilidade de uma tabela de 13 colunas |
+| Suíte de testes de volta, em `tests/` (Node + Playwright) | pedido do Bruno para os comportamentos novos; é ferramenta de quem edita, fora do programa |
 

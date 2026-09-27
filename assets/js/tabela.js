@@ -515,7 +515,13 @@
     var escolhidos = marcosDoFiltro(f);
     var chips = el('div', 'tb-marcos');
     chips.appendChild(el('span', 'tb-marcos-rot', 'Marcos'));
-    (projects || []).forEach(function (p) {
+    /* na fila combinada dos marcos, como as pastilhas do Kanban e os mini
+       cards do Resumo; relatório sem marco vai para o fim */
+    (projects || []).slice().sort(function (a, b) {
+      var ma = txt(a.marco), mb = txt(b.marco);
+      if (!ma || !mb) return ma ? -1 : (mb ? 1 : 0);
+      return Fluxo.cmpMarco(ma, mb);
+    }).forEach(function (p) {
       var n = (p.ncrs || []).length + (p.devs || []).length;
       var ligado = escolhidos.indexOf(p.id) >= 0;
       var b = el('button', 'tb-chip' + (ligado ? ' is-on' : ''),
