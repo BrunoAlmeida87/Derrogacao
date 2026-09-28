@@ -3,7 +3,7 @@
    campos, o arquivo na pasta da equipe, o aviso de "já comunicado", a
    retenção, a publicação, o backup (com e sem a coleção) — e, no
    visualizador, o pop-up consolidado, "Abrir waiver", "Marcar como lido"
-   que sobrevive ao recarregar, "Depois" e a regra dos 7 dias. */
+   que sobrevive ao recarregar, "Depois" e o prazo de 4 dias (sempre). */
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -349,13 +349,16 @@ function aviso(pg) {
     L.igual(await vp.evaluate(() => document.querySelectorAll('#comunicadosLista .is-novo').length), 0, 'marcados como lidos');
     await vp.click('#comunicadosFecharBtn');
 
-    console.log('visualizador: primeira abertura (regra dos 7 dias) e publicação antiga');
-    const antigo = await pg.evaluate((texto) => {
-      const d = Publicacao.interpretar(texto);
-      const velho = Object.assign({}, d.comunicados[0], { id: 'c-velho', em: new Date(Date.now() - 30 * 86400000).toISOString(),
-        chave: 'velho|J09|ncr|X', numero: 'NCR-VELHA' });
-      return texto.replace('"comunicados":[', '"comunicados":[' + JSON.stringify(velho) + ',');
-    }, pub);
+    console.log('visualizador: o prazo de 4 dias (primeira abertura e volta) e publicação antiga');
+    L.igual(await pg.evaluate(() => Config.DIAS_COMUNICADO_NOVO), 4, 'o prazo mora num lugar só: Config.DIAS_COMUNICADO_NOVO = 4');
+    /* comunicados com N dias, acrescentados à publicação */
+    const comIdades = (texto, idades) => pg.evaluate((a) => {
+      const d = Publicacao.interpretar(a.texto);
+      const extra = a.idades.map(x => Object.assign({}, d.comunicados[0], { id: 'c-' + x[1],
+        em: new Date(Date.now() - x[0] * 86400000).toISOString(), chave: x[1] + '|J09|ncr|X', numero: x[1] }));
+      return a.texto.replace('"comunicados":[', '"comunicados":[' + extra.map(c => JSON.stringify(c)).join(',') + ',');
+    }, { texto: texto, idades: idades });
+    const antigo = await comIdades(pub, [[30, 'NCR-VELHA'], [5, 'NCR-CINCO'], [3, 'NCR-TRES']]);
     srv.extras['visualizador-dados.js'] = () => antigo;
     const v2 = await L.abrir();
     outros.push(v2);
@@ -365,8 +368,24 @@ function aviso(pg) {
     const prim = await v2.pagina.evaluate(() => ({
       frases: Array.from(document.querySelectorAll('#comPop .com-frase')).map(x => x.textContent), chip: document.getElementById('comChipConta').textContent
     }));
-    L.ok(prim.frases.length === 4 && !prim.frases.some(f => /NCR-VELHA/.test(f)),
-      'na primeira abertura, o comunicado de 30 dias atrás não vira pop-up (' + prim.frases.length + ' recentes)');
+    L.ok(prim.frases.length === 5 && prim.frases.some(f => /NCR-TRES/.test(f)) && !prim.frases.some(f => /NCR-VELHA|NCR-CINCO/.test(f)),
+      'primeira abertura: o de 3 dias vira pop-up; os de 5 e 30 dias não (' + prim.frases.length + ' no pop-up)');
+    await v2.pagina.click('#comPop .com-pop-acoes .btn--accent');
+    const deVolta = await comIdades(pub, [[6, 'NCR-SEIS'], [1, 'NCR-ONTEM']]);
+    srv.extras['visualizador-dados.js'] = () => deVolta;
+    await v2.pagina.reload();
+    await v2.pagina.waitForFunction(() => document.getElementById('projectSelect').options.length > 0);
+    await v2.pagina.waitForTimeout(600);
+    const volta = await v2.pagina.evaluate(() => ({
+      frases: Array.from(document.querySelectorAll('#comPop .com-frase')).map(x => x.textContent), chip: document.getElementById('comChipConta').textContent,
+      noHistorico: null
+    }));
+    L.ok(volta.frases.length === 1 && /NCR-ONTEM/.test(volta.frases[0]) && volta.chip === '1',
+      'quem volta depois: só o não lido de ontem vira pop-up; o de 6 dias não (nem conta na etiqueta)');
+    await v2.pagina.click('#comChip');
+    const hist6 = await v2.pagina.evaluate(() => Array.from(document.querySelectorAll('#comunicadosLista .com-frase')).some(x => /NCR-SEIS/.test(x.textContent)));
+    L.ok(hist6, 'o de 6 dias continua no histórico');
+    await v2.pagina.click('#comunicadosFecharBtn');
     const semColecao = pub.replace(/"comunicados":\[.*?\],"projects"/, '"projects"');
     L.ok(!/"comunicados"/.test(semColecao), 'publicação antiga, sem a coleção, preparada');
     srv.extras['visualizador-dados.js'] = () => semColecao;

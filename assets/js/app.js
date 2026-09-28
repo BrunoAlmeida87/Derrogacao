@@ -6112,7 +6112,9 @@
      segundo plano a conferência não rodou. Depois de uma falha, tenta
      religar já (o limite de um minuto é para as tentativas sozinhas). */
   function aoVoltarParaJanela() {
-    if (document.hidden || Leitura.ativo() || !Pasta.ligada()) return;
+    if (document.hidden || Leitura.ativo()) return;
+    conferirPublicacao();
+    if (!Pasta.ligada()) return;
     ultimaReligada = 0;
     setTimeout(pollPasta, 300);
   }
@@ -6622,7 +6624,70 @@
     });
   }
 
+  /* O aviso de "pasta do visualizador desligada". Pedido do Bruno: o editor
+     fica sempre ligado a ela e, quando não está (nunca escolhida, sem
+     permissão nesta sessão, ou parou de responder), pede confirmação para
+     conectar. "Agora não" cala só esta queda: a próxima pergunta de novo. */
+  var pubAvisoCalado = '';
+
+  function renderPubNotice() {
+    var box = $('#pubNotice');
+    if (!box || Leitura.ativo()) return;
+    if (pubEstado === 'on') pubAvisoCalado = '';
+    if (!Pasta.suportado() || pubEstado === 'on' || pubAvisoCalado === pubEstado) {
+      box.hidden = true;
+      return;
+    }
+    var caminho = String(Config.PASTA_VISUALIZADOR || '').trim();
+    var ligada = Pasta.publicacao.ligada();
+    box.hidden = false;
+    box.classList.toggle('notice--parada', ligada);
+    $('#pubNoticeText').textContent = !ligada
+      ? 'O editor não está ligado à pasta do visualizador: o que você faz aqui não chega a quem usa o ' +
+        'visualizador. Escolha a pasta uma vez' + (caminho ? ':' : '.')
+      : pubEstado === 'permissao'
+        ? 'A pasta do visualizador precisa da sua confirmação para receber as publicações nesta sessão.'
+        : 'A pasta do visualizador parou de responder. Os visualizadores continuam vendo a última publicação.';
+    $('#pubNoticePath').textContent = caminho;
+    $('#pubNoticePath').hidden = ligada || !caminho;
+    $('#pubNoticeCopy').hidden = ligada || !caminho;
+    $('#pubNoticeBtn').textContent = !ligada ? 'Escolher a pasta…' : 'Conectar agora';
+  }
+
+  /** O botão do aviso: escolher a pasta (primeira vez) ou reconectar. Vem de um clique. */
+  function conectarPelaNotice() {
+    if (!Pasta.publicacao.ligada()) {
+      Pasta.publicacao.escolher().then(function () {
+        pubEstado = 'on';
+        renderPublicar();
+        return publicar({});
+      }).catch(function (e) {
+        if (e && e.name === 'AbortError') return;
+        markError(e);
+        toast(e.message || 'Não foi possível abrir a pasta.');
+      });
+      return;
+    }
+    conectarPublicacao().then(function (ok) {
+      if (ok) {
+        toast('Pasta do visualizador conectada.');
+        publicar({ auto: true });
+      }
+    });
+  }
+
+  /* A pasta do visualizador caiu enquanto a janela estava fora? Ao voltar,
+     confere a permissão — é o que faz o aviso aparecer na hora. */
+  function conferirPublicacao() {
+    if (Leitura.ativo() || !Pasta.suportado() || !Pasta.publicacao.ligada()) return;
+    Pasta.publicacao.estadoPermissao().then(function (perm) {
+      var novo = perm === 'granted' ? (pubEstado === 'erro' ? 'erro' : 'on') : 'permissao';
+      if (novo !== pubEstado) { pubEstado = novo; renderPublicar(); }
+    }).catch(function () {});
+  }
+
   function renderPublicar() {
+    renderPubNotice();
     var sub = $('#publicarBtnSub');
     var chip = $('#pubChip');
     var ligada = Pasta.publicacao.ligada();
@@ -7208,6 +7273,9 @@
     leitura.carregando = true;
     var pd = Leitura.pastaDados();
     var url = Publicacao.caminhoParaUrl(pd.caminho);
+    /* numa página servida (http/https, como o site publicado) o navegador
+       sempre recusa carregar um file:// — nem tenta: sobra o "ao lado" */
+    if (/^file:/i.test(url) && !/^file:/i.test(location.protocol)) url = '';
     var falhouCaminho = false;
     if (!state.projects.length) mostrarSemDados(null);
 
@@ -7843,6 +7911,16 @@
     /* publicação para os visualizadores */
     $('#publicarBtn').addEventListener('click', abrirPublicarDialog);
     $('#pubChip').addEventListener('click', conectarPublicacao);
+    $('#pubNoticeBtn').addEventListener('click', conectarPelaNotice);
+    $('#pubNoticeDismiss').addEventListener('click', function () {
+      pubAvisoCalado = pubEstado;
+      renderPubNotice();
+    });
+    $('#pubNoticeCopy').addEventListener('click', function () {
+      copiarTexto(String(Config.PASTA_VISUALIZADOR || ''),
+        function () { toast('Caminho copiado. Cole na barra de endereço da janela do Windows.', 5000); },
+        function () { toast('Não foi possível copiar aqui. Selecione o texto e use Ctrl+C.'); });
+    });
     $('#publicarFecharBtn').addEventListener('click', function () { $('#publicarDialog').close(); });
     $('#publicarAgoraBtn').addEventListener('click', function () { publicar({}); });
     $('#publicarBaixarBtn').addEventListener('click', baixarPublicacao);

@@ -151,6 +151,16 @@
   <button class="btn btn--sm btn--quiet" id="pastaNoticeDismiss">Agora não</button>
 </div>
 
+<!-- editor: a pasta do visualizador não está ligada (nunca escolhida, sem
+     permissão nesta sessão, ou parou de responder). Volta a cada queda. -->
+<div data-so-editor class="notice notice--pasta" id="pubNotice" role="status" aria-live="polite" hidden>
+  <span id="pubNoticeText"></span>
+  <code class="notice-caminho" id="pubNoticePath"></code>
+  <button class="btn btn--sm btn--accent" id="pubNoticeBtn">Conectar agora</button>
+  <button class="btn btn--sm" id="pubNoticeCopy">Copiar o caminho</button>
+  <button class="btn btn--sm btn--quiet" id="pubNoticeDismiss">Agora não</button>
+</div>
+
 <!-- só no visualizador: a releitura falhou e os dados à vista podem estar velhos -->
 <div class="notice notice--leitura" id="leituraAviso" role="status" aria-live="polite" hidden>
   <span id="leituraAvisoTexto"></span>

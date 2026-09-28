@@ -4313,6 +4313,16 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
   <button class="btn btn--sm btn--quiet" id="pastaNoticeDismiss">Agora não</button>
 </div>
 
+<!-- editor: a pasta do visualizador não está ligada (nunca escolhida, sem
+     permissão nesta sessão, ou parou de responder). Volta a cada queda. -->
+<div data-so-editor class="notice notice--pasta" id="pubNotice" role="status" aria-live="polite" hidden>
+  <span id="pubNoticeText"></span>
+  <code class="notice-caminho" id="pubNoticePath"></code>
+  <button class="btn btn--sm btn--accent" id="pubNoticeBtn">Conectar agora</button>
+  <button class="btn btn--sm" id="pubNoticeCopy">Copiar o caminho</button>
+  <button class="btn btn--sm btn--quiet" id="pubNoticeDismiss">Agora não</button>
+</div>
+
 <!-- só no visualizador: a releitura falhou e os dados à vista podem estar velhos -->
 <div class="notice notice--leitura" id="leituraAviso" role="status" aria-live="polite" hidden>
   <span id="leituraAvisoTexto"></span>
@@ -5406,6 +5416,20 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
      A comparação é a de `ehMarco`: "J09 Ind" não é o J09. */
   var MARCOS_COMUNICADOS = ['J09'];
 
+  /* Por quantos dias um comunicado conta como novidade no visualizador: só
+     os não lidos dentro desse prazo viram pop-up (e contam na etiqueta 📣).
+     Os mais velhos ficam no histórico. Pedido do Bruno: 4 dias. */
+  var DIAS_COMUNICADO_NOVO = 4;
+
+  /* A pasta dos dados do visualizador: onde o editor grava o
+     visualizador-dados.js e de onde o visualizador o lê. O arquivo
+     derrogacao-visualizador.html fica na pasta de cima (ncr_milestone).
+     No visualizador vale este caminho, a menos que a pessoa informe outro
+     naquele navegador (etiqueta 📄). No editor, ele aparece no aviso que
+     pede para ligar a pasta — o navegador não abre pasta por caminho, então
+     a escolha na janela do Windows é feita uma vez e fica guardada. */
+  var PASTA_VISUALIZADOR = 'X:\\36.GTO - RELATÓRIOS GTO\\NCR_MILESTONE\\00_BD_VISUALIZADOR';
+
   function str(v) { return v == null ? '' : String(v); }
 
   /**
@@ -5454,6 +5478,8 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
     MARCO_INICIAL: MARCO_INICIAL,
     INTERVALO_ATUALIZACAO_MS: INTERVALO_ATUALIZACAO_MS,
     MARCOS_COMUNICADOS: MARCOS_COMUNICADOS,
+    DIAS_COMUNICADO_NOVO: DIAS_COMUNICADO_NOVO,
+    PASTA_VISUALIZADOR: PASTA_VISUALIZADOR,
     chaveMarco: chaveMarco,
     ehMarco: ehMarco,
     relatorioInicial: relatorioInicial
@@ -5700,7 +5726,11 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
   var ativo = meta('derrogacao-modo') === 'leitura' ||
     /[?&]modo=leitura(&|$)/.test(global.location.search || '');
 
-  function pastaDoArquivo() { return meta('derrogacao-pasta-dados'); }
+  /* a gravada no próprio arquivo pelo gerador, senão a do config.js */
+  function pastaDoArquivo() {
+    return meta('derrogacao-pasta-dados') ||
+      String((global.Config && Config.PASTA_VISUALIZADOR) || '').trim();
+  }
 
   function pastaDoNavegador() {
     try { return (global.localStorage.getItem(CHAVE_PASTA) || '').trim(); } catch (e) { return ''; }
@@ -15778,7 +15808,12 @@ if(isWorker){
   var MAX_MENSAGEM = 280;   /* a mensagem opcional é um recado, não um texto */
   var MAX_RESUMO = 140;     /* o título curto do item */
   var MAX_LIDOS = 300;      /* bem acima dos 100 guardados: um id lido não volta */
-  var DIAS_PRIMEIRA = 7;    /* na primeira abertura, só os da última semana */
+  /* Quantos dias um comunicado conta como novidade (pop-up, etiqueta 📣 e a
+     marca "novo" do histórico). O valor mora no Config.DIAS_COMUNICADO_NOVO. */
+  function diasNovo() {
+    var d = global.Config && Number(Config.DIAS_COMUNICADO_NOVO);
+    return d > 0 ? d : 4;
+  }
 
   /* Os tipos de acontecimento. `frase` recebe o comunicado e devolve o texto
      que se lê sem mais nada — a mensagem opcional é um acréscimo. */
@@ -16057,23 +16092,9 @@ if(isWorker){
     } catch (e) { /* sem armazenamento: o pop-up volta na próxima abertura */ }
   }
 
-  /**
-   * O registro dos lidos deste navegador. Na primeira vez (nada guardado),
-   * o que tem mais de DIAS_PRIMEIRA dias já nasce lido: quem abre o
-   * visualizador pela primeira vez não precisa de uma pilha de avisos
-   * velhos — eles continuam no histórico.
-   */
-  function lidos(lista) {
-    var reg = lerLidos();
-    if (reg) return reg;
-    var corte = new Date(Date.now() - DIAS_PRIMEIRA * 86400000).toISOString();
-    reg = {
-      desde: agora(),
-      ids: (lista || []).filter(function (c) { return str(c.em) < corte; })
-        .map(function (c) { return c.id; })
-    };
-    gravarLidos(reg);
-    return reg;
+  /** O registro dos lidos deste navegador (vazio na primeira vez). */
+  function lidos() {
+    return lerLidos() || { desde: agora(), ids: [] };
   }
 
   function marcarLidos(ids) {
@@ -16103,20 +16124,17 @@ if(isWorker){
   }
 
   /**
-   * Os não lidos, entre os que o visualizador mostra. Um comunicado mais
-   * velho que a primeira abertura deste navegador menos DIAS_PRIMEIRA dias
-   * nunca vira pop-up — é o que impede um comunicado antigo, trazido de
-   * volta por um backup, de reaparecer como novidade.
+   * Os não lidos que ainda são novidade: um por acontecimento, e só dos
+   * últimos `diasNovo()` dias — sempre, e não só na primeira abertura
+   * (pedido do Bruno). Quem passa semanas sem abrir o visualizador não
+   * recebe uma pilha de avisos velhos; eles continuam no histórico. Vale
+   * também para um comunicado antigo trazido de volta por um backup.
    */
   function naoLidos(lista) {
-    var ver = paraVer(lista);
-    var reg = lidos(lista);
     var ja = {};
-    reg.ids.forEach(function (id) { ja[id] = true; });
-    var piso = reg.desde
-      ? new Date(Date.parse(reg.desde) - DIAS_PRIMEIRA * 86400000).toISOString()
-      : '';
-    return ver.filter(function (c) { return !ja[c.id] && (!piso || str(c.em) >= piso); });
+    lidos().ids.forEach(function (id) { ja[id] = true; });
+    var corte = new Date(Date.now() - diasNovo() * 86400000).toISOString();
+    return paraVer(lista).filter(function (c) { return !ja[c.id] && str(c.em) >= corte; });
   }
 
   global.Comunicados = {
@@ -16125,7 +16143,7 @@ if(isWorker){
     SCHEMA: SCHEMA,
     MAX: MAX,
     MAX_MENSAGEM: MAX_MENSAGEM,
-    DIAS_PRIMEIRA: DIAS_PRIMEIRA,
+    diasNovo: diasNovo,
     TIPOS: TIPOS,
     ORDEM_TIPOS: ORDEM_TIPOS,
     CHAVE_LOCAIS: CHAVE_LOCAIS,
@@ -25177,7 +25195,9 @@ if(isWorker){
      segundo plano a conferência não rodou. Depois de uma falha, tenta
      religar já (o limite de um minuto é para as tentativas sozinhas). */
   function aoVoltarParaJanela() {
-    if (document.hidden || Leitura.ativo() || !Pasta.ligada()) return;
+    if (document.hidden || Leitura.ativo()) return;
+    conferirPublicacao();
+    if (!Pasta.ligada()) return;
     ultimaReligada = 0;
     setTimeout(pollPasta, 300);
   }
@@ -25687,7 +25707,70 @@ if(isWorker){
     });
   }
 
+  /* O aviso de "pasta do visualizador desligada". Pedido do Bruno: o editor
+     fica sempre ligado a ela e, quando não está (nunca escolhida, sem
+     permissão nesta sessão, ou parou de responder), pede confirmação para
+     conectar. "Agora não" cala só esta queda: a próxima pergunta de novo. */
+  var pubAvisoCalado = '';
+
+  function renderPubNotice() {
+    var box = $('#pubNotice');
+    if (!box || Leitura.ativo()) return;
+    if (pubEstado === 'on') pubAvisoCalado = '';
+    if (!Pasta.suportado() || pubEstado === 'on' || pubAvisoCalado === pubEstado) {
+      box.hidden = true;
+      return;
+    }
+    var caminho = String(Config.PASTA_VISUALIZADOR || '').trim();
+    var ligada = Pasta.publicacao.ligada();
+    box.hidden = false;
+    box.classList.toggle('notice--parada', ligada);
+    $('#pubNoticeText').textContent = !ligada
+      ? 'O editor não está ligado à pasta do visualizador: o que você faz aqui não chega a quem usa o ' +
+        'visualizador. Escolha a pasta uma vez' + (caminho ? ':' : '.')
+      : pubEstado === 'permissao'
+        ? 'A pasta do visualizador precisa da sua confirmação para receber as publicações nesta sessão.'
+        : 'A pasta do visualizador parou de responder. Os visualizadores continuam vendo a última publicação.';
+    $('#pubNoticePath').textContent = caminho;
+    $('#pubNoticePath').hidden = ligada || !caminho;
+    $('#pubNoticeCopy').hidden = ligada || !caminho;
+    $('#pubNoticeBtn').textContent = !ligada ? 'Escolher a pasta…' : 'Conectar agora';
+  }
+
+  /** O botão do aviso: escolher a pasta (primeira vez) ou reconectar. Vem de um clique. */
+  function conectarPelaNotice() {
+    if (!Pasta.publicacao.ligada()) {
+      Pasta.publicacao.escolher().then(function () {
+        pubEstado = 'on';
+        renderPublicar();
+        return publicar({});
+      }).catch(function (e) {
+        if (e && e.name === 'AbortError') return;
+        markError(e);
+        toast(e.message || 'Não foi possível abrir a pasta.');
+      });
+      return;
+    }
+    conectarPublicacao().then(function (ok) {
+      if (ok) {
+        toast('Pasta do visualizador conectada.');
+        publicar({ auto: true });
+      }
+    });
+  }
+
+  /* A pasta do visualizador caiu enquanto a janela estava fora? Ao voltar,
+     confere a permissão — é o que faz o aviso aparecer na hora. */
+  function conferirPublicacao() {
+    if (Leitura.ativo() || !Pasta.suportado() || !Pasta.publicacao.ligada()) return;
+    Pasta.publicacao.estadoPermissao().then(function (perm) {
+      var novo = perm === 'granted' ? (pubEstado === 'erro' ? 'erro' : 'on') : 'permissao';
+      if (novo !== pubEstado) { pubEstado = novo; renderPublicar(); }
+    }).catch(function () {});
+  }
+
   function renderPublicar() {
+    renderPubNotice();
     var sub = $('#publicarBtnSub');
     var chip = $('#pubChip');
     var ligada = Pasta.publicacao.ligada();
@@ -26273,6 +26356,9 @@ if(isWorker){
     leitura.carregando = true;
     var pd = Leitura.pastaDados();
     var url = Publicacao.caminhoParaUrl(pd.caminho);
+    /* numa página servida (http/https, como o site publicado) o navegador
+       sempre recusa carregar um file:// — nem tenta: sobra o "ao lado" */
+    if (/^file:/i.test(url) && !/^file:/i.test(location.protocol)) url = '';
     var falhouCaminho = false;
     if (!state.projects.length) mostrarSemDados(null);
 
@@ -26908,6 +26994,16 @@ if(isWorker){
     /* publicação para os visualizadores */
     $('#publicarBtn').addEventListener('click', abrirPublicarDialog);
     $('#pubChip').addEventListener('click', conectarPublicacao);
+    $('#pubNoticeBtn').addEventListener('click', conectarPelaNotice);
+    $('#pubNoticeDismiss').addEventListener('click', function () {
+      pubAvisoCalado = pubEstado;
+      renderPubNotice();
+    });
+    $('#pubNoticeCopy').addEventListener('click', function () {
+      copiarTexto(String(Config.PASTA_VISUALIZADOR || ''),
+        function () { toast('Caminho copiado. Cole na barra de endereço da janela do Windows.', 5000); },
+        function () { toast('Não foi possível copiar aqui. Selecione o texto e use Ctrl+C.'); });
+    });
     $('#publicarFecharBtn').addEventListener('click', function () { $('#publicarDialog').close(); });
     $('#publicarAgoraBtn').addEventListener('click', function () { publicar({}); });
     $('#publicarBaixarBtn').addEventListener('click', baixarPublicacao);

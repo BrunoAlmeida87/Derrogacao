@@ -39,7 +39,11 @@
   var ativo = meta('derrogacao-modo') === 'leitura' ||
     /[?&]modo=leitura(&|$)/.test(global.location.search || '');
 
-  function pastaDoArquivo() { return meta('derrogacao-pasta-dados'); }
+  /* a gravada no próprio arquivo pelo gerador, senão a do config.js */
+  function pastaDoArquivo() {
+    return meta('derrogacao-pasta-dados') ||
+      String((global.Config && Config.PASTA_VISUALIZADOR) || '').trim();
+  }
 
   function pastaDoNavegador() {
     try { return (global.localStorage.getItem(CHAVE_PASTA) || '').trim(); } catch (e) { return ''; }

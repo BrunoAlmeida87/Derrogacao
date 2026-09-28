@@ -26,6 +26,20 @@
      A comparação é a de `ehMarco`: "J09 Ind" não é o J09. */
   var MARCOS_COMUNICADOS = ['J09'];
 
+  /* Por quantos dias um comunicado conta como novidade no visualizador: só
+     os não lidos dentro desse prazo viram pop-up (e contam na etiqueta 📣).
+     Os mais velhos ficam no histórico. Pedido do Bruno: 4 dias. */
+  var DIAS_COMUNICADO_NOVO = 4;
+
+  /* A pasta dos dados do visualizador: onde o editor grava o
+     visualizador-dados.js e de onde o visualizador o lê. O arquivo
+     derrogacao-visualizador.html fica na pasta de cima (ncr_milestone).
+     No visualizador vale este caminho, a menos que a pessoa informe outro
+     naquele navegador (etiqueta 📄). No editor, ele aparece no aviso que
+     pede para ligar a pasta — o navegador não abre pasta por caminho, então
+     a escolha na janela do Windows é feita uma vez e fica guardada. */
+  var PASTA_VISUALIZADOR = 'X:\\36.GTO - RELATÓRIOS GTO\\NCR_MILESTONE\\00_BD_VISUALIZADOR';
+
   function str(v) { return v == null ? '' : String(v); }
 
   /**
@@ -74,6 +88,8 @@
     MARCO_INICIAL: MARCO_INICIAL,
     INTERVALO_ATUALIZACAO_MS: INTERVALO_ATUALIZACAO_MS,
     MARCOS_COMUNICADOS: MARCOS_COMUNICADOS,
+    DIAS_COMUNICADO_NOVO: DIAS_COMUNICADO_NOVO,
+    PASTA_VISUALIZADOR: PASTA_VISUALIZADOR,
     chaveMarco: chaveMarco,
     ehMarco: ehMarco,
     relatorioInicial: relatorioInicial

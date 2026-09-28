@@ -41,7 +41,12 @@
   var MAX_MENSAGEM = 280;   /* a mensagem opcional é um recado, não um texto */
   var MAX_RESUMO = 140;     /* o título curto do item */
   var MAX_LIDOS = 300;      /* bem acima dos 100 guardados: um id lido não volta */
-  var DIAS_PRIMEIRA = 7;    /* na primeira abertura, só os da última semana */
+  /* Quantos dias um comunicado conta como novidade (pop-up, etiqueta 📣 e a
+     marca "novo" do histórico). O valor mora no Config.DIAS_COMUNICADO_NOVO. */
+  function diasNovo() {
+    var d = global.Config && Number(Config.DIAS_COMUNICADO_NOVO);
+    return d > 0 ? d : 4;
+  }
 
   /* Os tipos de acontecimento. `frase` recebe o comunicado e devolve o texto
      que se lê sem mais nada — a mensagem opcional é um acréscimo. */
@@ -320,23 +325,9 @@
     } catch (e) { /* sem armazenamento: o pop-up volta na próxima abertura */ }
   }
 
-  /**
-   * O registro dos lidos deste navegador. Na primeira vez (nada guardado),
-   * o que tem mais de DIAS_PRIMEIRA dias já nasce lido: quem abre o
-   * visualizador pela primeira vez não precisa de uma pilha de avisos
-   * velhos — eles continuam no histórico.
-   */
-  function lidos(lista) {
-    var reg = lerLidos();
-    if (reg) return reg;
-    var corte = new Date(Date.now() - DIAS_PRIMEIRA * 86400000).toISOString();
-    reg = {
-      desde: agora(),
-      ids: (lista || []).filter(function (c) { return str(c.em) < corte; })
-        .map(function (c) { return c.id; })
-    };
-    gravarLidos(reg);
-    return reg;
+  /** O registro dos lidos deste navegador (vazio na primeira vez). */
+  function lidos() {
+    return lerLidos() || { desde: agora(), ids: [] };
   }
 
   function marcarLidos(ids) {
@@ -366,20 +357,17 @@
   }
 
   /**
-   * Os não lidos, entre os que o visualizador mostra. Um comunicado mais
-   * velho que a primeira abertura deste navegador menos DIAS_PRIMEIRA dias
-   * nunca vira pop-up — é o que impede um comunicado antigo, trazido de
-   * volta por um backup, de reaparecer como novidade.
+   * Os não lidos que ainda são novidade: um por acontecimento, e só dos
+   * últimos `diasNovo()` dias — sempre, e não só na primeira abertura
+   * (pedido do Bruno). Quem passa semanas sem abrir o visualizador não
+   * recebe uma pilha de avisos velhos; eles continuam no histórico. Vale
+   * também para um comunicado antigo trazido de volta por um backup.
    */
   function naoLidos(lista) {
-    var ver = paraVer(lista);
-    var reg = lidos(lista);
     var ja = {};
-    reg.ids.forEach(function (id) { ja[id] = true; });
-    var piso = reg.desde
-      ? new Date(Date.parse(reg.desde) - DIAS_PRIMEIRA * 86400000).toISOString()
-      : '';
-    return ver.filter(function (c) { return !ja[c.id] && (!piso || str(c.em) >= piso); });
+    lidos().ids.forEach(function (id) { ja[id] = true; });
+    var corte = new Date(Date.now() - diasNovo() * 86400000).toISOString();
+    return paraVer(lista).filter(function (c) { return !ja[c.id] && str(c.em) >= corte; });
   }
 
   global.Comunicados = {
@@ -388,7 +376,7 @@
     SCHEMA: SCHEMA,
     MAX: MAX,
     MAX_MENSAGEM: MAX_MENSAGEM,
-    DIAS_PRIMEIRA: DIAS_PRIMEIRA,
+    diasNovo: diasNovo,
     TIPOS: TIPOS,
     ORDEM_TIPOS: ORDEM_TIPOS,
     CHAVE_LOCAIS: CHAVE_LOCAIS,

@@ -1120,7 +1120,10 @@ como programa separado, feita sobre uma base velha; foi refeita assim.)
   por caminho (`localStorage derrogacao-visualizador:pastaDados`, senão o
   `<meta name="derrogacao-pasta-dados">` que o gerador põe a partir de
   `PASTA_DADOS_VISUALIZADOR` no `build-standalone.py` — **é ali que entra a pasta
-  definitiva quando o Bruno informar**) → ao lado → nada: tela com **um botão
+  definitiva quando o Bruno informar**; hoje ela vem de
+  `Config.PASTA_VISUALIZADOR`, `X:\36.GTO - RELATÓRIOS GTO\NCR_MILESTONE\00_BD_VISUALIZADOR`,
+  com o `derrogacao-visualizador.html` na pasta de cima, `NCR_MILESTONE`)
+  → ao lado → nada: tela com **um botão
   só** ("Tentar de novo"). Releitura com dados à vista que falha → faixa
   `#leituraAviso` com o botão. Arquivo aberto à mão é lido como texto
   (`Publicacao.interpretar`), nunca executado. UNC (`file://servidor/…`) não
@@ -1143,7 +1146,13 @@ como programa separado, feita sobre uma base velha; foi refeita assim.)
   (`localStorage derrogacao:publicarAuto`; após `flushSave` e `sincronizar`,
   no máximo a cada `Publicacao.INTERVALO_MS`, e só se `Publicacao.conteudo`
   mudou — que ignora `updatedAt/lastEditedAt`, renovados a cada gravação).
-  Chip `#pubChip` quando a permissão cai.
+  Chip `#pubChip` quando a permissão cai. **Aviso `#pubNotice`** (pedido do
+  Bruno: "sempre linkado; se cair, peça confirmação"): com `pubEstado` fora
+  de `on` — nunca escolhida, sem permissão nesta sessão, erro ao gravar —
+  aparece no alto, com o caminho de `Config.PASTA_VISUALIZADOR` e o botão que
+  escolhe ou reconecta (o gesto que o navegador exige). "Agora não" cala só
+  aquele estado (`pubAvisoCalado`); a próxima queda pergunta de novo. Ao
+  voltar para a janela, `conferirPublicacao` relê a permissão.
 - **Conferido no navegador** (scripts fora do repositório, que não tem mais
   suíte): o PDF do editor saiu idêntico, pixel a pixel, antes e depois da
   mudança; o visualizador não deixa nenhum campo editável, não arrasta, não
@@ -1293,9 +1302,11 @@ de implementar (com os padrões abaixo, que o Bruno não contestou).
   como lido", "Depois" (`comAdiados`, só na memória: volta na próxima
   abertura); a etiqueta 📣 com os não lidos abre o histórico. Os lidos ficam
   em `derrogacao-visualizador:comunicadosLidos` (conveniência de quem está
-  sentado ali, até 300 ids). Na **primeira abertura**, o que tem mais de 7
-  dias nasce lido; e nada mais velho que a primeira abertura menos 7 dias
-  vira pop-up — é o que impede um comunicado antigo, trazido de volta por um
+  sentado ali, até 300 ids). **Novidade = não lido e com até
+  `Config.DIAS_COMUNICADO_NOVO` dias (4), sempre** — pop-up, etiqueta e a
+  marca "novo" do histórico. Era "7 dias só na primeira abertura", e quem
+  voltava depois de semanas recebia a pilha inteira (o Bruno perguntou e
+  pediu 4 dias). Também impede um comunicado antigo, trazido de volta por um
   backup, de reaparecer como novidade.
 - **Retenção: os últimos 100** (`Comunicados.MAX`), e não 90 dias: o arquivo
   é relido por todo visualizador a cada 5 minutos, e um período movimentado
@@ -1640,7 +1651,8 @@ desta máquina às vezes bloqueia `github.io`.
 | Comunicados em `comunicados.json`, fora do arquivo de dados | a versão anterior, ao regravar os dados, apagaria o campo; e a união pelo id é a da conversa |
 | Comunicados dentro da publicação, sem relógio próprio | o visualizador só enxerga a publicação; um segundo ciclo concorreria com o da atualização automática |
 | Retenção por contagem (100), não por prazo | o arquivo é relido a cada 5 min por todo visualizador; por contagem o tamanho tem teto |
-| Na primeira abertura do visualizador, só os da última semana viram pop-up | uma pilha de avisos velhos no primeiro dia é ruído; eles continuam no histórico |
+| Comunicado é novidade por 4 dias, sempre (`Config.DIAS_COMUNICADO_NOVO`) | pedido do Bruno: quem volta depois de semanas não deve receber a pilha inteira; eles continuam no histórico |
+| Pasta do visualizador em `Config.PASTA_VISUALIZADOR`; o editor avisa e pede para conectar a cada queda | pedido do Bruno: sempre ligado à pasta, com confirmação quando cair |
 | O backup de tudo leva os comunicados | backup pela metade não é backup; versões antigas ignoram a chave |
 | "Novo waiver" = item do relatório Waiver do J09; "Nova NCR" = NCR do banco com Marco Atual J09 | a leitura proposta ao Bruno antes de implementar |
 

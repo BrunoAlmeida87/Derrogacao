@@ -44,7 +44,9 @@ const { execFileSync } = require('child_process');
     L.ok(await vis.pagina.$$eval('.kb-card select, .kb-card[draggable="true"]', x => x.length) === 0, 'o Kanban do visualizador não arrasta nem troca situação');
     L.ok(await vis.pagina.$$eval('.kb-exporta .btn', x => x.length) === 2, 'mas exporta (visual e Excel)');
   } finally {
-    const f = L.resultado('arquivos únicos de file://', s.erros.concat(vis ? vis.erros : []));
+    /* o visualizador procura primeiro a pasta combinada (X:\…, que não existe
+       nesta máquina) — o "arquivo não encontrado" dessa tentativa é esperado */
+    const f = L.resultado('arquivos únicos de file://', s.erros.concat(vis ? vis.erros.filter(e => !/ERR_FILE_NOT_FOUND/.test(e)) : []));
     if (vis) await vis.navegador.close();
     await s.navegador.close();
     process.exitCode = f ? 1 : 0;

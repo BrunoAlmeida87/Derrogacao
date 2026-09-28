@@ -522,6 +522,22 @@ histórico de sessões, o histórico do texto, as lápides de exclusão, os camp
 de controle da mesclagem e a **Observação interna** do item (a tela promete
 que ela fica "só aqui e na pasta da equipe").
 
+### As pastas combinadas
+
+```
+X:\36.GTO - RELATÓRIOS GTO\NCR_MILESTONE\                      ← derrogacao-visualizador.html
+X:\36.GTO - RELATÓRIOS GTO\NCR_MILESTONE\00_BD_VISUALIZADOR\   ← visualizador-dados.js
+```
+
+O caminho da pasta dos dados está gravado no programa
+(`PASTA_VISUALIZADOR`, em `assets/js/config.js`): o visualizador lê de lá
+sem ninguém configurar nada. No **editor**, enquanto ele não estiver ligado a
+essa pasta, fica no alto um aviso com o caminho e o botão **Escolher a
+pasta…** (na primeira vez) ou **Conectar agora** (quando a permissão caiu ou
+a pasta parou de responder). O navegador não abre pasta por caminho — por
+isso a escolha é na janela do Windows, uma vez; depois ele só pede a sua
+confirmação a cada sessão. **Agora não** cala o aviso só até a próxima queda.
+
 ### Onde o visualizador procura os dados
 
 Sem pedir clique, nesta ordem:
@@ -604,8 +620,10 @@ não bloqueia a tela nem toma o foco. Vários de uma vez viram uma lista só.
 - A etiqueta **📣** na barra de cima mostra quantos faltam ler e abre o
   histórico.
 
-Na primeira vez que um visualizador é aberto, só os comunicados da última
-semana viram pop-up; os mais velhos ficam no histórico.
+Só vira pop-up (e conta na etiqueta 📣) o comunicado **não lido de até 4
+dias**, sempre — na primeira abertura e para quem passou semanas sem abrir.
+Os mais velhos ficam no histórico. O prazo é `DIAS_COMUNICADO_NOVO`, em
+`assets/js/config.js`.
 
 **O que o comunicado leva:** o mínimo para ser lido e para achar o item —
 tipo, marco, número, título curto, situação, mensagem, autor e hora. Nada de
