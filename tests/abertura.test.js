@@ -1,8 +1,7 @@
 /* Abertura no marco da vez (Config.MARCO_INICIAL, hoje J09): a comparação
    tolerante, a preferência sobre o "mais recente", a regra de antes quando
    ele não existe — sem criar relatório nenhum —, e o mesmo no visualizador.
-   E a aba: o editor abre no Banco NCR (Config.ABA_INICIAL_EDITOR); o
-   visualizador continua abrindo na aba de sempre, a Waiver NCR. */
+   E a aba: o editor e o visualizador abrem no Banco NCR (Config.ABA_INICIAL). */
 'use strict';
 const L = require('./lib');
 
@@ -65,8 +64,11 @@ const L = require('./lib');
     await vis.pagina.waitForFunction(() => document.getElementById('projectSelect').options.length > 0);
     const v = await vis.pagina.evaluate(() => document.getElementById('projectSelect').selectedOptions[0].textContent);
     L.ok(/^J09 \(/.test(v), 'o visualizador abre no J09: ' + v);
-    L.igual(await vis.pagina.$eval('.tab[aria-selected="true"]', t => t.dataset.kind), 'ncr',
-      'e o visualizador continua abrindo na aba Waiver NCR (a aba inicial é só do editor)');
+    L.igual(await vis.pagina.$eval('.tab[aria-selected="true"]', t => t.dataset.kind), 'banco',
+      'e o visualizador também abre no Banco NCR');
+    L.ok(await vis.pagina.$$eval('#nb2Table tbody tr', r => r.length) > 0, 'com a tabela do banco publicado já montada');
+    L.ok(await vis.pagina.$$eval('#nb2Table .nb2-dd, #nb2Table .nb2-txt, #nb2Table select', x => x.length) === 0,
+      'e sem nada que edite');
   } finally {
     const f = L.resultado('abertura no marco da vez', s.erros.concat(vis ? vis.erros : []));
     if (vis) await vis.navegador.close();

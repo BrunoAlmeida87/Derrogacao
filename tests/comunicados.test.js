@@ -410,7 +410,8 @@ function aviso(pg) {
     await v3.pagina.waitForFunction(() => document.getElementById('projectSelect').options.length > 0);
     await v3.pagina.waitForTimeout(500);
     const velha = await v3.pagina.evaluate(() => ({ pop: document.getElementById('comPop').hidden, chip: document.getElementById('comChip').hidden,
-      itens: document.querySelectorAll('.ncr-item').length }));
+      /* abre no Banco NCR (Config.ABA_INICIAL): conta as linhas de lá */
+      itens: document.querySelectorAll('#nb2Table tbody tr').length }));
     L.ok(velha.pop && velha.chip && velha.itens > 0, 'a publicação antiga abre normalmente, sem pop-up e sem etiqueta');
   } finally {
     const errosOutros = [];

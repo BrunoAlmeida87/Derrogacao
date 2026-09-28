@@ -8278,6 +8278,12 @@
     Log.vigiar();
     registrarFontes();
     wire();
+    /* O programa abre na aba de Config.ABA_INICIAL (o Banco NCR) — o editor
+       e o visualizador. Antes de montar qualquer coisa, para a primeira tela
+       já ser ela. A aba que não existe nesta página cai na de sempre. */
+    var abaInicial = Config.ABA_INICIAL;
+    var botaoAba = abaInicial && document.querySelector('.tab[data-kind="' + abaInicial + '"]');
+    if (botaoAba && !botaoAba.hidden) state.kind = abaInicial;
     /* O visualizador: o mesmo programa, só lendo a publicação. Nada do que
        vem abaixo (banco do navegador, pasta, conversa, diário) roda nele. */
     if (Leitura.ativo()) {
@@ -8288,13 +8294,6 @@
       });
       return;
     }
-    /* O editor abre na aba de Config.ABA_INICIAL_EDITOR (o Banco NCR).
-       Antes de montar qualquer coisa, para a primeira tela já ser ela — e só
-       aqui, depois do desvio do visualizador, que continua abrindo como
-       sempre. A aba que não existe nesta página cai na de sempre. */
-    var abaInicial = Config.ABA_INICIAL_EDITOR;
-    var botaoAba = abaInicial && document.querySelector('.tab[data-kind="' + abaInicial + '"]');
-    if (botaoAba && !botaoAba.hidden) state.kind = abaInicial;
     aoLado = lerAoLado();
     registrarServiceWorker();
     requestPersistentStorage();

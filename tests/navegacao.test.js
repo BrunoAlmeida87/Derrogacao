@@ -24,7 +24,7 @@ const L = require('./lib');
     const cores = await pg.$$eval('.tab', ts => ts.filter(t => !t.hidden).map(t => getComputedStyle(t, '::before').backgroundColor));
     L.ok(new Set(cores).size === cores.length, 'cada área tem um ponto de cor diferente: ' + cores.join(' '));
     L.igual(await pg.$eval('.tab[aria-selected="true"]', t => t.dataset.kind), 'banco',
-      'o editor abre no Banco NCR (Config.ABA_INICIAL_EDITOR, pedido do Bruno)');
+      'o editor abre no Banco NCR (Config.ABA_INICIAL, pedido do Bruno)');
     await pg.click('.tab[data-kind="ncr"]');
     const ativa = await pg.$eval('.tab[aria-selected="true"]', t => ({
       kind: t.dataset.kind, barra: getComputedStyle(t).borderBottomWidth, fundo: getComputedStyle(t).backgroundColor

@@ -220,7 +220,7 @@ async function semear(pagina, url, opts) {
   }, { dados: dados, j06: exemploJ06, semBanco: !!opts.semBanco });
   await pagina.reload();
   await esperarPronto(pagina);
-  /* O editor abre no Banco NCR (Config.ABA_INICIAL_EDITOR). As suítes que
+  /* O programa abre no Banco NCR (Config.ABA_INICIAL). As suítes que
      começam pela lista de itens pedem a aba Waiver NCR; quem confere a
      abertura em si passa { naAbertura: true } e fica onde o programa abriu. */
   if (!opts.naAbertura && !/visualizador/.test(opts.pagina || '')) {

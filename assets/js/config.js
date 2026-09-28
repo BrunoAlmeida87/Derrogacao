@@ -1,8 +1,8 @@
 /* ==========================================================================
    config.js — as preferências do programa que mudam com o tempo
    --------------------------------------------------------------------------
-   Um lugar só para o que hoje vale e amanhã será outro — o marco da vez, o
-   ritmo da atualização automática, os marcos que geram comunicados. Mudou o marco prioritário? É aqui, e em
+   Um lugar só para o que hoje vale e amanhã será outro — o marco da vez, a aba
+   de abertura, o ritmo da atualização automática, os marcos que geram comunicados. Mudou o marco prioritário? É aqui, e em
    nenhum outro arquivo.
 
    Carrega logo depois do log.js e não usa ninguém: só guarda valores e as
@@ -16,10 +16,10 @@
      "priorizar o Marco 9". Quando o marco da vez mudar, troque só esta linha. */
   var MARCO_INICIAL = 'J09';
 
-  /* A aba em que o EDITOR abre. Pedido do Bruno: abrir direto no Banco NCR.
-     O visualizador não lê isto — ele continua abrindo como sempre abriu.
-     Valores: 'banco', 'kanban', 'tabela', 'ncr', 'dev', 'resumo', 'fluxos'. */
-  var ABA_INICIAL_EDITOR = 'banco';
+  /* A aba em que o programa abre — o editor e o visualizador. Pedido do
+     Bruno: abrir direto no Banco NCR. Valores: 'banco', 'kanban', 'tabela',
+     'ncr', 'dev', 'resumo', 'fluxos'. */
+  var ABA_INICIAL = 'banco';
 
   /* De quanto em quanto tempo os dados de fora são conferidos sozinhos: a
      pasta da equipe no editor, a publicação no visualizador. */
@@ -91,7 +91,7 @@
 
   global.Config = {
     MARCO_INICIAL: MARCO_INICIAL,
-    ABA_INICIAL_EDITOR: ABA_INICIAL_EDITOR,
+    ABA_INICIAL: ABA_INICIAL,
     INTERVALO_ATUALIZACAO_MS: INTERVALO_ATUALIZACAO_MS,
     MARCOS_COMUNICADOS: MARCOS_COMUNICADOS,
     DIAS_COMUNICADO_NOVO: DIAS_COMUNICADO_NOVO,

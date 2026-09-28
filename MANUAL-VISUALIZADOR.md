@@ -101,7 +101,9 @@ X:\36.GTO - RELATÓRIOS GTO\
    **Abrir com** → **Microsoft Edge**.
    (Se o Edge já for o seu navegador padrão, basta clicar duas vezes.)
 3. Aparece por um instante *“Carregando os dados…”*. Em seguida o programa
-   abre direto no relatório do **J09** — o marco da vez.
+   abre direto na aba **Banco NCR**, com todas as NCRs do SBR4. Nas abas
+   *Waiver NCR* e *Waiver DEV*, o relatório que já vem escolhido é o do
+   **J09** — o marco da vez.
 4. Confira no alto, à direita, a etiqueta **📄 com a data e o nome** (por
    exemplo `📄 28/09/2026 09:36 · Bruno`): é de quando é a publicação que você
    está vendo e quem a publicou. Etiqueta **verde** = tudo certo.
@@ -123,7 +125,7 @@ X:\36.GTO - RELATÓRIOS GTO\
 > uma pasta do seu computador, e ele abriria sem dados. O visualizador é para
 > ser aberto **da pasta da rede**.
 
-![Tela inicial do visualizador, no relatório do J09, com o aviso de comunicados no canto](docs/manual-visualizador/02-tela-inicial.png)
+![Tela inicial do visualizador: a aba Banco NCR, com o aviso de comunicados no canto](docs/manual-visualizador/02-tela-inicial.png)
 
 ## 5. A tela, parte por parte
 
@@ -308,8 +310,8 @@ ordem do PDF:
 
 ### 8.2 Banco NCR — todas as NCRs do SBR4
 
-Todas as NCRs do **SBR4** importadas do banco NCR (o mesmo export que o NCR
-Control usa), com os campos que a equipe de derrogação acrescenta: **Marco
+É a aba em que o visualizador abre. Todas as NCRs do **SBR4** importadas do
+banco NCR (o mesmo export que o NCR Control usa), com os campos que a equipe de derrogação acrescenta: **Marco
 Original**, **Marco Atual**, **Função Vital**, **Waiver Historic** e
 **Observação**.
 
@@ -703,9 +705,11 @@ está vendo.
 está vendo. Antes de mandar para alguém, clique em ⟳ Atualizar e confira a
 data na etiqueta 📄. Com recorte por situação, a capa avisa que é parcial.
 
-**Por que abre no J09?**
-O J09 é o marco da vez. Para ver outro, escolha em **Relatório** (abas Waiver)
-ou nas pastilhas de marco (Kanban, Tabela, Resumo).
+**Por que abre no Banco NCR, e no J09?**
+O Banco NCR é o ponto de partida combinado pela equipe: todas as NCRs do SBR4
+numa tela só. Para ir a outra área, clique na aba à esquerda. Nas abas Waiver,
+o relatório já escolhido é o do J09, o marco da vez; para ver outro, escolha
+em **Relatório** — ou nas pastilhas de marco (Kanban, Tabela, Resumo).
 
 **O que é “J09 Ind”?**
 O marco industrial correspondente. É tratado como **outro** marco: nada dele é

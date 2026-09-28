@@ -15,8 +15,8 @@ login e nenhum dado sai do computador.
   aparece onde o relatório aberto decide o que está na tela (as duas abas
   Waiver e a aba Fluxos, quando ela olha "este relatório"); nas outras cada
   aba tem o próprio recorte. Ver [As áreas e o seletor de relatório](#as-áreas-e-o-seletor-de-relatório).
-- **Abre no Banco NCR, no marco da vez.** O editor abre direto na aba
-  **Banco NCR**; o relatório do **J09** já vem escolhido, e o Kanban e o
+- **Abre no Banco NCR, no marco da vez.** O editor e o visualizador abrem
+  direto na aba **Banco NCR**; o relatório do **J09** já vem escolhido, e o Kanban e o
   Resumo nascem nele. Sem o J09, vale o relatório mexido por último, como
   sempre foi. Ver [O marco que abre primeiro](#o-marco-que-abre-primeiro).
 - **Atualização automática.** No visualizador, a publicação é relida a cada
@@ -213,9 +213,9 @@ se aplica. Nas abas com exportação própria, o botão de cima passa a se chama
 
 ## O marco que abre primeiro
 
-O **editor** abre na aba **Banco NCR** (pedido do Bruno). A aba fica em
-`assets/js/config.js`, `ABA_INICIAL_EDITOR` — trocar por `'ncr'` volta ao
-que era. O **visualizador** continua abrindo na aba Waiver NCR.
+O **editor** e o **visualizador** abrem na aba **Banco NCR** (pedido do
+Bruno). A aba fica em `assets/js/config.js`, `ABA_INICIAL` — trocar por
+`'ncr'` volta ao que era.
 
 Ao abrir, o programa vai direto ao relatório do **J09** (o editor e o
 visualizador), e o Kanban e o Resumo nascem nele. A comparação ignora

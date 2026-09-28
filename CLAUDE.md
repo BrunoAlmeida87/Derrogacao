@@ -68,8 +68,8 @@ assets/css/report.css      layout do relatório — tela e impressão A4
 assets/js/log.js           o diário do console: o que está acontecendo, e o
                            que fazer quando dá errado (carrega primeiro)
 assets/js/config.js        o que muda com o tempo: o marco que abre primeiro
-                           (MARCO_INICIAL), a aba em que o editor abre
-                           (ABA_INICIAL_EDITOR), o ritmo da atualização e os
+                           (MARCO_INICIAL), a aba em que o programa abre
+                           (ABA_INICIAL), o ritmo da atualização e os
                            marcos com oferta de comunicado (MARCOS_COMUNICADOS)
 assets/js/atualizacao.js   o ciclo único da atualização automática e o contador
 assets/js/leitura.js       o modo leitura (o visualizador): liga e blinda
@@ -1221,10 +1221,9 @@ esquerda (`j 9` = `J09`) e aceita o prefixo `RANAE` — com nota menor, para o
 relatório (o escrito igual primeiro, depois o mexido por último) ou `null`.
 
 - **Editor**: o boot abre esse relatório; sem ele, `list[0]` (o mais recente),
-  como sempre. Nunca cria relatório. E abre na **aba**
-  `Config.ABA_INICIAL_EDITOR` (`'banco'`, pedido do Bruno) — definida no
-  `boot`, **depois** do desvio do visualizador, que continua abrindo na
-  Waiver NCR. Os testes que começam pela lista de itens pedem a aba Waiver
+  como sempre. Nunca cria relatório. E abre na **aba** `Config.ABA_INICIAL`
+  (`'banco'`, pedido do Bruno) — definida no `boot`, **antes** do desvio do
+  visualizador, porque os dois abrem nela. Os testes que começam pela lista de itens pedem a aba Waiver
   NCR no `L.semear` (`naAbertura: true` fica onde o programa abriu).
 - **A pasta pode trazê-lo depois** (quem liga a pasta pela primeira vez):
   `aberturaPendente` fica armado quando a abertura caiu no mais recente, e
@@ -1687,6 +1686,6 @@ desta máquina às vezes bloqueia `github.io`.
 | O backup de tudo leva os comunicados | backup pela metade não é backup; versões antigas ignoram a chave |
 | "Novo waiver" = item do relatório Waiver do J09; "Nova NCR" = NCR do banco com Marco Atual J09 | a leitura proposta ao Bruno antes de implementar |
 | Qualquer marco pode ser comunicado pelo botão; a oferta automática fica só nos de `MARCOS_COMUNICADOS` | pedido do Bruno ("gerar alertas quando eu quiser, para outros marcos"); oferecer em todo marco a cada mudança seria ruído |
-| O editor abre na aba Banco NCR (`Config.ABA_INICIAL_EDITOR`); o visualizador, na Waiver NCR | pedido do Bruno, que pediu também para não mexer no visualizador |
+| O editor e o visualizador abrem na aba Banco NCR (`Config.ABA_INICIAL`) | pedido do Bruno (primeiro o editor, depois também o visualizador) |
 | A Observação do banco NCR se edita na tabela, só no editor | pedido do Bruno; o visualizador continua só leitura |
 

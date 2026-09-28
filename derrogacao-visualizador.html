@@ -5408,8 +5408,8 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
 /* ==========================================================================
    config.js — as preferências do programa que mudam com o tempo
    --------------------------------------------------------------------------
-   Um lugar só para o que hoje vale e amanhã será outro — o marco da vez, o
-   ritmo da atualização automática, os marcos que geram comunicados. Mudou o marco prioritário? É aqui, e em
+   Um lugar só para o que hoje vale e amanhã será outro — o marco da vez, a aba
+   de abertura, o ritmo da atualização automática, os marcos que geram comunicados. Mudou o marco prioritário? É aqui, e em
    nenhum outro arquivo.
 
    Carrega logo depois do log.js e não usa ninguém: só guarda valores e as
@@ -5423,10 +5423,10 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
      "priorizar o Marco 9". Quando o marco da vez mudar, troque só esta linha. */
   var MARCO_INICIAL = 'J09';
 
-  /* A aba em que o EDITOR abre. Pedido do Bruno: abrir direto no Banco NCR.
-     O visualizador não lê isto — ele continua abrindo como sempre abriu.
-     Valores: 'banco', 'kanban', 'tabela', 'ncr', 'dev', 'resumo', 'fluxos'. */
-  var ABA_INICIAL_EDITOR = 'banco';
+  /* A aba em que o programa abre — o editor e o visualizador. Pedido do
+     Bruno: abrir direto no Banco NCR. Valores: 'banco', 'kanban', 'tabela',
+     'ncr', 'dev', 'resumo', 'fluxos'. */
+  var ABA_INICIAL = 'banco';
 
   /* De quanto em quanto tempo os dados de fora são conferidos sozinhos: a
      pasta da equipe no editor, a publicação no visualizador. */
@@ -5498,7 +5498,7 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
 
   global.Config = {
     MARCO_INICIAL: MARCO_INICIAL,
-    ABA_INICIAL_EDITOR: ABA_INICIAL_EDITOR,
+    ABA_INICIAL: ABA_INICIAL,
     INTERVALO_ATUALIZACAO_MS: INTERVALO_ATUALIZACAO_MS,
     MARCOS_COMUNICADOS: MARCOS_COMUNICADOS,
     DIAS_COMUNICADO_NOVO: DIAS_COMUNICADO_NOVO,
@@ -27511,6 +27511,12 @@ if(isWorker){
     Log.vigiar();
     registrarFontes();
     wire();
+    /* O programa abre na aba de Config.ABA_INICIAL (o Banco NCR) — o editor
+       e o visualizador. Antes de montar qualquer coisa, para a primeira tela
+       já ser ela. A aba que não existe nesta página cai na de sempre. */
+    var abaInicial = Config.ABA_INICIAL;
+    var botaoAba = abaInicial && document.querySelector('.tab[data-kind="' + abaInicial + '"]');
+    if (botaoAba && !botaoAba.hidden) state.kind = abaInicial;
     /* O visualizador: o mesmo programa, só lendo a publicação. Nada do que
        vem abaixo (banco do navegador, pasta, conversa, diário) roda nele. */
     if (Leitura.ativo()) {
@@ -27521,13 +27527,6 @@ if(isWorker){
       });
       return;
     }
-    /* O editor abre na aba de Config.ABA_INICIAL_EDITOR (o Banco NCR).
-       Antes de montar qualquer coisa, para a primeira tela já ser ela — e só
-       aqui, depois do desvio do visualizador, que continua abrindo como
-       sempre. A aba que não existe nesta página cai na de sempre. */
-    var abaInicial = Config.ABA_INICIAL_EDITOR;
-    var botaoAba = abaInicial && document.querySelector('.tab[data-kind="' + abaInicial + '"]');
-    if (botaoAba && !botaoAba.hidden) state.kind = abaInicial;
     aoLado = lerAoLado();
     registrarServiceWorker();
     requestPersistentStorage();
