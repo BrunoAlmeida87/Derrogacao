@@ -1125,7 +1125,8 @@ como programa separado, feita sobre uma base velha; foi refeita assim.)
   `#leituraAviso` com o botão. Arquivo aberto à mão é lido como texto
   (`Publicacao.interpretar`), nunca executado. UNC (`file://servidor/…`) não
   foi testável aqui (Linux): confirmar no Edge da empresa quando a pasta existir.
-- **Releitura** no Atualizar, ao voltar para a janela (>60 s) e a cada 5 min
+- **Releitura** no Atualizar, a cada 5 min e ao voltar para a janela se o
+  prazo venceu lá fora
   — pelo ciclo único (`atualizacao.js`, §5 "A atualização automática"), com
   `podeReler` (janela aberta, arquivo aberto à mão) e `relerPublicacao`;
   compara o conteúdo **bruto** (a normalização preenche carimbos com "agora").
@@ -1210,32 +1211,32 @@ relatório (o escrito igual primeiro, depois o mexido por último) ou `null`.
 - A Tabela continua abrindo com todos os marcos: ela responde "onde está a
   NCR-018?", e nascer recortada esconderia itens.
 
-### A atualização automática (`atualizacao.js`)
-Um relógio só para o programa inteiro (`Atualizacao.iniciar` troca a
-configuração, nunca cria outro), de `Config.INTERVALO_ATUALIZACAO_MS` (5 min).
-O contador vai na segunda linha do botão "⟳ Atualizar" ("próxima em 04:32";
-a frase inteira na dica e no `aria-describedby`) — botão e contador juntos
-para caber na barra.
+### A atualização automática (`atualizacao.js`) — só no visualizador
+Um relógio só (`Atualizacao.iniciar` troca a configuração, nunca cria outro),
+de `Config.INTERVALO_ATUALIZACAO_MS` (5 min), **só no visualizador**:
+`podeReler` + `relerPublicacao`, começando depois da primeira leitura.
 
-- **Editor**: só existe com a pasta (`ajustarAtualizacao`, chamado por
-  `marcarPasta`); sem ela nada muda por fora e o botão nem aparece. A rodada
-  automática (`atualizarDaPasta`) primeiro olha a data dos três arquivos
-  (barato) e só lê e junta se algum mudou — o que evita reler e redesenhar à
-  toa, e evita uma gravação a mais na pasta a cada 5 minutos (toda
-  `sincronizar` grava). Depois de uma falha, a automática tenta religar
-  sozinha. O botão faz `flushSave` e `sincronizar({})` — e cancela a
-  gravação que o `flushSave` agendou para dali a 2,5 s, que seria a mesma
-  rodada de novo. Toda `sincronizar` bem-sucedida (gravar, a conferência de
-  20 s, o botão) recomeça a contagem (`marcarFeita`).
-- A **conferência de 20 s** (`pollPasta`) continua — é ela que traz o colega
-  em segundos —, mas **não roda com a janela em segundo plano**.
-- **Visualizador**: `podeReler` + `relerPublicacao`; o relógio começa depois
-  da primeira leitura. Arquivo aberto à mão não relê sozinho.
-- `podeAgora` adia (15 s) com alguém digitando (4 s desde a última tecla),
-  janela aberta (menos a ficha da NCR) ou a pré-visualização; a falha deixa
-  os dados como estão e o contador diz "falhou · de novo em …".
-- Em segundo plano o relógio para (nada de tique de 1 s nem de leitura); ao
-  voltar, se a última rodada tem mais de um minuto, confere na hora.
+- **O contador fica no ⋯ Mais** (`#atualizaMenu`, "próxima em 04:32"), e na
+  barra só o botão "⟳ Atualizar" (pedido do Bruno: na barra ele mudava a cada
+  segundo). A frase inteira vai na dica do botão; a falha pinta o botão
+  (`is-aviso`), além da faixa `#leituraAviso`.
+- **Voltar para a janela não recomeça a contagem.** Em segundo plano o tique
+  para, mas o prazo continua: ao voltar, só roda na hora se o prazo venceu lá
+  fora. (Era "voltou depois de 1 minuto → roda já", e a contagem recomeçava
+  de 5:00 a cada troca de aba — o Bruno viu e reclamou.)
+- `podeAgora` adia (15 s) com janela aberta ou a pré-visualização; a falha
+  deixa os dados como estão. Arquivo aberto à mão não relê sozinho.
+- **O editor não tem relógio de 5 minutos** (pedido do Bruno: "só faz
+  sentido no visualizador"). Com a pasta, a conferência de 20 s
+  (`pollPasta`) já traz o colega; ela também religa depois de uma falha (no
+  máximo a cada `RELIGAR_MS`, 1 min) e roda ao voltar para a janela
+  (`aoVoltarParaJanela`). Em segundo plano ela não roda — mas a gravação do
+  que foi digitado (2,5 s depois) roda, e essa relê a pasta: é o trabalho
+  daqui indo para lá, não uma conferência. O botão "⟳ Atualizar" do editor
+  é `atualizarDaPasta`: `flushSave`, cancela o `gravaTimer` (senão a mesma
+  rodada acontecia duas vezes) e `sincronizar({})`. O relógio antigo do
+  editor ainda tinha outro defeito: toda gravação chamava `marcarFeita` e
+  zerava o contador.
 - **Os comunicados do visualizador não têm relógio próprio**: vêm dentro da
   publicação, na mesma leitura (`carregarLeitura` → `receberComunicados`).
   Quem mais precisar de uma rodada se inscreve em
@@ -1302,6 +1303,9 @@ de implementar (com os padrões abaixo, que o Bruno não contestou).
 - **Backup de tudo leva `comunicados`**; abrir backup junta pelo id (não cria
   nada); backup antigo, sem a coleção, dá lista vazia. `Store.fromBackup` não
   foi tocado.
+- **A mensagem de quem comunicou sai destacada** (`.com-msg`: bloco com
+  fundo roxo claro, barra lateral, "Mensagem de Fulano" e o texto em
+  negrito) — pedido do Bruno: é o que a frase padrão não diz.
 - **O diário do console** registra tipo, marco e id — nunca o número nem a
   mensagem (há conferência disso em `tests/comunicados.test.js`).
 - **Modo leitura**: `Comunicados.gravarLocais` está na `blindar()`; os
@@ -1618,8 +1622,9 @@ desta máquina às vezes bloqueia `github.io`.
 | Marco que abre primeiro em `Config.MARCO_INICIAL` (J09), sem criar relatório | pedido do Bruno, "priorizar o Marco 9"; num lugar só porque o marco da vez muda |
 | A comparação do marco aceita caixa, espaço, zero à esquerda e "RANAE", e mais nada | "J09 Ind", "J09Cer" e "J19" são outros marcos |
 | A Tabela continua abrindo com todos os marcos | ela responde "onde está a NCR-018?"; nascer recortada esconderia itens |
-| Atualização automática: um relógio só, 5 min, contador no botão; no editor só com a pasta | pedido do Bruno; sem a pasta nada muda por fora, e dois mecanismos concorrentes brigariam |
-| No editor, a rodada automática só lê se algum arquivo mudou | toda `sincronizar` grava na pasta: reler sempre seria uma gravação a mais a cada 5 min em cada máquina |
+| Atualização automática de 5 min só no visualizador; no editor, a conferência de 20 s e o botão | pedido do Bruno: no editor o relógio repetia a conferência de 20 s, e o contador zerava a cada gravação |
+| O contador fica no ⋯ Mais; na barra, só "⟳ Atualizar" | pedido do Bruno: na barra ele mudava a cada segundo |
+| Voltar para a janela não recomeça a contagem; só roda se o prazo venceu lá fora | o "roda ao voltar" recomeçava de 5:00 a cada troca de aba |
 | A conferência de 20 s não roda em segundo plano | ao voltar, o ciclo confere na hora; ler a pasta com a janela escondida é trabalho para ninguém |
 | Cartão do Kanban recolhido, "+" para a descrição; abrir não grava | pedido do Bruno: mais NCRs à vista |
 | Só "CEDOC Closure" sai de "NCR to be closed" (as "Closed" ficam, verdes) | foi o status que o Bruno nomeou; trocar para "qualquer fechada" é uma linha (`emCedoc` → `c.fechada`) |

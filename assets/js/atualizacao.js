@@ -12,9 +12,12 @@
    rodada. Quem mais quiser saber de cada rodada se inscreve em `aoConcluir`
    — em vez de criar um segundo mecanismo concorrente.
 
-   - Com a página em segundo plano o relógio para: nada é conferido nem
-     redesenhado. Ao voltar, se a última rodada tiver mais de um minuto,
-     confere na hora; senão, continua a contagem.
+   - Com a página em segundo plano o tique para: nada é conferido nem
+     redesenhado. O prazo, porém, continua valendo: ao voltar, a contagem
+     segue de onde estava, e só roda na hora se o prazo venceu enquanto a
+     janela estava escondida. (Antes, voltar depois de um minuto rodava na
+     hora e a contagem recomeçava de 5:00 — era o "timer que reinicia ao
+     trocar de aba" que o Bruno viu.)
    - `podeAgora()` (de quem configurou) pode adiar a rodada — alguém
      digitando, uma janela aberta: tenta de novo em 15 s.
    - A rodada que falha não apaga nada: fica anotada ("falhou"), e o contador
@@ -27,7 +30,6 @@
   'use strict';
 
   var ADIA_MS = 15 * 1000;       /* adiada (digitando, janela aberta): tenta de novo em */
-  var VOLTA_MS = 60 * 1000;      /* ao voltar para a janela, confere se passou disto */
 
   var cfg = null;         /* { intervalo, executar(origem) -> Promise, podeAgora() -> true|motivo, aoMudar(estado) } */
   var prazo = 0;          /* quando é a próxima rodada (Date.now) */
@@ -102,9 +104,9 @@
     if (!cfg) return;
     if (document.hidden) { desligarTique(); avisar(); return; }
     ligarTique();
-    /* voltou para a janela depois de um tempo: confere já, em vez de mostrar
-       o que pode estar velho até o fim da contagem */
-    if (!rodando && agoraMs() - ultima.quando > VOLTA_MS) {
+    /* voltou para a janela: se o prazo venceu enquanto ela estava escondida,
+       confere já; senão a contagem só continua — voltar não a recomeça */
+    if (!rodando && agoraMs() >= prazo) {
       var pode = cfg.podeAgora ? cfg.podeAgora() : true;
       if (pode === true) { rodar('volta'); return; }
     }
@@ -185,7 +187,6 @@
     estado: estado,
     aoConcluir: aoConcluir,
     mmss: mmss,
-    ADIA_MS: ADIA_MS,
-    VOLTA_MS: VOLTA_MS
+    ADIA_MS: ADIA_MS
   };
 })(window);

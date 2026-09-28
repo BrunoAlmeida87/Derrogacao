@@ -179,25 +179,23 @@ body {
   gap: 1px;
   min-width: 118px;
 }
-/* a atualização automática: o botão e o contador ao lado dele */
-/* A atualização automática: um botão só, de duas linhas — "⟳ Atualizar" e,
-   embaixo, o contador ("próxima em 04:32"). Junto, cabe na barra sem
-   empurrar as ações para uma segunda linha; a frase inteira fica na dica. */
+/* "⟳ Atualizar": um botão simples. O contador da atualização automática
+   (só no visualizador) mora no ⋯ Mais — na barra ele mudava a cada segundo
+   e chamava a atenção à toa. A falha pinta o botão, além da faixa de aviso. */
 .topbar-atualiza { display: flex; align-items: center; }
-.topbar-atualiza-btn {
-  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0;
-  height: 32px; padding: 0 10px; line-height: 1.1; text-align: left;
+.topbar-atualiza-btn.is-aviso { border-color: #f2cf8a; color: #f2cf8a; }
+.topbar-atualiza-btn:disabled { opacity: .7; cursor: progress; }
+/* a linha do contador no ⋯ Mais: informação, não botão */
+.menu-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--ink-2);
 }
-.topbar-atualiza-rot { font-size: 12.5px; }
-.topbar-conta {
-  font-size: 10px;
-  font-weight: 400;
-  color: rgba(255, 255, 255, .72);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.topbar-conta:empty { display: none; }
-.topbar-conta.is-aviso { color: #f2cf8a; }
+.menu-info small { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.menu-info small.is-aviso { color: var(--warn); font-weight: 600; }
 /* Com a pasta ligada, as abas Waiver NCR e DEV têm a barra mais cheia do
    programa (relatório, marco, pasta, atualização, ações e o salvo). Abaixo
    de uns 1760 px o subtítulo da marca sai, para ela continuar numa linha só
@@ -3684,7 +3682,33 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
-.com-msg { margin: 0; font-size: 12.5px; font-style: italic; color: var(--ink-2); }
+/* a mensagem de quem comunicou: destacada (fundo, barra e negrito) — é o
+   que a frase padrão não diz */
+.com-msg {
+  margin: 2px 0;
+  padding: 6px 10px 7px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--accent-sf);
+}
+.com-msg-rot {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--accent);
+}
+.com-msg-texto {
+  margin: 1px 0 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--accent-dk);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.dlg-body .com-cartao .com-msg-texto { color: var(--accent-dk); margin-top: 1px; }
 .com-pe { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .com-meta { font-size: 11.5px; color: var(--muted); }
 
@@ -4201,15 +4225,12 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
   <button class="pasta-chip leitura-fonte" id="fonteChip" hidden data-estado="erro">
     <span id="fonteChipLabel">📄 sem dados</span>
   </button>
-  <!-- a atualização automática (atualizacao.js): o botão de agora e o
-       contador da próxima. No editor só aparece com a pasta da equipe; no
-       visualizador, sempre. -->
+  <!-- "⟳ Atualizar": ler agora. No editor só aparece com a pasta da equipe
+       (e não há relógio: a conferência de 20 s já traz o colega); no
+       visualizador, sempre — e lá o contador da atualização automática
+       (atualizacao.js) fica no ⋯ Mais, para não ficar mudando na barra. -->
   <div class="topbar-atualiza" id="atualizaBox" hidden>
-    <button class="btn btn--onDark topbar-atualiza-btn" id="atualizarBtn" aria-label="Atualizar agora"
-            aria-describedby="atualizarConta">
-      <span class="topbar-atualiza-rot">⟳ Atualizar</span>
-      <span class="topbar-conta" id="atualizarConta" role="timer" aria-live="off"></span>
-    </button>
+    <button class="btn btn--onDark topbar-atualiza-btn" id="atualizarBtn">⟳ Atualizar</button>
   </div>
   <div class="topbar-actions">
     <button class="btn btn--onDark" id="previewBtn">Pré-visualizar</button>
@@ -4260,6 +4281,11 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
         <button class="menu-item" id="logBtn">
           🩺 Diagnóstico e diário do console <small id="logBtnSub">ver o que o programa está fazendo e o que deu errado</small>
         </button>
+        <!-- só no visualizador: quando é a próxima leitura automática -->
+        <div class="menu-info" id="atualizaMenu" hidden>
+          ⟳ Atualização automática
+          <small id="atualizarConta" role="timer" aria-live="off"></small>
+        </div>
         <button class="menu-item" id="comunicadosBtn">
           📣 Comunicados <small id="comunicadosBtnSub">os avisos publicados para quem usa o visualizador</small>
         </button>
@@ -5453,9 +5479,12 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
    rodada. Quem mais quiser saber de cada rodada se inscreve em `aoConcluir`
    — em vez de criar um segundo mecanismo concorrente.
 
-   - Com a página em segundo plano o relógio para: nada é conferido nem
-     redesenhado. Ao voltar, se a última rodada tiver mais de um minuto,
-     confere na hora; senão, continua a contagem.
+   - Com a página em segundo plano o tique para: nada é conferido nem
+     redesenhado. O prazo, porém, continua valendo: ao voltar, a contagem
+     segue de onde estava, e só roda na hora se o prazo venceu enquanto a
+     janela estava escondida. (Antes, voltar depois de um minuto rodava na
+     hora e a contagem recomeçava de 5:00 — era o "timer que reinicia ao
+     trocar de aba" que o Bruno viu.)
    - `podeAgora()` (de quem configurou) pode adiar a rodada — alguém
      digitando, uma janela aberta: tenta de novo em 15 s.
    - A rodada que falha não apaga nada: fica anotada ("falhou"), e o contador
@@ -5468,7 +5497,6 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
   'use strict';
 
   var ADIA_MS = 15 * 1000;       /* adiada (digitando, janela aberta): tenta de novo em */
-  var VOLTA_MS = 60 * 1000;      /* ao voltar para a janela, confere se passou disto */
 
   var cfg = null;         /* { intervalo, executar(origem) -> Promise, podeAgora() -> true|motivo, aoMudar(estado) } */
   var prazo = 0;          /* quando é a próxima rodada (Date.now) */
@@ -5543,9 +5571,9 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
     if (!cfg) return;
     if (document.hidden) { desligarTique(); avisar(); return; }
     ligarTique();
-    /* voltou para a janela depois de um tempo: confere já, em vez de mostrar
-       o que pode estar velho até o fim da contagem */
-    if (!rodando && agoraMs() - ultima.quando > VOLTA_MS) {
+    /* voltou para a janela: se o prazo venceu enquanto ela estava escondida,
+       confere já; senão a contagem só continua — voltar não a recomeça */
+    if (!rodando && agoraMs() >= prazo) {
       var pode = cfg.podeAgora ? cfg.podeAgora() : true;
       if (pode === true) { rodar('volta'); return; }
     }
@@ -5626,8 +5654,7 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
     estado: estado,
     aoConcluir: aoConcluir,
     mmss: mmss,
-    ADIA_MS: ADIA_MS,
-    VOLTA_MS: VOLTA_MS
+    ADIA_MS: ADIA_MS
   };
 })(window);
 
@@ -24957,8 +24984,6 @@ if(isWorker){
         return adotar(resumo).then(function () {
           sincronizando = false;
           marcarPasta('on');
-          /* a pasta acabou de ser lida: o contador recomeça daqui */
-          Atualizacao.marcarFeita(true);
           /* o que se publica é a junção: o trabalho de todos */
           agendarPublicacao();
           ciclo.fim('sincronizado', resumo ? {
@@ -24986,7 +25011,6 @@ if(isWorker){
         return fim.then(function () {
           sincronizando = false;
           marcarPasta(pastaEstado);
-          Atualizacao.marcarFeita(false);
           if (!opts.silencioso) {
             toast(pastaEstado === 'permissao'
               ? 'A pasta precisa da sua permissão — clique em “Pasta” na barra de cima.'
@@ -25104,17 +25128,36 @@ if(isWorker){
     });
   }
 
-  /** Verificação barata, de tempos em tempos: alguém gravou lá fora? */
+  /* depois de uma falha, a conferência tenta religar — no máximo a cada
+     minuto, para uma pasta de rede fora do ar não virar uma tentativa a
+     cada 20 s */
+  var RELIGAR_MS = 60000;
+  var ultimaReligada = 0;
+
+  /**
+   * Verificação barata, a cada 20 s: alguém gravou lá fora? É ela que traz
+   * o trabalho do colega — o editor não tem o relógio de 5 minutos do
+   * visualizador (seria a mesma conferência, mais devagar). Também é ela
+   * que religa a pasta depois de uma falha, e ela roda na hora quando a
+   * pessoa volta para a janela (`aoVoltarParaJanela`).
+   */
   function pollPasta() {
-    if (!Pasta.ligada() || pastaEstado !== 'on' || sincronizando) return;
-    /* em segundo plano não confere: ao voltar para a janela, o ciclo da
-       atualização automática confere na hora (atualizacao.js) */
+    if (!Pasta.ligada() || sincronizando) return;
+    /* em segundo plano não confere: ao voltar para a janela, confere na hora */
     if (document.hidden) return;
     if (Date.now() - ultimaTecla < 4000) return;   /* não mexe enquanto digita */
     /* com um diálogo de decisão aberto, espera; a ficha da NCR não conta —
        ela sabe se redesenhar quando o que mostra muda por fora */
     if (document.querySelector('dialog[open]:not(.nb-dlg)')) return;
     if (!$('#preview').hidden) return;
+    if (pastaEstado === 'erro') {
+      if (Date.now() - ultimaReligada < RELIGAR_MS) return;
+      ultimaReligada = Date.now();
+      Log.detalhe('pasta', 'tentando religar a pasta depois da falha');
+      sincronizar({ silencioso: true });
+      return;
+    }
+    if (pastaEstado !== 'on') return;
     Promise.all([
       Pasta.mudouLaFora(),
       Pasta.mudouArquivo(Pasta.ARQ_NCR_BANCO),
@@ -25132,87 +25175,76 @@ if(isWorker){
     if (Pasta.ligada()) pollTimer = setInterval(pollPasta, POLL_MS);
   }
 
-  /* --- atualização automática (atualizacao.js), no editor -------------------
-     A conferência barata de 20 s continua (pollPasta): é ela que traz o
-     trabalho do colega em segundos. O ciclo de 5 minutos é a garantia com
-     hora marcada e contador à vista, e o botão "⟳ Atualizar" — e é ele que
-     confere na hora quando a pessoa volta para a janela. Só existe com a
-     pasta: sem ela nada muda por fora. */
-
-  function podeAtualizarDaPasta() {
-    if (!Pasta.ligada()) return 'sem pasta';
-    if (pastaEstado === 'permissao') return 'a pasta precisa de permissão';
-    if (sincronizando) return 'sincronizando';
-    if (Date.now() - ultimaTecla < 4000) return 'você está digitando';
-    if (document.querySelector('dialog[open]:not(.nb-dlg)') || !$('#preview').hidden) return 'janela aberta';
-    return true;
+  /* Voltou para a janela: confere agora, em vez de esperar até 20 s — em
+     segundo plano a conferência não rodou. Depois de uma falha, tenta
+     religar já (o limite de um minuto é para as tentativas sozinhas). */
+  function aoVoltarParaJanela() {
+    if (document.hidden || Leitura.ativo() || !Pasta.ligada()) return;
+    ultimaReligada = 0;
+    setTimeout(pollPasta, 300);
   }
+
+  /* --- "⟳ Atualizar", no editor -------------------------------------------
+     O editor não tem o relógio de 5 minutos do visualizador: com a pasta, a
+     conferência de 20 s (pollPasta) já traz o trabalho do colega, religa
+     depois de uma falha e confere ao voltar para a janela — um relógio de 5
+     minutos seria a mesma conferência, mais devagar, e o contador dele
+     zerava a cada gravação. Fica o botão, para forçar a leitura. */
+
+  var atualizandoAgora = false;
 
   /**
-   * Uma rodada do ciclo. A automática olha primeiro se algum dos arquivos
-   * mudou (só a data, barato) e só então lê e junta — não relê nem
-   * redesenha à toa. A do botão lê e junta sempre, depois de gravar aqui o
-   * que estava esperando os 500 ms: nada do que foi escrito se perde, a
-   * junção é campo a campo. Rejeita quando a pasta não respondeu.
+   * O clique em "⟳ Atualizar": grava aqui o que estava esperando os 500 ms,
+   * lê a pasta e junta. Nada do que foi escrito se perde — a junção é campo
+   * a campo.
    */
-  function atualizarDaPasta(origem) {
-    function conferir(r) {
-      if (pastaEstado !== 'on') throw new Error('a pasta não respondeu (' + pastaEstado + ')');
+  function atualizarDaPasta() {
+    if (atualizandoAgora) return Promise.resolve(null);
+    var btn = $('#atualizarBtn');
+    atualizandoAgora = true;
+    btn.disabled = true;
+    btn.textContent = '⟳ Atualizando…';
+    var feito = function (r) {
+      atualizandoAgora = false;
+      btn.disabled = false;
+      btn.textContent = '⟳ Atualizar';
       return r;
-    }
-    if (origem === 'manual') {
-      /* o clique é o gesto que o navegador exige para pedir a permissão */
-      if (pastaEstado === 'permissao') return conectarPasta().then(conferir);
-      return flushSave().then(function () {
-        /* a gravação que o flushSave agendou para daqui a 2,5 s é esta mesma
-           rodada: ler-juntar-gravar leva tudo o que está aqui */
-        clearTimeout(gravaTimer);
-        return sincronizar({});
-      }).then(conferir).then(function (r) {
-        var nada = r && !(r.entraram || r.atualizados || r.removidos || r.novosRelatorios ||
-          (r.ncr && (r.ncr.entraram || r.ncr.atualizados)));
-        if (nada) toast('Tudo em dia com a pasta da equipe.');
-        return r;
-      });
-    }
-    /* depois de uma falha, a rodada automática tenta religar sozinha */
-    if (pastaEstado === 'erro') return sincronizar({ silencioso: true }).then(conferir);
-    return Promise.all([
-      Pasta.mudouLaFora(),
-      Pasta.mudouArquivo(Pasta.ARQ_NCR_BANCO),
-      Pasta.mudouArquivo(Pasta.ARQ_NCR_WAIVER),
-      Pasta.mudouArquivo(Comunicados.ARQUIVO)
-    ]).then(function (mudou) {
-      if (!mudou[0] && !mudou[1] && !mudou[2]) {
-        return mudou[3] ? sincronizarComunicados() : 'sem novidade';
-      }
-      return sincronizar({ silencioso: true, semRedesenhar: true }).then(conferir);
-    });
+    };
+    /* o clique é o gesto que o navegador exige para pedir a permissão */
+    var rodada = pastaEstado === 'permissao'
+      ? conectarPasta()
+      : flushSave().then(function () {
+          /* a gravação que o flushSave agendou para daqui a 2,5 s é esta mesma
+             rodada: ler-juntar-gravar leva tudo o que está aqui */
+          clearTimeout(gravaTimer);
+          return sincronizar({});
+        }).then(function (r) {
+          var nada = pastaEstado === 'on' && r && !(r.entraram || r.atualizados || r.removidos ||
+            r.novosRelatorios || (r.ncr && (r.ncr.entraram || r.ncr.atualizados)));
+          if (nada) toast('Tudo em dia com a pasta da equipe.');
+          return r;
+        });
+    return rodada.then(feito, function (e) { feito(null); throw e; });
   }
 
-  /** O ciclo só existe com a pasta; o botão e o contador também. */
+  /** No editor, o botão só existe com a pasta: sem ela não há o que ler. */
   function ajustarAtualizacao() {
     if (Leitura.ativo()) return;
     var ligada = Pasta.suportado() && Pasta.ligada();
     $('#atualizaBox').hidden = !ligada;
-    if (ligada && !Atualizacao.estado().ligado) {
-      Atualizacao.iniciar({
-        intervalo: Config.INTERVALO_ATUALIZACAO_MS,
-        podeAgora: podeAtualizarDaPasta,
-        executar: atualizarDaPasta,
-        aoMudar: renderContador
-      });
-    } else if (!ligada && Atualizacao.estado().ligado) {
-      Atualizacao.parar();
-    } else {
-      renderContador(Atualizacao.estado());
-    }
+    var btn = $('#atualizarBtn');
+    btn.classList.toggle('is-aviso', ligada && pastaEstado !== 'on' && pastaEstado !== 'sincronizando');
+    btn.title = pastaEstado === 'permissao'
+      ? 'A pasta da equipe precisa da sua permissão nesta sessão: clique para permitir e atualizar.'
+      : 'Ler a pasta da equipe agora e juntar o que os colegas gravaram. ' +
+        'Sozinho, o programa já confere a cada 20 segundos (com a janela à vista).';
   }
 
   /**
-   * O contador, na segunda linha do botão "⟳ Atualizar": curto ali
-   * ("próxima em 04:32") e por extenso na dica ("Próxima atualização em
-   * 04:32 — …"), que é também o que o leitor de tela lê como descrição.
+   * O contador da atualização automática — só no visualizador. Fica no
+   * ⋯ Mais ("próxima em 04:32"): na barra de cima ele mudava a cada segundo
+   * e chamava a atenção à toa. A dica do botão tem a frase inteira, e a
+   * falha pinta o botão.
    */
   function renderContador(e) {
     var n = $('#atualizarConta');
@@ -25228,10 +25260,6 @@ if(isWorker){
       curto = 'sem atualização automática';
       longo = 'Os dados vieram de um arquivo aberto à mão: não há de onde reler sozinho. ' +
         'O botão procura a publicação de novo.';
-    } else if (!Leitura.ativo() && pastaEstado === 'permissao') {
-      curto = 'sem acesso à pasta';
-      longo = 'A pasta da equipe precisa da sua permissão nesta sessão: clique para permitir e atualizar.';
-      aviso = true;
     } else if (e.adiado) {
       curto = 'em espera';
       longo = 'A atualização venceu, mas espera: ' + e.adiado + '. Tenta de novo em alguns segundos.';
@@ -25246,10 +25274,11 @@ if(isWorker){
     }
     if (n.textContent !== curto) n.textContent = curto;
     n.classList.toggle('is-aviso', aviso);
+    $('#atualizarBtn').classList.toggle('is-aviso', aviso);
     var quando = e.ultima.quando ? new Date(e.ultima.quando).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
     $('#atualizarBtn').title = longo + (quando ? ' Última atualização às ' + quando + '.' : '') +
       ' A cada ' + Math.round(Config.INTERVALO_ATUALIZACAO_MS / 60000) + ' minutos os dados são conferidos sozinhos ' +
-      '(com a janela à vista). Clique para conferir agora — a contagem recomeça.';
+      '(com a janela à vista; a contagem está em ⋯ Mais). Clique para conferir agora — a contagem recomeça.';
   }
 
   /* --- interface ---------------------------------------------------------- */
@@ -26012,7 +26041,14 @@ if(isWorker){
     box.appendChild(topo);
     box.appendChild(el('p', 'com-frase', Comunicados.frase(c)));
     if (c.resumo) box.appendChild(el('p', 'com-resumo', c.resumo));
-    if (c.mensagem) box.appendChild(el('p', 'com-msg', '“' + c.mensagem + '”'));
+    if (c.mensagem) {
+      /* o recado de quem comunicou é o que a frase padrão não diz: vai em
+         bloco próprio, em negrito e com o nome, para não passar batido */
+      var msg = el('div', 'com-msg');
+      msg.appendChild(el('span', 'com-msg-rot', 'Mensagem' + (c.autor ? ' de ' + c.autor : '')));
+      msg.appendChild(el('p', 'com-msg-texto', c.mensagem));
+      box.appendChild(msg);
+    }
     var pe = el('div', 'com-pe');
     pe.appendChild(el('span', 'com-meta', (c.autor || 'sem nome') + ' · ' + shortDate(c.em)));
     if (opts.abrir) {
@@ -26532,6 +26568,7 @@ if(isWorker){
     $('#leituraSelo').hidden = false;
     $('#fonteChip').hidden = false;
     $('#atualizaBox').hidden = false;
+    $('#atualizaMenu').hidden = false;
     $('#menuBtn').title = 'Diagnóstico e versão';
     renderFonte();
     Log.passo('leitura', 'modo leitura: este é o visualizador — nada aqui é gravado');
@@ -26580,8 +26617,13 @@ if(isWorker){
   }
 
   function wire() {
-    /* "⟳ Atualizar": a rodada do ciclo, agora — e a contagem recomeça */
-    $('#atualizarBtn').addEventListener('click', function () { Atualizacao.agora(); });
+    /* "⟳ Atualizar": no visualizador, a rodada do ciclo agora (a contagem
+       recomeça); no editor, a leitura da pasta */
+    $('#atualizarBtn').addEventListener('click', function () {
+      if (Leitura.ativo()) Atualizacao.agora();
+      else atualizarDaPasta();
+    });
+    document.addEventListener('visibilitychange', aoVoltarParaJanela);
 
     $('#marcoInput').addEventListener('input', function () {
       state.project.marco = this.value;

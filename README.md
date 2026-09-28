@@ -18,9 +18,9 @@ login e nenhum dado sai do computador.
 - **Abre no marco da vez.** Hoje o **J09**: o relatório dele vem aberto, o
   Kanban e o Resumo nascem nele. Sem o J09, abre o relatório mexido por último,
   como sempre foi. Ver [O marco que abre primeiro](#o-marco-que-abre-primeiro).
-- **Atualização automática.** Com a pasta da equipe (e no visualizador), os
-  dados são conferidos sozinhos a cada **5 minutos**, com o contador à vista
-  no botão **⟳ Atualizar** ("próxima em 04:32"). Ver
+- **Atualização automática.** No visualizador, a publicação é relida a cada
+  **5 minutos** (o contador fica em ⋯ Mais); no editor com a pasta, o
+  trabalho dos colegas chega a cada 20 segundos. **⟳ Atualizar** lê na hora. Ver
   [Atualização automática](#atualização-automática).
 - **Visualizador somente leitura.** Para quem só acompanha: o mesmo
   programa, num arquivo à parte (`derrogacao-visualizador.html`), com todas
@@ -223,25 +223,28 @@ quando for outro, é uma linha.
 
 ## Atualização automática
 
-Quando os dados podem mudar por fora — com a **pasta da equipe** ligada, no
-editor, e sempre no **visualizador** —, o programa confere sozinho a cada
-**5 minutos**. O botão **⟳ Atualizar**, na barra de cima, mostra embaixo quanto
-falta ("próxima em 04:32"); clicando, confere na hora e a contagem recomeça.
+**No visualizador**, o programa relê a publicação sozinho a cada **5 minutos**.
+Na barra de cima fica só o botão **⟳ Atualizar** (confere na hora, e a
+contagem recomeça); quanto falta para a próxima leitura está em **⋯ Mais →
+⟳ Atualização automática** ("próxima em 04:32").
 
 - Nada é recarregado: o que chegou entra na tela, e o que você está vendo
   (relatório, aba, item) continua.
-- Nada do que você escreveu se perde: com alguém digitando ou uma janela
-  aberta, a conferência espera alguns segundos; o botão grava o que está aqui
-  antes de ler, e a junção com o que veio da pasta é campo a campo, como
-  sempre.
-- Com a janela do programa em segundo plano, o contador para e nada é lido. Ao
-  voltar, se passou mais de um minuto, confere na hora.
-- Se a conferência falhar, os dados à vista ficam como estão e o botão diz
-  "falhou · de novo em …" (no visualizador aparece também o aviso de cima,
-  com **⟳ Atualizar**).
-- No editor, a conferência rápida de 20 s continua trazendo o trabalho do
-  colega em segundos; o ciclo de 5 minutos é a garantia com hora marcada.
-  Sem a pasta, nada muda por fora — e o botão nem aparece.
+- Com uma janela aberta, a leitura espera alguns segundos.
+- Trocar de aba do navegador **não recomeça a contagem**: com a janela em
+  segundo plano nada é lido, e ao voltar a contagem continua de onde estava.
+  Se o prazo venceu enquanto você estava fora, confere na hora.
+- Se a leitura falhar, os dados à vista ficam como estão: o botão fica em
+  destaque, o aviso de cima aparece, e o ⋯ Mais diz "falhou · de novo em …".
+
+**No editor não há relógio de 5 minutos**, porque seria repetido: com a
+**pasta da equipe** ligada, o programa já confere a cada **20 segundos** se um
+colega gravou algo, e traz na hora. Essa conferência também confere assim que
+você volta para a janela e, se a pasta parou de responder, tenta religar
+sozinha (no máximo uma vez por minuto). O botão **⟳ Atualizar** continua lá
+para forçar a leitura: ele grava o que está aqui antes de ler, e a junção é
+campo a campo, como sempre. Sem a pasta, nada muda por fora — e o botão nem
+aparece.
 
 ## Anotação do item
 
@@ -537,7 +540,8 @@ pasta ou o próprio `.js`. Se nada der certo, a tela mostra o motivo provável e
 **um botão só: ⟳ Tentar de novo**. Se os dados já estavam à vista e a
 releitura falha (rede fora do ar), eles continuam na tela, com um aviso de que
 podem estar desatualizados e o botão **⟳ Atualizar**. Sozinho, o visualizador
-relê a cada 5 minutos e ao voltar para a janela.
+relê a cada 5 minutos (e ao voltar para a janela, se o prazo venceu enquanto
+ela estava escondida).
 
 Também dá para **abrir um arquivo** à mão (a publicação, o banco da pasta ou
 um backup do editor): vale até fechar a página. O arquivo é lido como texto —

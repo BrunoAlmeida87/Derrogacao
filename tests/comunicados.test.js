@@ -104,7 +104,15 @@ function aviso(pg) {
     await pg.fill('#comunicarMsg', 'x'.repeat(300));
     L.igual((await pg.inputValue('#comunicarMsg')).length, 280, 'a mensagem opcional tem no máximo 280 caracteres');
     await pg.fill('#comunicarMsg', SEGREDO);
-    L.ok(await pg.textContent('#comunicarPrevia .com-msg') === '“' + SEGREDO + '”', 'a mensagem aparece na prévia enquanto se escreve');
+    L.ok(await pg.textContent('#comunicarPrevia .com-msg-texto') === SEGREDO &&
+      /Mensagem de Teste/.test(await pg.textContent('#comunicarPrevia .com-msg-rot')),
+      'a mensagem aparece na prévia enquanto se escreve, com o nome de quem comunicou');
+    const destaque = await pg.$eval('#comunicarPrevia .com-msg-texto', n => {
+      const c = getComputedStyle(n), b = getComputedStyle(n.parentNode);
+      return { peso: Number(c.fontWeight), fundo: b.backgroundColor, barra: b.borderLeftWidth };
+    });
+    L.ok(destaque.peso >= 700 && destaque.fundo !== 'rgba(0, 0, 0, 0)' && destaque.barra === '3px',
+      'a mensagem sai destacada: negrito, fundo próprio e barra lateral');
     await pg.screenshot({ path: L.arquivo('comunicados-previa.png') });
     await pg.click('#comunicarCancelarBtn');
     L.igual(await pg.evaluate(() => Comunicados.locais().length), 0, 'Cancelar não cria nada');

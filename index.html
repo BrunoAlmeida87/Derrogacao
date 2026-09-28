@@ -61,15 +61,12 @@
   <button class="pasta-chip leitura-fonte" id="fonteChip" hidden data-estado="erro">
     <span id="fonteChipLabel">📄 sem dados</span>
   </button>
-  <!-- a atualização automática (atualizacao.js): o botão de agora e o
-       contador da próxima. No editor só aparece com a pasta da equipe; no
-       visualizador, sempre. -->
+  <!-- "⟳ Atualizar": ler agora. No editor só aparece com a pasta da equipe
+       (e não há relógio: a conferência de 20 s já traz o colega); no
+       visualizador, sempre — e lá o contador da atualização automática
+       (atualizacao.js) fica no ⋯ Mais, para não ficar mudando na barra. -->
   <div class="topbar-atualiza" id="atualizaBox" hidden>
-    <button class="btn btn--onDark topbar-atualiza-btn" id="atualizarBtn" aria-label="Atualizar agora"
-            aria-describedby="atualizarConta">
-      <span class="topbar-atualiza-rot">⟳ Atualizar</span>
-      <span class="topbar-conta" id="atualizarConta" role="timer" aria-live="off"></span>
-    </button>
+    <button class="btn btn--onDark topbar-atualiza-btn" id="atualizarBtn">⟳ Atualizar</button>
   </div>
   <div class="topbar-actions">
     <button class="btn btn--onDark" id="previewBtn">Pré-visualizar</button>
@@ -120,6 +117,11 @@
         <button class="menu-item" id="logBtn">
           🩺 Diagnóstico e diário do console <small id="logBtnSub">ver o que o programa está fazendo e o que deu errado</small>
         </button>
+        <!-- só no visualizador: quando é a próxima leitura automática -->
+        <div class="menu-info" id="atualizaMenu" hidden>
+          ⟳ Atualização automática
+          <small id="atualizarConta" role="timer" aria-live="off"></small>
+        </div>
         <button class="menu-item" id="comunicadosBtn">
           📣 Comunicados <small id="comunicadosBtnSub">os avisos publicados para quem usa o visualizador</small>
         </button>
