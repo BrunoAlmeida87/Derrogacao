@@ -99,6 +99,8 @@ assets/js/app.js           o editor (o maior; ~3000 linhas)
 derrogacao.html            o programa inteiro num arquivo só — gerado, e versionado
 derrogacao-visualizador.html  o mesmo, em modo leitura — gerado, e versionado
 tools/build-standalone.py  gera (e confere) os dois arquivos únicos
+tools/guia-png.js          gera o docs/visualizador-guia.png (Playwright global)
+docs/visualizador-guia.*   guia rápido do visualizador, em imagem (o .html é a fonte)
 tests/                     suítes de ponta a ponta (Playwright, Node) — §7
 exemplos/                  .json prontos para importar
 .github/workflows/pages.yml  publicação

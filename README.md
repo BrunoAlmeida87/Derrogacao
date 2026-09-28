@@ -496,6 +496,11 @@ não existe. Trocar a *Ordem* da lista vale só para aquela tela (e para o PDF
 gerado dali). O visualizador **nunca grava nada** — nem no navegador, nem
 em pasta nenhuma.
 
+**Guia rápido em imagem:** [`docs/visualizador-guia.png`](docs/visualizador-guia.png) — como
+acessar, o que ver em cada aba e como exportar, numa folha só (para mandar a
+quem vai usar). A fonte é o `docs/visualizador-guia.html`; depois de editá-lo,
+`node tools/guia-png.js` regera a imagem.
+
 **Baixar:** está na raiz do repositório e no site
 (https://brunoalmeida87.github.io/Derrogacao/derrogacao-visualizador.html),
 e o editor tem o link em **⋯ Mais → 👁 Publicar para visualizadores**.
