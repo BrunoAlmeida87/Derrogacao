@@ -497,12 +497,12 @@ e as páginas de anexo em paisagem.
 4. A janela diz, antes de gerar, **quantas folhas** vão sair.
 5. **Gerar PDF** abre a janela de impressão do navegador. Ajuste **assim**:
 
-   | Opção | Valor |
-   | --- | --- |
-   | Destino | **Salvar como PDF** |
-   | Margens (em *Mais configurações*) | **Nenhuma** |
-   | Gráficos de plano de fundo | **marcado** |
-   | Cabeçalhos e rodapés | **desmarcado** |
+    | Opção | Valor |
+    | --- | --- |
+    | Destino | **Salvar como PDF** |
+    | Margens (em *Mais configurações*) | **Nenhuma** |
+    | Gráficos de plano de fundo | **marcado** |
+    | Cabeçalhos e rodapés | **desmarcado** |
 
 6. **Salvar** e escolha a pasta.
 
@@ -788,6 +788,11 @@ situação do item, ficha da NCR ou o aviso logo depois de uma mudança), com
 prévia. Os marcos que geram comunicado ficam em
 `assets/js/config.js` (`MARCOS_COMUNICADOS`, hoje `['J09']`); o prazo de
 novidade, em `DIAS_COMUNICADO_NOVO` (4 dias).
+
+**O manual em PDF:** `python3 tools/manual-pdf.py MANUAL-VISUALIZADOR.pdf`
+(precisa do pacote `markdown` do Python e do Edge ou Chrome). Cada capítulo
+começa em folha nova e nenhuma seção é partida ao meio. Gere de novo sempre
+que este arquivo mudar, e troque o PDF da pasta `NCR_MILESTONE`.
 
 **Atualizar o visualizador:** a cada versão nova do programa, substitua o
 `derrogacao-visualizador.html` da pasta `NCR_MILESTONE`. Quem usa atalho pega

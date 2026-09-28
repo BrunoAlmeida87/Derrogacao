@@ -99,6 +99,8 @@ assets/js/app.js           o editor (o maior; ~3000 linhas)
 derrogacao.html            o programa inteiro num arquivo só — gerado, e versionado
 derrogacao-visualizador.html  o mesmo, em modo leitura — gerado, e versionado
 tools/build-standalone.py  gera (e confere) os dois arquivos únicos
+tools/manual-pdf.py        gera o PDF do manual do visualizador (não
+                           versionado), sem partir seção entre folhas
 tests/                     suítes de ponta a ponta (Playwright, Node) — §7
 MANUAL-VISUALIZADOR.md     manual de quem USA o visualizador (pastas, telas,
                            exportações, problemas); capturas em
