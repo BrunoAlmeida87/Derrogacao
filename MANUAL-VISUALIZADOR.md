@@ -442,7 +442,8 @@ Quatro leituras:
 
 ## 9. Comunicados da equipe
 
-Alguns acontecimentos do **J09** merecem aviso, e quem edita decide, com um
+Alguns acontecimentos merecem aviso — na maioria das vezes do **J09**, o
+marco da vez, mas pode ser de qualquer marco —, e quem edita decide, com um
 clique, quando comunicar:
 
 | Comunicado | Exemplo |
@@ -784,10 +785,10 @@ comunicados. **Não vão:** sessões, histórico do texto, lápides de exclusão
 campos de controle da mesclagem e a anotação interna do item.
 
 **Comunicados:** só nascem do botão **📣 Comunicar** no editor (barra de
-situação do item, ficha da NCR ou o aviso logo depois de uma mudança), com
-prévia. Os marcos que geram comunicado ficam em
-`assets/js/config.js` (`MARCOS_COMUNICADOS`, hoje `['J09']`); o prazo de
-novidade, em `DIAS_COMUNICADO_NOVO` (4 dias).
+situação do item ou ficha da NCR, de **qualquer marco**), com prévia. Nos
+marcos de `assets/js/config.js` (`MARCOS_COMUNICADOS`, hoje `['J09']`) o
+aviso logo depois de uma mudança já oferece o botão. O prazo de novidade
+fica em `DIAS_COMUNICADO_NOVO` (4 dias).
 
 **O manual em PDF:** `python3 tools/manual-pdf.py MANUAL-VISUALIZADOR.pdf`
 (precisa do pacote `markdown` do Python e do Edge ou Chrome). Cada capítulo

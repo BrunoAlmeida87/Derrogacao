@@ -35,12 +35,14 @@
     soAbertas: false,
     ordem: { col: 'numero', dir: -1 },
     fixadas: {},          // chave -> true: editadas desde a última mudança de filtro
+    obs: null,            // a Observação sendo escrita na tabela: { key, campo, original, rascunho, ini, fim }
     aberto: null,         // chave da NCR na ficha
     abertoEm: '',         // waiver.editedAt quando a ficha foi desenhada
     modoFluxo: 'traj'
   };
   var ctx = null;
   var host = null;
+  var redesenhando = false; // a tabela está sendo trocada: o "blur" da caixa de texto não é da pessoa
   var cacheBusca = { versao: -1, mapa: {} };
   var cacheLinhas = null;  // { versao, projetos, mapa: chave -> linha apurada }
 
@@ -120,7 +122,7 @@
       { id: 'w:marcoAtual', nome: 'Marco Atual', waiver: true, editar: 'marcos', larg: 14 },
       { id: 'w:funcaoVital', nome: 'Função Vital', waiver: true, editar: 'funcoes', larg: 34 },
       { id: 'waiver', nome: 'Waiver', especial: true, larg: 18 },
-      { id: 'w:observacao', nome: 'Observação', waiver: true, largo: true, larg: 60 },
+      { id: 'w:observacao', nome: 'Observação', waiver: true, editar: 'texto', largo: true, larg: 60 },
       { id: 'w:waiverHistoric', nome: 'Waiver Historic', waiver: true, larg: 26 },
       { id: 'criadoEm', nome: pap.criadoEm || 'Criada em', valor: function (r) { return Ncrs.data(r.fonte.criadoEm); },
         ordem: fonte('criadoEm'), larg: 14 },
@@ -289,7 +291,9 @@
 
   function render(h, c) {
     host = h; ctx = c;
+    redesenhando = true;
     host.innerHTML = '';
+    redesenhando = false;
     var todas = linhas();
     var raiz = el('div', 'nb2');
 
@@ -327,7 +331,9 @@
     var box = document.getElementById('nb2Tabela');
     if (!box) return;
     var topo = host ? host.scrollTop : 0;
+    redesenhando = true;
     box.innerHTML = '';
+    redesenhando = false;
     var cols = visiveis();
     var todas = linhas();
     var ls = aVista(todas);
@@ -368,13 +374,17 @@
     if (!ls.length) box.appendChild(el('p', 'nb2-nada', 'Nenhuma NCR com esses filtros.'));
     atualizarContagem(todas, ls);
     if (host) host.scrollTop = topo;
+    focarCaixa();
   }
 
   /** Troca só a linha desta NCR — a rolagem e o resto da tabela ficam. */
   function atualizarLinha(key) {
     var tr = document.querySelector('#nb2Table tr[data-key="' + cssEsc(key) + '"]');
     var l = linhaDe(key);
-    if (tr && l) tr.parentNode.replaceChild(linhaTabela(l, visiveis()), tr);
+    redesenhando = true;
+    try { if (tr && l) tr.parentNode.replaceChild(linhaTabela(l, visiveis()), tr); }
+    finally { redesenhando = false; }
+    focarCaixa();
     atualizarKpis();
     atualizarContagem();
   }
@@ -403,6 +413,9 @@
         if (!r.fonte.importadoEm) td.appendChild(el('span', 'nb2-mini', 'sem dados do banco'));
         else if (!r.fonte.presente) td.appendChild(el('span', 'nb2-mini', 'fora do último export'));
         if (fora) td.appendChild(el('span', 'nb2-mini nb2-fora', 'fora do filtro'));
+      } else if (c.editar === 'texto' && !leitura()) {
+        td.classList.add('is-longo');
+        td.appendChild(celulaTexto(r, c.campo, c.nome));
       } else if (c.editar && !leitura()) {
         td.appendChild(celulaEditavel(r, c.campo, c.editar));
       } else if (c.especial) {
@@ -438,6 +451,92 @@
       });
     });
     return b;
+  }
+
+  /* A Observação se escreve na própria tabela — só no editor; no
+     visualizador (leitura()) a célula continua sendo texto. A célula mostra
+     o texto; o clique a troca por uma caixa. Grava como a ficha, 400 ms
+     depois de parar de digitar, e ao sair do campo ou com Ctrl+Enter; Esc
+     desfaz o que foi escrito desde que a caixa abriu.
+     A tabela é redesenhada quando a pasta traz o trabalho de um colega, e
+     isso destruiria a caixa no meio da frase: por isso o rascunho e a
+     posição do cursor ficam em `st.obs`, e a caixa volta aberta, no mesmo
+     ponto, depois do redesenho (focarCaixa). */
+  function celulaTexto(rec, campo, rotulo) {
+    if (st.obs && st.obs.key === rec.key && st.obs.campo === campo) return caixaTexto(rec, campo, rotulo);
+    var v = str(rec.waiver[campo]);
+    var b = el('button', 'nb2-txt' + (v ? '' : ' is-vazio'), v ? curto(v, 90) : '+ escrever');
+    b.type = 'button';
+    b.title = (v ? v + '\n\n' : '') + 'Clique para ' + (v ? 'editar' : 'escrever') + ' a ' +
+      rotulo.toLowerCase() + '. Grava sozinho; Ctrl+Enter ou sair do campo fecha, Esc desfaz.';
+    b.addEventListener('click', function () {
+      st.obs = { key: rec.key, campo: campo, original: v, rascunho: v, ini: v.length, fim: v.length };
+      b.parentNode.replaceChild(caixaTexto(rec, campo, rotulo), b);
+      focarCaixa();
+    });
+    return b;
+  }
+
+  function caixaTexto(rec, campo, rotulo) {
+    var o = st.obs;
+    var ta = el('textarea', 'nb2-txtarea');
+    ta.rows = 5;
+    ta.value = o.rascunho;
+    ta.dataset.obs = rec.key;
+    ta.setAttribute('aria-label', rotulo + ' da ' + rec.numero);
+    ta.title = 'Grava sozinho. Ctrl+Enter ou sair do campo fecha; Esc desfaz o que foi escrito agora.';
+    var tm = null;
+    function gravar() {
+      clearTimeout(tm);
+      tm = null;
+      if (ta.value === str(rec.waiver[campo])) return Promise.resolve();
+      return ctx.editar(rec, campo, ta.value).then(function () { st.fixadas[rec.key] = true; });
+    }
+    function lembrarCursor() {
+      o.rascunho = ta.value;
+      o.ini = ta.selectionStart;
+      o.fim = ta.selectionEnd;
+    }
+    function encerrar() {
+      if (st.obs !== o) return;
+      st.obs = null;
+      gravar().then(function () { atualizarLinha(rec.key); });
+    }
+    ta.addEventListener('input', function () {
+      lembrarCursor();
+      clearTimeout(tm);
+      tm = setTimeout(gravar, 400);
+    });
+    ta.addEventListener('keyup', lembrarCursor);
+    ta.addEventListener('mouseup', lembrarCursor);
+    ta.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        ta.value = o.original;
+        encerrar();
+      } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        encerrar();
+      }
+    });
+    ta.addEventListener('blur', function () {
+      /* saiu porque a tabela foi redesenhada: a caixa volta sozinha */
+      if (redesenhando || !ta.isConnected) return;
+      encerrar();
+    });
+    return ta;
+  }
+
+  /** Devolve o foco (e o cursor) à caixa da Observação depois de um redesenho. */
+  function focarCaixa() {
+    if (!st.obs) return;
+    var ta = document.querySelector('textarea[data-obs="' + cssEsc(st.obs.key) + '"]');
+    if (!ta) { st.obs = null; return; }   /* a linha saiu da vista: o que foi escrito já está gravado */
+    if (document.activeElement !== ta) {
+      ta.focus({ preventScroll: true });
+      try { ta.setSelectionRange(st.obs.ini, st.obs.fim); } catch (e) { /* ignora */ }
+    }
   }
 
   /** Dropdown de marco ou de função vital, gravando na hora. */
@@ -1215,8 +1314,8 @@
     autor.id = 'nbAutor';
     autor.textContent = w.editedAt ? 'Última edição: ' + (w.editedBy || 'sem nome') + ' · ' + Ncrs.data(w.editedAt) : 'Ainda não preenchido.';
     sw.appendChild(autor);
-    /* Marco Atual num marco dos comunicados (Config.MARCOS_COMUNICADOS): a
-       "nova NCR" pode ser avisada a quem usa o visualizador — só com o clique */
+    /* NCR com Marco Atual (qualquer marco): a "nova NCR" pode ser avisada a
+       quem usa o visualizador — só com o clique. Sem Marco Atual não aparece. */
     var prop = !leitura() && ctx.comunicar && global.Comunicados ? Comunicados.daNcr(rec) : null;
     if (prop) {
       var com = botao('📣 Comunicar: nova NCR no ' + prop.marco, 'btn--sm btn--comunicar', function () {

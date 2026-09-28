@@ -16,6 +16,11 @@
      "priorizar o Marco 9". Quando o marco da vez mudar, troque só esta linha. */
   var MARCO_INICIAL = 'J09';
 
+  /* A aba em que o EDITOR abre. Pedido do Bruno: abrir direto no Banco NCR.
+     O visualizador não lê isto — ele continua abrindo como sempre abriu.
+     Valores: 'banco', 'kanban', 'tabela', 'ncr', 'dev', 'resumo', 'fluxos'. */
+  var ABA_INICIAL_EDITOR = 'banco';
+
   /* De quanto em quanto tempo os dados de fora são conferidos sozinhos: a
      pasta da equipe no editor, a publicação no visualizador. */
   var INTERVALO_ATUALIZACAO_MS = 5 * 60 * 1000;
@@ -86,6 +91,7 @@
 
   global.Config = {
     MARCO_INICIAL: MARCO_INICIAL,
+    ABA_INICIAL_EDITOR: ABA_INICIAL_EDITOR,
     INTERVALO_ATUALIZACAO_MS: INTERVALO_ATUALIZACAO_MS,
     MARCOS_COMUNICADOS: MARCOS_COMUNICADOS,
     DIAS_COMUNICADO_NOVO: DIAS_COMUNICADO_NOVO,

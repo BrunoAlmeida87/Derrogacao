@@ -8,7 +8,7 @@ const L = require('./lib');
   const s = await L.abrir();
   const pg = s.pagina;
   try {
-    await L.semear(pg, srv.url);
+    await L.semear(pg, srv.url, { naAbertura: true });
 
     console.log('ordem e nomes');
     const abas = await pg.$$eval('.tab', ts => ts.filter(t => !t.hidden).map(t => ({
@@ -23,10 +23,13 @@ const L = require('./lib');
     console.log('cores (sutis, e não só cor)');
     const cores = await pg.$$eval('.tab', ts => ts.filter(t => !t.hidden).map(t => getComputedStyle(t, '::before').backgroundColor));
     L.ok(new Set(cores).size === cores.length, 'cada área tem um ponto de cor diferente: ' + cores.join(' '));
+    L.igual(await pg.$eval('.tab[aria-selected="true"]', t => t.dataset.kind), 'banco',
+      'o editor abre no Banco NCR (Config.ABA_INICIAL_EDITOR, pedido do Bruno)');
+    await pg.click('.tab[data-kind="ncr"]');
     const ativa = await pg.$eval('.tab[aria-selected="true"]', t => ({
       kind: t.dataset.kind, barra: getComputedStyle(t).borderBottomWidth, fundo: getComputedStyle(t).backgroundColor
     }));
-    L.igual(ativa.kind, 'ncr', 'abre na aba Waiver NCR, como antes');
+    L.igual(ativa.kind, 'ncr', 'e a aba Waiver NCR abre no clique');
     L.ok(ativa.barra === '3px' && ativa.fundo !== 'rgba(0, 0, 0, 0)', 'a aba aberta tem barra e fundo, além da cor');
 
     console.log('teclado');

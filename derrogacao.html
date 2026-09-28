@@ -3037,6 +3037,21 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .nb2-dd:hover { border-color: var(--kind); }
 .nb2-dd.is-vazio { color: var(--muted); }
 .nb2-sel { font-size: 12px; padding: 3px 5px; max-width: 260px; }
+/* a Observação, escrita na própria tabela (só no editor): parece texto, e o
+   contorno aparece ao passar o mouse, dizendo que dá para clicar */
+.nb2-txt {
+  display: block; width: 100%; font: inherit; font-size: 12px; line-height: 1.35;
+  text-align: left; white-space: normal; overflow-wrap: anywhere; color: var(--ink);
+  background: transparent; border: 1px dashed transparent; border-radius: 5px;
+  padding: 2px 5px; margin: -3px -6px; cursor: text;
+}
+.nb2-txt:hover, .nb2-txt:focus-visible { border-color: var(--kind); background: #fff; }
+.nb2-txt.is-vazio { color: var(--muted); font-style: italic; }
+.nb2-txtarea {
+  display: block; width: 100%; min-width: 240px; min-height: 86px; box-sizing: border-box;
+  font: inherit; font-size: 12px; line-height: 1.35; padding: 4px 6px; resize: vertical;
+  border: 1px solid var(--kind); border-radius: 5px; background: #fff;
+}
 .nb2-waiver { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 120px; }
 .nb2-rel {
   font: inherit; font-size: 11px; font-weight: 700; color: #fff; background: var(--accent);
@@ -5406,6 +5421,11 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
      "priorizar o Marco 9". Quando o marco da vez mudar, troque só esta linha. */
   var MARCO_INICIAL = 'J09';
 
+  /* A aba em que o EDITOR abre. Pedido do Bruno: abrir direto no Banco NCR.
+     O visualizador não lê isto — ele continua abrindo como sempre abriu.
+     Valores: 'banco', 'kanban', 'tabela', 'ncr', 'dev', 'resumo', 'fluxos'. */
+  var ABA_INICIAL_EDITOR = 'banco';
+
   /* De quanto em quanto tempo os dados de fora são conferidos sozinhos: a
      pasta da equipe no editor, a publicação no visualizador. */
   var INTERVALO_ATUALIZACAO_MS = 5 * 60 * 1000;
@@ -5476,6 +5496,7 @@ body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
 
   global.Config = {
     MARCO_INICIAL: MARCO_INICIAL,
+    ABA_INICIAL_EDITOR: ABA_INICIAL_EDITOR,
     INTERVALO_ATUALIZACAO_MS: INTERVALO_ATUALIZACAO_MS,
     MARCOS_COMUNICADOS: MARCOS_COMUNICADOS,
     DIAS_COMUNICADO_NOVO: DIAS_COMUNICADO_NOVO,
@@ -15789,8 +15810,14 @@ if(isWorker){
      relógio.
 
    O comunicado guarda o mínimo para ser lido e para achar o item: nada de
-   imagem, nada de texto longo. Os marcos que podem ser comunicados estão em
-   `Config.MARCOS_COMUNICADOS`.
+   imagem, nada de texto longo.
+
+   **Qualquer marco pode ser comunicado** (pedido do Bruno: "quero poder
+   gerar alertas quando eu quiser, para outros marcos"): o botão 📣 vale
+   para todo item de relatório com marco e toda NCR do banco com Marco
+   Atual. Os marcos de `Config.MARCOS_COMUNICADOS` (o J09) têm uma coisa a
+   mais: logo depois de uma mudança, o aviso do pé da tela já OFERECE o 📣
+   (`sugere`/`sugereNcr`). Nos outros, quem quer comunicar clica no botão.
 
    Não conhece a tela: o app.js monta a prévia, o pop-up e o histórico.
    ========================================================================== */
@@ -15878,22 +15905,41 @@ if(isWorker){
     return str(project.marco);
   }
 
+  /**
+   * O marco com que o comunicado sai: o nome da lista quando é um dos
+   * monitorados ("RANAE J09" sai como "J09", como sempre saiu); senão o
+   * marco como está escrito ("J10", "J09 Ind"). '' sem marco — aí não há o
+   * que comunicar, porque o visualizador não saberia a que marco se refere.
+   */
+  function marcoPara(texto) {
+    return monitorado(texto) || str(texto).replace(/\s+/g, ' ').trim();
+  }
+
   /* --- o que pode ser comunicado ------------------------------------------- */
 
-  /** O marco monitorado deste relatório (na aba NCR ou DEV) — ou ''. */
+  /** O marco do comunicado deste relatório (na aba NCR ou DEV) — ou '' sem marco. */
   function doRelatorio(project, kind) {
-    return monitorado(marcoDoRelatorio(project, kind));
+    return marcoPara(marcoDoRelatorio(project, kind));
+  }
+
+  /** O aviso logo depois de uma mudança oferece o 📣 sozinho? Só nos marcos monitorados. */
+  function sugere(project, kind) {
+    return !!monitorado(marcoDoRelatorio(project, kind));
+  }
+
+  function sugereNcr(rec) {
+    return !!(rec && rec.waiver && monitorado(rec.waiver.marcoAtual));
   }
 
   /**
    * Os acontecimentos que este item permite comunicar, na ordem de TIPOS:
-   * "novo waiver" para todo item com número num relatório de marco
-   * monitorado, e "waiver accepted" quando ele está aceito (pelo valor
-   * interno, `Store.STATUS_CONCLUIDO` — nunca pelo texto da tela).
+   * "novo waiver" para todo item com número num relatório com marco, e
+   * "waiver accepted" quando ele está aceito (pelo valor interno,
+   * `Store.STATUS_CONCLUIDO` — nunca pelo texto da tela).
    */
   function tiposDoItem(project, kind, item) {
     if (!item || !str(item.ncrId).trim()) return [];
-    if (!monitorado(marcoDoRelatorio(project, kind))) return [];
+    if (!doRelatorio(project, kind)) return [];
     var l = ['novo-waiver'];
     if (item.status === Store.STATUS_CONCLUIDO) l.push('waiver-aceito');
     return l;
@@ -15906,7 +15952,7 @@ if(isWorker){
    */
   function doItem(project, kind, item, tipo, statusAntes) {
     if (tiposDoItem(project, kind, item).indexOf(tipo) < 0) return null;
-    var marco = monitorado(marcoDoRelatorio(project, kind));
+    var marco = doRelatorio(project, kind);
     return {
       tipo: tipo,
       projetoId: str(project.id),
@@ -15921,10 +15967,10 @@ if(isWorker){
     };
   }
 
-  /** A NCR do banco com Marco Atual num marco monitorado: "nova NCR". */
+  /** A NCR do banco, no marco do Marco Atual dela: "nova NCR". */
   function daNcr(rec) {
     if (!rec || !rec.waiver) return null;
-    var marco = monitorado(rec.waiver.marcoAtual);
+    var marco = marcoPara(rec.waiver.marcoAtual);
     if (!marco) return null;
     var f = rec.fonte || {};
     return {
@@ -16150,7 +16196,10 @@ if(isWorker){
     CHAVE_LIDOS: CHAVE_LIDOS,
     marcosMonitorados: marcosMonitorados,
     monitorado: monitorado,
+    marcoPara: marcoPara,
     doRelatorio: doRelatorio,
+    sugere: sugere,
+    sugereNcr: sugereNcr,
     tiposDoItem: tiposDoItem,
     doItem: doItem,
     daNcr: daNcr,
@@ -16448,12 +16497,14 @@ if(isWorker){
     soAbertas: false,
     ordem: { col: 'numero', dir: -1 },
     fixadas: {},          // chave -> true: editadas desde a última mudança de filtro
+    obs: null,            // a Observação sendo escrita na tabela: { key, campo, original, rascunho, ini, fim }
     aberto: null,         // chave da NCR na ficha
     abertoEm: '',         // waiver.editedAt quando a ficha foi desenhada
     modoFluxo: 'traj'
   };
   var ctx = null;
   var host = null;
+  var redesenhando = false; // a tabela está sendo trocada: o "blur" da caixa de texto não é da pessoa
   var cacheBusca = { versao: -1, mapa: {} };
   var cacheLinhas = null;  // { versao, projetos, mapa: chave -> linha apurada }
 
@@ -16533,7 +16584,7 @@ if(isWorker){
       { id: 'w:marcoAtual', nome: 'Marco Atual', waiver: true, editar: 'marcos', larg: 14 },
       { id: 'w:funcaoVital', nome: 'Função Vital', waiver: true, editar: 'funcoes', larg: 34 },
       { id: 'waiver', nome: 'Waiver', especial: true, larg: 18 },
-      { id: 'w:observacao', nome: 'Observação', waiver: true, largo: true, larg: 60 },
+      { id: 'w:observacao', nome: 'Observação', waiver: true, editar: 'texto', largo: true, larg: 60 },
       { id: 'w:waiverHistoric', nome: 'Waiver Historic', waiver: true, larg: 26 },
       { id: 'criadoEm', nome: pap.criadoEm || 'Criada em', valor: function (r) { return Ncrs.data(r.fonte.criadoEm); },
         ordem: fonte('criadoEm'), larg: 14 },
@@ -16702,7 +16753,9 @@ if(isWorker){
 
   function render(h, c) {
     host = h; ctx = c;
+    redesenhando = true;
     host.innerHTML = '';
+    redesenhando = false;
     var todas = linhas();
     var raiz = el('div', 'nb2');
 
@@ -16740,7 +16793,9 @@ if(isWorker){
     var box = document.getElementById('nb2Tabela');
     if (!box) return;
     var topo = host ? host.scrollTop : 0;
+    redesenhando = true;
     box.innerHTML = '';
+    redesenhando = false;
     var cols = visiveis();
     var todas = linhas();
     var ls = aVista(todas);
@@ -16781,13 +16836,17 @@ if(isWorker){
     if (!ls.length) box.appendChild(el('p', 'nb2-nada', 'Nenhuma NCR com esses filtros.'));
     atualizarContagem(todas, ls);
     if (host) host.scrollTop = topo;
+    focarCaixa();
   }
 
   /** Troca só a linha desta NCR — a rolagem e o resto da tabela ficam. */
   function atualizarLinha(key) {
     var tr = document.querySelector('#nb2Table tr[data-key="' + cssEsc(key) + '"]');
     var l = linhaDe(key);
-    if (tr && l) tr.parentNode.replaceChild(linhaTabela(l, visiveis()), tr);
+    redesenhando = true;
+    try { if (tr && l) tr.parentNode.replaceChild(linhaTabela(l, visiveis()), tr); }
+    finally { redesenhando = false; }
+    focarCaixa();
     atualizarKpis();
     atualizarContagem();
   }
@@ -16816,6 +16875,9 @@ if(isWorker){
         if (!r.fonte.importadoEm) td.appendChild(el('span', 'nb2-mini', 'sem dados do banco'));
         else if (!r.fonte.presente) td.appendChild(el('span', 'nb2-mini', 'fora do último export'));
         if (fora) td.appendChild(el('span', 'nb2-mini nb2-fora', 'fora do filtro'));
+      } else if (c.editar === 'texto' && !leitura()) {
+        td.classList.add('is-longo');
+        td.appendChild(celulaTexto(r, c.campo, c.nome));
       } else if (c.editar && !leitura()) {
         td.appendChild(celulaEditavel(r, c.campo, c.editar));
       } else if (c.especial) {
@@ -16851,6 +16913,92 @@ if(isWorker){
       });
     });
     return b;
+  }
+
+  /* A Observação se escreve na própria tabela — só no editor; no
+     visualizador (leitura()) a célula continua sendo texto. A célula mostra
+     o texto; o clique a troca por uma caixa. Grava como a ficha, 400 ms
+     depois de parar de digitar, e ao sair do campo ou com Ctrl+Enter; Esc
+     desfaz o que foi escrito desde que a caixa abriu.
+     A tabela é redesenhada quando a pasta traz o trabalho de um colega, e
+     isso destruiria a caixa no meio da frase: por isso o rascunho e a
+     posição do cursor ficam em `st.obs`, e a caixa volta aberta, no mesmo
+     ponto, depois do redesenho (focarCaixa). */
+  function celulaTexto(rec, campo, rotulo) {
+    if (st.obs && st.obs.key === rec.key && st.obs.campo === campo) return caixaTexto(rec, campo, rotulo);
+    var v = str(rec.waiver[campo]);
+    var b = el('button', 'nb2-txt' + (v ? '' : ' is-vazio'), v ? curto(v, 90) : '+ escrever');
+    b.type = 'button';
+    b.title = (v ? v + '\n\n' : '') + 'Clique para ' + (v ? 'editar' : 'escrever') + ' a ' +
+      rotulo.toLowerCase() + '. Grava sozinho; Ctrl+Enter ou sair do campo fecha, Esc desfaz.';
+    b.addEventListener('click', function () {
+      st.obs = { key: rec.key, campo: campo, original: v, rascunho: v, ini: v.length, fim: v.length };
+      b.parentNode.replaceChild(caixaTexto(rec, campo, rotulo), b);
+      focarCaixa();
+    });
+    return b;
+  }
+
+  function caixaTexto(rec, campo, rotulo) {
+    var o = st.obs;
+    var ta = el('textarea', 'nb2-txtarea');
+    ta.rows = 5;
+    ta.value = o.rascunho;
+    ta.dataset.obs = rec.key;
+    ta.setAttribute('aria-label', rotulo + ' da ' + rec.numero);
+    ta.title = 'Grava sozinho. Ctrl+Enter ou sair do campo fecha; Esc desfaz o que foi escrito agora.';
+    var tm = null;
+    function gravar() {
+      clearTimeout(tm);
+      tm = null;
+      if (ta.value === str(rec.waiver[campo])) return Promise.resolve();
+      return ctx.editar(rec, campo, ta.value).then(function () { st.fixadas[rec.key] = true; });
+    }
+    function lembrarCursor() {
+      o.rascunho = ta.value;
+      o.ini = ta.selectionStart;
+      o.fim = ta.selectionEnd;
+    }
+    function encerrar() {
+      if (st.obs !== o) return;
+      st.obs = null;
+      gravar().then(function () { atualizarLinha(rec.key); });
+    }
+    ta.addEventListener('input', function () {
+      lembrarCursor();
+      clearTimeout(tm);
+      tm = setTimeout(gravar, 400);
+    });
+    ta.addEventListener('keyup', lembrarCursor);
+    ta.addEventListener('mouseup', lembrarCursor);
+    ta.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        ta.value = o.original;
+        encerrar();
+      } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        encerrar();
+      }
+    });
+    ta.addEventListener('blur', function () {
+      /* saiu porque a tabela foi redesenhada: a caixa volta sozinha */
+      if (redesenhando || !ta.isConnected) return;
+      encerrar();
+    });
+    return ta;
+  }
+
+  /** Devolve o foco (e o cursor) à caixa da Observação depois de um redesenho. */
+  function focarCaixa() {
+    if (!st.obs) return;
+    var ta = document.querySelector('textarea[data-obs="' + cssEsc(st.obs.key) + '"]');
+    if (!ta) { st.obs = null; return; }   /* a linha saiu da vista: o que foi escrito já está gravado */
+    if (document.activeElement !== ta) {
+      ta.focus({ preventScroll: true });
+      try { ta.setSelectionRange(st.obs.ini, st.obs.fim); } catch (e) { /* ignora */ }
+    }
   }
 
   /** Dropdown de marco ou de função vital, gravando na hora. */
@@ -17628,8 +17776,8 @@ if(isWorker){
     autor.id = 'nbAutor';
     autor.textContent = w.editedAt ? 'Última edição: ' + (w.editedBy || 'sem nome') + ' · ' + Ncrs.data(w.editedAt) : 'Ainda não preenchido.';
     sw.appendChild(autor);
-    /* Marco Atual num marco dos comunicados (Config.MARCOS_COMUNICADOS): a
-       "nova NCR" pode ser avisada a quem usa o visualizador — só com o clique */
+    /* NCR com Marco Atual (qualquer marco): a "nova NCR" pode ser avisada a
+       quem usa o visualizador — só com o clique. Sem Marco Atual não aparece. */
     var prop = !leitura() && ctx.comunicar && global.Comunicados ? Comunicados.daNcr(rec) : null;
     if (prop) {
       var com = botao('📣 Comunicar: nova NCR no ' + prop.marco, 'btn--sm btn--comunicar', function () {
@@ -22044,8 +22192,11 @@ if(isWorker){
     linha.appendChild(grupo);
     linha.appendChild(adiante);
     linha.appendChild(next);
-    /* 📣 só nos relatórios dos marcos de Config.MARCOS_COMUNICADOS: nos
-       outros o botão não teria o que fazer, e apareceria em todo item à toa.
+    /* 📣 em todo relatório com marco — qualquer marco pode ser comunicado,
+       quando quem edita quiser (pedido do Bruno). Os de
+       Config.MARCOS_COMUNICADOS só têm, além disso, a oferta automática no
+       aviso depois da mudança (ofertaDoItem). Sem marco o botão não aparece:
+       o visualizador não saberia de que marco é o aviso.
        Aparece mesmo com o número em branco (o item que acabou de nascer):
        a barra não é redesenhada enquanto se digita, e o clique diz o que falta. */
     if (!Leitura.ativo() && Comunicados.doRelatorio(state.project, state.kind)) {
@@ -23933,7 +24084,7 @@ if(isWorker){
           agendarGravacaoPasta();
           /* Marco Atual passou a ser um marco dos comunicados: oferece — e
              só oferece; quem decide é quem editou */
-          if (campo === 'marcoAtual' && valor !== antes && Comunicados.daNcr(rec)) {
+          if (campo === 'marcoAtual' && valor !== antes && Comunicados.sugereNcr(rec)) {
             toast('Marco Atual da ' + rec.numero + ': ' + valor + '.', 9000, ofertaDaNcr(rec));
           }
         })
@@ -25897,11 +26048,14 @@ if(isWorker){
 
   /**
    * O botão "📣 Comunicar" que vai no aviso logo depois de uma mudança que
-   * pode ser comunicada — ou null. A proposta é refeita no clique: o que se
-   * comunica é o item como está naquele instante.
+   * pode ser comunicada — ou null. Só nos marcos de Config.MARCOS_COMUNICADOS:
+   * nos outros, oferecer a cada mudança seria ruído; quem quiser comunicar
+   * usa o 📣 da barra de situação ou da ficha. A proposta é refeita no
+   * clique: o que se comunica é o item como está naquele instante.
    */
   function ofertaDoItem(project, kind, item, tipo, statusAntes) {
-    if (Leitura.ativo() || !Comunicados.doItem(project, kind, item, tipo, statusAntes)) return null;
+    if (Leitura.ativo() || !Comunicados.sugere(project, kind) ||
+        !Comunicados.doItem(project, kind, item, tipo, statusAntes)) return null;
     return {
       rotulo: '📣 Comunicar',
       fn: function () {
@@ -25912,7 +26066,7 @@ if(isWorker){
   }
 
   function ofertaDaNcr(rec) {
-    if (Leitura.ativo() || !Comunicados.daNcr(rec)) return null;
+    if (Leitura.ativo() || !Comunicados.sugereNcr(rec) || !Comunicados.daNcr(rec)) return null;
     return {
       rotulo: '📣 Comunicar',
       fn: function () { abrirComunicar(Comunicados.daNcr(rec), { rec: rec }); }
@@ -26279,9 +26433,9 @@ if(isWorker){
       ? 'Os avisos publicados pela equipe. Os marcados como “novo” ainda não foram lidos neste navegador.'
       : 'Os comunicados publicados para quem usa o visualizador — os últimos ' + Comunicados.MAX +
         '. Salvar continua automático; o comunicado é um aviso a mais, e só nasce do botão ' +
-        '📣 Comunicar: na barra de situação de um item, na ficha de uma NCR do banco ou no ' +
-        'aviso logo depois de uma mudança que pode ser comunicada. Marcos que geram comunicados: ' +
-        marcos + '.';
+        '📣 Comunicar, na barra de situação de um item ou na ficha de uma NCR do banco — de ' +
+        'qualquer marco. Nos marcos ' + marcos + ', o aviso logo depois de uma mudança que ' +
+        'pode ser comunicada já oferece o botão.';
 
     var naoLidos = {};
     comunicadosNaoLidos().forEach(function (c) { naoLidos[c.id] = true; });
@@ -27365,6 +27519,13 @@ if(isWorker){
       });
       return;
     }
+    /* O editor abre na aba de Config.ABA_INICIAL_EDITOR (o Banco NCR).
+       Antes de montar qualquer coisa, para a primeira tela já ser ela — e só
+       aqui, depois do desvio do visualizador, que continua abrindo como
+       sempre. A aba que não existe nesta página cai na de sempre. */
+    var abaInicial = Config.ABA_INICIAL_EDITOR;
+    var botaoAba = abaInicial && document.querySelector('.tab[data-kind="' + abaInicial + '"]');
+    if (botaoAba && !botaoAba.hidden) state.kind = abaInicial;
     aoLado = lerAoLado();
     registrarServiceWorker();
     requestPersistentStorage();

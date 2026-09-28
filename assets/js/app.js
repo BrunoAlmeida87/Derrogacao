@@ -2961,8 +2961,11 @@
     linha.appendChild(grupo);
     linha.appendChild(adiante);
     linha.appendChild(next);
-    /* 📣 só nos relatórios dos marcos de Config.MARCOS_COMUNICADOS: nos
-       outros o botão não teria o que fazer, e apareceria em todo item à toa.
+    /* 📣 em todo relatório com marco — qualquer marco pode ser comunicado,
+       quando quem edita quiser (pedido do Bruno). Os de
+       Config.MARCOS_COMUNICADOS só têm, além disso, a oferta automática no
+       aviso depois da mudança (ofertaDoItem). Sem marco o botão não aparece:
+       o visualizador não saberia de que marco é o aviso.
        Aparece mesmo com o número em branco (o item que acabou de nascer):
        a barra não é redesenhada enquanto se digita, e o clique diz o que falta. */
     if (!Leitura.ativo() && Comunicados.doRelatorio(state.project, state.kind)) {
@@ -4850,7 +4853,7 @@
           agendarGravacaoPasta();
           /* Marco Atual passou a ser um marco dos comunicados: oferece — e
              só oferece; quem decide é quem editou */
-          if (campo === 'marcoAtual' && valor !== antes && Comunicados.daNcr(rec)) {
+          if (campo === 'marcoAtual' && valor !== antes && Comunicados.sugereNcr(rec)) {
             toast('Marco Atual da ' + rec.numero + ': ' + valor + '.', 9000, ofertaDaNcr(rec));
           }
         })
@@ -6814,11 +6817,14 @@
 
   /**
    * O botão "📣 Comunicar" que vai no aviso logo depois de uma mudança que
-   * pode ser comunicada — ou null. A proposta é refeita no clique: o que se
-   * comunica é o item como está naquele instante.
+   * pode ser comunicada — ou null. Só nos marcos de Config.MARCOS_COMUNICADOS:
+   * nos outros, oferecer a cada mudança seria ruído; quem quiser comunicar
+   * usa o 📣 da barra de situação ou da ficha. A proposta é refeita no
+   * clique: o que se comunica é o item como está naquele instante.
    */
   function ofertaDoItem(project, kind, item, tipo, statusAntes) {
-    if (Leitura.ativo() || !Comunicados.doItem(project, kind, item, tipo, statusAntes)) return null;
+    if (Leitura.ativo() || !Comunicados.sugere(project, kind) ||
+        !Comunicados.doItem(project, kind, item, tipo, statusAntes)) return null;
     return {
       rotulo: '📣 Comunicar',
       fn: function () {
@@ -6829,7 +6835,7 @@
   }
 
   function ofertaDaNcr(rec) {
-    if (Leitura.ativo() || !Comunicados.daNcr(rec)) return null;
+    if (Leitura.ativo() || !Comunicados.sugereNcr(rec) || !Comunicados.daNcr(rec)) return null;
     return {
       rotulo: '📣 Comunicar',
       fn: function () { abrirComunicar(Comunicados.daNcr(rec), { rec: rec }); }
@@ -7196,9 +7202,9 @@
       ? 'Os avisos publicados pela equipe. Os marcados como “novo” ainda não foram lidos neste navegador.'
       : 'Os comunicados publicados para quem usa o visualizador — os últimos ' + Comunicados.MAX +
         '. Salvar continua automático; o comunicado é um aviso a mais, e só nasce do botão ' +
-        '📣 Comunicar: na barra de situação de um item, na ficha de uma NCR do banco ou no ' +
-        'aviso logo depois de uma mudança que pode ser comunicada. Marcos que geram comunicados: ' +
-        marcos + '.';
+        '📣 Comunicar, na barra de situação de um item ou na ficha de uma NCR do banco — de ' +
+        'qualquer marco. Nos marcos ' + marcos + ', o aviso logo depois de uma mudança que ' +
+        'pode ser comunicada já oferece o botão.';
 
     var naoLidos = {};
     comunicadosNaoLidos().forEach(function (c) { naoLidos[c.id] = true; });
@@ -8282,6 +8288,13 @@
       });
       return;
     }
+    /* O editor abre na aba de Config.ABA_INICIAL_EDITOR (o Banco NCR).
+       Antes de montar qualquer coisa, para a primeira tela já ser ela — e só
+       aqui, depois do desvio do visualizador, que continua abrindo como
+       sempre. A aba que não existe nesta página cai na de sempre. */
+    var abaInicial = Config.ABA_INICIAL_EDITOR;
+    var botaoAba = abaInicial && document.querySelector('.tab[data-kind="' + abaInicial + '"]');
+    if (botaoAba && !botaoAba.hidden) state.kind = abaInicial;
     aoLado = lerAoLado();
     registrarServiceWorker();
     requestPersistentStorage();

@@ -22,8 +22,14 @@
      relógio.
 
    O comunicado guarda o mínimo para ser lido e para achar o item: nada de
-   imagem, nada de texto longo. Os marcos que podem ser comunicados estão em
-   `Config.MARCOS_COMUNICADOS`.
+   imagem, nada de texto longo.
+
+   **Qualquer marco pode ser comunicado** (pedido do Bruno: "quero poder
+   gerar alertas quando eu quiser, para outros marcos"): o botão 📣 vale
+   para todo item de relatório com marco e toda NCR do banco com Marco
+   Atual. Os marcos de `Config.MARCOS_COMUNICADOS` (o J09) têm uma coisa a
+   mais: logo depois de uma mudança, o aviso do pé da tela já OFERECE o 📣
+   (`sugere`/`sugereNcr`). Nos outros, quem quer comunicar clica no botão.
 
    Não conhece a tela: o app.js monta a prévia, o pop-up e o histórico.
    ========================================================================== */
@@ -111,22 +117,41 @@
     return str(project.marco);
   }
 
+  /**
+   * O marco com que o comunicado sai: o nome da lista quando é um dos
+   * monitorados ("RANAE J09" sai como "J09", como sempre saiu); senão o
+   * marco como está escrito ("J10", "J09 Ind"). '' sem marco — aí não há o
+   * que comunicar, porque o visualizador não saberia a que marco se refere.
+   */
+  function marcoPara(texto) {
+    return monitorado(texto) || str(texto).replace(/\s+/g, ' ').trim();
+  }
+
   /* --- o que pode ser comunicado ------------------------------------------- */
 
-  /** O marco monitorado deste relatório (na aba NCR ou DEV) — ou ''. */
+  /** O marco do comunicado deste relatório (na aba NCR ou DEV) — ou '' sem marco. */
   function doRelatorio(project, kind) {
-    return monitorado(marcoDoRelatorio(project, kind));
+    return marcoPara(marcoDoRelatorio(project, kind));
+  }
+
+  /** O aviso logo depois de uma mudança oferece o 📣 sozinho? Só nos marcos monitorados. */
+  function sugere(project, kind) {
+    return !!monitorado(marcoDoRelatorio(project, kind));
+  }
+
+  function sugereNcr(rec) {
+    return !!(rec && rec.waiver && monitorado(rec.waiver.marcoAtual));
   }
 
   /**
    * Os acontecimentos que este item permite comunicar, na ordem de TIPOS:
-   * "novo waiver" para todo item com número num relatório de marco
-   * monitorado, e "waiver accepted" quando ele está aceito (pelo valor
-   * interno, `Store.STATUS_CONCLUIDO` — nunca pelo texto da tela).
+   * "novo waiver" para todo item com número num relatório com marco, e
+   * "waiver accepted" quando ele está aceito (pelo valor interno,
+   * `Store.STATUS_CONCLUIDO` — nunca pelo texto da tela).
    */
   function tiposDoItem(project, kind, item) {
     if (!item || !str(item.ncrId).trim()) return [];
-    if (!monitorado(marcoDoRelatorio(project, kind))) return [];
+    if (!doRelatorio(project, kind)) return [];
     var l = ['novo-waiver'];
     if (item.status === Store.STATUS_CONCLUIDO) l.push('waiver-aceito');
     return l;
@@ -139,7 +164,7 @@
    */
   function doItem(project, kind, item, tipo, statusAntes) {
     if (tiposDoItem(project, kind, item).indexOf(tipo) < 0) return null;
-    var marco = monitorado(marcoDoRelatorio(project, kind));
+    var marco = doRelatorio(project, kind);
     return {
       tipo: tipo,
       projetoId: str(project.id),
@@ -154,10 +179,10 @@
     };
   }
 
-  /** A NCR do banco com Marco Atual num marco monitorado: "nova NCR". */
+  /** A NCR do banco, no marco do Marco Atual dela: "nova NCR". */
   function daNcr(rec) {
     if (!rec || !rec.waiver) return null;
-    var marco = monitorado(rec.waiver.marcoAtual);
+    var marco = marcoPara(rec.waiver.marcoAtual);
     if (!marco) return null;
     var f = rec.fonte || {};
     return {
@@ -383,7 +408,10 @@
     CHAVE_LIDOS: CHAVE_LIDOS,
     marcosMonitorados: marcosMonitorados,
     monitorado: monitorado,
+    marcoPara: marcoPara,
     doRelatorio: doRelatorio,
+    sugere: sugere,
+    sugereNcr: sugereNcr,
     tiposDoItem: tiposDoItem,
     doItem: doItem,
     daNcr: daNcr,

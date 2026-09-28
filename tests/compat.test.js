@@ -23,8 +23,9 @@ const path = require('path');
       return j06 ? { ncrs: j06.ncrs.length, devs: j06.devs.length, schema: j06.schema } : null;
     });
     L.ok(aberto && aberto.ncrs === 31, 'o backup antigo abre: J06 com ' + (aberto && aberto.ncrs) + ' NCRs');
-    await pg.selectOption('#projectSelect', { index: await pg.$eval('#projectSelect', s => Array.from(s.options).findIndex(o => /^J06 /.test(o.textContent))) });
+    /* o editor abre no Banco NCR, onde o seletor de relatório não aparece */
     await pg.click('#tabNcr');
+    await pg.selectOption('#projectSelect', { index: await pg.$eval('#projectSelect', s => Array.from(s.options).findIndex(o => /^J06 /.test(o.textContent))) });
     L.igual(await pg.textContent('#tabNcr .tab-count'), '31', 'a aba Waiver NCR mostra os 31 itens');
 
     console.log('chaves internas e formato');

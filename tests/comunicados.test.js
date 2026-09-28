@@ -1,5 +1,6 @@
-/* Comunicados do editor para o visualizador: quem pode ser comunicado (J09,
-   e não J08 nem J09 Ind), nada nasce sem o clique, a prévia com todos os
+/* Comunicados do editor para o visualizador: qualquer marco pode ser
+   comunicado pelo botão, e só o J09 ganha a oferta automática depois de uma
+   mudança (J08 e J09 Ind não); nada nasce sem o clique, a prévia com todos os
    campos, o arquivo na pasta da equipe, o aviso de "já comunicado", a
    retenção, a publicação, o backup (com e sem a coleção) — e, no
    visualizador, o pop-up consolidado, "Abrir waiver", "Marcar como lido"
@@ -38,7 +39,7 @@ function aviso(pg) {
     await pg.waitForFunction(() => /Derrogacao/.test(document.getElementById('pastaChipLabel').textContent));
     await pg.waitForTimeout(500);
 
-    console.log('quais marcos podem ser comunicados');
+    console.log('quais marcos têm a oferta automática — e todos têm o botão');
     const marcos = await pg.evaluate(() => ['J09', ' j 9 ', 'RANAE J09', 'J09 Ind', 'J09Cer', 'J08', 'J19', 'J090', 'J10']
       .map(t => [t, Comunicados.monitorado(t)]));
     L.igual(marcos.filter(m => m[1]).map(m => m[0]), ['J09', ' j 9 ', 'RANAE J09'],
@@ -56,8 +57,12 @@ function aviso(pg) {
         return r;
       });
     });
-    L.igual(tipos2['J08'], [[], []], 'item do J08: nada a comunicar');
-    L.igual(tipos2['J09 Ind'], [[], []], 'item do J09 Ind: nada a comunicar');
+    L.igual(tipos2['J08'], [['novo-waiver'], ['novo-waiver', 'waiver-aceito']], 'item do J08: também pode ser comunicado');
+    L.igual(tipos2['J09 Ind'], [['novo-waiver'], ['novo-waiver', 'waiver-aceito']], 'item do J09 Ind: também pode ser comunicado');
+    L.igual(await pg.evaluate(() => Store.list().then(l => ['J08', 'J09 Ind', 'J09'].map(m => Comunicados.sugere(l.find(p => p.marco === m), 'ncr')))),
+      [false, false, true], 'mas a oferta automática depois de uma mudança é só do J09');
+    L.igual(await pg.evaluate(() => [Comunicados.marcoPara('RANAE J09'), Comunicados.marcoPara(' J10 '), Comunicados.marcoPara('J09  Ind'), Comunicados.marcoPara('')]),
+      ['J09', 'J10', 'J09 Ind', ''], 'o marco do comunicado: o nome da lista para o J09, o texto escrito para os outros, nada sem marco');
     L.igual(tipos2['J09'], [['novo-waiver'], ['novo-waiver', 'waiver-aceito']],
       'item do J09: "novo waiver"; aceito (pelo valor interno "aceito"): também "waiver accepted"');
 
@@ -168,23 +173,33 @@ function aviso(pg) {
     console.log('outros marcos');
     await pg.selectOption('#projectSelect', { label: await pg.$eval('#projectSelect', s => Array.from(s.options).find(o => /^J08 \(/.test(o.textContent)).textContent) });
     await pg.click('.ncr-item:nth-child(4)');
-    L.ok(await pg.$('#comunicarItemBtn') === null, 'item do J08: sem botão 📣');
+    L.ok(await pg.$('#comunicarItemBtn') !== null, 'item do J08: o botão 📣 está na barra (qualquer marco, quando quiser)');
     await pg.click('.status-op:has-text("Waiver requested")');
     await pg.click('.status-op:has-text("Waiver accepted")');
     await pg.waitForTimeout(400);
     t = await aviso(pg);
-    L.ok(t.botoes.indexOf('📣 Comunicar') < 0, 'aceitar um waiver do J08 não oferece comunicado');
+    L.ok(t.botoes.indexOf('📣 Comunicar') < 0, 'aceitar um waiver do J08 não OFERECE comunicado sozinho');
+    const quantosAntes = await pg.evaluate(() => Comunicados.locais().length);
+    await pg.click('#comunicarItemBtn');
+    L.ok(/^O waiver da NCR-.*, no marco J08, foi aceito\.$/.test(await pg.textContent('#comunicarPrevia .com-frase')),
+      'mas o botão abre a prévia do J08: ' + await pg.textContent('#comunicarPrevia .com-frase'));
+    await pg.click('#comunicarCancelarBtn');
+    L.igual(await pg.evaluate(() => Comunicados.locais().length), quantosAntes, 'e cancelar não cria nada');
     await pg.selectOption('#projectSelect', { label: await pg.$eval('#projectSelect', s => Array.from(s.options).find(o => /^J09 Ind/.test(o.textContent)).textContent) });
     await pg.click('.ncr-item:nth-child(1)');
-    L.ok(await pg.$('#comunicarItemBtn') === null, 'item do J09 Ind: sem botão 📣');
+    L.ok(await pg.$('#comunicarItemBtn') !== null, 'item do J09 Ind: também tem o botão 📣');
+    await pg.click('#comunicarItemBtn');
+    L.ok(/marco J09 Ind/.test(await pg.textContent('#comunicarPrevia .com-frase')),
+      'e o comunicado sai como "J09 Ind", não como J09: ' + await pg.textContent('#comunicarPrevia .com-frase'));
+    await pg.click('#comunicarCancelarBtn');
 
     console.log('nova NCR, pelo banco');
     await pg.click('.tab[data-kind="banco"]');
     const alvo = await pg.evaluate(() => Ncrs.lista().find(r => r.waiver.marcoAtual === 'J08').key);
     await pg.evaluate((k) => NcrView.abrirFicha(k), alvo);
     await pg.waitForFunction(() => document.getElementById('ncrDialog').open);
-    L.ok(!(await pg.evaluate(() => Array.from(document.querySelectorAll('#ncrDialog button')).some(b => /Comunicar/.test(b.textContent)))),
-      'NCR com Marco Atual J08: a ficha não oferece comunicado');
+    L.ok(await pg.evaluate(() => Array.from(document.querySelectorAll('#ncrDialog button')).some(b => /Comunicar: nova NCR no J08/.test(b.textContent))),
+      'NCR com Marco Atual J08: a ficha tem "📣 Comunicar: nova NCR no J08"');
     await pg.selectOption('#nbFicha-marcoAtual', 'J09');
     await pg.waitForTimeout(500);
     t = await aviso(pg);

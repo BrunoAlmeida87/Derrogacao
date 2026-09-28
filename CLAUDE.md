@@ -68,8 +68,9 @@ assets/css/report.css      layout do relatório — tela e impressão A4
 assets/js/log.js           o diário do console: o que está acontecendo, e o
                            que fazer quando dá errado (carrega primeiro)
 assets/js/config.js        o que muda com o tempo: o marco que abre primeiro
-                           (MARCO_INICIAL), o ritmo da atualização e os
-                           marcos que geram comunicados (MARCOS_COMUNICADOS)
+                           (MARCO_INICIAL), a aba em que o editor abre
+                           (ABA_INICIAL_EDITOR), o ritmo da atualização e os
+                           marcos com oferta de comunicado (MARCOS_COMUNICADOS)
 assets/js/atualizacao.js   o ciclo único da atualização automática e o contador
 assets/js/leitura.js       o modo leitura (o visualizador): liga e blinda
 assets/js/store.js         modelo, persistência, mesclagem, ordenação
@@ -865,7 +866,15 @@ tela que responde "onde está a NCR-018?" sem abrir marco por marco.
   intermediária**, senão o sticky morre (§6); a lateral vira trilho estreito
   nesta aba. Editar uma célula troca **só aquela linha**
   (`NcrView.atualizarLinha`): a rolagem não volta ao topo, e a linha que saiu
-  do filtro fica à vista (`st.fixadas`, amarelo) até o filtro mudar. As
+  do filtro fica à vista (`st.fixadas`, amarelo) até o filtro mudar. A
+  **Observação** também se escreve na tabela (pedido do Bruno; só no editor,
+  `editar: 'texto'` + `leitura()`): botão que vira `<textarea>` no clique,
+  grava a 400 ms como a ficha, Ctrl+Enter/sair fecha, Esc devolve o texto de
+  quando abriu. O redesenho da tabela (a pasta trazendo um colega) destruiria
+  a caixa no meio da frase: o rascunho e o cursor ficam em `st.obs`, a caixa
+  renasce aberta e `focarCaixa()` devolve o foco — o mesmo princípio do
+  "cursor sobrevive ao redesenho". `redesenhando` distingue o `blur` do
+  redesenho do `blur` da pessoa. As
   listas da tabela são botões que viram `<select>` no clique — 1.600 linhas ×
   3 listas de até 45 opções montadas de saída seriam ~200 mil elementos.
   Filtros de múltipla escolha; o filtro **não é guardado** (mesma regra da
@@ -1212,7 +1221,11 @@ esquerda (`j 9` = `J09`) e aceita o prefixo `RANAE` — com nota menor, para o
 relatório (o escrito igual primeiro, depois o mexido por último) ou `null`.
 
 - **Editor**: o boot abre esse relatório; sem ele, `list[0]` (o mais recente),
-  como sempre. Nunca cria relatório.
+  como sempre. Nunca cria relatório. E abre na **aba**
+  `Config.ABA_INICIAL_EDITOR` (`'banco'`, pedido do Bruno) — definida no
+  `boot`, **depois** do desvio do visualizador, que continua abrindo na
+  Waiver NCR. Os testes que começam pela lista de itens pedem a aba Waiver
+  NCR no `L.semear` (`naAbertura: true` fica onde o programa abriu).
 - **A pasta pode trazê-lo depois** (quem liga a pasta pela primeira vez):
   `aberturaPendente` fica armado quando a abertura caiu no mais recente, e
   `abrirMarcoInicial()` troca para o J09 depois da primeira sincronização —
@@ -1258,10 +1271,12 @@ de `Config.INTERVALO_ATUALIZACAO_MS` (5 min), **só no visualizador**:
   `Atualizacao.aoConcluir(fn)` — não cria outro temporizador.
 
 ### Comunicados para o visualizador (`comunicados.js`)
-Pedido do Bruno: alguns acontecimentos do J09 merecem chegar a quem só
+Pedido do Bruno: alguns acontecimentos merecem chegar a quem só
 acompanha — um waiver novo, uma NCR nova, um waiver aceito. **Nem toda
 edição**: quem decide é quem edita, com um clique. Proposto e aprovado antes
-de implementar (com os padrões abaixo, que o Bruno não contestou).
+de implementar (com os padrões abaixo, que o Bruno não contestou). Nasceu só
+para o J09; depois o Bruno pediu "gerar alertas quando eu quiser, para
+outros marcos" — hoje **qualquer marco** pode ser comunicado pelo botão.
 
 - **O comunicado só nasce do clique em "📣 Publicar comunicado"**
   (`publicarComunicado` no app.js, a única chamada de `Comunicados.criar`).
@@ -1277,9 +1292,19 @@ de implementar (com os padrões abaixo, que o Bruno não contestou).
   monitorado) e `waiver-aceito` (item com `status === Store.STATUS_CONCLUIDO`
   — o valor interno, nunca o texto da tela). A frase de cada um se entende
   sem a mensagem opcional (até 280 caracteres).
-- **Os marcos vêm de `Config.MARCOS_COMUNICADOS`**, comparados por
-  `Config.ehMarco`: "J09 Ind", "J09Cer" e "J19" não são o J09. O "J09" não
-  aparece escrito em nenhum outro arquivo do programa.
+- **Qualquer marco pode ser comunicado; os de `Config.MARCOS_COMUNICADOS`
+  têm a oferta.** `tiposDoItem`/`doItem`/`daNcr` aceitam todo relatório com
+  marco e toda NCR com Marco Atual (sem marco, nada: o visualizador não
+  saberia de que marco é). O botão 📣 da barra e o da ficha aparecem em
+  todos. A **oferta** no aviso logo depois da mudança (`ofertaDoItem`,
+  `ofertaDaNcr`, e a do Marco Atual no `ctxBanco`) só nos marcos da lista
+  (`Comunicados.sugere`/`sugereNcr`, comparados por `Config.ehMarco`: "J09
+  Ind", "J09Cer" e "J19" não são o J09) — oferecer a cada mudança em todo
+  marco seria ruído. O marco gravado no comunicado é `marcoPara`: o nome da
+  lista para os monitorados ("RANAE J09" → "J09", como sempre foi, e a
+  chave contra duplicado não mudou), o texto escrito para os outros ("J10",
+  "J09 Ind"). O visualizador não filtra por marco — nada mudou nele; e o
+  visualizador antigo lê os de outros marcos igual (mesmos tipos).
 - **A prévia mostra tudo antes**: tipo, marco, número, situação nova (com a
   de antes — `anotarTroca` guarda a última troca da sessão, para o botão da
   barra também saber), título curto, autor, data e hora.
@@ -1661,4 +1686,7 @@ desta máquina às vezes bloqueia `github.io`.
 | Pasta do visualizador em `Config.PASTA_VISUALIZADOR`; o editor avisa e pede para conectar a cada queda | pedido do Bruno: sempre ligado à pasta, com confirmação quando cair |
 | O backup de tudo leva os comunicados | backup pela metade não é backup; versões antigas ignoram a chave |
 | "Novo waiver" = item do relatório Waiver do J09; "Nova NCR" = NCR do banco com Marco Atual J09 | a leitura proposta ao Bruno antes de implementar |
+| Qualquer marco pode ser comunicado pelo botão; a oferta automática fica só nos de `MARCOS_COMUNICADOS` | pedido do Bruno ("gerar alertas quando eu quiser, para outros marcos"); oferecer em todo marco a cada mudança seria ruído |
+| O editor abre na aba Banco NCR (`Config.ABA_INICIAL_EDITOR`); o visualizador, na Waiver NCR | pedido do Bruno, que pediu também para não mexer no visualizador |
+| A Observação do banco NCR se edita na tabela, só no editor | pedido do Bruno; o visualizador continua só leitura |
 

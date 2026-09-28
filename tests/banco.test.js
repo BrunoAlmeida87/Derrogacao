@@ -1,7 +1,8 @@
 /* Banco NCR: linhas alternadas (zebra) e separadores mais fortes, que
    continuam certos depois de filtrar, ordenar e editar uma linha; e os
    estados (passar o mouse, foco, linha presa, fechada em destaque) acima
-   das duas cores. */
+   das duas cores. E a Observação escrita na própria tabela, no editor — e
+   só no editor. */
 'use strict';
 const L = require('./lib');
 
@@ -79,6 +80,55 @@ const L = require('./lib');
     const par = resto.filter((c, i) => i % 2 === 1 && c !== 'presa');
     L.ok(resto.length === 10 && new Set(imp).size === 1 && new Set(par).size === 1 && imp[0] !== par[0],
       'a tabela continua com as 10 linhas, as outras nos dois tons alternados');
+
+    console.log('Observação escrita na própria tabela (editor)');
+    await pg.evaluate(() => localStorage.setItem('derrogacao:ncrColunas2',
+      JSON.stringify(['numero', 'w:marcoAtual', 'w:observacao', 'descricao'])));
+    await pg.click('.tab[data-kind="kanban"]');
+    await pg.click('.tab[data-kind="banco"]');
+    await pg.waitForSelector('#nb2Table tbody tr');
+    const cel = '#nb2Table tbody tr:nth-child(1) td:nth-child(3)';
+    const chave = await pg.$eval('#nb2Table tbody tr:nth-child(1)', tr => tr.dataset.key);
+    L.ok(await pg.$(cel + ' .nb2-txt') !== null, 'a célula da Observação é clicável');
+    await pg.click(cel + ' .nb2-txt');
+    await pg.waitForSelector(cel + ' textarea');
+    await pg.keyboard.press('Control+End');
+    await pg.keyboard.type(' primeira parte');
+    /* a pasta traz o trabalho de um colega: a tabela inteira é redesenhada */
+    await pg.evaluate(() => NcrView.renderTabela());
+    await pg.keyboard.type(' e segunda parte');
+    await pg.waitForTimeout(700);
+    const salvo = await pg.evaluate(k => Ncrs.get(k).waiver.observacao, chave);
+    L.ok(/ primeira parte e segunda parte$/.test(salvo),
+      'grava sozinho, e um redesenho da tabela no meio da frase não perde nem o texto nem o cursor: "' + salvo.slice(-40) + '"');
+    L.ok(await pg.evaluate(() => document.activeElement && document.activeElement.tagName === 'TEXTAREA'), 'a caixa continua com o foco');
+    await pg.keyboard.press('Control+Enter');
+    await pg.waitForTimeout(300);
+    L.ok(await pg.$(cel + ' textarea') === null && /segunda parte/.test(await pg.getAttribute(cel + ' .nb2-txt', 'title')),
+      'Ctrl+Enter fecha a caixa, e a célula mostra o texto novo');
+    await pg.click(cel + ' .nb2-txt');
+    await pg.keyboard.type(' ISTO SERÁ DESFEITO');
+    await pg.waitForTimeout(600);
+    await pg.keyboard.press('Escape');
+    await pg.waitForTimeout(400);
+    L.igual(await pg.evaluate(k => Ncrs.get(k).waiver.observacao, chave), salvo, 'Esc desfaz o que foi escrito desde que a caixa abriu');
+    L.igual(await pg.evaluate(k => Ncrs.get(k).waiver.editedBy, chave), 'Teste', 'e a edição leva o nome de quem escreveu');
+
+    console.log('no visualizador a Observação continua só leitura');
+    const pub = await L.publicacao(pg);
+    srv.extras['visualizador-dados.js'] = () => pub;
+    const vis = await L.abrir();
+    try {
+      await vis.pagina.addInitScript(() => localStorage.setItem('derrogacao:ncrColunas2',
+        JSON.stringify(['numero', 'w:marcoAtual', 'w:observacao', 'descricao'])));
+      await vis.pagina.goto(srv.url + 'index.html?modo=leitura');
+      await vis.pagina.waitForFunction(() => document.getElementById('projectSelect').options.length > 0);
+      await vis.pagina.click('.tab[data-kind="banco"]');
+      await vis.pagina.waitForSelector('#nb2Table tbody tr');
+      L.ok(await vis.pagina.$$eval('#nb2Table .nb2-txt, #nb2Table textarea', x => x.length) === 0 &&
+        await vis.pagina.$$eval('#nb2Table thead th', t => t.some(th => /Observação/.test(th.textContent))),
+        'a coluna aparece, como texto, sem nada que edite');
+    } finally { await vis.navegador.close(); }
   } finally {
     const f = L.resultado('Banco NCR', s.erros);
     await s.navegador.close(); srv.fechar();

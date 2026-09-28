@@ -3022,6 +3022,21 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .nb2-dd:hover { border-color: var(--kind); }
 .nb2-dd.is-vazio { color: var(--muted); }
 .nb2-sel { font-size: 12px; padding: 3px 5px; max-width: 260px; }
+/* a Observação, escrita na própria tabela (só no editor): parece texto, e o
+   contorno aparece ao passar o mouse, dizendo que dá para clicar */
+.nb2-txt {
+  display: block; width: 100%; font: inherit; font-size: 12px; line-height: 1.35;
+  text-align: left; white-space: normal; overflow-wrap: anywhere; color: var(--ink);
+  background: transparent; border: 1px dashed transparent; border-radius: 5px;
+  padding: 2px 5px; margin: -3px -6px; cursor: text;
+}
+.nb2-txt:hover, .nb2-txt:focus-visible { border-color: var(--kind); background: #fff; }
+.nb2-txt.is-vazio { color: var(--muted); font-style: italic; }
+.nb2-txtarea {
+  display: block; width: 100%; min-width: 240px; min-height: 86px; box-sizing: border-box;
+  font: inherit; font-size: 12px; line-height: 1.35; padding: 4px 6px; resize: vertical;
+  border: 1px solid var(--kind); border-radius: 5px; background: #fff;
+}
 .nb2-waiver { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 120px; }
 .nb2-rel {
   font: inherit; font-size: 11px; font-weight: 700; color: #fff; background: var(--accent);

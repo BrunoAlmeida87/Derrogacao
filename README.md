@@ -15,9 +15,10 @@ login e nenhum dado sai do computador.
   aparece onde o relatório aberto decide o que está na tela (as duas abas
   Waiver e a aba Fluxos, quando ela olha "este relatório"); nas outras cada
   aba tem o próprio recorte. Ver [As áreas e o seletor de relatório](#as-áreas-e-o-seletor-de-relatório).
-- **Abre no marco da vez.** Hoje o **J09**: o relatório dele vem aberto, o
-  Kanban e o Resumo nascem nele. Sem o J09, abre o relatório mexido por último,
-  como sempre foi. Ver [O marco que abre primeiro](#o-marco-que-abre-primeiro).
+- **Abre no Banco NCR, no marco da vez.** O editor abre direto na aba
+  **Banco NCR**; o relatório do **J09** já vem escolhido, e o Kanban e o
+  Resumo nascem nele. Sem o J09, vale o relatório mexido por último, como
+  sempre foi. Ver [O marco que abre primeiro](#o-marco-que-abre-primeiro).
 - **Atualização automática.** No visualizador, a publicação é relida a cada
   **5 minutos** (o contador fica em ⋯ Mais); no editor com a pasta, o
   trabalho dos colegas chega a cada 20 segundos. **⟳ Atualizar** lê na hora. Ver
@@ -27,7 +28,9 @@ login e nenhum dado sai do computador.
   as abas e exportações — e nada que grave. Os dados chegam por publicação a
   partir do editor. Ver [Visualizador](#visualizador-somente-leitura) e o
   [manual do visualizador](MANUAL-VISUALIZADOR.md).
-- **Comunicados para o visualizador.** Um waiver novo no J09, uma NCR nova no
+- **Comunicados para o visualizador.** Um waiver novo, uma NCR nova, um waiver
+  aceito — em qualquer marco, quando você quiser; no J09 o aviso já oferece
+  o botão logo depois da mudança. Um waiver novo no J09, uma NCR nova no
   J09, um waiver do J09 aceito: quem está editando decide se vale avisar, com
   o botão **📣 Comunicar**, e quem usa o visualizador recebe um pop-up
   discreto. Ver [Comunicados](#comunicados-avisos-para-quem-usa-o-visualizador).
@@ -209,6 +212,10 @@ se aplica. Nas abas com exportação própria, o botão de cima passa a se chama
 **PDF dos relatórios…** — é o PDF do Waiver Request, não o da tela.
 
 ## O marco que abre primeiro
+
+O **editor** abre na aba **Banco NCR** (pedido do Bruno). A aba fica em
+`assets/js/config.js`, `ABA_INICIAL_EDITOR` — trocar por `'ncr'` volta ao
+que era. O **visualizador** continua abrindo na aba Waiver NCR.
 
 Ao abrir, o programa vai direto ao relatório do **J09** (o editor e o
 visualizador), e o Kanban e o Resumo nascem nele. A comparação ignora
@@ -588,7 +595,8 @@ espaço, acento e `#` no nome da pasta. Por isso a publicação é um `.js`
 ## Comunicados: avisos para quem usa o visualizador
 
 Nem toda edição merece aviso. Três acontecimentos podem virar **comunicado**,
-e só nos marcos escolhidos (hoje o **J09**):
+**em qualquer marco** — quem decide quando é quem edita. Os exemplos abaixo
+são do J09, o marco em que o programa também **oferece** o botão sozinho:
 
 | Acontecimento | O que o visualizador lê |
 | --- | --- |
@@ -599,11 +607,16 @@ e só nos marcos escolhidos (hoje o **J09**):
 **No editor.** Salvar continua automático, como sempre. O comunicado é uma
 ação **a mais**, que só acontece com o seu clique:
 
-- logo depois de uma mudança que pode ser comunicada (aceitar o waiver, levar
-  a NCR para o relatório do J09, trocar o Marco Atual para J09), o aviso do pé
-  da tela traz o botão **📣 Comunicar**;
-- o mesmo botão fica na **barra de situação** de todo item do J09 e na
-  **ficha** da NCR com Marco Atual J09 — para comunicar depois;
+- o botão **📣 Comunicar** fica na **barra de situação** de todo item de
+  relatório com marco e na **ficha** de toda NCR com Marco Atual — J08, J10,
+  RANAE, J09 Ind, qualquer um. O comunicado sai com o marco como está
+  escrito ("J10", "J09 Ind"); o do J09 sai como "J09", mesmo no relatório
+  "RANAE J09";
+- no **J09** (os marcos de `MARCOS_COMUNICADOS`) há um atalho: logo depois
+  de uma mudança que pode ser comunicada (aceitar o waiver, levar a NCR para
+  o relatório do J09, trocar o Marco Atual para J09), o aviso do pé da tela
+  já traz o **📣 Comunicar**. Nos outros marcos o aviso não oferece — seria
+  ruído a cada mudança —, e você usa o botão da barra ou da ficha;
 - **⋯ Mais → 📣 Comunicados** mostra os que já foram publicados.
 
 O botão abre a **prévia**: o tipo, o marco, o número, a situação nova (com a
@@ -638,9 +651,9 @@ nasce do clique: abrir um backup, importar o banco NCR ou juntar o trabalho
 de um colega nunca cria comunicado. O **backup de tudo** leva os comunicados;
 backups antigos continuam abrindo, com a lista vazia.
 
-> Para acompanhar outro marco, é uma linha em `assets/js/config.js`:
-> `MARCOS_COMUNICADOS = ['J09', 'J10']`. A comparação é a mesma da abertura:
-> "J09 Ind", "J09Cer" e "J19" não contam como J09.
+> Para o aviso oferecer o 📣 sozinho também em outro marco, é uma linha em
+> `assets/js/config.js`: `MARCOS_COMUNICADOS = ['J09', 'J10']`. A comparação é
+> a mesma da abertura: "J09 Ind", "J09Cer" e "J19" não contam como J09.
 
 ## O caminho do waiver (aba Fluxos)
 
@@ -942,7 +955,14 @@ de correlação e os relatórios têm em comum.
   Waiver**, **Alerta** e presença no último export. Marque quantas opções quiser em cada um; o
   recorte ativo aparece numa faixa acima da tabela, com **Limpar**.
 - **Marco Original, Marco Atual e Função Vital** são escolhidos direto na
-  tabela. A célula mostra o valor; o clique abre a lista. **A tela não pula
+  tabela. A célula mostra o valor; o clique abre a lista.
+- **Observação** se escreve direto na tabela: clique na célula (ou em
+  *+ escrever*) e ela vira uma caixa de texto. Grava sozinho enquanto você
+  digita; **Ctrl+Enter** ou sair do campo fecha, **Esc** desfaz o que foi
+  escrito desde que a caixa abriu. Se a pasta trouxer o trabalho de um colega
+  no meio da frase, a caixa continua aberta, com o seu texto e o cursor no
+  lugar. (Não está à vista? **Colunas…** → Observação.) No visualizador a
+  coluna continua só leitura. **A tela não pula
   para o topo** ao gravar, e a linha que deixou de atender ao filtro **fica à
   vista, marcada em amarelo**, até você mudar o filtro — ela não some no meio
   da edição.
