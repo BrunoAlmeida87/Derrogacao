@@ -100,6 +100,10 @@ derrogacao.html            o programa inteiro num arquivo só — gerado, e vers
 derrogacao-visualizador.html  o mesmo, em modo leitura — gerado, e versionado
 tools/build-standalone.py  gera (e confere) os dois arquivos únicos
 tests/                     suítes de ponta a ponta (Playwright, Node) — §7
+MANUAL-VISUALIZADOR.md     manual de quem USA o visualizador (pastas, telas,
+                           exportações, problemas); capturas em
+                           docs/manual-visualizador/ — tela nova ou mudança
+                           de pasta no visualizador pede atualizar o manual
 exemplos/                  .json prontos para importar
 .github/workflows/pages.yml  publicação
 ```

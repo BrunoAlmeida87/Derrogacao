@@ -25,7 +25,8 @@ login e nenhum dado sai do computador.
 - **Visualizador somente leitura.** Para quem só acompanha: o mesmo
   programa, num arquivo à parte (`derrogacao-visualizador.html`), com todas
   as abas e exportações — e nada que grave. Os dados chegam por publicação a
-  partir do editor. Ver [Visualizador](#visualizador-somente-leitura).
+  partir do editor. Ver [Visualizador](#visualizador-somente-leitura) e o
+  [manual do visualizador](MANUAL-VISUALIZADOR.md).
 - **Comunicados para o visualizador.** Um waiver novo no J09, uma NCR nova no
   J09, um waiver do J09 aceito: quem está editando decide se vale avisar, com
   o botão **📣 Comunicar**, e quem usa o visualizador recebe um pop-up
@@ -496,6 +497,10 @@ não existe. Trocar a *Ordem* da lista vale só para aquela tela (e para o PDF
 gerado dali). O visualizador **nunca grava nada** — nem no navegador, nem
 em pasta nenhuma.
 
+**Manual de quem usa:** [MANUAL-VISUALIZADOR.md](MANUAL-VISUALIZADOR.md) —
+onde fica, como abrir, cada tela, exportações, comunicados e o que fazer
+quando algo dá errado, com capturas de tela.
+
 **Baixar:** está na raiz do repositório e no site
 (https://brunoalmeida87.github.io/Derrogacao/derrogacao-visualizador.html),
 e o editor tem o link em **⋯ Mais → 👁 Publicar para visualizadores**.
@@ -544,11 +549,12 @@ Sem pedir clique, nesta ordem:
 
 1. na **pasta dos dados** informada neste navegador (etiqueta 📄 na barra →
    *Pasta dos dados*);
-2. na **pasta padrão gravada no próprio arquivo** do visualizador — a linha
+2. na **pasta padrão gravada no próprio arquivo** do visualizador — hoje
+   `X:\36.GTO - RELATÓRIOS GTO\NCR_MILESTONE\00_BD_VISUALIZADOR`, que vem de
+   `PASTA_VISUALIZADOR` em `assets/js/config.js` (a linha
    `PASTA_DADOS_VISUALIZADOR` do `tools/build-standalone.py`, que vira
-   `<meta name="derrogacao-pasta-dados">` no arquivo gerado. **Hoje está em
-   branco**; quando a pasta definitiva existir, ela entra ali e ninguém mais
-   precisa configurar nada;
+   `<meta name="derrogacao-pasta-dados">`, está vazia e, se preenchida, vale
+   por cima dela);
 3. **ao lado** do próprio visualizador.
 
 Vale caminho de rede (`\\servidor\Projetos\…`), unidade mapeada (`G:\…`), a
@@ -1564,6 +1570,7 @@ derrogacao.html          o programa inteiro num arquivo só (gerado)
 derrogacao-visualizador.html  o visualizador somente leitura (gerado)
 tools/build-standalone.py  gera (e confere) os dois arquivos únicos
 tests/                   testes de ponta a ponta (Playwright) — ver tests/README.md
+MANUAL-VISUALIZADOR.md   manual de quem usa o visualizador (capturas em docs/manual-visualizador/)
 exemplos/                relatórios .json prontos para importar
 CLAUDE.md                notas de manutenção: decisões, armadilhas, porquês
 ```
