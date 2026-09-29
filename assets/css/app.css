@@ -1914,8 +1914,6 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
    aba de resumo
    ========================================================================== */
 
-.tab--wide { flex: 0 0 auto; padding-inline: 16px; }
-
 .sidebar-note {
   margin: 14px 12px;
   padding: 14px 15px;

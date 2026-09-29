@@ -86,7 +86,7 @@
 
   /* --- as partes ---------------------------------------------------------- */
 
-  function identificacao(item, kind, project) {
+  function identificacao(item, kind) {
     var box = el('div', 'lado-id');
     var linha = el('div', 'lado-id-num');
     linha.appendChild(el('strong', null, str(item.ncrId) || '(sem número)'));
@@ -210,7 +210,7 @@
     host.innerHTML = '';
     if (!item) return host;
 
-    host.appendChild(identificacao(item, kind, project));
+    host.appendChild(identificacao(item, kind));
     /* A anotação vem antes das seções do documento: quando ela existe, é o
        que explica o estado do item, e é o primeiro que se quer ler. */
     if (str(item.nota)) host.appendChild(anotacao(item, opts.copiar));

@@ -42,7 +42,6 @@
   var ctx = null;
   var host = null;
   var cacheBusca = { versao: -1, mapa: {} };
-  var cacheLinhas = null;  // { versao, projetos, mapa: chave -> linha apurada }
 
   function filtrosVazios() {
     var f = { busca: '' };
@@ -1471,13 +1470,13 @@
     /* fluxo — o mesmo desenho do NCR Control, em largura total */
     var sf = secao(body, 'Fluxo da NCR', '', 'nb-sec--fluxo');
     var seq = NcrFluxo.sequencia(rec);
-    var sub = sf.querySelector('.nb-sec-sub');
+    var subFluxo = sf.querySelector('.nb-sec-sub');
     if (!rec.historico.length) {
-      sub.textContent = seq.length
+      subFluxo.textContent = seq.length
         ? 'Sem histórico importado: o desenho mostra só o status atual. Use "Importar histórico NCR" (o historico.json do NCR Control) para ver o caminho inteiro.'
         : 'Sem histórico nem status para desenhar.';
     } else {
-      sub.textContent = seq.length + ' passo(s), lidos do histórico importado. Passe o mouse nas caixas e nas setas para ver datas e detalhes.';
+      subFluxo.textContent = seq.length + ' passo(s), lidos do histórico importado. Passe o mouse nas caixas e nas setas para ver datas e detalhes.';
     }
     if (seq.length) {
       var modos = el('div', 'nb-fluxo-modos');

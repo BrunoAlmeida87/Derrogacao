@@ -24,7 +24,6 @@
   var ctx = null;
   var st = { aba: 'corrigir', ncr: '', busca: '' };
 
-  function str(v) { return v == null ? '' : String(v); }
   function el(tag, cls, text) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;

@@ -238,11 +238,6 @@
     return (lista || []).slice().sort(porTempo).reverse();
   }
 
-  /** Quantas linhas de conflito ainda não foram vistas por esta pessoa. */
-  function conflitos(lista) {
-    return (lista || []).filter(function (r) { return r.origem === 'substituido'; });
-  }
-
   /** Tem aqui alguma coisa que o arquivo da pasta ainda não tem? */
   function faltamLa(minhas, remotas) {
     var la = {};
@@ -291,7 +286,6 @@
     doItem: doItem,
     doProjeto: doProjeto,
     todas: todas,
-    conflitos: conflitos,
     faltamLa: faltamLa,
     locais: locais,
     gravarLocais: gravarLocais,

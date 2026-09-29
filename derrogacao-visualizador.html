@@ -1931,8 +1931,6 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
    aba de resumo
    ========================================================================== */
 
-.tab--wide { flex: 0 0 auto; padding-inline: 16px; }
-
 .sidebar-note {
   margin: 14px 12px;
   padding: 14px 15px;
@@ -5597,8 +5595,7 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
    Um relógio só para o programa inteiro: trocar de aba não cria outro, e
    ninguém mais agenda releitura por conta própria. Os comunicados do
    visualizador vêm dentro da própria publicação, na mesma leitura desta
-   rodada. Quem mais quiser saber de cada rodada se inscreve em `aoConcluir`
-   — em vez de criar um segundo mecanismo concorrente.
+   rodada — ninguém mais cria um segundo mecanismo concorrente.
 
    - Com a página em segundo plano o tique para: nada é conferido nem
      redesenhado. O prazo, porém, continua valendo: ao voltar, a contagem
@@ -5625,7 +5622,6 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
   var rodando = false;
   var adiado = '';        /* por que a rodada que venceu ainda não aconteceu */
   var ultima = { quando: 0, ok: true, erro: '' };
-  var ouvintes = [];
   var ligadoVisibilidade = false;
 
   function agoraMs() { return Date.now(); }
@@ -5672,9 +5668,6 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
     try { p = Promise.resolve(cfg.executar(origem)); } catch (e) { p = Promise.reject(e); }
     return p.then(function (r) {
       ultima = { quando: agoraMs(), ok: true, erro: '' };
-      ouvintes.forEach(function (fn) {
-        try { fn(r, origem); } catch (e) { /* um ouvinte com defeito não para os outros */ }
-      });
       return r;
     }, function (e) {
       ultima = { quando: agoraMs(), ok: false, erro: (e && e.message) || String(e || 'falhou') };
@@ -5725,12 +5718,6 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
     if (c.imediata) rodar('automatica');
   }
 
-  function parar() {
-    desligarTique();
-    cfg = null;
-    rodando = false;
-  }
-
   /**
    * Uma troca com a fonte aconteceu por outro caminho (a gravação do editor
    * lê a pasta antes de gravar): os dados à vista são de agora, e a
@@ -5764,16 +5751,11 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
     return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
   }
 
-  /** Quem quer saber de cada rodada concluída: fn(resultado, origem). */
-  function aoConcluir(fn) { if (typeof fn === 'function') ouvintes.push(fn); }
-
   global.Atualizacao = {
     iniciar: iniciar,
-    parar: parar,
     agora: function () { return rodar('manual'); },
     marcarFeita: marcarFeita,
     estado: estado,
-    aoConcluir: aoConcluir,
     mmss: mmss,
     ADIA_MS: ADIA_MS
   };
@@ -7947,11 +7929,6 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
     return (lista || []).slice().sort(porTempo).reverse();
   }
 
-  /** Quantas linhas de conflito ainda não foram vistas por esta pessoa. */
-  function conflitos(lista) {
-    return (lista || []).filter(function (r) { return r.origem === 'substituido'; });
-  }
-
   /** Tem aqui alguma coisa que o arquivo da pasta ainda não tem? */
   function faltamLa(minhas, remotas) {
     var la = {};
@@ -8000,7 +7977,6 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
     doItem: doItem,
     doProjeto: doProjeto,
     todas: todas,
-    conflitos: conflitos,
     faltamLa: faltamLa,
     locais: locais,
     gravarLocais: gravarLocais,
@@ -11401,28 +11377,37 @@ if(isWorker){
     return k;
   }
 
+  /* As substituições ativas, já ordenadas e agrupadas pela definitiva. A
+     tabela do Banco NCR pergunta por cada uma das ~1.600 linhas (e o
+     pareamento entre marcos, por cada item): o índice só é refeito quando
+     algo muda (`versao`), em vez de a cada pergunta. */
+  var indice = { v: -1, lista: [], porPara: {} };
+  function indiceAtual() {
+    if (indice.v === versao) return indice;
+    var lista = Object.keys(est.substituicoes).map(function (k) { return est.substituicoes[k]; })
+      .filter(ativa)
+      .sort(function (a, b) { return b.em.localeCompare(a.em); });
+    var porPara = {};
+    lista.forEach(function (s) { (porPara[s.para] = porPara[s.para] || []).push(s); });
+    indice = { v: versao, lista: lista, porPara: porPara };
+    return indice;
+  }
+
   /** As substituições ativas que apontam para esta NCR (as temporárias dela). */
   function anteriores(key) {
-    var k = chave(key);
-    return listaSubstituicoes().filter(function (s) { return s.para === k; });
+    return (indiceAtual().porPara[chave(key)] || []).slice();
   }
 
   /** Esta NCR faz parte de alguma substituição (como temporária ou definitiva)? */
   function envolvida(key) {
     var k = chave(key);
     if (!k) return false;
-    return !!sucessora(k) || anteriores(k).length > 0;
+    return !!sucessora(k) || !!indiceAtual().porPara[k];
   }
 
-  function temSubstituicoes() {
-    return Object.keys(est.substituicoes).some(function (k) { return ativa(est.substituicoes[k]); });
-  }
+  function temSubstituicoes() { return indiceAtual().lista.length > 0; }
 
-  function listaSubstituicoes() {
-    return Object.keys(est.substituicoes).map(function (k) { return est.substituicoes[k]; })
-      .filter(ativa)
-      .sort(function (a, b) { return b.em.localeCompare(a.em); });
-  }
+  function listaSubstituicoes() { return indiceAtual().lista.slice(); }
 
   /**
    * Liga a temporária à definitiva. Devolve { ok, erro }. A temporária tem
@@ -13030,9 +13015,9 @@ if(isWorker){
     if (!listado) {
       /* marco fora da lista (J04 sozinho, J13): entra pelo número */
       i = ORDEM.length;
-      for (var k = 0; k < ORDEM.length; k++) {
-        var mk = /J\s*0*(\d{1,2})/i.exec(ORDEM[k]);
-        if (mk && no.num != null && no.num < Number(mk[1])) { i = k; break; }
+      for (var p = 0; p < ORDEM.length; p++) {
+        var mk = /J\s*0*(\d{1,2})/i.exec(ORDEM[p]);
+        if (mk && no.num != null && no.num < Number(mk[1])) { i = p; break; }
       }
       /* um tiquinho antes de quem o sucede: "J04" fica acima de "J05" na
          coluna, em vez de empatar com ele e depender da ordem de digitação */
@@ -14118,8 +14103,6 @@ if(isWorker){
   var C2 = '#eb6834';   /* laranja */
   var C3 = '#1baf7a';   /* verde-água */
   var NEUTRO = '#d4d7dd';
-  var TINTA = '#1a1c20';
-  var TINTA2 = '#6b7280';
 
   var SVGNS = 'http://www.w3.org/2000/svg';
 
@@ -17436,7 +17419,7 @@ if(isWorker){
 
   /* --- as partes ---------------------------------------------------------- */
 
-  function identificacao(item, kind, project) {
+  function identificacao(item, kind) {
     var box = el('div', 'lado-id');
     var linha = el('div', 'lado-id-num');
     linha.appendChild(el('strong', null, str(item.ncrId) || '(sem número)'));
@@ -17560,7 +17543,7 @@ if(isWorker){
     host.innerHTML = '';
     if (!item) return host;
 
-    host.appendChild(identificacao(item, kind, project));
+    host.appendChild(identificacao(item, kind));
     /* A anotação vem antes das seções do documento: quando ela existe, é o
        que explica o estado do item, e é o primeiro que se quer ler. */
     if (str(item.nota)) host.appendChild(anotacao(item, opts.copiar));
@@ -17626,7 +17609,6 @@ if(isWorker){
   var ctx = null;
   var host = null;
   var cacheBusca = { versao: -1, mapa: {} };
-  var cacheLinhas = null;  // { versao, projetos, mapa: chave -> linha apurada }
 
   function filtrosVazios() {
     var f = { busca: '' };
@@ -19055,13 +19037,13 @@ if(isWorker){
     /* fluxo — o mesmo desenho do NCR Control, em largura total */
     var sf = secao(body, 'Fluxo da NCR', '', 'nb-sec--fluxo');
     var seq = NcrFluxo.sequencia(rec);
-    var sub = sf.querySelector('.nb-sec-sub');
+    var subFluxo = sf.querySelector('.nb-sec-sub');
     if (!rec.historico.length) {
-      sub.textContent = seq.length
+      subFluxo.textContent = seq.length
         ? 'Sem histórico importado: o desenho mostra só o status atual. Use "Importar histórico NCR" (o historico.json do NCR Control) para ver o caminho inteiro.'
         : 'Sem histórico nem status para desenhar.';
     } else {
-      sub.textContent = seq.length + ' passo(s), lidos do histórico importado. Passe o mouse nas caixas e nas setas para ver datas e detalhes.';
+      subFluxo.textContent = seq.length + ' passo(s), lidos do histórico importado. Passe o mouse nas caixas e nas setas para ver datas e detalhes.';
     }
     if (seq.length) {
       var modos = el('div', 'nb-fluxo-modos');
@@ -20598,7 +20580,6 @@ if(isWorker){
   var ctx = null;
   var st = { aba: 'corrigir', ncr: '', busca: '' };
 
-  function str(v) { return v == null ? '' : String(v); }
   function el(tag, cls, text) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
@@ -22211,11 +22192,11 @@ if(isWorker){
     } finally {
       Report.fecharMedida(medida);
     }
-    var titulo = document.title;
+    var tituloDoc = document.title;
     document.title = 'Painel_' + mp.rotulo.replace(/[^\w]+/g, '_') + '_' + Report.timeStamp();
     setTimeout(function () {
       window.print();
-      setTimeout(function () { document.title = titulo; }, 500);
+      setTimeout(function () { document.title = tituloDoc; }, 500);
     }, 60);
   }
 
@@ -22316,7 +22297,7 @@ if(isWorker){
     }
   }
 
-  function exportarTabelaCsv(lista, cols, f) {
+  function exportarTabelaCsv(lista, cols) {
     var csv = Tabela.toCsv(lista, cols);
     download(new Blob([csv], { type: 'text/csv;charset=utf-8' }), nomeDeArquivoDaTabela('csv'));
     toast('CSV salvo em Downloads: ' + lista.length + ' item(ns).', 4000);
@@ -24191,7 +24172,6 @@ if(isWorker){
   /* --- evidências -------------------------------------------------------- */
 
   function renderEvidenceCard() {
-    var ncr = currentNcr();
     var c = card('Evidências (páginas de anexo, em paisagem)');
     c.appendChild(el('div', 'hint',
       'Cada anexo vira uma página no fim do relatório, com o link “Go to Evidence” apontando para ela.'));

@@ -113,9 +113,9 @@
     if (!listado) {
       /* marco fora da lista (J04 sozinho, J13): entra pelo número */
       i = ORDEM.length;
-      for (var k = 0; k < ORDEM.length; k++) {
-        var mk = /J\s*0*(\d{1,2})/i.exec(ORDEM[k]);
-        if (mk && no.num != null && no.num < Number(mk[1])) { i = k; break; }
+      for (var p = 0; p < ORDEM.length; p++) {
+        var mk = /J\s*0*(\d{1,2})/i.exec(ORDEM[p]);
+        if (mk && no.num != null && no.num < Number(mk[1])) { i = p; break; }
       }
       /* um tiquinho antes de quem o sucede: "J04" fica acima de "J05" na
          coluna, em vez de empatar com ele e depender da ordem de digitação */

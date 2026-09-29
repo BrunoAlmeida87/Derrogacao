@@ -13,8 +13,6 @@
   var C2 = '#eb6834';   /* laranja */
   var C3 = '#1baf7a';   /* verde-água */
   var NEUTRO = '#d4d7dd';
-  var TINTA = '#1a1c20';
-  var TINTA2 = '#6b7280';
 
   var SVGNS = 'http://www.w3.org/2000/svg';
 

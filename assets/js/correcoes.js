@@ -217,28 +217,37 @@
     return k;
   }
 
+  /* As substituições ativas, já ordenadas e agrupadas pela definitiva. A
+     tabela do Banco NCR pergunta por cada uma das ~1.600 linhas (e o
+     pareamento entre marcos, por cada item): o índice só é refeito quando
+     algo muda (`versao`), em vez de a cada pergunta. */
+  var indice = { v: -1, lista: [], porPara: {} };
+  function indiceAtual() {
+    if (indice.v === versao) return indice;
+    var lista = Object.keys(est.substituicoes).map(function (k) { return est.substituicoes[k]; })
+      .filter(ativa)
+      .sort(function (a, b) { return b.em.localeCompare(a.em); });
+    var porPara = {};
+    lista.forEach(function (s) { (porPara[s.para] = porPara[s.para] || []).push(s); });
+    indice = { v: versao, lista: lista, porPara: porPara };
+    return indice;
+  }
+
   /** As substituições ativas que apontam para esta NCR (as temporárias dela). */
   function anteriores(key) {
-    var k = chave(key);
-    return listaSubstituicoes().filter(function (s) { return s.para === k; });
+    return (indiceAtual().porPara[chave(key)] || []).slice();
   }
 
   /** Esta NCR faz parte de alguma substituição (como temporária ou definitiva)? */
   function envolvida(key) {
     var k = chave(key);
     if (!k) return false;
-    return !!sucessora(k) || anteriores(k).length > 0;
+    return !!sucessora(k) || !!indiceAtual().porPara[k];
   }
 
-  function temSubstituicoes() {
-    return Object.keys(est.substituicoes).some(function (k) { return ativa(est.substituicoes[k]); });
-  }
+  function temSubstituicoes() { return indiceAtual().lista.length > 0; }
 
-  function listaSubstituicoes() {
-    return Object.keys(est.substituicoes).map(function (k) { return est.substituicoes[k]; })
-      .filter(ativa)
-      .sort(function (a, b) { return b.em.localeCompare(a.em); });
-  }
+  function listaSubstituicoes() { return indiceAtual().lista.slice(); }
 
   /**
    * Liga a temporária à definitiva. Devolve { ok, erro }. A temporária tem

@@ -1411,8 +1411,8 @@ de `Config.INTERVALO_ATUALIZACAO_MS` (5 min), **só no visualizador**:
   zerava o contador.
 - **Os comunicados do visualizador não têm relógio próprio**: vêm dentro da
   publicação, na mesma leitura (`carregarLeitura` → `receberComunicados`).
-  Quem mais precisar de uma rodada se inscreve em
-  `Atualizacao.aoConcluir(fn)` — não cria outro temporizador.
+  Quem mais precisar de uma rodada entra no mesmo ciclo (`carregarLeitura`)
+  — não cria outro temporizador.
 
 ### Comunicados para o visualizador (`comunicados.js`)
 Pedido do Bruno: alguns acontecimentos do J09 merecem chegar a quem só

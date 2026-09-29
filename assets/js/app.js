@@ -1098,11 +1098,11 @@
     } finally {
       Report.fecharMedida(medida);
     }
-    var titulo = document.title;
+    var tituloDoc = document.title;
     document.title = 'Painel_' + mp.rotulo.replace(/[^\w]+/g, '_') + '_' + Report.timeStamp();
     setTimeout(function () {
       window.print();
-      setTimeout(function () { document.title = titulo; }, 500);
+      setTimeout(function () { document.title = tituloDoc; }, 500);
     }, 60);
   }
 
@@ -1203,7 +1203,7 @@
     }
   }
 
-  function exportarTabelaCsv(lista, cols, f) {
+  function exportarTabelaCsv(lista, cols) {
     var csv = Tabela.toCsv(lista, cols);
     download(new Blob([csv], { type: 'text/csv;charset=utf-8' }), nomeDeArquivoDaTabela('csv'));
     toast('CSV salvo em Downloads: ' + lista.length + ' item(ns).', 4000);
@@ -3078,7 +3078,6 @@
   /* --- evidências -------------------------------------------------------- */
 
   function renderEvidenceCard() {
-    var ncr = currentNcr();
     var c = card('Evidências (páginas de anexo, em paisagem)');
     c.appendChild(el('div', 'hint',
       'Cada anexo vira uma página no fim do relatório, com o link “Go to Evidence” apontando para ela.'));

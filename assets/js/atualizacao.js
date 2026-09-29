@@ -9,8 +9,7 @@
    Um relógio só para o programa inteiro: trocar de aba não cria outro, e
    ninguém mais agenda releitura por conta própria. Os comunicados do
    visualizador vêm dentro da própria publicação, na mesma leitura desta
-   rodada. Quem mais quiser saber de cada rodada se inscreve em `aoConcluir`
-   — em vez de criar um segundo mecanismo concorrente.
+   rodada — ninguém mais cria um segundo mecanismo concorrente.
 
    - Com a página em segundo plano o tique para: nada é conferido nem
      redesenhado. O prazo, porém, continua valendo: ao voltar, a contagem
@@ -37,7 +36,6 @@
   var rodando = false;
   var adiado = '';        /* por que a rodada que venceu ainda não aconteceu */
   var ultima = { quando: 0, ok: true, erro: '' };
-  var ouvintes = [];
   var ligadoVisibilidade = false;
 
   function agoraMs() { return Date.now(); }
@@ -84,9 +82,6 @@
     try { p = Promise.resolve(cfg.executar(origem)); } catch (e) { p = Promise.reject(e); }
     return p.then(function (r) {
       ultima = { quando: agoraMs(), ok: true, erro: '' };
-      ouvintes.forEach(function (fn) {
-        try { fn(r, origem); } catch (e) { /* um ouvinte com defeito não para os outros */ }
-      });
       return r;
     }, function (e) {
       ultima = { quando: agoraMs(), ok: false, erro: (e && e.message) || String(e || 'falhou') };
@@ -137,12 +132,6 @@
     if (c.imediata) rodar('automatica');
   }
 
-  function parar() {
-    desligarTique();
-    cfg = null;
-    rodando = false;
-  }
-
   /**
    * Uma troca com a fonte aconteceu por outro caminho (a gravação do editor
    * lê a pasta antes de gravar): os dados à vista são de agora, e a
@@ -176,16 +165,11 @@
     return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
   }
 
-  /** Quem quer saber de cada rodada concluída: fn(resultado, origem). */
-  function aoConcluir(fn) { if (typeof fn === 'function') ouvintes.push(fn); }
-
   global.Atualizacao = {
     iniciar: iniciar,
-    parar: parar,
     agora: function () { return rodar('manual'); },
     marcarFeita: marcarFeita,
     estado: estado,
-    aoConcluir: aoConcluir,
     mmss: mmss,
     ADIA_MS: ADIA_MS
   };
