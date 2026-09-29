@@ -68,6 +68,19 @@
     return juntar(out);
   }
 
+  /** "substituída por NCR-X" / "substitui NCR-T" — ou vazio. */
+  function continuidadeDe(r) {
+    if (r.kind === 'dev' || !global.Correcoes) return '';
+    var k = r.item.ncrKey || Ncrs.chave(r.item.ncrId);
+    if (!k) return '';
+    var partes = [];
+    var s = Correcoes.substituicaoDe(k);
+    if (s) partes.push('temporária — substituída por ' + s.paraNumero);
+    var ants = Correcoes.anteriores(k).map(function (a) { return a.deNumero; });
+    if (ants.length) partes.push('substitui ' + ants.join(', '));
+    return partes.join(' · ');
+  }
+
   function contarImagens(item) {
     return (item.evidence || []).reduce(function (a, e) {
       return a + ((e.images || []).length);
@@ -85,6 +98,9 @@
     { id: 'marco', titulo: 'Marco', larg: 18, valor: function (r) { return r.marco; } },
     { id: 'tipo', titulo: 'Tipo', larg: 7, valor: function (r) { return r.kind === 'dev' ? 'DEV' : 'NCR'; } },
     { id: 'ncrId', titulo: 'Número', larg: 18, valor: function (r) { return txt(r.item.ncrId); } },
+    /* NCR temporária ↔ definitiva (correcoes.js): o número do item continua
+       o que era, e esta coluna diz de quem ele é continuação */
+    { id: 'continuidade', titulo: 'NCR anterior / sucessora', larg: 30, valor: function (r) { return continuidadeDe(r); } },
     { id: 'systems', titulo: 'Sistemas', larg: 14, valor: function (r) { return txt(r.item.systems); } },
     { id: 'func', titulo: 'Função / descrição', larg: 34, valor: function (r) { return txt(r.item.func); } },
     { id: 'situacao', titulo: 'Situação (controle interno)', larg: 22, valor: function (r) { return Summary.situacao(r.item); } },
@@ -117,6 +133,8 @@
          o que levar, e um "não" ali seria cobrança de uma coisa que ainda
          não venceu. */
       if (!r.item.done) return '';
+      /* NCR já fechada no banco NCR: não precisa de waiver no marco seguinte */
+      if (a.ncrFechada && (a.estado === 'aLevar' || a.estado === 'semRelatorio')) return 'não precisa — NCR fechada';
       if (a.estado === 'aLevar') return 'não';
       if (a.estado === 'semRelatorio') return 'não — falta criar o relatório';
       return '';

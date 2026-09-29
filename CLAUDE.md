@@ -28,6 +28,12 @@ do SBR4 importadas do banco NCR, com campos próprios do Waiver (marcos, funçã
 vital, observação), o fluxo de cada NCR desenhado como no NCR Control e o
 botão que leva a NCR ao relatório do marco (§5, "Banco NCR").
 
+O Banco NCR sabe também que uma **NCR temporária** (aberta com número
+provisório quando o sistema interno estava fora do ar) foi **substituída** por
+uma definitiva, e tem uma **área administrativa** com senha para corrigir à mão
+um dado do banco, com auditoria (§5, "Correções: temporária → definitiva,
+ajustes e auditoria").
+
 O mesmo código gera **dois programas**: o **editor** (`derrogacao.html`) e o
 **visualizador** somente leitura (`derrogacao-visualizador.html`), para quem só
 acompanha — é o editor em modo leitura, alimentado pela publicação do editor
@@ -92,9 +98,12 @@ assets/js/comunicados.js   os comunicados para o visualizador: formato, chave
 assets/js/lado.js          o item preso ao lado do editor, em só leitura
 assets/js/xlsxler.js       LÊ .xlsx — cópia literal do motor do NCR Control
 assets/js/ncrs.js          banco NCR: modelo, importações, junção da pasta
+assets/js/correcoes.js     NCR temporária → definitiva, ajustes do administrador,
+                           auditoria e a senha (dados; a tela é o admin.js)
 assets/js/ncrfluxo.js      o fluxo da NCR (trajetória e mapa) do NCR Control
 assets/js/ncrview.js       aba Banco NCR: tabela, filtros, ficha
 assets/js/kanban.js        aba Kanban: as NCRs de um marco, por situação
+assets/js/admin.js         a área administrativa (a tela das correções)
 assets/js/app.js           o editor (o maior; ~3000 linhas)
 derrogacao.html            o programa inteiro num arquivo só — gerado, e versionado
 derrogacao-visualizador.html  o mesmo, em modo leitura — gerado, e versionado
@@ -108,8 +117,11 @@ exemplos/                  .json prontos para importar
 
 Ordem de carga dos scripts (importa: cada um usa o anterior):
 `log.js → config.js → atualizacao.js → leitura.js → store.js → revisoes.js → pasta.js → publicacao.js → xlsxler.js → ncrs.js →
-ncrfluxo.js → report.js → fluxo.js → herdar.js → summary.js → painel.js →
-xlsx.js → tabela.js → chat.js → comunicados.js → lado.js → ncrview.js → kanban.js → app.js`.
+correcoes.js → ncrfluxo.js → report.js → fluxo.js → herdar.js → summary.js → painel.js →
+xlsx.js → tabela.js → chat.js → comunicados.js → lado.js → ncrview.js → kanban.js → admin.js → app.js`.
+(`ncrs.js` e `correcoes.js` se usam um ao outro só na hora da chamada;
+`fluxo.js`, `herdar.js`, `painel.js` e `kanban.js` usam `Ncrs.chaveCaso` /
+`Ncrs.recDoItem`, que olham as substituições.)
 (`log.js` vem primeiro porque todo mundo o usa — e **por isso mesmo não usa
 ninguém**: ele não conhece `Store`, `Pasta` nem `app`. `config.js` e
 `atualizacao.js` também não usam ninguém: guardam valores e recebem funções.)
@@ -170,7 +182,8 @@ Nenhuma importação do banco NCR passa perto de `projects`.
 ```js
 { key, numero,                  // key: número normalizado (maiúsculas, sem espaços, "/"->"-")
   fonte:  { campos:{coluna:valor}, titulo, descricao, status, sistema, sbr, sbrPor,
-            criadoEm, responsavel, fechamento, arquivo, importadoEm, presente, alterados:[] },
+            criadoEm, responsavel, fechamento, arquivo, importadoEm, presente, alterados:[],
+            detalhes:[{titulo, origem, colunas:[], linhas:[[…]]}] },   // produtos, deliberações…
   waiver: { marcoOriginal, marcoAtual, funcaoVital, waiverHistoric, observacao,
             editedBy, editedAt, adicoes:[{projectId, marco, itemId, em, por}] },
   historico: [{id, data, tipo, campo, de, para, obs, responsavel, cls, estimado}] }
@@ -178,6 +191,21 @@ Nenhuma importação do banco NCR passa perto de `projects`.
 
 `fonte` é cópia do banco NCR e é **trocada inteira** a cada importação;
 `waiver` só é escrito pela tela e pela correlação; `historico` só cresce.
+
+**Correções** (`correcoes.js`, fora do registro da NCR — em
+`ncrmeta:correcoes` no IndexedDB e em `derrogacao-ncr-correcoes.json` na pasta):
+
+```js
+{ substituicoes: { <chave temporária>: {de, deNumero, para, paraNumero, por, em, obs, removida} },
+  ajustes: { <chave>: { <campo>: {campo, rotulo, valor, banco, por, em, obs, removido} } },
+  auditoria: [{id, em, por, tipo, key, ncr, campo, de, para, obs}],
+  senha: {hash, sal, iter, criadaEm, em, por} }
+```
+
+**Quem lê a `fonte` lê `Ncrs.fonte(rec)`**, não `rec.fonte`: é a fonte com os
+ajustes do administrador por cima (uma cópia rasa; sem ajuste, a própria
+`rec.fonte`). `rec.fonte` continua sendo o que o banco importou — é o que vai
+para a pasta e o que decide se um ajuste foi superado.
 
 ### A Observation do item (`observation`)
 A Observação da NCR, copiada para o item quando a NCR é levada ao relatório.
@@ -890,6 +918,114 @@ tela que responde "onde está a NCR-018?" sem abrir marco por marco.
 - O **backup de tudo** leva `ncrBase`; abrir um backup junta o banco NCR pelas
   regras da pasta. Versões antigas ignoram a chave nova.
 
+### NCR fechada: a lista do Bruno (`Config.STATUS_NCR_FECHADA`)
+`Ncrs.statusFechado(status)` compara pelo `Ncrs.norm` (sem caixa, espaço nem
+pontuação) com a lista do `config.js` — *CEDOC Closure/Unfounded*, *CEDOC
+Closure*, *7.2 - TA Unfounded*, *Closed* e *Closed/Unfounded* — e mantém o
+critério antigo por palavra (*closed/closure/fechada/encerrada/cancelada*),
+para não reabrir o que já era fechado. `Ncrs.fechada(rec)` usa isso sobre
+`Ncrs.fonte(rec)` (o status corrigido vale), mais "sem status e com data de
+fechamento" e "temporária já substituída". O `ncrfluxo.js` põe o *7.2 - TA
+Unfounded* na etapa 7 e o trata como final.
+
+**NCR fechada não pede waiver** (pedido do Bruno): `pronta` no Banco NCR é
+`!fechada`; o Kanban troca o "+ J09 Waiver" por "fechada — sem waiver";
+`Herdar.avanco` devolve `ncrFechada`, que o painel (*aceitos, falta trazer*),
+a Tabela (*Já levada?* = "não precisa — NCR fechada") e o caminho do Banco
+NCR (sem o `(J09)` pendente) respeitam. O **estado** do `avanco` não mudou —
+a cópia continua não estando lá —; quem conta pendência é que olha a marca. O
+alerta ⚠ *fechada com waiver pendente* fica: é ele que acha o item esquecido.
+
+### Detalhes do banco NCR: o que vem em várias linhas (`fonte.detalhes`)
+O Bruno não achava na ficha as deliberações dos produtos. Havia dois ralos:
+a NCR repetida em várias linhas da aba principal ("vale a última linha" — as
+outras sumiam) e o `linhasDoJson`, que jogava fora lista e objeto dentro do
+registro. Agora:
+
+- `importarBase` agrupa as linhas por chave antes de tudo;
+  `combinarLinhas` deixa a coluna igual em todas como está, junta com " | "
+  a que muda (é o que a tabela e a busca veem) e faz dela uma tabela
+  (`tituloDasLinhas`: "Produtos e deliberações" quando o nome das colunas
+  sugere isso). Os **papéis** (status, título…) ficam com o valor da última
+  linha, como antes — um status "Open | Closed" quebraria o `fechada`.
+- Outras abas do mesmo arquivo com a coluna do número (`linhasDaPlanilha` →
+  `extras`) viram tabelas com o nome da aba. A correlação continua de fora.
+- `achatar` leva lista de objetos do JSON para tabela e objeto para campos
+  "pai › filho".
+- A comparação "igual à importação anterior" inclui os detalhes; sem isso,
+  reimportar o mesmo arquivo depois da atualização não traria nada.
+- `juntarBanco`: mesma importação sem os detalhes = regravada por uma versão
+  anterior (que os apaga, porque `normalizarFonte` de lá não os conhece);
+  este lado marca `localMaisNovo` e os devolve à pasta.
+
+A ficha desenha cada grupo como seção (`nb-sec--detalhe`), com a tabela
+`nb-hist` do histórico — o padrão visual que o Bruno pediu para manter.
+
+### Correções: temporária → definitiva, ajustes e auditoria (`correcoes.js`)
+Três coisas que o banco importado não sabe, num arquivo próprio da pasta
+(`derrogacao-ncr-correcoes.json`) pelo motivo dos comunicados: a versão
+anterior, ao regravar o arquivo do Waiver, **apagaria** um campo novo no
+`waiver` (`normalizarWaiver` remonta campo a campo e não tem `extrasDe`).
+
+**Substituições.** `substituir(temp, def)` grava `de → para` (uma sucessora
+por temporária; corrente T1 → T2 → D resolvida por `definitiva`, círculo
+recusado). Nada é renomeado — o item do J06 continua com o número
+temporário. O que junta os dois é a leitura:
+
+- `Ncrs.chaveCaso(item)`: sem substituição é o `Store.numeroChave` de
+  sempre; com ela, temporária e definitiva caem em `'caso:' + definitiva`.
+  **Quem pareia item de um marco com o de outro usa esta**: `Fluxo.indice/
+  anterior`, `Herdar.avanco/avaliar`, `Painel.semRepetir`. A mesclagem
+  (`Store.mergeLWW`, dentro do mesmo marco) **não** — juntar num item só uma
+  temporária e uma definitiva do mesmo relatório seria perder um deles.
+- `Ncrs.chavesDoItem(it)` inclui a definitiva: `vinculos`/`mapaVinculos`
+  dão à definitiva os itens com o número temporário.
+- `Ncrs.recDoItem(item)`: a NCR que responde pelo item — a definitiva, se o
+  número é de temporária substituída. Kanban, alerta da lista e a linha
+  "Banco NCR" do editor usam.
+- A temporária substituída é `fechada`, sai da contagem do KPI e não gera
+  alerta; o Kanban não lhe dá cartão; `adicionarAoWaiver` a recusa.
+
+**Ajustes.** Camada por cima da `fonte`, nunca reescrita dela. Cada ajuste
+guarda `banco` (o valor importado quando foi feito); `ajusteAtivo` só vale
+enquanto o banco continuar dizendo aquilo — importação com outro valor
+**supera** o ajuste sozinha, e a área administrativa avisa. Campo é um papel
+(`status`, `titulo`…) ou `c:<coluna>`; o de papel atualiza a coluna do papel
+e vice-versa. `fonte(rec)` tem cache por `versao` + `Ncrs.versao()`.
+
+**Auditoria.** Uma linha por mudança (ajuste, ajuste desfeito, ligação,
+ligação desfeita, senha): `{em, por, tipo, ncr, campo, de, para, obs}`. União
+pelo id, teto de 3000. `Log` registra só tipo e id — nunca valor.
+
+**Senha.** SHA-256 escrito à mão (`crypto.subtle` só existe em contexto
+seguro, e a conta tem de dar igual em todo computador), com sal e 2000
+iterações. Fica no arquivo da pasta; **a pasta é quem diz a senha** — a local
+só entra na junção quando foi definida ou trocada aqui e ainda não gravada
+(`senhaPendente`). Entre duas, vale a **criada primeiro** (`melhorSenha`):
+quem definir outra num navegador sem pasta não passa por cima da do
+administrador ao ligar a pasta. Apagar o bloco `senha` do arquivo zera — é o
+"esqueci a senha". Nunca vai no backup nem na publicação.
+
+**Junção**: por registro vale o `em` mais novo (desfeito é lápide); a
+auditoria é união. `juntar(d, { senha: true })` só no arquivo da pasta.
+Backup e publicação levam `ncrBase.correcoes` (sem a senha); o visualizador
+as adota em `Ncrs.adotarBase`.
+
+### A área administrativa (`admin.js`)
+Pedido do Bruno: corrigir à mão um dado (o status de uma NCR, por exemplo),
+com auditoria, e escondido de quem não é administrador. Entrada no fim dos
+Ajustes (`Admin.blocoAjustes`), em seção própria como a Conversa: é do
+programa, não do relatório. Destravada, vale até recarregar ou "Sair" (só na
+memória). Abas: corrigir dados de NCR, NCRs temporárias, auditoria (com
+Excel/CSV e a aba "Recorte"), senha. Com a área aberta, a ficha ganha
+"✎ Corrigir dados (administrador)" (`ctx.admin` no `ctxBanco`).
+
+- **Não é controle de acesso, e a tela diz isso** (§6). A senha tira as
+  funções da frente; quem protege os dados é a permissão da pasta.
+- Toda ação exige o nome (`Store.getUser()`), que vai na auditoria.
+- Não existe no visualizador: os Ajustes não abrem lá, `Admin.ativo()` é
+  falso em leitura, e o `#adminDialog` leva `data-so-editor`.
+
 ### Aba Kanban (`kanban.js`)
 O quadro de um marco. Colunas: **"NCR to be closed"** + as quatro de
 `Store.STATUS`. O nome é do Bruno: NCR do marco que não está no Waiver dele
@@ -1487,6 +1623,20 @@ permissão da pasta entre sessões.
   `sincronizar` (o botão "⟳ Atualizar") cancela esse `gravaTimer`, senão a
   mesma rodada acontece duas vezes — e a segunda relê a pasta num momento em
   que ninguém pediu.
+- **O `app.js` não tem `global`.** Ele é `(function () { … })()`, sem o
+  parâmetro que os outros módulos recebem; um `global.Correcoes` ali derrubou
+  a abertura inteira ("não consegui ler o armazenamento deste navegador").
+  No `app.js`, `window.X`.
+- **Quem lê a `fonte` da NCR lê `Ncrs.fonte(rec)`.** Ler `rec.fonte.status`
+  direto mostra o status do banco e ignora a correção do administrador — a
+  tela ficaria dizendo uma coisa e o `fechada` outra.
+- **Pareamento entre marcos é `Ncrs.chaveCaso`, não `Store.numeroChave`.**
+  Com o segundo, a NCR temporária e a definitiva não se acham.
+- **O destino "J09" não é o relatório "J09 Ind".** `Fluxo.marco` lê os dois
+  como J09; o `Herdar` escolhia o primeiro da lista, e com o "J09 Ind"
+  mexido por último o J09 parecia não ter a cópia. Hoje o "Ind" do texto do
+  Expiry tem de bater com o do relatório (`relatorioDestino`), a regra do
+  Kanban.
 - **"J09 " no começo do texto também é o "J09 Ind".** Um teste que procurava a
   opção do J09 com `/^J09 /` pegava o industrial quando ele vinha primeiro na
   lista, e falhava só às vezes. Use `/^J09 \(/` — ou `Config.ehMarco`.
@@ -1657,4 +1807,13 @@ desta máquina às vezes bloqueia `github.io`.
 | Pasta do visualizador em `Config.PASTA_VISUALIZADOR`; o editor avisa e pede para conectar a cada queda | pedido do Bruno: sempre ligado à pasta, com confirmação quando cair |
 | O backup de tudo leva os comunicados | backup pela metade não é backup; versões antigas ignoram a chave |
 | "Novo waiver" = item do relatório Waiver do J09; "Nova NCR" = NCR do banco com Marco Atual J09 | a leitura proposta ao Bruno antes de implementar |
+| NCR fechada = a lista do Bruno em `Config.STATUS_NCR_FECHADA`, mais o critério por palavra de antes | pedido do Bruno ("7.2 - TA Unfounded" não era reconhecido); a palavra fica para não reabrir o que já era fechado |
+| NCR fechada não pede waiver, mas o alerta ⚠ de waiver pendente continua | pedido do Bruno; o alerta é o que acha o item de waiver esquecido de uma NCR que já acabou |
+| Temporária → definitiva é uma ligação, nunca renomear o item | "o histórico seja preservado; os registros antigos continuem rastreáveis" (pedido do Bruno) |
+| A ligação vale na leitura (vínculo, fluxo, painel, Kanban, levar adiante), não na mesclagem | juntar num item só a temporária e a definitiva do mesmo relatório seria perder um deles |
+| Ligar temporária → definitiva é de qualquer editor (ficha), e fica na auditoria | é organização do dado, como o Marco Atual; a área administrativa também lista e desfaz |
+| Correção do administrador é camada por cima, e o banco a supera quando muda o valor | uma correção de hoje não pode esconder para sempre o que o sistema oficial disser amanhã |
+| Correções, ligações e auditoria em arquivo próprio da pasta | a versão anterior, ao regravar o arquivo do Waiver, apagaria campo novo no `waiver` |
+| Área administrativa com senha, com a pasta decidindo a senha e a criada primeiro valendo | não há servidor nem login; a senha esconde, a permissão da pasta protege — e a tela diz isso |
+| A ficha mostra as linhas repetidas do export (produtos, deliberações) em tabela | pedido do Bruno: "tudo o que estiver associado à NCR", no padrão visual da ficha |
 

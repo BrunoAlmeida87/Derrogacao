@@ -37,6 +37,18 @@ login e nenhum dado sai do computador.
   desenhado como no NCR Control e o botão que leva a NCR ao relatório de
   Waiver do marco. Ver [Aba Banco NCR](#aba-banco-ncr).
 
+- **NCR temporária → definitiva.** A NCR aberta com número provisório
+  (quando o sistema interno estava fora do ar) é ligada à definitiva que a
+  substituiu, e as duas passam a ser o mesmo caso nos relatórios, no fluxo,
+  no Kanban e nas contagens — sem reescrever número nenhum. Ver
+  [NCR temporária e definitiva](#ncr-temporária-e-definitiva).
+- **Ficha da NCR completa.** O que o export traz em várias linhas para a
+  mesma NCR — os produtos e a deliberação de cada um — aparece na ficha, em
+  tabela. Ver [Tudo o que o banco traz, na ficha](#tudo-o-que-o-banco-traz-na-ficha).
+- **Área administrativa.** Correção manual de um dado do banco NCR (o status,
+  por exemplo), com auditoria de cada mudança, atrás de uma senha. Ver
+  [Área administrativa](#área-administrativa).
+
 - **Aba Kanban.** As NCRs de um marco (J09, por exemplo) em cartões
   compactos, uma coluna por situação do waiver, com as cores de sempre; as já
   encerradas em *CEDOC Closure* numa área à parte. Arrastar o cartão muda a
@@ -483,7 +495,8 @@ programa em modo leitura**, num arquivo único à parte —
 mesmo programa, ele tem tudo o que o editor mostra e exporta, e cada melhoria
 do editor chega a ele sozinha:
 
-- abas **NCR, DEV, Resumo, Fluxos, Tabela, Banco NCR e Kanban**;
+- abas **NCR, DEV, Resumo, Fluxos, Tabela, Banco NCR e Kanban**, com as
+  ligações temporária → definitiva e as correções do administrador;
 - cada item com todos os campos, o fluxo, as evidências, a **situação** e
   **quem editou e quando**;
 - **PDF do relatório** (idêntico ao do editor, com o recorte por situação),
@@ -1044,7 +1057,129 @@ O banco NCR vai para dois arquivos ao lado de `derrogacao-dados.json`:
 `derrogacao-ncr-waiver.json` (os campos do Waiver; pequeno, muda a cada campo
 preenchido). Vale a edição mais recente, NCR a NCR, e nada é apagado. Antes de
 juntar uma mudança de fora, a sua versão dos campos do Waiver é guardada em
-`historico-ncr\`.
+`historico-ncr\`. As ligações entre NCR temporária e definitiva, as correções
+do administrador e a auditoria vão num terceiro arquivo,
+`derrogacao-ncr-correcoes.json`.
+
+### Quando a NCR é fechada
+
+Estes status querem dizer **NCR fechada** (a lista fica em
+`assets/js/config.js`, `STATUS_NCR_FECHADA`):
+
+- CEDOC Closure/Unfounded
+- CEDOC Closure
+- 7.2 - TA Unfounded
+- Closed
+
+(e *Closed/Unfounded*, status final do NCR Control). Maiúsculas, espaços e
+pontuação não importam: *CEDOC Closure Unfounded* é o mesmo que
+*CEDOC Closure/Unfounded*. Também conta como fechada a NCR sem status com data
+de fechamento, e a NCR temporária já substituída pela definitiva.
+
+NCR fechada, venha de que etapa vier, **não conta como aberta nem pendente** e
+**não pede waiver**: não entra em *Prontas para adicionar*, não mostra o botão
+*+ J09 Waiver* (nem na tabela nem no Kanban, onde o cartão diz "fechada — sem
+waiver"), não aparece como *aceito, falta trazer* no painel do marco, e a
+coluna *Já levada?* da Tabela diz "não precisa — NCR fechada". O alerta
+**⚠ NCR fechada com waiver pendente** continua: é ele que mostra o item de
+waiver que ficou aberto para uma NCR que já acabou.
+
+### Tudo o que o banco traz, na ficha
+
+A ficha mostra todas as colunas do export e, além delas, **o que o export traz
+em mais de uma linha para a mesma NCR** — tipicamente os produtos e a
+deliberação de cada um. Cada grupo vira uma seção com uma tabela, no mesmo
+padrão das outras seções da ficha. Eles vêm de três lugares:
+
+- **a mesma NCR em várias linhas** da aba principal (um produto por linha):
+  antes valia só a última linha e as outras sumiam; agora as linhas são
+  juntadas — o que é igual em todas fica como está, e o que muda de uma linha
+  para outra (produto, deliberação, quantidade…) vira a tabela
+  **Produtos e deliberações**, linha a linha;
+- **outra aba do mesmo arquivo** com a coluna do número da NCR: cada linha vai
+  para a ficha da NCR dela, numa tabela com o nome da aba;
+- **listas dentro do `ncr.json`** do NCR Control.
+
+A busca da aba também procura dentro dessas tabelas. Os dados continuam sendo
+do banco: são trocados a cada importação.
+
+> Na primeira importação depois desta versão, as NCRs com mais de uma linha
+> aparecem como *atualizadas* — é a junção das linhas entrando.
+
+### NCR temporária e definitiva
+
+Enquanto o sistema interno estava fora do ar, algumas NCRs foram abertas com
+um número provisório. Voltando o sistema, a temporária foi encerrada e uma
+**definitiva**, com o número oficial, continuou o caso. As temporárias
+continuam nos relatórios antigos e no Waiver Historic — e é assim que deve
+ser: é o registro do que foi feito.
+
+**Ligar.** Na ficha da definitiva, em *NCR temporária ↔ definitiva*,
+escreva o número da temporária em **Esta NCR substitui a temporária** e clique
+em **Ligar** (ou, na ficha da temporária, **Esta NCR é temporária e foi
+substituída por**). Os números sugeridos vêm do banco NCR e dos relatórios — a
+temporária não precisa estar no banco. Marcado *Levar para a definitiva os
+dados do Waiver que ela ainda não tem*, os marcos, a função vital, o Waiver
+Historic e a observação da temporária completam o que a definitiva ainda não
+tem (nada é sobrescrito). A lista de todas as ligações fica também na área
+administrativa.
+
+**O que muda depois de ligar** — as duas passam a ser **o mesmo caso**:
+
+- a definitiva ganha os relatórios da temporária: a coluna *Waiver* mostra
+  `J06 ↩ → J08 → J09`, onde o `↩` diz que naquele relatório ela está com o
+  número temporário;
+- o **fluxo do waiver** acha a resposta do marco anterior mesmo com o número
+  trocado (o ponto no card), e o **painel do marco** conta o caso uma vez só;
+- o **levar adiante** (e a coluna *Já levada?*) reconhece a definitiva no
+  marco seguinte como a cópia do item temporário;
+- no **Kanban**, o caso é um cartão só;
+- a temporária conta como **fechada**, sai da contagem de NCRs do SBR4
+  ("x temporária(s) substituída(s)") e não gera alerta — quem responde pelo
+  caso é a definitiva;
+- no **editor**, o item com o número temporário mostra
+  `NCR-TEMP (temporária) → NCR-DEF` e o status da definitiva; a Tabela tem a
+  coluna *NCR anterior / sucessora*; a ficha e o filtro *Temporária /
+  definitiva* dizem quem substitui quem.
+
+Nenhum número é reescrito, e **Desfazer** (na ficha ou na área
+administrativa) desliga as duas. Ligar e desfazer ficam na auditoria.
+
+## Área administrativa
+
+**⋯ Mais → Ajustes de capa e rodapé → Área administrativa.** Na primeira vez,
+o botão é **Definir a senha do administrador…**: quem define passa a ser o
+administrador. Depois, **Entrar…** pede a senha. Aberta, a área fica
+disponível até recarregar a página ou até **Sair da área administrativa**.
+
+- **Corrigir dados de NCR** — escolha a NCR e corrija o Status, o Título, a
+  Descrição, o Sistema, o Responsável, as datas ou qualquer outra coluna do
+  export, com o motivo. A tabela mostra, lado a lado, o que o banco NCR diz, o
+  que está em uso e o valor novo. **A correção fica por cima do dado
+  importado, sem apagá-lo**: se uma importação futura trouxer outro valor
+  naquele campo, o banco andou e a correção deixa de valer sozinha (a área
+  avisa). **Desfazer correção** volta ao valor do banco. Com a área aberta, a
+  ficha da NCR ganha o botão **✎ Corrigir dados (administrador)**.
+- **NCRs temporárias** — as ligações temporária → definitiva, para ligar e
+  desfazer.
+- **Auditoria** — cada correção e cada ligação, feitas e desfeitas: **campo,
+  valor anterior, novo valor, data e hora e quem fez** (o nome de *⋯ Mais →
+  Definir meu nome*), mais o motivo. Com busca e exportação em Excel e CSV. A
+  auditoria de cada NCR aparece também na ficha dela, para todos.
+- **Senha** — trocar a senha (pede a atual).
+
+A correção vale para todo o programa: a tabela, os filtros, o Kanban, os
+alertas, a ficha (com a marca *status corrigido* e o valor do banco ao lado) e
+o visualizador. Na pasta da equipe, fica no arquivo
+`derrogacao-ncr-correcoes.json`, junto com a senha — **só o resumo
+criptográfico dela, nunca o texto**.
+
+> **A senha esconde, não protege.** O programa roda inteiro no navegador de
+> quem o abre; a senha tira as correções da frente de quem não é
+> administrador. Quem impede alguém de mexer nos dados é a **permissão da
+> pasta na rede**. Esqueceu a senha? Quem tem acesso à pasta apaga o bloco
+> `"senha"` do `derrogacao-ncr-correcoes.json`, e a próxima pessoa a entrar
+> define outra.
 
 ## Conversa da equipe (aba opcional)
 

@@ -42,6 +42,23 @@
     return Fluxo.marco(Report.marcoOf(project, kind));
   }
 
+  /* "J09 Ind" (o industrial) e "J09" viram o mesmo card no Fluxo.marco, mas
+     são relatórios diferentes: o waiver que vale até "J09" vai para o J09, e
+     só o que diz "J09 Ind" vai para o industrial — a regra do Kanban. Antes,
+     valia o primeiro da lista, e com um "J09 Ind" mexido por último o J09
+     parecia não ter a cópia ("falta levar") mesmo tendo. */
+  function ehInd(t) { return /\bind\b/i.test(texto(t)); }
+
+  /** O relatório do marco de destino, fora o próprio, com o "Ind" batendo. */
+  function relatorioDestino(projects, project, kind, alvo, textoDestino) {
+    var ind = ehInd(textoDestino);
+    return (projects || []).filter(function (p) {
+      if (project && p.id === project.id) return false;
+      var m = marcoDe(p, kind);
+      return m && Fluxo.mesmoMarco(m, alvo) && ehInd(Report.marcoOf(p, kind)) === ind;
+    })[0] || null;
+  }
+
   /**
    * Para onde este item vai quando o waiver for aceito: o marco escrito em
    * "Waiver Approved Expiry". É o campo que o relatório já usa para dizer
@@ -93,6 +110,16 @@
    *          'aLevar'       falta levar (o relatório do destino existe)
    *          'semRelatorio' falta levar, e o relatório do destino nem existe
    */
+  /* NCR já fechada no banco NCR não precisa de waiver no marco seguinte
+     (pedido do Bruno): o "falta levar" deixa de ser pendência. O estado
+     continua o mesmo — a cópia ainda não está lá —, e quem conta pendência
+     olha `ncrFechada`. */
+  function marcarFechada(out, item, kind) {
+    if (kind !== 'ncr' || !global.Ncrs) return;
+    var rec = Ncrs.recDoItem(item);
+    out.ncrFechada = !!(rec && Ncrs.fechada(rec));
+  }
+
   function avanco(project, item, kind, projects) {
     var out = { daqui: null, destino: null, aprovado: false, copia: null,
                 projetoDestino: null, estado: 'semDestino' };
@@ -107,18 +134,16 @@
     out.destino = alvo.no;
     out.aprovado = alvo.aprovado;
 
-    var chave = Store.numeroChave(item);
-    (projects || []).forEach(function (p) {
-      if (out.projetoDestino || (project && p.id === project.id)) return;
-      var m = marcoDe(p, kind);
-      if (m && Fluxo.mesmoMarco(m, alvo.no)) out.projetoDestino = p;
-    });
-    if (!out.projetoDestino) { out.estado = 'semRelatorio'; return out; }
+    var chave = Ncrs.chaveCaso(item);
+    out.projetoDestino = relatorioDestino(projects, project, kind, alvo.no,
+      alvo.aprovado ? item.approvedExpiry : item.requestExpiry);
+    if (!out.projetoDestino) { out.estado = 'semRelatorio'; marcarFechada(out, item, kind); return out; }
 
     (out.projetoDestino[Store.itemsKey(kind)] || []).forEach(function (n) {
-      if (!out.copia && chave && Store.numeroChave(n) === chave) out.copia = n;
+      if (!out.copia && chave && Ncrs.chaveCaso(n) === chave) out.copia = n;
     });
     out.estado = out.copia ? 'levada' : 'aLevar';
+    marcarFechada(out, item, kind);
     return out;
   }
 
@@ -155,12 +180,7 @@
     /* O relatório do destino tem de existir: criar um marco sozinho, a
        partir de um campo de texto, encheria a lista de marcos escritos com
        typo — e cada um deles viajaria para a pasta da equipe. */
-    (projects || []).forEach(function (p) {
-      if (p.id === project.id) return;
-      if (out.projetoDestino) return;
-      var m = marcoDe(p, kind);
-      if (m && Fluxo.mesmoMarco(m, out.destino)) out.projetoDestino = p;
-    });
+    out.projetoDestino = relatorioDestino(projects, project, kind, out.destino, item.approvedExpiry);
     if (!out.projetoDestino) {
       out.motivo = 'Não há neste navegador um relatório do marco ' +
         out.destino.rotulo + '. Crie-o primeiro (ou traga-o pela pasta).';
@@ -170,9 +190,9 @@
     /* Já foi levado antes? O pareamento é o mesmo de sempre: o número,
        dentro do marco. Levar duas vezes criaria duas NCR-001 no J09, e a
        mesclagem juntaria as duas num item só no computador do colega. */
-    var chave = Store.numeroChave(item);
+    var chave = Ncrs.chaveCaso(item);
     (out.projetoDestino[Store.itemsKey(kind)] || []).forEach(function (n) {
-      if (!out.jaLa && chave && Store.numeroChave(n) === chave) out.jaLa = n;
+      if (!out.jaLa && chave && Ncrs.chaveCaso(n) === chave) out.jaLa = n;
     });
     if (out.jaLa) {
       out.motivo = 'O ' + (texto(item.ncrId) || 'item') + ' já existe no ' +

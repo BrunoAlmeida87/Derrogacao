@@ -495,6 +495,10 @@
    * `atual` é o id do relatório aberto, só para o balão poder dizer que a
    * resposta veio de onde a pessoa já está.
    */
+  function chaveCaso(item) {
+    return global.Ncrs && Ncrs.chaveCaso ? Ncrs.chaveCaso(item) : Store.numeroChave(item);
+  }
+
   function indice(projects, kind, atual) {
     var marcos = [];
     (projects || []).forEach(function (p) {
@@ -502,7 +506,9 @@
       if (!no) return;
       var porNumero = {};
       (p[Store.itemsKey(kind)] || []).forEach(function (item) {
-        var k = Store.numeroChave(item);
+        /* a chave do caso: a NCR temporária e a definitiva que a substituiu
+           se acham uma à outra de um marco para o outro (correcoes.js) */
+        var k = chaveCaso(item);
         if (k && !porNumero[k]) porNumero[k] = item;
       });
       marcos.push({ projeto: p, marco: no, itens: porNumero, aqui: p.id === atual });
@@ -522,7 +528,7 @@
    */
   function anterior(idx, no, item) {
     if (!idx || !no || !item) return null;
-    var numero = Store.numeroChave(item);
+    var numero = chaveCaso(item);
     if (!numero) return null;
 
     var achados = [];

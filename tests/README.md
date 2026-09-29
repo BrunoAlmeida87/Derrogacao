@@ -39,6 +39,7 @@ Nenhuma suíte escreve dentro do repositório.
 | `banco.test.js` | Banco NCR: zebra e separadores, certos depois de filtrar/ordenar/editar; estados por cima (mouse, foco, fechada, linha presa); cabeçalho alinhado |
 | `compat.test.js` | backup antigo abrindo, formato do backup e chaves internas inalterados (a única chave nova é `comunicados`), o PDF do relatório com as folhas de sempre |
 | `comunicados.test.js` | comunicados: quais marcos (J09 sim; J08 e J09 Ind não), nada criado sem o clique, a prévia com todos os campos, `comunicados.json` na pasta, "já comunicado", comunicado do colega pela pasta, retenção de 100, backup (com e sem a coleção), diário sem o texto, publicação; no visualizador, o pop-up consolidado, "Abrir waiver", lido que sobrevive ao recarregar, "Depois", histórico, a regra dos 7 dias e a publicação antiga |
+| `correcoes.test.js` | os status que fecham a NCR (a lista do Bruno) e o que deixa de pedir waiver; a ficha com os produtos e as deliberações (linhas repetidas, outra aba, listas no JSON); NCR temporária → definitiva ligada pela ficha (vínculo, fluxo, levar adiante, Kanban, editor); a área administrativa (senha, correção com auditoria, a correção que o banco supera, senha errada), o arquivo `derrogacao-ncr-correcoes.json` sem a senha em texto e o visualizador |
 | `arquivo-unico.test.js` | `derrogacao.html` e `derrogacao-visualizador.html` gerados na hora e abertos de `file://` sem flag |
 
 A pasta da rede, nos testes, é um diretório OPFS no lugar do seletor do

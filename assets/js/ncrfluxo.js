@@ -24,13 +24,15 @@
     [5, '6.1 - COMISS'], [5, '6.1 - COMISS RE-TESTE'], [5, '6.1 - CQ'], [5, '6.1 - GPL'],
     [5, '6.1 - PCP'], [5, '6.1 - PCP PEND MATERIAL'], [5, '6.1 - PROD DOC'], [5, '6.1 - PROD EXEC'],
     [6, '7.1 - CQ'],
-    [7, 'CEDOC Closure'], [7, 'CEDOC Closure/Unfounded'], [7, 'Closed'], [7, 'Closed/Unfounded']
+    [7, 'CEDOC Closure'], [7, 'CEDOC Closure/Unfounded'], [7, '7.2 - TA Unfounded'], [7, 'Closed'], [7, 'Closed/Unfounded']
   ];
   var ETAPAS = {
     1: '1 · Abertura', 2: '2 · Análise Técnica', 3: '3 · Deliberação',
     4: '4 · Comissionamento', 5: '5 · Execução', 6: '6 · Qualidade', 7: '7 · Encerramento'
   };
-  var FINAIS = ['CEDOC Closure', 'CEDOC Closure/Unfounded', 'Closed', 'Closed/Unfounded'];
+  /* os status finais do NCR Control, mais o "7.2 - TA Unfounded" que o Bruno
+     pediu para contar como fechada (a lista inteira mora no config.js) */
+  var FINAIS = ['CEDOC Closure', 'CEDOC Closure/Unfounded', '7.2 - TA Unfounded', 'Closed', 'Closed/Unfounded'];
 
   var LABEL = {
     AVANCO: 'Avanço', RETORNO: 'Retorno', LATERAL: 'Lateral', FECHAMENTO: 'Fechamento',
@@ -98,7 +100,7 @@
     return grupo[0].o;
   }
 
-  function isFinal(s) { return !!finais[norm(s || '')]; }
+  function isFinal(s) { return !!finais[norm(s || '')] || (global.Ncrs && Ncrs.statusFechado ? Ncrs.statusFechado(s) : false); }
 
   function classificar(de, para) {
     if (!de) return 'INICIAL';
@@ -130,8 +132,9 @@
       if (!LABEL[cls]) cls = classificar(e.de || (out.length ? out[out.length - 1].status : ''), e.para);
       out.push({ status: e.para, data: e.data, cls: cls, de: e.de, estimado: !!e.estimado, obs: e.obs });
     });
-    if (!out.length && rec.fonte && rec.fonte.status) {
-      out.push({ status: rec.fonte.status, data: rec.fonte.criadoEm || '', cls: 'INICIAL', semHistorico: true });
+    var f = Ncrs.fonte(rec);
+    if (!out.length && f && f.status) {
+      out.push({ status: f.status, data: f.criadoEm || '', cls: 'INICIAL', semHistorico: true });
     }
     return out;
   }
@@ -317,7 +320,7 @@
     var posDe = function (s) { return pos[str(s)] || pos[str(colunas.reduce(function (acc, c) {
       return acc || c.status.filter(function (x) { return norm(x) === norm(s); })[0]; }, null))] || null; };
     var vis = visitas(seq);
-    var atual = seq.length ? seq[seq.length - 1].status : (rec.fonte && rec.fonte.status);
+    var atual = seq.length ? seq[seq.length - 1].status : Ncrs.fonte(rec).status;
     var arestas = [], usoCorredor = {}, faixasBaixo = 0;
     for (var i = 1; i < seq.length; i++) {
       var pa = posDe(seq[i - 1].status), pb = posDe(seq[i].status);

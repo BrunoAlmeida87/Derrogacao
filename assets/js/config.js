@@ -2,8 +2,9 @@
    config.js — as preferências do programa que mudam com o tempo
    --------------------------------------------------------------------------
    Um lugar só para o que hoje vale e amanhã será outro — o marco da vez, o
-   ritmo da atualização automática, os marcos que geram comunicados. Mudou o marco prioritário? É aqui, e em
-   nenhum outro arquivo.
+   ritmo da atualização automática, os marcos que geram comunicados, os
+   status que querem dizer "NCR fechada". Mudou o marco prioritário? É aqui,
+   e em nenhum outro arquivo.
 
    Carrega logo depois do log.js e não usa ninguém: só guarda valores e as
    funções que os comparam.
@@ -39,6 +40,21 @@
      pede para ligar a pasta — o navegador não abre pasta por caminho, então
      a escolha na janela do Windows é feita uma vez e fica guardada. */
   var PASTA_VISUALIZADOR = 'X:\\36.GTO - RELATÓRIOS GTO\\NCR_MILESTONE\\00_BD_VISUALIZADOR';
+
+  /* Os status do banco NCR que querem dizer "NCR fechada" — pedido do Bruno,
+     com esta lista. NCR num destes status é fechada, venha de onde vier: não
+     conta como aberta nem pendente, e não precisa de waiver. A comparação
+     ignora maiúsculas, espaços e pontuação ("CEDOC Closure/Unfounded" e
+     "CEDOC Closure Unfounded" são o mesmo). "Closed/Unfounded" é status
+     final do NCR Control e continua valendo. Para acrescentar um status,
+     é só pô-lo aqui. */
+  var STATUS_NCR_FECHADA = [
+    'CEDOC Closure/Unfounded',
+    'CEDOC Closure',
+    '7.2 - TA Unfounded',
+    'Closed',
+    'Closed/Unfounded'
+  ];
 
   function str(v) { return v == null ? '' : String(v); }
 
@@ -90,6 +106,7 @@
     MARCOS_COMUNICADOS: MARCOS_COMUNICADOS,
     DIAS_COMUNICADO_NOVO: DIAS_COMUNICADO_NOVO,
     PASTA_VISUALIZADOR: PASTA_VISUALIZADOR,
+    STATUS_NCR_FECHADA: STATUS_NCR_FECHADA,
     chaveMarco: chaveMarco,
     ehMarco: ehMarco,
     relatorioInicial: relatorioInicial

@@ -26,7 +26,7 @@
 
   /* chave do filtro -> vazio. Cada filtro de escolha é uma LISTA: vazia = todos */
   var FILTROS = ['status', 'sistema', 'marcoOriginal', 'marcoAtual', 'funcaoVital', 'correlacao',
-    'waiver', 'relWaiver', 'sitWaiver', 'alerta', 'presenca'];
+    'waiver', 'relWaiver', 'sitWaiver', 'alerta', 'presenca', 'continuidade'];
   /* filtros cujos valores são marcos: as opções saem na fila combinada */
   var FILTROS_MARCO = { marcoOriginal: 1, marcoAtual: 1, relWaiver: 1 };
 
@@ -108,7 +108,8 @@
   function colunas() {
     var m = Ncrs.meta();
     var pap = m.papeis || {};
-    var fonte = function (k) { return function (r) { return r.fonte[k]; }; };
+    /* o que o banco diz, com a correção do administrador por cima (correcoes.js) */
+    var fonte = function (k) { return function (r) { return Ncrs.fonte(r)[k]; }; };
     /* a ordem aqui é a ordem das colunas na tabela */
     var base = [
       { id: 'numero', nome: 'Número', valor: function (r) { return r.numero; }, ordem: ordemNumero, fixa: true, larg: 26 },
@@ -122,9 +123,10 @@
       { id: 'waiver', nome: 'Waiver', especial: true, larg: 18 },
       { id: 'w:observacao', nome: 'Observação', waiver: true, largo: true, larg: 60 },
       { id: 'w:waiverHistoric', nome: 'Waiver Historic', waiver: true, larg: 26 },
-      { id: 'criadoEm', nome: pap.criadoEm || 'Criada em', valor: function (r) { return Ncrs.data(r.fonte.criadoEm); },
+      { id: 'criadoEm', nome: pap.criadoEm || 'Criada em', valor: function (r) { return Ncrs.data(Ncrs.fonte(r).criadoEm); },
         ordem: fonte('criadoEm'), larg: 14 },
-      { id: 'responsavel', nome: pap.responsavel || 'Responsável', valor: fonte('responsavel'), larg: 20 }
+      { id: 'responsavel', nome: pap.responsavel || 'Responsável', valor: fonte('responsavel'), larg: 20 },
+      { id: 'continuidade', nome: 'NCR anterior / sucessora', valor: textoContinuidade, larg: 30 }
     ];
     base.forEach(function (c) {
       if (c.waiver) {
@@ -136,8 +138,8 @@
     });
     (m.colunas || []).forEach(function (nome) {
       base.push({ id: 'c:' + nome, nome: nome, origem: true, larg: 20,
-        valor: function (r) { return Ncrs.data(r.fonte.campos[nome]); },
-        ordem: function (r) { return r.fonte.campos[nome]; } });
+        valor: function (r) { return Ncrs.data(Ncrs.fonte(r).campos[nome]); },
+        ordem: function (r) { return Ncrs.fonte(r).campos[nome]; } });
     });
     return base;
   }
@@ -170,6 +172,21 @@
     return m ? m[2] + '-' + ('000000' + m[1]).slice(-6) + '-' + r.key : '0000-' + r.key;
   }
 
+  /* --- continuidade: NCR temporária ↔ definitiva ------------------------------ */
+
+  function anterioresDe(rec) { return global.Correcoes ? Correcoes.anteriores(rec.key) : []; }
+  function substituicaoDe(rec) { return global.Correcoes ? Correcoes.substituicaoDe(rec.key) : null; }
+
+  /** "substituída por NCR-X" / "substitui NCR-T" — a coluna e a planilha. */
+  function textoContinuidade(rec) {
+    var partes = [];
+    var s = substituicaoDe(rec);
+    if (s) partes.push('temporária — substituída por ' + s.paraNumero);
+    var ants = anterioresDe(rec).map(function (a) { return a.deNumero; });
+    if (ants.length) partes.push('substitui ' + ants.join(', '));
+    return partes.join(' · ');
+  }
+
   /* --- apuração ------------------------------------------------------------- */
 
   /** A linha de uma NCR: vínculos, relatório do marco atual, situação. */
@@ -177,13 +194,20 @@
     var vinc = mapaVinc[rec.key] || [];
     var rel = Ncrs.relatorioDoMarco(rec.waiver.marcoAtual, projects);
     var jaNoRel = rel ? vinc.some(function (v) { return v.project.id === rel.id; }) : false;
+    var fechada = Ncrs.fechada(rec);
+    var sub = Ncrs.substituidaPor(rec);
     return {
       rec: rec, vinculos: vinc, relAtual: rel, jaNoRel: jaNoRel,
-      pronta: !!rel && !jaNoRel,
+      /* NCR fechada não precisa de waiver: não fica "pronta para adicionar" */
+      pronta: !!rel && !jaNoRel && !fechada,
       semRel: !!rec.waiver.marcoAtual && !rel,
       correl: Ncrs.situacaoCorrelacao(rec),
-      fechada: Ncrs.fechada(rec),
-      alerta: pendenteFechada(Ncrs.fechada(rec), vinc)
+      fechada: fechada,
+      /* temporária substituída: o caso continua na definitiva, e os alertas
+         (e a contagem) ficam com ela — senão o mesmo caso contaria duas vezes */
+      substituida: sub,
+      anteriores: anterioresDe(rec),
+      alerta: !sub && pendenteFechada(fechada, vinc)
     };
   }
 
@@ -201,24 +225,30 @@
   }
 
   function textoBusca(rec) {
-    if (cacheBusca.versao !== Ncrs.versao()) cacheBusca = { versao: Ncrs.versao(), mapa: {} };
+    /* as correções (status corrigido, temporária → definitiva) também mudam o texto */
+    var v = Ncrs.versao() + ':' + (global.Correcoes ? Correcoes.versao() : 0);
+    if (cacheBusca.versao !== v) cacheBusca = { versao: v, mapa: {} };
     var t = cacheBusca.mapa[rec.key];
     if (t == null) {
       var partes = [rec.numero];
-      Object.keys(rec.fonte.campos).forEach(function (k) { partes.push(rec.fonte.campos[k]); });
+      var f = Ncrs.fonte(rec);
+      Object.keys(f.campos).forEach(function (k) { partes.push(f.campos[k]); });
+      /* os detalhes (produtos, deliberações…) também se procuram */
+      (f.detalhes || []).forEach(function (g) { g.linhas.forEach(function (l) { partes.push(l.join(' ')); }); });
       Ncrs.CAMPOS_WAIVER.forEach(function (c) { partes.push(rec.waiver[c.id]); });
+      partes.push(textoContinuidade(rec));
       t = cacheBusca.mapa[rec.key] = Ncrs.norm(partes.join(' '));
     }
     return t;
   }
 
   function sistemasDe(rec) {
-    return str(rec.fonte.sistema).split(/[,;\/]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    return str(Ncrs.fonte(rec).sistema).split(/[,;\/]+/).map(function (s) { return s.trim(); }).filter(Boolean);
   }
 
   /* valores de cada filtro para uma linha (uma linha pode ter vários sistemas) */
   var VALORES = {
-    status: function (l) { return [l.rec.fonte.status || '__vazio']; },
+    status: function (l) { return [Ncrs.fonte(l.rec).status || '__vazio']; },
     sistema: function (l) { var s = sistemasDe(l.rec); return s.length ? s : ['__vazio']; },
     marcoOriginal: function (l) { return [l.rec.waiver.marcoOriginal || '__vazio']; },
     marcoAtual: function (l) { return [l.rec.waiver.marcoAtual || '__vazio']; },
@@ -237,7 +267,10 @@
       return l.vinculos.length ? l.vinculos.map(function (v) { return Store.statusInfo(v.item.status).id; }) : ['__nenhum'];
     },
     alerta: function (l) { return [l.alerta ? 'sim' : 'nao']; },
-    presenca: function (l) { return [l.rec.fonte.presente ? 'presente' : 'ausente']; }
+    presenca: function (l) { return [l.rec.fonte.presente ? 'presente' : 'ausente']; },
+    continuidade: function (l) {
+      return [l.substituida ? 'temporaria' : (l.anteriores.length ? 'definitiva' : 'nenhuma')];
+    }
   };
 
   function passa(l) {
@@ -385,6 +418,7 @@
     var tr = el('tr');
     tr.dataset.key = r.key;
     if (l.fechada) tr.classList.add('is-fechada');
+    if (l.substituida) tr.classList.add('is-substituida');
     if (!r.fonte.presente && r.fonte.importadoEm) tr.classList.add('is-ausente');
     var fora = st.fixadas[r.key] && !passa(l);
     if (fora) {
@@ -400,6 +434,14 @@
         a.addEventListener('click', function () { abrirFicha(r.key); });
         td.appendChild(a);
         if (l.fechada) td.appendChild(el('span', 'nb2-tag-fechada', 'fechada'));
+        etiquetasContinuidade(td, l);
+        if (Ncrs.fonte(r).ajustes) {
+          var aj = el('span', 'nb2-tag-ajuste', 'corrigida');
+          aj.title = 'Dados corrigidos pelo administrador: ' + Object.keys(Ncrs.fonte(r).ajustes).map(function (k) {
+            return Correcoes.rotuloCampo(k);
+          }).join(', ') + '. Veja na ficha.';
+          td.appendChild(aj);
+        }
         if (!r.fonte.importadoEm) td.appendChild(el('span', 'nb2-mini', 'sem dados do banco'));
         else if (!r.fonte.presente) td.appendChild(el('span', 'nb2-mini', 'fora do último export'));
         if (fora) td.appendChild(el('span', 'nb2-mini nb2-fora', 'fora do filtro'));
@@ -416,6 +458,25 @@
       tr.appendChild(td);
     });
     return tr;
+  }
+
+  /** As marcas de temporária/definitiva na célula do número. */
+  function etiquetasContinuidade(td, l) {
+    var s = substituicaoDe(l.rec);
+    if (s) {
+      var b = el('button', 'nb2-tag-cont nb2-tag-cont--temp', '→ ' + s.paraNumero);
+      b.type = 'button';
+      b.title = 'NCR temporária, substituída pela ' + s.paraNumero + ' (definitiva). Clique para abrir a definitiva.';
+      b.addEventListener('click', function () { if (Ncrs.get(s.para)) abrirFicha(s.para); });
+      td.appendChild(b);
+    }
+    l.anteriores.forEach(function (a) {
+      var t = el('button', 'nb2-tag-cont', '← ' + a.deNumero);
+      t.type = 'button';
+      t.title = 'Esta NCR substitui a temporária ' + a.deNumero + '. Clique para abrir a temporária.';
+      t.addEventListener('click', function () { if (Ncrs.get(a.de)) abrirFicha(a.de); });
+      td.appendChild(t);
+    });
   }
 
   /* A célula mostra o valor como um botão com cara de lista; o <select> só
@@ -505,7 +566,9 @@
     var vs = vinculosEmOrdem(l.vinculos);
     vs.forEach(function (v, i) {
       if (i) box.appendChild(el('span', 'nb2-seta-caminho', '→'));
-      box.appendChild(etiquetaRel(v, l.fechada, marcoRel(v.project), function () { aoAbrir(v); }));
+      var et = etiquetaRel(v, l.fechada && !l.substituida, marcoRel(v.project), function () { aoAbrir(v); });
+      marcarComoTemporaria(et, v, l.rec);
+      box.appendChild(et);
     });
     var destino = destinoPendente(vs);
     if (destino) {
@@ -518,12 +581,23 @@
     return vs;
   }
 
+  /* O item está no relatório com o número de outra NCR (a temporária que esta
+     definitiva substituiu): a etiqueta diz isso, com um "↩" e na dica. */
+  function marcarComoTemporaria(et, v, rec) {
+    var k = v.item.ncrKey || Ncrs.chave(v.item.ncrId);
+    if (!k || k === rec.key) return;
+    et.appendChild(el('span', 'nb2-rel-como', '↩'));
+    et.title = 'Neste relatório ela está como ' + (v.item.ncrId || k) + ' (a NCR temporária).\n' + et.title;
+  }
+
   /** Para onde o último relatório da NCR aponta, se ela ainda não chegou lá. */
   function destinoPendente(vs) {
     if (!vs.length || typeof Herdar === 'undefined') return null;
     var ult = vs[vs.length - 1];
     var av = Herdar.avanco(ult.project, ult.item, 'ncr', ctx.projects());
     if (av.estado !== 'aLevar' && av.estado !== 'semRelatorio') return null;
+    /* NCR fechada não vai precisar de waiver lá: não há o que levar */
+    if (av.ncrFechada) return null;
     return { rotulo: av.destino.rotulo, aprovado: av.aprovado, de: ult };
   }
 
@@ -709,8 +783,13 @@
   }
 
   var KPI_DEFS = [
-    ['NCRs ' + 'SBR4', function (ls) { return ls.length; }, function (ls) {
-      return ls.filter(function (l) { return !l.fechada; }).length + ' abertas · ' + ls.filter(function (l) { return l.fechada; }).length + ' fechadas'; }, null],
+    /* a temporária já substituída não conta: o caso dela é o da definitiva */
+    ['NCRs ' + 'SBR4', function (ls) { return ls.filter(function (l) { return !l.substituida; }).length; }, function (ls) {
+      var casos = ls.filter(function (l) { return !l.substituida; });
+      var nSub = ls.length - casos.length;
+      return casos.filter(function (l) { return !l.fechada; }).length + ' abertas · ' +
+        casos.filter(function (l) { return l.fechada; }).length + ' fechadas' +
+        (nSub ? ' · ' + nSub + ' temporária(s) substituída(s)' : ''); }, null],
     ['Correlação completa', function (ls) { return ls.filter(function (l) { return l.correl === 'completa'; }).length; },
       function () { return 'marcos e função vital'; }, ['correlacao', 'completa']],
     ['Sem correlação', function (ls) { return ls.filter(function (l) { return l.correl === 'vazia'; }).length; },
@@ -718,7 +797,7 @@
     ['Vinculadas a Waiver', function (ls) { return ls.filter(function (l) { return l.vinculos.length > 0; }).length; },
       function () { return 'em algum relatório'; }, ['waiver', 'vinculada']],
     ['Prontas para adicionar', function (ls) { return ls.filter(function (l) { return l.pronta; }).length; },
-      function () { return 'marco atual tem relatório'; }, ['waiver', 'pronta']],
+      function () { return 'marco atual tem relatório (NCR aberta)'; }, ['waiver', 'pronta']],
     ['⚠ Fechadas, waiver pendente', function (ls) { return ls.filter(function (l) { return l.alerta; }).length; },
       function () { return 'NCR fechada, waiver não aceito'; }, ['alerta', 'sim'], 'nb2-kpi--alerta']
   ];
@@ -766,12 +845,15 @@
     waiver: { vinculada: 'Vinculada a algum relatório', nao: 'Não vinculada',
       pronta: 'Pronta para adicionar', semrel: 'Marco atual sem relatório' },
     alerta: { sim: '⚠ Fechada com waiver pendente', nao: 'Sem esse alerta' },
-    presenca: { presente: 'No último export', ausente: 'Fora do último export' }
+    presenca: { presente: 'No último export', ausente: 'Fora do último export' },
+    continuidade: { temporaria: 'Temporária, já substituída', definitiva: 'Definitiva, substitui uma temporária',
+      nenhuma: 'Sem substituição' }
   };
   var NOMES_FILTRO = {
     status: 'Status', sistema: 'Sistema', marcoOriginal: 'Marco Original', marcoAtual: 'Marco Atual',
     funcaoVital: 'Função Vital', correlacao: 'Correlação', waiver: 'Waiver',
-    relWaiver: 'Relatório Waiver', sitWaiver: 'Situação do Waiver', alerta: 'Alerta', presenca: 'No export'
+    relWaiver: 'Relatório Waiver', sitWaiver: 'Situação do Waiver', alerta: 'Alerta', presenca: 'No export',
+    continuidade: 'Temporária / definitiva'
   };
 
   function nomeValor(chave, v) {
@@ -1151,8 +1233,11 @@
     var dlg = document.getElementById('ncrDialog');
     if (!rec || !dlg) return;
     st.abertoEm = rec.waiver.editedAt;
-    var f = rec.fonte, w = rec.waiver;
+    st.abertoCorr = global.Correcoes ? Correcoes.versao() : 0;
+    /* o banco com as correções do administrador por cima (correcoes.js) */
+    var f = Ncrs.fonte(rec), w = rec.waiver;
     var fechada = Ncrs.fechada(rec);
+    var sub = substituicaoDe(rec);
 
     var cab = dlg.querySelector('.nb-ficha-cab');
     cab.innerHTML = '';
@@ -1160,12 +1245,26 @@
     t1.appendChild(el('h3', null, rec.numero));
     var tags = el('div', 'nb-ficha-tags');
     if (f.status) tags.appendChild(el('span', 'nb-chip' + (fechada ? ' nb-chip--fechada' : ''), f.status));
+    if (f.ajustes && f.ajustes.status) {
+      var cs = el('span', 'nb-chip nb-chip--ajuste', 'status corrigido');
+      cs.title = 'Corrigido pelo administrador (' + (f.ajustes.status.por || '?') + ', ' + Ncrs.data(f.ajustes.status.em) +
+        '). No banco NCR: "' + (rec.fonte.status || '—') + '".';
+      tags.appendChild(cs);
+    }
     tags.appendChild(el('span', 'nb-chip ' + (fechada ? 'nb-chip--fechada' : 'nb-chip--aberta'), fechada ? 'fechada' : 'aberta'));
+    if (sub) tags.appendChild(el('span', 'nb-chip nb-chip--cont', 'temporária → ' + sub.paraNumero));
+    anterioresDe(rec).forEach(function (a) { tags.appendChild(el('span', 'nb-chip nb-chip--cont', 'substitui ' + a.deNumero)); });
     if (f.sbr) tags.appendChild(el('span', 'nb-chip nb-chip--sbr', f.sbr + (f.sbrPor === 'numero' ? ' (pelo número)' : '')));
     if (f.importadoEm && !f.presente) tags.appendChild(el('span', 'nb-chip nb-chip--aviso', 'fora do último export'));
     if (!f.importadoEm) tags.appendChild(el('span', 'nb-chip nb-chip--aviso', 'sem dados do banco NCR'));
     t1.appendChild(tags);
     cab.appendChild(t1);
+    /* só com a área administrativa aberta nesta sessão */
+    if (!leitura() && ctx.admin && ctx.admin.ativo()) {
+      cab.appendChild(botao('✎ Corrigir dados (administrador)', 'btn--sm btn--admin', function () {
+        ctx.admin.corrigir(rec.key);
+      }, 'Correção manual dos dados do banco NCR, com registro de auditoria'));
+    }
     var fechar = botao('Fechar ✕', 'btn--sm', function () { dlg.close(); });
     cab.appendChild(fechar);
 
@@ -1226,6 +1325,9 @@
       sw.appendChild(com);
     }
 
+    /* NCR temporária ↔ definitiva */
+    secaoContinuidade(esq, rec);
+
     /* relatórios de Waiver */
     var sr = secao(esq, 'Relatórios de Waiver', 'A NCR entra como um item novo do relatório: Description vem do banco NCR; Observation, da Observação acima.');
     var projects = ctx.projects();
@@ -1234,10 +1336,12 @@
     if (vinc.length) {
       vinculosEmOrdem(vinc).forEach(function (v, i) {
         if (i) lin.appendChild(el('span', 'nb2-seta-caminho', '→'));
-        lin.appendChild(etiquetaRel(v, fechada, nomeRel(v.project) + ' · ' + Store.statusInfo(v.item.status).nome,
-          function () { dlg.close(); ctx.abrir(v.project, v.item); }));
+        var et = etiquetaRel(v, fechada && !sub, nomeRel(v.project) + ' · ' + Store.statusInfo(v.item.status).nome,
+          function () { dlg.close(); ctx.abrir(v.project, v.item); });
+        marcarComoTemporaria(et, v, rec);
+        lin.appendChild(et);
       });
-      if (pendenteFechada(fechada, vinc)) {
+      if (!sub && pendenteFechada(fechada, vinc)) {
         sr.appendChild(avisoFechada(rec));
       }
     } else {
@@ -1248,9 +1352,14 @@
     var ac = el('div', 'nb-ficha-acoes');
     if (leitura()) {
       /* nada a adicionar daqui: a seção só mostra onde a NCR já está */
+    } else if (sub) {
+      ac.appendChild(el('span', 'nb2-mini', 'Temporária já substituída: quem entra nos relatórios daqui em diante é a ' +
+        sub.paraNumero + '.'));
     } else if (rel) {
       var ja = vinc.some(function (v) { return v.project.id === rel.id; });
-      var b1 = botao(ja ? '✓ Já está no ' + nomeRel(rel) : 'Adicionar ao ' + nomeRel(rel), ja ? 'btn--sm' : 'btn--sm btn--primary', function () {
+      if (fechada && !ja) ac.appendChild(el('span', 'nb2-mini', 'NCR fechada: não precisa de waiver. '));
+      var b1 = botao(ja ? '✓ Já está no ' + nomeRel(rel) : 'Adicionar ao ' + nomeRel(rel),
+        ja || fechada ? 'btn--sm' : 'btn--sm btn--primary', function () {
         ctx.adicionar(rec, rel).then(function () { atualizarLinha(rec.key); desenharFicha(); });
       });
       if (ja) b1.disabled = true;
@@ -1261,7 +1370,7 @@
       ac.appendChild(el('span', 'nb2-mini', 'Escolha o Marco Atual para ver o relatório correspondente.'));
     }
     var outros = projects.filter(function (p) { return !rel || p.id !== rel.id; });
-    if (outros.length && !leitura()) {
+    if (outros.length && !leitura() && !sub) {
       var sel = el('select', 'nb2-sel');
       var o0 = el('option', null, 'Adicionar a outro relatório…');
       o0.value = '';
@@ -1302,16 +1411,44 @@
         return (ia < 0 ? 1e6 : ia) - (ib < 0 ? 1e6 : ib);
       });
       var dl = el('dl', 'nb-campos');
+      var ajustadas = f.colunasAjustadas || {};
       chaves.forEach(function (k) {
         var dt = el('dt', null, k);
         var dd = el('dd', null, Ncrs.data(f.campos[k]));
         if (f.alterados.indexOf(k) >= 0) { dt.classList.add('is-novo'); dt.title = 'Mudou na última importação'; }
+        if (ajustadas[k]) {
+          dt.classList.add('is-ajustado');
+          dd.appendChild(el('span', 'nb-ajuste-nota', 'corrigido por ' + (ajustadas[k].por || '?') + ' em ' +
+            Ncrs.data(ajustadas[k].em) + ' · no banco: "' + (rec.fonte.campos[k] || '—') + '"'));
+        }
         dl.appendChild(dt);
         dl.appendChild(dd);
       });
       sb.appendChild(dl);
       if (f.alterados.length) sb.appendChild(el('p', 'nb2-mini', '● Campos que mudaram na última importação.'));
+      if (Object.keys(ajustadas).length) sb.appendChild(el('p', 'nb2-mini', '✎ Campos corrigidos pelo administrador (o valor do banco fica ao lado).'));
     }
+
+    /* o que o export traz em várias linhas: produtos, deliberações… — cada
+       grupo numa tabela, no mesmo padrão do histórico */
+    (f.detalhes || []).forEach(function (g) {
+      var sd = secao(body, g.titulo, g.linhas.length + ' linha(s)' + (g.origem ? ' · de: ' + g.origem : '') +
+        '. Como veio do banco NCR — substituído a cada importação.', 'nb-sec--detalhe');
+      var caixa = el('div', 'nb-det-caixa');
+      var t = el('table', 'nb-hist nb-det');
+      var hr = el('tr');
+      g.colunas.forEach(function (c) { hr.appendChild(el('th', null, c)); });
+      var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+      var tb = el('tbody');
+      g.linhas.forEach(function (l) {
+        var tr = el('tr');
+        l.forEach(function (v) { tr.appendChild(el('td', null, Ncrs.data(v))); });
+        tb.appendChild(tr);
+      });
+      t.appendChild(tb);
+      caixa.appendChild(t);
+      sd.appendChild(caixa);
+    });
 
     /* fluxo — o mesmo desenho do NCR Control, em largura total */
     var sf = secao(body, 'Fluxo da NCR', '', 'nb-sec--fluxo');
@@ -1365,14 +1502,157 @@
       t.appendChild(tb);
       sh.appendChild(t);
     }
+
+    /* correções do administrador e ligações temporária ↔ definitiva: a
+       auditoria desta NCR, à vista de todos (rastreabilidade) */
+    var aud = global.Correcoes ? Correcoes.auditoriaDe(rec.key) : [];
+    if (aud.length) {
+      var sa = secao(body, 'Correções e vínculos (auditoria)', aud.length + ' registro(s), do mais novo para o mais antigo.', 'nb-sec--auditoria');
+      sa.appendChild(tabelaAuditoria(aud));
+    }
     body.scrollTop = rolagem;
+  }
+
+  /** A tabela da auditoria — na ficha e na área administrativa. */
+  function tabelaAuditoria(linhasAud, comNcr) {
+    var t = el('table', 'nb-hist nb-aud');
+    var hr = el('tr');
+    (comNcr ? ['Data e hora', 'Quem', 'NCR', 'Campo', 'Valor anterior', 'Novo valor', 'Motivo']
+            : ['Data e hora', 'Quem', 'Campo', 'Valor anterior', 'Novo valor', 'Motivo'])
+      .forEach(function (h) { hr.appendChild(el('th', null, h)); });
+    var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+    var tb = el('tbody');
+    linhasAud.forEach(function (e) {
+      var tr = el('tr');
+      var vals = [Ncrs.data(e.em), e.por || '(sem nome)'];
+      if (comNcr) vals.push(e.ncr);
+      vals.push(e.campo, e.de || '—', e.para || '—', e.obs);
+      vals.forEach(function (v) { tr.appendChild(el('td', null, v)); });
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    return t;
+  }
+
+  /* --- NCR temporária ↔ definitiva, na ficha ------------------------------------ */
+
+  /** Um número de NCR que abre a ficha dela (se ela está no banco). */
+  function linkNcr(numero, key) {
+    if (!Ncrs.get(key)) return el('span', 'nb-cont-num', numero + ' (fora do banco NCR)');
+    var b = el('button', 'nb-link', numero);
+    b.type = 'button';
+    b.title = 'Abrir a ficha da ' + numero;
+    b.addEventListener('click', function () { abrirFicha(key); });
+    return b;
+  }
+
+  /** Os números que podem ser ligados: os do banco e os dos relatórios. */
+  function listaNumeros() {
+    var dl = document.getElementById('nbNumeros');
+    if (!dl) {
+      dl = el('datalist');
+      dl.id = 'nbNumeros';
+      document.body.appendChild(dl);
+    }
+    dl.innerHTML = '';
+    var vistos = {};
+    function add(n) {
+      var k = Ncrs.chave(n);
+      if (!k || vistos[k]) return;
+      vistos[k] = 1;
+      var o = el('option');
+      o.value = n;
+      dl.appendChild(o);
+    }
+    Ncrs.lista().forEach(function (r) { add(r.numero); });
+    (ctx.projects() || []).forEach(function (p) { (p.ncrs || []).forEach(function (it) { add(it.ncrId); }); });
+    return dl.id;
+  }
+
+  function secaoContinuidade(pai, rec) {
+    if (!global.Correcoes) return;
+    var s = substituicaoDe(rec);
+    var ants = anterioresDe(rec);
+    var sc = secao(pai, 'NCR temporária ↔ definitiva', (s || ants.length)
+      ? 'As duas são o mesmo caso: relatórios, fluxo e contagens leem uma pela outra. Nenhum número é reescrito.'
+      : 'Esta NCR não está ligada a nenhuma outra.', 'nb-sec--cont');
+    if (s) {
+      var p = el('div', 'nb-cont-linha nb-cont-linha--temp');
+      p.appendChild(el('strong', null, 'Temporária — substituída por '));
+      p.appendChild(linkNcr(s.paraNumero, s.para));
+      p.appendChild(el('span', 'nb2-mini', ' · ligada por ' + (s.por || 'sem nome') + ' em ' + Ncrs.data(s.em)));
+      if (!leitura() && ctx.desfazerSubstituicao) {
+        p.appendChild(botao('Desfazer', 'btn--sm btn--quiet', function () { ctx.desfazerSubstituicao(rec.key); },
+          'Desliga esta NCR da definitiva (fica registrado na auditoria)'));
+      }
+      sc.appendChild(p);
+    }
+    ants.forEach(function (a) {
+      var q = el('div', 'nb-cont-linha');
+      q.appendChild(el('strong', null, 'Substitui a temporária '));
+      q.appendChild(linkNcr(a.deNumero, a.de));
+      q.appendChild(el('span', 'nb2-mini', ' · ligada por ' + (a.por || 'sem nome') + ' em ' + Ncrs.data(a.em)));
+      if (!leitura() && ctx.desfazerSubstituicao) {
+        q.appendChild(botao('Desfazer', 'btn--sm btn--quiet', function () { ctx.desfazerSubstituicao(a.de); },
+          'Desliga a temporária desta NCR (fica registrado na auditoria)'));
+      }
+      sc.appendChild(q);
+    });
+    if (leitura() || !ctx.substituir) return;
+
+    var lista = listaNumeros();
+    var form = el('div', 'nb-cont-form');
+    function linhaForm(rotulo, id, ph, acao) {
+      var fl = el('div', 'nb-cont-campo');
+      var lab = el('label', null, rotulo);
+      lab.htmlFor = id;
+      var inp = el('input');
+      inp.type = 'text';
+      inp.id = id;
+      inp.setAttribute('list', lista);
+      inp.placeholder = ph;
+      inp.autocomplete = 'off';
+      var b = botao('Ligar', 'btn--sm', function () { acao(inp.value.trim()); });
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); b.click(); } });
+      fl.appendChild(lab);
+      var linha = el('div', 'nb-cont-inp');
+      linha.appendChild(inp);
+      linha.appendChild(b);
+      fl.appendChild(linha);
+      form.appendChild(fl);
+    }
+    var copiar = el('input');
+    copiar.type = 'checkbox';
+    copiar.checked = true;
+    copiar.id = 'nbContCopiar';
+    /* a temporária mostra só "foi substituída por"; a definitiva, só
+       "substitui"; a que ainda não tem ligação, os dois */
+    if (!s && !ants.length) {
+      linhaForm('Esta NCR é temporária e foi substituída por:', 'nbContPara', 'número da NCR definitiva', function (v) {
+        if (v) ctx.substituir(rec.numero, v, copiar.checked);
+      });
+    }
+    if (!s) {
+      linhaForm('Esta NCR substitui a temporária:', 'nbContDe', 'número da NCR temporária', function (v) {
+        if (v) ctx.substituir(v, rec.numero, copiar.checked);
+      });
+    } else {
+      sc.appendChild(el('p', 'nb2-mini', 'Para ligar outra temporária, use a ficha da definitiva (' + s.paraNumero + ').'));
+      return;
+    }
+    var lc = el('label', 'nb-cont-copiar');
+    lc.appendChild(copiar);
+    lc.appendChild(document.createTextNode(' Levar para a definitiva os dados do Waiver que ela ainda não tem ' +
+      '(marcos, função vital, Waiver Historic, observação)'));
+    form.appendChild(lc);
+    sc.appendChild(form);
   }
 
   function avisoFechada(rec) {
     var d = el('div', 'nb-alerta');
     d.setAttribute('role', 'note');
     d.appendChild(el('strong', null, '⚠ NCR fechada com waiver pendente'));
-    d.appendChild(el('span', null, 'O banco NCR diz "' + (rec.fonte.status || 'fechada') +
+    d.appendChild(el('span', null, 'O banco NCR diz "' + (Ncrs.fonte(rec).status || 'fechada') +
       '", mas o item no relatório ainda não está em "Waiver accepted". Confira se o waiver ainda é necessário ou se falta atualizar a situação.'));
     return d;
   }
@@ -1428,7 +1708,8 @@
     var dlg = document.getElementById('ncrDialog');
     if (dlg && dlg.open && st.aberto) {
       var rec = Ncrs.get(st.aberto);
-      if (rec && rec.waiver.editedAt !== st.abertoEm) {
+      var corr = global.Correcoes ? Correcoes.versao() : 0;
+      if (rec && (rec.waiver.editedAt !== st.abertoEm || corr !== st.abertoCorr)) {
         desenharFicha();
         return rec;
       }
@@ -1444,6 +1725,8 @@
     aposMudancaExterna: aposMudancaExterna,
     descricaoDoFiltro: descricaoDoFiltro,
     avisoFechada: avisoFechada,
-    etiquetaRel: etiquetaRel
+    etiquetaRel: etiquetaRel,
+    tabelaAuditoria: tabelaAuditoria,
+    redesenharFicha: function () { if (st.aberto) desenharFicha(); }
   };
 })(window);

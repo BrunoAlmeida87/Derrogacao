@@ -1657,10 +1657,12 @@
       }
       /* NCR já fechada no banco NCR com o waiver ainda em aberto */
       if (!isDev() && !ncr.done) {
-        var recB = (ncr.ncrKey && Ncrs.get(ncr.ncrKey)) || Ncrs.get(ncr.ncrId);
+        /* a NCR que responde pelo item: com número temporário já
+           substituído, é a definitiva que diz se o caso fechou */
+        var recB = Ncrs.recDoItem(ncr);
         if (recB && Ncrs.fechada(recB)) {
           var ab = el('span', 'alerta-dot', '⚠');
-          ab.title = 'A NCR está fechada no banco NCR (' + (recB.fonte.status || 'fechada') +
+          ab.title = 'A NCR está fechada no banco NCR (' + (Ncrs.fonte(recB).status || 'fechada') +
             '), mas o waiver ainda não foi aceito.';
           badges.appendChild(ab);
         }
@@ -3630,6 +3632,10 @@
     var velho = $('#conversaAjuste');
     if (velho && velho.parentNode) velho.parentNode.removeChild(velho);
     caixa.appendChild(ajusteDaConversa());
+    /* a área administrativa: fecha com senha, e é deste programa, não do relatório */
+    var velhoAdm = $('#adminAjuste');
+    if (velhoAdm && velhoAdm.parentNode) velhoAdm.parentNode.removeChild(velhoAdm);
+    caixa.appendChild(Admin.blocoAjustes());
     $('#settingsDialog').showModal();
   }
 
@@ -4868,7 +4874,121 @@
       });
     },
     listas: function () { abrirListas(); },
-    exportar: function (tipo, dados) { exportarBancoNcr(tipo, dados); }
+    exportar: function (tipo, dados) { exportarBancoNcr(tipo, dados); },
+    substituir: function (de, para, copiar) { return substituirNcr(de, para, copiar, ''); },
+    desfazerSubstituicao: function (deKey) { return desfazerSubstituicaoNcr(deKey); },
+    admin: {
+      ativo: function () { return Admin.ativo(); },
+      corrigir: function (key) { Admin.corrigir(key); }
+    }
+  };
+
+  /* --- NCR temporária → definitiva, e as correções do administrador ------------ */
+
+  /**
+   * Grava as correções (correcoes.js) e as NCRs que mudaram junto, e manda
+   * para a pasta na próxima rodada. Redesenha o que mostra NCR.
+   */
+  function salvarCorrecoes(recsMudados) {
+    return Promise.all([Correcoes.salvarLocal(), recsMudados && recsMudados.length ? Ncrs.salvar(recsMudados) : null])
+      .then(function () {
+        agendarGravacaoPasta();
+        agendarPublicacao();
+      })
+      .catch(function (e) { markError(e); });
+  }
+
+  /** Redesenha o que lê NCR do banco, sem mexer no formulário em uso. */
+  function redesenharNcrs() {
+    renderNcrList();
+    if (isTabela()) renderTabela(true);
+    if (isFluxos()) renderFluxos(true);
+    if (isBanco()) renderBanco(true);
+    if (isKanban()) renderKanban();
+    NcrView.redesenharFicha();
+    Admin.redesenhar();
+    /* a linha "Banco NCR" do editor, trocada no lugar */
+    var velha = $('.nb-ligacao-wrap');
+    var it = !telaCheia() && !isDev() ? currentNcr() : null;
+    if (velha && it) velha.parentNode.replaceChild(renderLigacaoBanco(it), velha);
+  }
+
+  function substituirNcr(de, para, copiar, obs) {
+    if (Leitura.ativo()) return Promise.resolve(false);
+    if (!Store.getUser()) {
+      toast('Defina o seu nome antes (⋯ Mais → Definir meu nome): ele vai no registro da ligação.', 6000);
+      return Promise.resolve(false);
+    }
+    var r = Correcoes.substituir(de, para, Store.getUser(), obs);
+    if (!r.ok) { toast(r.erro, 6000); return Promise.resolve(false); }
+    var temp = Ncrs.get(de), def = Ncrs.get(Ncrs.definitiva(de));
+    var copiados = copiar ? Ncrs.herdarWaiver(temp, def, Store.getUser()) : [];
+    copiados.forEach(function (nome) {
+      Correcoes.registrar({ tipo: 'substituicao', key: def.key, ncr: def.numero, campo: nome + ' (vindo da temporária)',
+        de: '', para: def.waiver[Ncrs.CAMPOS_WAIVER.filter(function (c) { return c.nome === nome; })[0].id], por: Store.getUser() });
+    });
+    Log.ok('banco NCR', 'NCR temporária ligada à definitiva', { copiados: copiados.length });
+    return salvarCorrecoes(def && copiados.length ? [def] : []).then(function () {
+      redesenharNcrs();
+      toast(de + ' → ' + para + ': ligadas como o mesmo caso' +
+        (copiados.length ? '. Levados para a definitiva: ' + copiados.join(', ') + '.' : '.'), 6000);
+      return true;
+    });
+  }
+
+  function desfazerSubstituicaoNcr(deKey) {
+    if (Leitura.ativo()) return Promise.resolve(false);
+    var s = Correcoes.substituicaoDe(deKey);
+    if (!s) return Promise.resolve(false);
+    if (!confirm('Desligar a ' + s.deNumero + ' da ' + s.paraNumero + '?\n\nAs duas voltam a ser NCRs independentes. ' +
+      'A ligação desfeita fica registrada na auditoria.')) return Promise.resolve(false);
+    Correcoes.desfazerSubstituicao(deKey, Store.getUser(), '');
+    return salvarCorrecoes([]).then(function () {
+      redesenharNcrs();
+      toast('Ligação desfeita: ' + s.deNumero + ' e ' + s.paraNumero + ' voltam a ser independentes.');
+      return true;
+    });
+  }
+
+  /** A planilha da auditoria, com a aba "Recorte" (a regra das outras planilhas). */
+  function exportarAuditoria(tipo, d) {
+    var nome = 'Auditoria_NCR_' + new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    var recorte = [
+      ['Gerado em', new Date().toLocaleString('pt-BR')],
+      ['Gerado por', Store.getUser() || '(sem nome)'],
+      ['Registros nesta planilha', d.linhas.length],
+      ['Registros na auditoria', d.total],
+      ['Recorte', d.recorte || 'sem filtro — a auditoria inteira']
+    ];
+    if (tipo === 'csv') {
+      var linhas = [d.colunas.map(function (c) { return c.titulo; })].concat(d.linhas);
+      var csv = '\ufeff' + linhas.concat([[]]).concat(recorte).map(function (l) {
+        return l.map(SummaryView.csvCampo).join(';');
+      }).join('\r\n');
+      download(new Blob([csv], { type: 'text/csv;charset=utf-8' }), nome + '.csv');
+      return;
+    }
+    try {
+      download(Xlsx.blob([
+        { nome: 'Auditoria', colunas: d.colunas, linhas: d.linhas },
+        { nome: 'Recorte', colunas: [{ titulo: 'Campo', larg: 24 }, { titulo: 'Valor', larg: 80 }], linhas: recorte, filtros: false }
+      ]), nome + '.xlsx');
+    } catch (e) {
+      markError(e);
+      toast('Não foi possível gerar a planilha.');
+    }
+  }
+
+  /* o que a área administrativa (admin.js) precisa do editor */
+  var ctxAdmin = {
+    usuario: function () { return Store.getUser(); },
+    pastaLigada: function () { return Pasta.ligada(); },
+    salvar: function (recs) { return salvarCorrecoes(recs); },
+    redesenhar: function () { redesenharNcrs(); },
+    toast: function (m) { toast(m, 5000); },
+    substituir: function (de, para, copiar, obs) { return substituirNcr(de, para, copiar, obs); },
+    desfazerSubstituicao: function (deKey) { return desfazerSubstituicaoNcr(deKey); },
+    exportarAuditoria: function (tipo, d) { exportarAuditoria(tipo, d); }
   };
 
   function renderBanco(manterRolagem) {
@@ -4931,8 +5051,17 @@
   function adicionarAoWaiver(rec, project, situacao) {
     if (Leitura.ativo()) return Promise.resolve(false);   /* visualizador: nada grava */
     var nome = (project.marco || project.name || 'sem marco') + ' Waiver';
-    if (Ncrs.vinculos(rec, [project]).length) {
-      toast('Esta NCR já está vinculada ao ' + nome + '.');
+    var sub = Ncrs.substituidaPor(rec);
+    if (sub) {
+      var def = Ncrs.get(sub);
+      toast('A ' + rec.numero + ' é uma NCR temporária já substituída pela ' + (def ? def.numero : sub) +
+        '. Adicione a definitiva.', 7000);
+      return Promise.resolve(false);
+    }
+    var ja = Ncrs.vinculos(rec, [project]);
+    if (ja.length) {
+      var como = ja[0].item.ncrId && Ncrs.chave(ja[0].item.ncrId) !== rec.key ? ' (como ' + ja[0].item.ncrId + ', a temporária)' : '';
+      toast('Esta NCR já está vinculada ao ' + nome + como + '.');
       return Promise.resolve(false);
     }
     var item = Store.newNcr();
@@ -4984,15 +5113,31 @@
      o PDF do relatório não muda. */
   function renderLigacaoBanco(item) {
     var wrap = el('div', 'nb-ligacao-wrap');
-    var rec = (item.ncrKey && Ncrs.get(item.ncrKey)) || Ncrs.get(item.ncrId);
+    /* com número temporário já substituído, a linha fala da definitiva */
+    var rec = Ncrs.recDoItem(item);
     if (!rec) { wrap.hidden = true; return wrap; }
     var fechada = Ncrs.fechada(rec);
+    var f = Ncrs.fonte(rec);
     var box = el('div', 'nb-ligacao');
     box.appendChild(el('span', 'nb-ligacao-rot', 'Banco NCR'));
+    var chaveItem = item.ncrKey || Ncrs.chave(item.ncrId);
+    if (chaveItem && chaveItem !== rec.key) {
+      /* o item continua com o número que tinha: é o registro do que foi feito */
+      var cont = el('span', 'nb-ligacao-cont', (item.ncrId || chaveItem) + ' (temporária) → ' + rec.numero);
+      cont.title = 'Esta NCR temporária foi substituída pela definitiva ' + rec.numero +
+        '. O item mantém o número temporário; o status e os alertas são os da definitiva.';
+      box.appendChild(cont);
+    } else if (window.Correcoes && Correcoes.anteriores(rec.key).length) {
+      var ants = el('span', 'nb-ligacao-cont', 'substitui ' + Correcoes.anteriores(rec.key).map(function (a) { return a.deNumero; }).join(', '));
+      ants.title = 'Esta NCR definitiva substitui a(s) temporária(s) indicada(s): os relatórios antigos com o número temporário contam para ela.';
+      box.appendChild(ants);
+    }
     var stNcr = el('span', 'nb-ligacao-st ' + (fechada ? 'is-fechada' : 'is-aberta'),
-      (rec.fonte.status || (fechada ? 'fechada' : 'sem status')) +
-      (fechada && rec.fonte.status && !/clos|fech|encerr|cancel/i.test(rec.fonte.status) ? ' · fechada' : ''));
-    stNcr.title = 'Status da NCR no banco NCR' + (rec.fonte.importadoEm ? ' (importado em ' + Ncrs.data(rec.fonte.importadoEm) + ')' : '');
+      (f.status || (fechada ? 'fechada' : 'sem status')) +
+      (fechada && f.status && !Ncrs.statusFechado(f.status) ? ' · fechada' : '') +
+      (f.ajustes && f.ajustes.status ? ' (corrigido)' : ''));
+    stNcr.title = 'Status da NCR no banco NCR' + (rec.fonte.importadoEm ? ' (importado em ' + Ncrs.data(rec.fonte.importadoEm) + ')' : '') +
+      (f.ajustes && f.ajustes.status ? '. Corrigido pelo administrador; no banco: "' + (rec.fonte.status || '—') + '".' : '');
     box.appendChild(stNcr);
     var partes = [
       rec.waiver.marcoAtual ? 'Marco Atual ' + rec.waiver.marcoAtual : '',
@@ -5356,7 +5501,8 @@
     var quem = Store.getUser();
     return Promise.all([
       Pasta.lerArquivo(Pasta.ARQ_NCR_BANCO),
-      Pasta.lerArquivo(Pasta.ARQ_NCR_WAIVER)
+      Pasta.lerArquivo(Pasta.ARQ_NCR_WAIVER),
+      Pasta.lerArquivo(Correcoes.ARQUIVO)
     ]).then(function (r) {
       var lista = Ncrs.lista();
       var temBanco = lista.some(function (x) { return x.fonte.importadoEm || x.historico.length; });
@@ -5371,13 +5517,21 @@
           : { entraram: 0, atualizados: 0, alterados: [], localMaisNovo: temBanco };
         var rw = r[1].dados ? Ncrs.juntarWaiver(r[1].dados)
           : { entraram: 0, atualizados: 0, alterados: [], localMaisNovo: temWaiver };
+        /* as correções (temporária → definitiva, ajustes, auditoria, senha):
+           arquivo próprio, e só a pasta decide a senha */
+        var rc = r[2].dados ? Correcoes.juntar(r[2].dados, { senha: true })
+          : { mudou: false, localMaisNovo: Correcoes.listaSubstituicoes().length > 0 || Correcoes.auditoria().length > 0 || Correcoes.temSenha() };
         var alterados = rb.alterados.concat(rw.alterados);
         var passos = [];
         if (alterados.length || rw.atualizados) passos.push(Ncrs.salvar(alterados), Ncrs.salvarMeta());
+        if (rc.mudou) passos.push(Correcoes.salvarLocal());
         if (rb.localMaisNovo) passos.push(Pasta.gravarArquivo(Pasta.ARQ_NCR_BANCO, Ncrs.arquivoBanco(quem)));
         if (rw.localMaisNovo) passos.push(Pasta.gravarArquivo(Pasta.ARQ_NCR_WAIVER, Ncrs.arquivoWaiver(quem)));
+        if (rc.localMaisNovo) {
+          passos.push(Pasta.gravarArquivo(Correcoes.ARQUIVO, Correcoes.arquivo(quem)).then(function () { Correcoes.gravado(); }));
+        }
         return Promise.all(passos).then(function () {
-          return { entraram: rb.entraram + rw.entraram, atualizados: rb.atualizados + rw.atualizados };
+          return { entraram: rb.entraram + rw.entraram, atualizados: rb.atualizados + rw.atualizados, correcoes: rc.mudou };
         });
       });
     });
@@ -5386,8 +5540,8 @@
   /** Banco NCR que veio dentro de um arquivo aberto à mão: junta, sem apagar nada. */
   function juntarBancoNcrDoArquivo(nb) {
     var r = Ncrs.juntarBackup(nb);
-    if (!r.alterados.length) return Promise.resolve(r);
-    return Promise.all([Ncrs.salvar(r.alterados), Ncrs.salvarMeta()]).then(function () {
+    if (!r.alterados.length && !r.correcoes) return Promise.resolve(r);
+    return Promise.all([Ncrs.salvar(r.alterados), Ncrs.salvarMeta(), r.correcoes ? Correcoes.salvarLocal() : null]).then(function () {
       agendarGravacaoPasta();
       renderTabs();
       if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
@@ -5964,6 +6118,11 @@
     var mudou = resumo && (resumo.entraram || resumo.atualizados || resumo.removidos ||
                            resumo.novosRelatorios || resumo.relatoriosRemovidos);
     var rn = resumo && resumo.ncr;
+    if (rn && rn.correcoes && !(rn.entraram || rn.atualizados)) {
+      /* só as correções mudaram (uma ligação temporária → definitiva, um
+         ajuste do administrador): redesenha quem lê NCR, sem aviso */
+      redesenharNcrs();
+    }
     if (rn && (rn.entraram || rn.atualizados)) {
       if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
       var ficha = NcrView.aposMudancaExterna();
@@ -6095,9 +6254,10 @@
       Pasta.mudouLaFora(),
       Pasta.mudouArquivo(Pasta.ARQ_NCR_BANCO),
       Pasta.mudouArquivo(Pasta.ARQ_NCR_WAIVER),
-      Pasta.mudouArquivo(Comunicados.ARQUIVO)
+      Pasta.mudouArquivo(Comunicados.ARQUIVO),
+      Pasta.mudouArquivo(Correcoes.ARQUIVO)
     ]).then(function (r) {
-      if (r[0] || r[1] || r[2]) sincronizar({ semRedesenhar: true });
+      if (r[0] || r[1] || r[2] || r[4]) sincronizar({ semRedesenhar: true });
       /* só os comunicados mudaram: troca só eles, sem regravar os dados */
       else if (r[3]) sincronizarComunicados();
     });
@@ -8272,6 +8432,7 @@
     Log.vigiar();
     registrarFontes();
     wire();
+    Admin.iniciar(ctxAdmin);
     /* O visualizador: o mesmo programa, só lendo a publicação. Nada do que
        vem abaixo (banco do navegador, pasta, conversa, diário) roda nele. */
     if (Leitura.ativo()) {

@@ -173,13 +173,23 @@
     return out;
   }
 
+  /** A NCR deste item já está fechada no banco NCR? (só NCR; DEV não tem banco) */
+  function ncrFechada(r) {
+    if (r.kind !== 'ncr' || !global.Ncrs) return false;
+    var rec = Ncrs.recDoItem(r.item);
+    return !!(rec && Ncrs.fechada(rec));
+  }
+
   /** Uma linha por número: a que já está no marco ganha da que ainda vem. */
   function semRepetir(rows) {
     var por = {};
     var ordem = [];
     rows.forEach(function (r) {
-      var k = r.kind + '\u0000' + Store.numeroChave(r.item);
-      if (!Store.numeroChave(r.item)) { ordem.push(r); return; }  /* sem número, sem par */
+      /* a chave do caso: a NCR temporária e a definitiva que a substituiu
+         são uma linha só (correcoes.js) */
+      var num = Ncrs.chaveCaso(r.item);
+      var k = r.kind + '\u0000' + num;
+      if (!num) { ordem.push(r); return; }  /* sem número, sem par */
       var tem = por[k];
       if (!tem) { por[k] = r; ordem.push(r); return; }
       if (r.jaChegou && !tem.jaChegou) {
@@ -210,9 +220,10 @@
          trazer" zerou porque o else passou a pertencer a outro if. */
       if (r.jaChegou) {
         st.jaChegaram++;
-      } else if (r.item.done) {
+      } else if (r.item.done && !ncrFechada(r)) {
         /* aceito no marco anterior e ainda não copiado para cá: é a lista de
-           tarefas do marco — o que falta trazer, um por um */
+           tarefas do marco — o que falta trazer, um por um. NCR já fechada
+           no banco NCR não precisa de waiver aqui, e não é pendência. */
         st.aTrazer++;
       }
       st.porSituacao[Summary.situacao(r.item)]++;

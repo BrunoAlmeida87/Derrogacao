@@ -97,7 +97,7 @@
      estas saem da coluna "NCR to be closed"; uma "Closed" ainda sem o CEDOC
      continua lá, verde, como antes. */
   function emCedoc(rec) {
-    return !!(rec && /\bcedoc closure\b/.test(Ncrs.norm(rec.fonte.status)));
+    return !!(rec && /\bcedoc closure\b/.test(Ncrs.norm(Ncrs.fonte(rec).status)));
   }
 
   /* --- quem está em cada marco -------------------------------------------- */
@@ -120,9 +120,17 @@
     return out.sort(Fluxo.cmpMarco);
   };
 
-  /** A NCR do banco que é este item (pelo vínculo gravado ou pelo número). */
+  /** A NCR do banco que responde por este item (pelo vínculo gravado, pelo
+      número — e, se o número é de uma temporária substituída, a definitiva). */
   function recDoItem(item) {
-    return (item.ncrKey && Ncrs.get(item.ncrKey)) || Ncrs.get(item.ncrId) || null;
+    return Ncrs.recDoItem(item);
+  }
+
+  /** A chave do caso: a temporária e a definitiva que a substituiu são um cartão só. */
+  function chaveDoCaso(rec, item) {
+    if (rec) return rec.key;
+    var k = Ncrs.chave(item && item.ncrId);
+    return k ? Ncrs.definitiva(k) : '';
   }
 
   /**
@@ -140,7 +148,7 @@
     daqui.forEach(function (p) {
       (p.ncrs || []).forEach(function (it) {
         var rec = recDoItem(it);
-        var chave = rec ? rec.key : Ncrs.chave(it.ncrId);
+        var chave = chaveDoCaso(rec, it);
         if (chave) jaTem[chave] = 1;
         out.push({ coluna: Store.statusInfo(it.status).id, tipo: 'item', project: p, item: it, rec: rec, chave: chave });
       });
@@ -148,6 +156,8 @@
 
     Ncrs.lista().forEach(function (rec) {
       if (Ncrs.marcoChave(rec.waiver.marcoAtual) !== k || jaTem[rec.key]) return;
+      /* temporária já substituída: quem continua o caso é a definitiva */
+      if (Ncrs.substituidaPor(rec)) return;
       jaTem[rec.key] = 1;
       out.push({ coluna: FORA, tipo: 'banco', project: null, item: null, rec: rec, chave: rec.key,
         relatorio: daqui[0] || null });
@@ -163,7 +173,7 @@
           if (ehInd(av.aprovado ? it.approvedExpiry : it.requestExpiry) !== ehInd(marco)) return;
           if (av.estado !== 'aLevar' && av.estado !== 'semRelatorio') return;
           var rec = recDoItem(it);
-          var chave = rec ? rec.key : Ncrs.chave(it.ncrId);
+          var chave = chaveDoCaso(rec, it);
           if (chave && jaTem[chave]) return;
           if (chave) jaTem[chave] = 1;
           out.push({ coluna: FORA, tipo: 'caminho', project: p, item: it, rec: rec, chave: chave, aprovado: av.aprovado });
@@ -182,9 +192,11 @@
   }
 
   function numeroDe(c) { return c.item ? (c.item.ncrId || '(sem número)') : c.rec.numero; }
-  function descricaoDe(c) { return (c.item && c.item.description) || (c.rec && c.rec.fonte.descricao) || ''; }
+  function descricaoDe(c) { return (c.item && c.item.description) || (c.rec && Ncrs.fonte(c.rec).descricao) || ''; }
   function funcaoDe(c) { return (c.item && c.item.func) || (c.rec && c.rec.waiver.funcaoVital) || ''; }
-  function sistemaDe(c) { return (c.item && c.item.systems) || (c.rec && c.rec.fonte.sistema) || ''; }
+  function sistemaDe(c) { return (c.item && c.item.systems) || (c.rec && Ncrs.fonte(c.rec).sistema) || ''; }
+  /** O status da NCR no banco, com a correção do administrador se houver. */
+  function statusDe(c) { return c.rec ? str(Ncrs.fonte(c.rec).status) : ''; }
 
   /**
    * A função vital em poucas letras, para o cartão recolhido: "FV03 - EMERGENCY
@@ -202,7 +214,8 @@
       partes.push(c.item.systems, c.item.func, c.item.description, c.item.nota, c.item.observation, c.item.historic);
     }
     if (c.rec) {
-      partes.push(c.rec.fonte.descricao, c.rec.fonte.status, c.rec.fonte.sistema, c.rec.waiver.funcaoVital, c.rec.waiver.observacao);
+      var f = Ncrs.fonte(c.rec);
+      partes.push(f.descricao, f.status, f.sistema, c.rec.waiver.funcaoVital, c.rec.waiver.observacao);
     }
     return Ncrs.norm(partes.join(' '));
   }
@@ -636,17 +649,18 @@
 
   /** O status da NCR no banco, com a leitura certa para cada coluna. */
   function chipStatus(c) {
-    if (c.rec && c.rec.fonte.status && (c.coluna === FORA || c.coluna === ENCERRADA)) {
+    var stNcr = statusDe(c);
+    if (stNcr && (c.coluna === FORA || c.coluna === ENCERRADA)) {
       /* aqui a meta é fechar: fechada é o verde, aberta é o que falta */
       var chip = el('span', 'kb-st-ncr ' + (c.fechada ? 'is-ok' : 'is-falta'),
-        (c.fechada ? '✓ ' : '') + curto(c.rec.fonte.status, 26));
+        (c.fechada ? '✓ ' : '') + curto(stNcr, 26));
       chip.title = (c.coluna === ENCERRADA ? 'NCR encerrada no banco NCR: ' : c.fechada ? 'NCR já fechada no banco NCR: '
-        : 'NCR ainda aberta: precisa ser fechada (não está no Waiver deste marco). Status: ') + c.rec.fonte.status;
+        : 'NCR ainda aberta: precisa ser fechada (não está no Waiver deste marco). Status: ') + stNcr;
       return chip;
     }
-    if (c.rec && c.rec.fonte.status) {
-      var ch = el('span', 'kb-st-ncr' + (c.fechada ? ' is-fechada' : ''), curto(c.rec.fonte.status, 26));
-      ch.title = 'Status da NCR no banco NCR: ' + c.rec.fonte.status;
+    if (stNcr) {
+      var ch = el('span', 'kb-st-ncr' + (c.fechada ? ' is-fechada' : ''), curto(stNcr, 26));
+      ch.title = 'Status da NCR no banco NCR: ' + stNcr;
       return ch;
     }
     if (!c.rec) {
@@ -668,7 +682,12 @@
     } else if (c.tipo === 'banco' && leitura()) {
       /* no visualizador não se adiciona: fica só a ficha, abaixo */
     } else if (c.tipo === 'banco') {
-      if (c.relatorio) {
+      if (c.fechada) {
+        /* NCR fechada não precisa de waiver: nada de convite a adicionar */
+        var fw = el('span', 'kb-sem-rel', 'fechada — sem waiver');
+        fw.title = 'A NCR já está fechada no banco NCR: não precisa de waiver neste marco';
+        acoes.appendChild(fw);
+      } else if (c.relatorio) {
         acoes.appendChild(botao('+ ' + marcoRel(c.relatorio) + ' Waiver', 'btn--sm', function () {
           ctx.adicionar(c.rec, c.relatorio).then(function () { render(host, ctx); });
         }, 'Adicionar esta NCR ao relatório ' + marcoRel(c.relatorio) + ' Waiver (entra em "Em preenchimento")'));
@@ -827,12 +846,12 @@
           origemCurta(c),
           sistemaDe(c),
           funcaoDe(c),
-          c.rec ? str(c.rec.fonte.status) : '',
+          statusDe(c),
           c.rec ? (c.fechada ? 'sim' : 'não') : '',
           c.alerta ? 'NCR fechada com waiver pendente' : '',
           caminhoDe(c),
           descricaoDe(c),
-          (c.rec && c.rec.fonte.responsavel) || '',
+          (c.rec && Ncrs.fonte(c.rec).responsavel) || '',
           edit.por || '',
           dataCurta(edit.em)
         ]);
@@ -901,9 +920,9 @@
     /* a segunda linha é a mesma do cartão da tela: status da NCR, função,
        sistema e caminho */
     var l2 = el('div', 'kbp-l2');
-    if (c.rec && c.rec.fonte.status) {
+    if (statusDe(c)) {
       l2.appendChild(el('span', 'kbp-st' + (c.fechada ? ' is-fechada' : ''),
-        (c.fechada && (c.coluna === FORA || c.coluna === ENCERRADA) ? '✓ ' : '') + c.rec.fonte.status));
+        (c.fechada && (c.coluna === FORA || c.coluna === ENCERRADA) ? '✓ ' : '') + statusDe(c)));
     } else if (!c.rec) {
       l2.appendChild(el('span', 'kbp-st is-sem', 'fora do banco'));
     }
@@ -1052,7 +1071,7 @@
       enc.forEach(function (c) {
         var l = el('div', 'kbp-enc-linha');
         l.appendChild(el('span', 'kbp-num', numeroDe(c)));
-        l.appendChild(el('span', 'kbp-enc-st', c.rec ? c.rec.fonte.status : ''));
+        l.appendChild(el('span', 'kbp-enc-st', statusDe(c)));
         l.appendChild(el('span', 'kbp-enc-txt', [funcaoDe(c) ? funcaoCurta(funcaoDe(c)) : '', sistemaDe(c), caminhoDe(c), origemCurta(c)]
           .filter(Boolean).join(' · ') + (o.descricao && descricaoDe(c) ? ' — ' + curto(descricaoDe(c), 400) : '')));
         lista.appendChild(l);
