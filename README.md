@@ -927,7 +927,7 @@ altera**.
 | Parte | O que tem | Quem escreve |
 | --- | --- | --- |
 | **Dados do banco NCR** | número, título, descrição, status, sistema, datas, responsável e **todas** as colunas do export | a importação — substituídos a cada nova foto do banco |
-| **Dados do Waiver** | Marco Original, Marco Atual, Função Vital, Waiver Historic, Observação e o registro de cada vez que a NCR foi levada a um relatório | você, aqui — **nenhuma importação apaga ou sobrescreve** |
+| **Dados do Waiver** | Marco Original, Marco Atual, Função Vital, Waiver Historic, Observação, Obs Ship Manager e o registro de cada vez que a NCR foi levada a um relatório | você, aqui — **nenhuma importação apaga ou sobrescreve** |
 
 A NCR é identificada pelo **número** (`NCR-ICN-ESC-14-0832-2025`), normalizado
 como o NCR Control faz (maiúsculas, sem espaços). É o que o banco, a planilha
@@ -977,8 +977,15 @@ de correlação e os relatórios têm em comum.
   ↑ ↓ ou arrastando; à direita o que marcar. Dá também para **arrastar o
   título da coluna** na própria tabela. A escolha fica guardada neste
   navegador. O padrão: Marco Original, Marco Atual, Função Vital, Waiver,
-  Waiver Historic, Descrição, Status, Bigramas, Data Criação e CEDOC Closure
-  Data.
+  Waiver Historic, Obs Ship Manager, Descrição, Status, Bigramas, Data
+  Criação e CEDOC Closure Data.
+- **Obs Ship Manager** — as observações que o Ship Manager manda para a
+  equipe, digitadas à mão. Funciona como a Observação: escreve-se na ficha
+  da NCR (*Dados do Waiver*), nenhuma importação do banco apaga, a busca
+  alcança, e a planilha de correlação pode trazê-la (coluna *Obs Ship
+  Manager*). A coluna entrou sozinha também para quem já tinha escolhido as
+  colunas, logo depois do *Waiver Historic*; dá para tirá-la em
+  **Colunas…**.
 - **Excel e CSV** saem com o que está à vista (colunas e filtro), e o Excel
   leva uma aba **Recorte** dizendo qual filtro produziu a planilha.
 
@@ -1039,6 +1046,9 @@ com:
 - **Description** ← a descrição do banco NCR;
 - **Observation** ← a Observação da NCR — campo próprio do item, **separado da
   Observação interna (anotação)**, e que também **não sai no PDF**;
+- **Obs Ship Manager** ← a Obs Ship Manager da NCR, num cartão próprio do
+  editor, logo abaixo da Observation — interna também, **fora do PDF**, e
+  editável mesmo com o item travado (a Tabela tem a coluna, em *Colunas*);
 - **Função**, **Sistema(s)** e **Waiver Historic** já preenchidos
   (`09 - Coordinate damage control` vira `FV09 - COORDINATE DAMAGE CONTROL`).
 

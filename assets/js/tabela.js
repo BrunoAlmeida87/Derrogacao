@@ -149,6 +149,7 @@
     { id: 'arguments', titulo: 'Arguments', larg: 46, longo: true, valor: function (r) { return txt(r.item.arguments); } },
     { id: 'archAnswer', titulo: 'Arch Answer', larg: 46, longo: true, valor: function (r) { return txt(r.item.archAnswer); } },
     { id: 'nota', titulo: 'Observação interna', larg: 40, longo: true, valor: function (r) { return txt(r.item.nota); } },
+    { id: 'obsShipManager', titulo: 'Obs Ship Manager', larg: 40, longo: true, valor: function (r) { return txt(r.item.obsShipManager); } },
     { id: 'certificates', titulo: 'Certificados', larg: 26, valor: function (r) { return (r.item.certificates || []).join(' | '); } },
     { id: 'evidencias', titulo: 'Anexos', larg: 9, num: true, valor: function (r) { return (r.item.evidence || []).length; } },
     { id: 'imagens', titulo: 'Imagens', larg: 9, num: true, valor: function (r) { return contarImagens(r.item); } },

@@ -6022,6 +6022,7 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
       evidence: [],
       nota: '',              // anotação interna livre; NÃO sai no PDF (§4)
       observation: '',       // Observação vinda do banco NCR; interna, NÃO sai no PDF
+      obsShipManager: '',    // Obs Ship Manager, vinda do banco NCR; interna, NÃO sai no PDF
       ncrKey: '',            // chave da NCR do banco à qual o item foi vinculado
       herdadoDe: '',         // marco de onde este item foi trazido (§5, herdar.js)
       herdadoEm: '',         // quando foi trazido — ISO
@@ -6092,7 +6093,7 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
   var CAMPOS_ITEM = ['id', 'ncrId', 'systems', 'func', 'description', 'currentSituation',
     'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
     'approvedExpiry', 'historic', 'certificates', 'evidence', 'nota',
-    'observation', 'ncrKey',
+    'observation', 'obsShipManager', 'ncrKey',
     'herdadoDe', 'herdadoEm', 'status', 'done',
     'editedBy', 'editedAt', 'syncBase'];
   var CAMPOS_PROJETO = ['id', 'schema', 'name', 'marco', 'marcoDev', 'lastEditedBy',
@@ -6166,6 +6167,7 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
       evidence: Array.isArray(raw.evidence) ? raw.evidence.map(normalizeEvidence) : [],
       nota: str(raw.nota),
       observation: str(raw.observation),
+      obsShipManager: str(raw.obsShipManager),
       ncrKey: str(raw.ncrKey),
       herdadoDe: str(raw.herdadoDe),
       herdadoEm: str(raw.herdadoEm),
@@ -6307,7 +6309,9 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
     ['nota', 'Observação interna'],
     /* Veio da Observação da NCR, no Banco NCR. Interna como a anotação, e
        pelo mesmo motivo está aqui e fora do SECTIONS do report.js. */
-    ['observation', 'Observation (banco NCR)']
+    ['observation', 'Observation (banco NCR)'],
+    /* a Obs Ship Manager: o mesmo caminho da Observation */
+    ['obsShipManager', 'Obs Ship Manager']
   ];
 
   function resumoEvidencia(item) {
@@ -6354,7 +6358,7 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
      um item que ninguém montou. Elas seguem o item inteiro, como antes. */
   var CAMPOS_MESCLA = ['ncrId', 'systems', 'func', 'description', 'currentSituation',
     'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
-    'approvedExpiry', 'historic', 'nota', 'observation', 'ncrKey', 'herdadoDe',
+    'approvedExpiry', 'historic', 'nota', 'observation', 'obsShipManager', 'ncrKey', 'herdadoDe',
     'certificates', 'status'];
 
   function rotuloCampo(campo) {
@@ -9700,7 +9704,10 @@ if(isWorker){
     { id: 'marcoAtual',     nome: 'Marco Atual' },
     { id: 'funcaoVital',    nome: 'Função Vital' },
     { id: 'waiverHistoric', nome: 'Waiver Historic' },
-    { id: 'observacao',     nome: 'Observação' }
+    { id: 'observacao',     nome: 'Observação' },
+    /* observações que o Ship Manager manda para a equipe, digitadas aqui
+       (pedido do Bruno) — o mesmo comportamento da Observação */
+    { id: 'obsShipManager', nome: 'Obs Ship Manager' }
   ];
 
   /* --- utilidades --------------------------------------------------------- */
@@ -9753,7 +9760,8 @@ if(isWorker){
     marcoAtual: ['actual jx', 'marco atual', 'atual jx', 'actual', 'marco actual'],
     funcaoVital: ['funcao vital', 'vital function', 'fv', 'funcao'],
     waiverHistoric: ['waiver historic', 'historico waiver', 'historic', 'waiver historico'],
-    observacao: ['observacao gto', 'observacao', 'observacoes', 'observation', 'obs']
+    observacao: ['observacao gto', 'observacao', 'observacoes', 'observation', 'obs'],
+    obsShipManager: ['obs ship manager', 'observacao ship manager', 'ship manager', 'obs sm']
   };
 
   function acharCabecalho(rows) {
@@ -9880,6 +9888,7 @@ if(isWorker){
   function waiverVazio() {
     return {
       marcoOriginal: '', marcoAtual: '', funcaoVital: '', waiverHistoric: '', observacao: '',
+      obsShipManager: '',
       editedBy: '', editedAt: '', adicoes: []
     };
   }
@@ -9915,7 +9924,21 @@ if(isWorker){
       if (k === 'adicoes') b.adicoes = Array.isArray(w.adicoes) ? w.adicoes.map(normalizarAdicao) : [];
       else b[k] = limpoOuStr(w[k], k);
     });
+    /* campo que esta versão não conhece passa intacto: uma versão mais nova
+       pode ter acrescentado um (foi assim com a Obs Ship Manager), e remontar
+       só o conhecido o apagaria ao regravar a pasta (a regra do extrasDe) */
+    Object.keys(w).forEach(function (k) {
+      if (!(k in b) && typeof w[k] === 'string') b[k] = w[k];
+    });
     return b;
+  }
+
+  /** Algum campo de texto que este lado tem e o outro não? (uma versão
+      anterior regravou sem ele — é preciso devolvê-lo à pasta) */
+  function faltaCampoLa(meu, deles) {
+    return Object.keys(meu).some(function (k) {
+      return k !== 'editedAt' && k !== 'editedBy' && typeof meu[k] === 'string' && meu[k] && !(k in deles && deles[k]);
+    });
   }
   /* datas e autoria sem trim; textos com a quebra de linha normalizada */
   function limpoOuStr(v, k) { return (k === 'editedAt' || k === 'editedBy') ? str(v) : limpo(v); }
@@ -10166,6 +10189,7 @@ if(isWorker){
       ncrKey: rec.key,
       description: f.descricao || f.titulo || '',
       observation: rec.waiver.observacao,
+      obsShipManager: rec.waiver.obsShipManager,
       func: funcaoParaWaiver(rec.waiver.funcaoVital),
       systems: f.sistema,
       historic: rec.waiver.waiverHistoric
@@ -11013,6 +11037,7 @@ if(isWorker){
         res.alterados.push(rec);
       } else {
         if (w.editedAt < rec.waiver.editedAt || ad.faltavamLa) res.localMaisNovo = true;
+        else if (w.editedAt === rec.waiver.editedAt && faltaCampoLa(rec.waiver, x.waiver || {})) res.localMaisNovo = true;
         if (ad.entraram) { rec.waiver.adicoes = ad.lista; res.alterados.push(rec); }
       }
     });
@@ -15983,6 +16008,7 @@ if(isWorker){
     { id: 'arguments', titulo: 'Arguments', larg: 46, longo: true, valor: function (r) { return txt(r.item.arguments); } },
     { id: 'archAnswer', titulo: 'Arch Answer', larg: 46, longo: true, valor: function (r) { return txt(r.item.archAnswer); } },
     { id: 'nota', titulo: 'Observação interna', larg: 40, longo: true, valor: function (r) { return txt(r.item.nota); } },
+    { id: 'obsShipManager', titulo: 'Obs Ship Manager', larg: 40, longo: true, valor: function (r) { return txt(r.item.obsShipManager); } },
     { id: 'certificates', titulo: 'Certificados', larg: 26, valor: function (r) { return (r.item.certificates || []).join(' | '); } },
     { id: 'evidencias', titulo: 'Anexos', larg: 9, num: true, valor: function (r) { return (r.item.evidence || []).length; } },
     { id: 'imagens', titulo: 'Imagens', larg: 9, num: true, valor: function (r) { return contarImagens(r.item); } },
@@ -17680,6 +17706,7 @@ if(isWorker){
       { id: 'w:funcaoVital', nome: 'Função Vital', waiver: true, editar: 'funcoes', larg: 34 },
       { id: 'waiver', nome: 'Waiver', especial: true, larg: 18 },
       { id: 'w:observacao', nome: 'Observação', waiver: true, largo: true, larg: 60 },
+      { id: 'w:obsShipManager', nome: 'Obs Ship Manager', waiver: true, largo: true, larg: 60 },
       { id: 'w:waiverHistoric', nome: 'Waiver Historic', waiver: true, larg: 26 },
       { id: 'criadoEm', nome: pap.criadoEm || 'Criada em', valor: function (r) { return Ncrs.data(Ncrs.fonte(r).criadoEm); },
         ordem: fonte('criadoEm'), larg: 14 },
@@ -17706,17 +17733,33 @@ if(isWorker){
      o status, os bigramas, a data de criação e a data do CEDOC Closure. */
   function padraoVisiveis() {
     var ids = ['numero', 'w:marcoOriginal', 'w:marcoAtual', 'w:funcaoVital', 'waiver', 'w:waiverHistoric',
-      'descricao', 'status', 'sistema', 'criadoEm'];
+      'w:obsShipManager', 'descricao', 'status', 'sistema', 'criadoEm'];
     (Ncrs.meta().colunas || []).forEach(function (nome) {
       if (/cedoc\s*closure/.test(Ncrs.norm(nome)) && ids.indexOf('c:' + nome) < 0) ids.push('c:' + nome);
     });
     return ids;
   }
 
+  /* A coluna nova (Obs Ship Manager, pedido do Bruno) entra uma vez na
+     escolha que cada um já tinha gravada — depois do Waiver Historic —, sem
+     desfazer o resto da escolha. Tirá-la depois pela janela de colunas vale. */
+  var COL_NOVA_KEY = 'derrogacao:ncrColunaShipManager';
+  function incluirColunaNova(ids) {
+    if (lerPref(COL_NOVA_KEY, false)) return ids;
+    gravarPref(COL_NOVA_KEY, true);
+    if (!Array.isArray(ids) || !ids.length || ids.indexOf('w:obsShipManager') >= 0) return ids;
+    var depois = ids.indexOf('w:waiverHistoric');
+    if (depois < 0) depois = ids.indexOf('w:observacao');
+    var novo = ids.slice();
+    novo.splice(depois >= 0 ? depois + 1 : novo.length, 0, 'w:obsShipManager');
+    gravarPref(COLS_KEY, novo);
+    return novo;
+  }
+
   function visiveis() {
     var todas = colunas();
     var acha = function (id) { return todas.filter(function (c) { return c.id === id; })[0]; };
-    var ids = lerPref(COLS_KEY, null);
+    var ids = incluirColunaNova(lerPref(COLS_KEY, null));
     if (!Array.isArray(ids) || !ids.length) ids = padraoVisiveis();
     if (ids.indexOf('numero') < 0) ids.unshift('numero');
     var out = ids.map(acha).filter(Boolean);
@@ -18868,6 +18911,7 @@ if(isWorker){
     sw.appendChild(g3);
     sw.appendChild(areaTexto(rec, 'waiverHistoric', 'Waiver Historic', 3, 'J06Cer To: J06'));
     sw.appendChild(areaTexto(rec, 'observacao', 'Observação', 5, 'informação complementar para o Waiver'));
+    sw.appendChild(areaTexto(rec, 'obsShipManager', 'Obs Ship Manager', 4, 'observação enviada pelo Ship Manager'));
     var autor = el('p', 'nb-autor');
     autor.id = 'nbAutor';
     autor.textContent = w.editedAt ? 'Última edição: ' + (w.editedBy || 'sem nome') + ' · ' + Ncrs.data(w.editedAt) : 'Ainda não preenchido.';
@@ -19505,11 +19549,11 @@ if(isWorker){
   function textoBusca(c) {
     var partes = [numeroDe(c)];
     if (c.item) {
-      partes.push(c.item.systems, c.item.func, c.item.description, c.item.nota, c.item.observation, c.item.historic);
+      partes.push(c.item.systems, c.item.func, c.item.description, c.item.nota, c.item.observation, c.item.obsShipManager, c.item.historic);
     }
     if (c.rec) {
       var f = Ncrs.fonte(c.rec);
-      partes.push(f.descricao, f.status, f.sistema, c.rec.waiver.funcaoVital, c.rec.waiver.observacao);
+      partes.push(f.descricao, f.status, f.sistema, c.rec.waiver.funcaoVital, c.rec.waiver.observacao, c.rec.waiver.obsShipManager);
     }
     return Ncrs.norm(partes.join(' '));
   }
@@ -23040,6 +23084,23 @@ if(isWorker){
     return c;
   }
 
+  /* A Obs Ship Manager: as observações que o Ship Manager manda para a
+     equipe (pedido do Bruno). O mesmo comportamento da Observation: vem da
+     coluna "Obs Ship Manager" do Banco NCR quando a NCR entra no relatório,
+     não sai no PDF e continua editável com o item travado. */
+  function cardDeObsShipManager() {
+    var c = card('Obs Ship Manager — do Banco NCR', '#0e7490');
+    c.classList.add('card--observation', 'card--shipmanager');
+    c.appendChild(el('div', 'hint nota-aviso',
+      'Interna: não entra no relatório em PDF. Recebe a Obs Ship Manager da NCR quando ela é ' +
+      'adicionada pelo Banco NCR; depois disso, o que se escreve aqui fica só neste item.'));
+    var campo = field('Observações enviadas pelo Ship Manager', 'obsShipManager', { rows: 3 });
+    var ta = $('#f-obsShipManager', campo);
+    if (ta) ta.setAttribute('data-livre', '');
+    c.appendChild(campo);
+    return c;
+  }
+
   function cardDeAnotacao(ncr) {
     var c = card('Observação interna', '#E4A11B');
     c.classList.add('card--nota');
@@ -23296,6 +23357,8 @@ if(isWorker){
     /* no visualizador, só quando há o que ler */
     var temObs = !!(ncr.observation || '').trim();
     if (Leitura.ativo() ? temObs : (!isDev() || temObs)) host.appendChild(cardDeObservation());
+    var temSm = !!(ncr.obsShipManager || '').trim();
+    if (Leitura.ativo() ? temSm : (!isDev() || temSm)) host.appendChild(cardDeObsShipManager());
 
     /* --- seções textuais, na ordem e nas cores do relatório --- */
     var textCard = card('Conteúdo da derrogação');

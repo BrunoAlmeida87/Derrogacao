@@ -211,11 +211,11 @@
   function textoBusca(c) {
     var partes = [numeroDe(c)];
     if (c.item) {
-      partes.push(c.item.systems, c.item.func, c.item.description, c.item.nota, c.item.observation, c.item.historic);
+      partes.push(c.item.systems, c.item.func, c.item.description, c.item.nota, c.item.observation, c.item.obsShipManager, c.item.historic);
     }
     if (c.rec) {
       var f = Ncrs.fonte(c.rec);
-      partes.push(f.descricao, f.status, f.sistema, c.rec.waiver.funcaoVital, c.rec.waiver.observacao);
+      partes.push(f.descricao, f.status, f.sistema, c.rec.waiver.funcaoVital, c.rec.waiver.observacao, c.rec.waiver.obsShipManager);
     }
     return Ncrs.norm(partes.join(' '));
   }

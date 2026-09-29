@@ -158,6 +158,7 @@ também só na hora.)
               images:[{id, src, caption, arquivo}]}],   // arquivo: nome na pasta (§5)
   nota,                        // anotação interna livre; NÃO sai no PDF
   observation,                 // a Observação da NCR, vinda do Banco NCR; NÃO sai no PDF
+  obsShipManager,              // a Obs Ship Manager da NCR, idem (mesmas regras da observation)
   ncrKey,                      // chave da NCR do banco, quando o item veio de lá
   herdadoDe, herdadoEm,        // veio do marco tal, quando (§5, herdar.js)
   status,                      // acompanhamento; fecha a linha da capa (§4)
@@ -184,7 +185,7 @@ Nenhuma importação do banco NCR passa perto de `projects`.
   fonte:  { campos:{coluna:valor}, titulo, descricao, status, sistema, sbr, sbrPor,
             criadoEm, responsavel, fechamento, arquivo, importadoEm, presente, alterados:[],
             detalhes:[{titulo, origem, colunas:[], linhas:[[…]]}] },   // produtos, deliberações…
-  waiver: { marcoOriginal, marcoAtual, funcaoVital, waiverHistoric, observacao,
+  waiver: { marcoOriginal, marcoAtual, funcaoVital, waiverHistoric, observacao, obsShipManager,
             editedBy, editedAt, adicoes:[{projectId, marco, itemId, em, por}] },
   historico: [{id, data, tipo, campo, de, para, obs, responsavel, cls, estimado}] }
 ```
@@ -223,6 +224,30 @@ entendia, e regravava a perda na pasta. Agora o que não é conhecido é copiado
 de volta intacto (`extrasDe`), e `schema` guarda o maior número já visto. A
 segunda linha de defesa está em `app.js`: vendo dados de `schema` maior que o
 seu, a sessão passa a **só ler** (`versaoDesatualizada`) até recarregar.
+
+### A Obs Ship Manager (`waiver.obsShipManager` e `item.obsShipManager`)
+Observações que o Ship Manager manda para a equipe, digitadas à mão (pedido do
+Bruno: "igual à Observação"). É a Observação repetida, nos dois lugares:
+
+- **na NCR** (`waiver.obsShipManager`, em `Ncrs.CAMPOS_WAIVER`): coluna do
+  Banco NCR, área de texto na ficha, busca, correlação (alias
+  `obs ship manager`), `herdarWaiver`. Entrou no padrão de colunas e, **uma
+  vez**, na escolha que cada um já tinha gravada (`incluirColunaNova`, com a
+  marca `derrogacao:ncrColunaShipManager`) — trocar a chave `ncrColunas2`
+  teria desfeito a escolha de todo mundo;
+- **no item** (`obsShipManager`): copiada por `paraItemWaiver`, cartão próprio
+  no editor (`cardDeObsShipManager`, `data-livre`), em `CAMPOS_VISIVEIS` e
+  `CAMPOS_MESCLA`, **fora da `signature()` e do PDF**, sem subir o `SCHEMA`
+  (`extrasDe`) — as regras da `observation`; coluna opcional na Tabela.
+
+**O `waiver` da NCR não tinha `extrasDe`**: `normalizarWaiver` remontava campo a
+campo, e a versão anterior do programa, ao regravar
+`derrogacao-ncr-waiver.json`, apaga a Obs Ship Manager. Duas defesas: daqui
+para a frente `normalizarWaiver` deixa passar campo de texto desconhecido
+(a próxima novidade não sofre disso), e o `juntarWaiver` que vê a mesma edição
+(`editedAt` igual) sem um campo que este lado tem marca `localMaisNovo` e o
+devolve à pasta. O que a versão antiga regravar **depois de editar a mesma
+NCR** perde o campo — por isso a equipe toda precisa estar na versão nova.
 
 ### A anotação do item (`nota`)
 Texto livre por item, para o motivo de uma pendência ficar escrito onde o item
@@ -1816,4 +1841,6 @@ desta máquina às vezes bloqueia `github.io`.
 | Correções, ligações e auditoria em arquivo próprio da pasta | a versão anterior, ao regravar o arquivo do Waiver, apagaria campo novo no `waiver` |
 | Área administrativa com senha, com a pasta decidindo a senha e a criada primeiro valendo | não há servidor nem login; a senha esconde, a permissão da pasta protege — e a tela diz isso |
 | A ficha mostra as linhas repetidas do export (produtos, deliberações) em tabela | pedido do Bruno: "tudo o que estiver associado à NCR", no padrão visual da ficha |
+| Obs Ship Manager nos dois lugares da Observação (NCR e item), fora do PDF | pedido do Bruno: "igual a coluna observação" |
+| A coluna nova entra uma vez na escolha de colunas já gravada, sem trocar a chave | trocar a chave desfaria a escolha de todo mundo por causa de uma coluna |
 

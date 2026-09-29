@@ -122,6 +122,7 @@
       { id: 'w:funcaoVital', nome: 'Função Vital', waiver: true, editar: 'funcoes', larg: 34 },
       { id: 'waiver', nome: 'Waiver', especial: true, larg: 18 },
       { id: 'w:observacao', nome: 'Observação', waiver: true, largo: true, larg: 60 },
+      { id: 'w:obsShipManager', nome: 'Obs Ship Manager', waiver: true, largo: true, larg: 60 },
       { id: 'w:waiverHistoric', nome: 'Waiver Historic', waiver: true, larg: 26 },
       { id: 'criadoEm', nome: pap.criadoEm || 'Criada em', valor: function (r) { return Ncrs.data(Ncrs.fonte(r).criadoEm); },
         ordem: fonte('criadoEm'), larg: 14 },
@@ -148,17 +149,33 @@
      o status, os bigramas, a data de criação e a data do CEDOC Closure. */
   function padraoVisiveis() {
     var ids = ['numero', 'w:marcoOriginal', 'w:marcoAtual', 'w:funcaoVital', 'waiver', 'w:waiverHistoric',
-      'descricao', 'status', 'sistema', 'criadoEm'];
+      'w:obsShipManager', 'descricao', 'status', 'sistema', 'criadoEm'];
     (Ncrs.meta().colunas || []).forEach(function (nome) {
       if (/cedoc\s*closure/.test(Ncrs.norm(nome)) && ids.indexOf('c:' + nome) < 0) ids.push('c:' + nome);
     });
     return ids;
   }
 
+  /* A coluna nova (Obs Ship Manager, pedido do Bruno) entra uma vez na
+     escolha que cada um já tinha gravada — depois do Waiver Historic —, sem
+     desfazer o resto da escolha. Tirá-la depois pela janela de colunas vale. */
+  var COL_NOVA_KEY = 'derrogacao:ncrColunaShipManager';
+  function incluirColunaNova(ids) {
+    if (lerPref(COL_NOVA_KEY, false)) return ids;
+    gravarPref(COL_NOVA_KEY, true);
+    if (!Array.isArray(ids) || !ids.length || ids.indexOf('w:obsShipManager') >= 0) return ids;
+    var depois = ids.indexOf('w:waiverHistoric');
+    if (depois < 0) depois = ids.indexOf('w:observacao');
+    var novo = ids.slice();
+    novo.splice(depois >= 0 ? depois + 1 : novo.length, 0, 'w:obsShipManager');
+    gravarPref(COLS_KEY, novo);
+    return novo;
+  }
+
   function visiveis() {
     var todas = colunas();
     var acha = function (id) { return todas.filter(function (c) { return c.id === id; })[0]; };
-    var ids = lerPref(COLS_KEY, null);
+    var ids = incluirColunaNova(lerPref(COLS_KEY, null));
     if (!Array.isArray(ids) || !ids.length) ids = padraoVisiveis();
     if (ids.indexOf('numero') < 0) ids.unshift('numero');
     var out = ids.map(acha).filter(Boolean);
@@ -1310,6 +1327,7 @@
     sw.appendChild(g3);
     sw.appendChild(areaTexto(rec, 'waiverHistoric', 'Waiver Historic', 3, 'J06Cer To: J06'));
     sw.appendChild(areaTexto(rec, 'observacao', 'Observação', 5, 'informação complementar para o Waiver'));
+    sw.appendChild(areaTexto(rec, 'obsShipManager', 'Obs Ship Manager', 4, 'observação enviada pelo Ship Manager'));
     var autor = el('p', 'nb-autor');
     autor.id = 'nbAutor';
     autor.textContent = w.editedAt ? 'Última edição: ' + (w.editedBy || 'sem nome') + ' · ' + Ncrs.data(w.editedAt) : 'Ainda não preenchido.';

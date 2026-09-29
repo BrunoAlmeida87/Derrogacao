@@ -106,6 +106,7 @@
       evidence: [],
       nota: '',              // anotação interna livre; NÃO sai no PDF (§4)
       observation: '',       // Observação vinda do banco NCR; interna, NÃO sai no PDF
+      obsShipManager: '',    // Obs Ship Manager, vinda do banco NCR; interna, NÃO sai no PDF
       ncrKey: '',            // chave da NCR do banco à qual o item foi vinculado
       herdadoDe: '',         // marco de onde este item foi trazido (§5, herdar.js)
       herdadoEm: '',         // quando foi trazido — ISO
@@ -176,7 +177,7 @@
   var CAMPOS_ITEM = ['id', 'ncrId', 'systems', 'func', 'description', 'currentSituation',
     'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
     'approvedExpiry', 'historic', 'certificates', 'evidence', 'nota',
-    'observation', 'ncrKey',
+    'observation', 'obsShipManager', 'ncrKey',
     'herdadoDe', 'herdadoEm', 'status', 'done',
     'editedBy', 'editedAt', 'syncBase'];
   var CAMPOS_PROJETO = ['id', 'schema', 'name', 'marco', 'marcoDev', 'lastEditedBy',
@@ -250,6 +251,7 @@
       evidence: Array.isArray(raw.evidence) ? raw.evidence.map(normalizeEvidence) : [],
       nota: str(raw.nota),
       observation: str(raw.observation),
+      obsShipManager: str(raw.obsShipManager),
       ncrKey: str(raw.ncrKey),
       herdadoDe: str(raw.herdadoDe),
       herdadoEm: str(raw.herdadoEm),
@@ -391,7 +393,9 @@
     ['nota', 'Observação interna'],
     /* Veio da Observação da NCR, no Banco NCR. Interna como a anotação, e
        pelo mesmo motivo está aqui e fora do SECTIONS do report.js. */
-    ['observation', 'Observation (banco NCR)']
+    ['observation', 'Observation (banco NCR)'],
+    /* a Obs Ship Manager: o mesmo caminho da Observation */
+    ['obsShipManager', 'Obs Ship Manager']
   ];
 
   function resumoEvidencia(item) {
@@ -438,7 +442,7 @@
      um item que ninguém montou. Elas seguem o item inteiro, como antes. */
   var CAMPOS_MESCLA = ['ncrId', 'systems', 'func', 'description', 'currentSituation',
     'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
-    'approvedExpiry', 'historic', 'nota', 'observation', 'ncrKey', 'herdadoDe',
+    'approvedExpiry', 'historic', 'nota', 'observation', 'obsShipManager', 'ncrKey', 'herdadoDe',
     'certificates', 'status'];
 
   function rotuloCampo(campo) {

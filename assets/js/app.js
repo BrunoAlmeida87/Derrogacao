@@ -1971,6 +1971,23 @@
     return c;
   }
 
+  /* A Obs Ship Manager: as observações que o Ship Manager manda para a
+     equipe (pedido do Bruno). O mesmo comportamento da Observation: vem da
+     coluna "Obs Ship Manager" do Banco NCR quando a NCR entra no relatório,
+     não sai no PDF e continua editável com o item travado. */
+  function cardDeObsShipManager() {
+    var c = card('Obs Ship Manager — do Banco NCR', '#0e7490');
+    c.classList.add('card--observation', 'card--shipmanager');
+    c.appendChild(el('div', 'hint nota-aviso',
+      'Interna: não entra no relatório em PDF. Recebe a Obs Ship Manager da NCR quando ela é ' +
+      'adicionada pelo Banco NCR; depois disso, o que se escreve aqui fica só neste item.'));
+    var campo = field('Observações enviadas pelo Ship Manager', 'obsShipManager', { rows: 3 });
+    var ta = $('#f-obsShipManager', campo);
+    if (ta) ta.setAttribute('data-livre', '');
+    c.appendChild(campo);
+    return c;
+  }
+
   function cardDeAnotacao(ncr) {
     var c = card('Observação interna', '#E4A11B');
     c.classList.add('card--nota');
@@ -2227,6 +2244,8 @@
     /* no visualizador, só quando há o que ler */
     var temObs = !!(ncr.observation || '').trim();
     if (Leitura.ativo() ? temObs : (!isDev() || temObs)) host.appendChild(cardDeObservation());
+    var temSm = !!(ncr.obsShipManager || '').trim();
+    if (Leitura.ativo() ? temSm : (!isDev() || temSm)) host.appendChild(cardDeObsShipManager());
 
     /* --- seções textuais, na ordem e nas cores do relatório --- */
     var textCard = card('Conteúdo da derrogação');

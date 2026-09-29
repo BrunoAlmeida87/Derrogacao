@@ -92,7 +92,10 @@
     { id: 'marcoAtual',     nome: 'Marco Atual' },
     { id: 'funcaoVital',    nome: 'Função Vital' },
     { id: 'waiverHistoric', nome: 'Waiver Historic' },
-    { id: 'observacao',     nome: 'Observação' }
+    { id: 'observacao',     nome: 'Observação' },
+    /* observações que o Ship Manager manda para a equipe, digitadas aqui
+       (pedido do Bruno) — o mesmo comportamento da Observação */
+    { id: 'obsShipManager', nome: 'Obs Ship Manager' }
   ];
 
   /* --- utilidades --------------------------------------------------------- */
@@ -145,7 +148,8 @@
     marcoAtual: ['actual jx', 'marco atual', 'atual jx', 'actual', 'marco actual'],
     funcaoVital: ['funcao vital', 'vital function', 'fv', 'funcao'],
     waiverHistoric: ['waiver historic', 'historico waiver', 'historic', 'waiver historico'],
-    observacao: ['observacao gto', 'observacao', 'observacoes', 'observation', 'obs']
+    observacao: ['observacao gto', 'observacao', 'observacoes', 'observation', 'obs'],
+    obsShipManager: ['obs ship manager', 'observacao ship manager', 'ship manager', 'obs sm']
   };
 
   function acharCabecalho(rows) {
@@ -272,6 +276,7 @@
   function waiverVazio() {
     return {
       marcoOriginal: '', marcoAtual: '', funcaoVital: '', waiverHistoric: '', observacao: '',
+      obsShipManager: '',
       editedBy: '', editedAt: '', adicoes: []
     };
   }
@@ -307,7 +312,21 @@
       if (k === 'adicoes') b.adicoes = Array.isArray(w.adicoes) ? w.adicoes.map(normalizarAdicao) : [];
       else b[k] = limpoOuStr(w[k], k);
     });
+    /* campo que esta versão não conhece passa intacto: uma versão mais nova
+       pode ter acrescentado um (foi assim com a Obs Ship Manager), e remontar
+       só o conhecido o apagaria ao regravar a pasta (a regra do extrasDe) */
+    Object.keys(w).forEach(function (k) {
+      if (!(k in b) && typeof w[k] === 'string') b[k] = w[k];
+    });
     return b;
+  }
+
+  /** Algum campo de texto que este lado tem e o outro não? (uma versão
+      anterior regravou sem ele — é preciso devolvê-lo à pasta) */
+  function faltaCampoLa(meu, deles) {
+    return Object.keys(meu).some(function (k) {
+      return k !== 'editedAt' && k !== 'editedBy' && typeof meu[k] === 'string' && meu[k] && !(k in deles && deles[k]);
+    });
   }
   /* datas e autoria sem trim; textos com a quebra de linha normalizada */
   function limpoOuStr(v, k) { return (k === 'editedAt' || k === 'editedBy') ? str(v) : limpo(v); }
@@ -558,6 +577,7 @@
       ncrKey: rec.key,
       description: f.descricao || f.titulo || '',
       observation: rec.waiver.observacao,
+      obsShipManager: rec.waiver.obsShipManager,
       func: funcaoParaWaiver(rec.waiver.funcaoVital),
       systems: f.sistema,
       historic: rec.waiver.waiverHistoric
@@ -1405,6 +1425,7 @@
         res.alterados.push(rec);
       } else {
         if (w.editedAt < rec.waiver.editedAt || ad.faltavamLa) res.localMaisNovo = true;
+        else if (w.editedAt === rec.waiver.editedAt && faltaCampoLa(rec.waiver, x.waiver || {})) res.localMaisNovo = true;
         if (ad.entraram) { rec.waiver.adicoes = ad.lista; res.alterados.push(rec); }
       }
     });
