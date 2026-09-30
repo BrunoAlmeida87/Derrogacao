@@ -65,27 +65,38 @@ const L = require('./lib');
     }, num);
     L.igual(mudou, 'solicitado', 'mudar a situação pelo cartão grava no relatório (' + num + ')');
 
-    console.log('encerradas em CEDOC Closure');
+    console.log('encerradas (fechadas no banco NCR)');
     const enc = await pg.evaluate(() => {
-      const naColuna = Array.from(document.querySelectorAll('.kb-col--fora .kb-card')).map(c => c.querySelector('.kb-st-ncr') ? c.querySelector('.kb-st-ncr').title : '');
+      const naColuna = Array.from(document.querySelectorAll('.kb-col--fora .kb-card .kb-st-ncr'));
       return {
-        naColuna: naColuna.filter(t => /cedoc closure/i.test(t)).length,
+        fechadasNaColuna: naColuna.filter(c => c.classList.contains('is-ok')).length,
+        cedocNaColuna: naColuna.filter(c => /cedoc closure/i.test(c.textContent)).length,
         cont: document.querySelector('#kbEncBtn .kb-col-n').textContent,
         aberta: document.getElementById('kbEncBtn').getAttribute('aria-expanded'),
-        corpoEscondido: document.getElementById('kbEncCorpo').hidden,
-        esperado: Kanban.cartoes('J09', []).length >= 0
+        corpoEscondido: document.getElementById('kbEncCorpo').hidden
       };
     });
-    const esperado = await pg.evaluate(async () => {
+    const regra = await pg.evaluate(async () => {
       const ps = await Store.list();
-      return Kanban.cartoes('J09', ps).filter(c => c.coluna === Kanban.ENCERRADA).length;
+      const cs = Kanban.cartoes('J09', ps);
+      const st = c => c.rec ? Ncrs.fonte(c.rec).status : '';
+      return {
+        enc: cs.filter(c => c.coluna === Kanban.ENCERRADA).length,
+        fechadasForaDaArea: cs.filter(c => c.fechada && c.coluna === 'fora').length,
+        naAreaNaoFechada: cs.filter(c => c.coluna === Kanban.ENCERRADA && !c.fechada).length,
+        closed: cs.filter(c => c.coluna === Kanban.ENCERRADA && /^closed\b/i.test(st(c))).length
+      };
     });
-    L.igual(enc.naColuna, 0, 'nenhuma NCR em CEDOC Closure na coluna "NCR to be closed"');
+    const esperado = regra.enc;
+    L.igual(enc.fechadasNaColuna, 0, 'nenhuma NCR fechada na coluna "NCR to be closed"');
+    L.igual(enc.cedocNaColuna, 0, 'nenhuma NCR em CEDOC Closure na coluna "NCR to be closed"');
+    L.igual(regra.fechadasForaDaArea, 0, 'toda NCR fechada (Closed, CEDOC Closure, 7.2…) está na área das encerradas');
+    L.igual(regra.naAreaNaoFechada, 0, 'e só as fechadas estão lá');
     L.ok(esperado > 0 && enc.cont === String(esperado), 'a área própria mostra a quantidade, mesmo recolhida: ' + enc.cont);
     L.ok(enc.aberta === 'false' && enc.corpoEscondido, 'nasce recolhida');
     await pg.click('#kbEncBtn');
     L.igual(await pg.$$eval('#kbEncCorpo .kb-card', cs => cs.length), esperado, 'aberta, mostra as ' + esperado + ' encerradas');
-    L.ok(await pg.$$eval('#kbEncCorpo .kb-st-ncr', cs => cs.every(c => /CEDOC Closure/.test(c.textContent) && c.classList.contains('is-ok'))), 'todas marcadas como encerradas (✓, verde)');
+    L.ok(await pg.$$eval('#kbEncCorpo .kb-st-ncr', cs => cs.every(c => c.classList.contains('is-ok'))), 'todas marcadas como encerradas (✓, verde)');
     L.ok(/encerrada/.test(await pg.textContent('.kb-col--fora .kb-col-enc')), 'a coluna "to be closed" avisa que as encerradas estão abaixo');
 
     console.log('filtros valem para tudo, inclusive a área de baixo');

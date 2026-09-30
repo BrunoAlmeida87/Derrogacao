@@ -17,10 +17,11 @@
    precisa ser fechada até o marco. Nessa coluna, fechada é o resultado bom
    (verde); aberta é o que ainda falta.
 
-   As que já estão em "CEDOC Closure" no banco NCR saíram dessa coluna (pedido
-   do Bruno): estão encerradas, e misturadas às que ainda faltam fechar só
-   atrapalhavam a leitura. Ficam numa área própria, abaixo do quadro,
-   recolhível — com a quantidade sempre à vista.
+   As que já estão fechadas no banco NCR (Ncrs.fechada: "Closed", "CEDOC
+   Closure", "7.2 - TA Unfounded"…) saíram dessa coluna (pedido do Bruno):
+   estão encerradas, e misturadas às que ainda faltam fechar só atrapalhavam a
+   leitura. Ficam numa área própria, abaixo do quadro, recolhível — com a
+   quantidade sempre à vista.
 
    O cartão nasce recolhido: número, status da NCR, função, sistema e as
    ações, quase uma linha de lista. O "+" mostra a descrição e o resto; abrir
@@ -92,13 +93,6 @@
      nunca entra no quadro do J09 (o marco casa pelo texto igual) e o seletor
      só o oferece quando pedido. */
   function ehInd(t) { return /\bind\b/i.test(str(t)); }
-
-  /* A NCR já encerrada no CEDOC ("CEDOC Closure", e o "Unfounded" dela). Só
-     estas saem da coluna "NCR to be closed"; uma "Closed" ainda sem o CEDOC
-     continua lá, verde, como antes. */
-  function emCedoc(rec) {
-    return !!(rec && /\bcedoc closure\b/.test(Ncrs.norm(Ncrs.fonte(rec).status)));
-  }
 
   /* --- quem está em cada marco -------------------------------------------- */
 
@@ -184,8 +178,9 @@
     out.forEach(function (c) {
       c.fechada = c.rec ? Ncrs.fechada(c.rec) : false;
       c.alerta = c.fechada && c.tipo === 'item' && c.coluna !== Store.STATUS_CONCLUIDO;
-      /* encerrada no CEDOC: sai de "to be closed" para a área de baixo */
-      if (c.coluna === FORA && emCedoc(c.rec)) c.coluna = ENCERRADA;
+      /* NCR fechada (qualquer status de fechamento): sai de "to be closed"
+         para a área de baixo */
+      if (c.coluna === FORA && c.fechada) c.coluna = ENCERRADA;
       c.id = c.item ? c.tipo + ':' + (c.project ? c.project.id : '') + ':' + c.item.id : 'banco:' + c.rec.key;
     });
     return out;
@@ -230,8 +225,6 @@
   function ordenar(cs) {
     return cs.slice().sort(function (a, b) {
       if (a.alerta !== b.alerta) return a.alerta ? -1 : 1;
-      /* em "NCR to be closed", as que ainda faltam fechar vêm primeiro */
-      if (a.coluna === FORA && a.fechada !== b.fechada) return a.fechada ? 1 : -1;
       return Store.cmpTexto(numeroDe(a), numeroDe(b));
     });
   }
@@ -242,8 +235,8 @@
       .concat(Store.STATUS.map(function (s) { return { id: s.id, nome: s.nome, ajuda: s.ajuda }; }));
   }
 
-  var AREA_ENCERRADAS = { id: ENCERRADA, nome: 'Encerradas — CEDOC Closure',
-    ajuda: 'NCRs deste marco fora do Waiver que já estão em “CEDOC Closure” no banco NCR: encerradas, nada mais a fechar' };
+  var AREA_ENCERRADAS = { id: ENCERRADA, nome: 'Encerradas',
+    ajuda: 'NCRs deste marco fora do Waiver que já estão fechadas no banco NCR (Closed, CEDOC Closure, 7.2 - TA Unfounded…): nada mais a fechar' };
 
   /** O quadro montado: o marco, os cartões e os que passam nos filtros. */
   function estado(projects) {
@@ -398,7 +391,7 @@
     if (nEnc) {
       /* a área de baixo pode estar recolhida: daqui se chega nela */
       var ir = botao('ver as encerradas', 'btn--sm btn--quiet kb-ir-enc', function () { abrirEncerradas(true); },
-        'Abre a área das NCRs encerradas (CEDOC Closure), abaixo do quadro');
+        'Abre a área das NCRs encerradas (fechadas no banco NCR), abaixo do quadro');
       nums.appendChild(ir);
     }
     box.appendChild(nums);
@@ -432,7 +425,7 @@
       { n: noRel.length ? Math.round(aceitos * 100 / noRel.length) + '%' : '—', rot: 'aceitas (do relatório)' },
       { n: String(todos.filter(function (c) { return c.coluna === FORA && !c.fechada; }).length), rot: 'to be closed (ainda abertas)' },
       { n: String(todos.filter(function (c) { return c.alerta; }).length), rot: 'fechadas com waiver pendente', alerta: true },
-      { n: String(todos.filter(function (c) { return c.coluna === ENCERRADA; }).length), rot: 'encerradas (CEDOC Closure)' }
+      { n: String(todos.filter(function (c) { return c.coluna === ENCERRADA; }).length), rot: 'encerradas (fechadas)' }
     ];
   }
 
@@ -453,14 +446,10 @@
       var corpo = el('div', 'kb-col-corpo');
       if (col.id === FORA) {
         var nEnc = todos.filter(function (c) { return c.coluna === ENCERRADA; }).length;
-        if (nTot) {
-          var nFech = todos.filter(function (c) { return c.coluna === FORA && c.fechada; }).length;
-          ch.appendChild(el('div', 'kb-col-sub', nFech + ' de ' + nTot + ' já fechada' + (nTot > 1 ? 's' : '') +
-            ' · ' + (nTot - nFech) + ' a fechar'));
-        }
+        if (nTot) ch.appendChild(el('div', 'kb-col-sub', nTot + ' a fechar'));
         if (nEnc) {
           var enc = el('button', 'kb-col-sub kb-col-enc', '+ ' + nEnc + ' encerrada' + (nEnc > 1 ? 's' : '') +
-            ' (CEDOC Closure) — abaixo do quadro');
+            ' (fechadas no banco NCR) — abaixo do quadro');
           enc.type = 'button';
           enc.title = 'Já encerradas no banco NCR: estão na área própria, abaixo do quadro';
           enc.addEventListener('click', function () { abrirEncerradas(true); });
@@ -477,7 +466,7 @@
   }
 
   /**
-   * As encerradas no CEDOC, numa área à parte: a mesma cara de cartão, em
+   * As encerradas (fechadas no banco NCR), numa área à parte: a mesma cara de cartão, em
    * grade, abaixo do quadro. Recolhível — a escolha fica neste navegador —,
    * mas o título, com a quantidade, está sempre à vista.
    */
@@ -498,7 +487,7 @@
     b.appendChild(el('span', 'kb-col-n', cs.length === nTot ? String(nTot) : cs.length + '/' + nTot));
     b.appendChild(el('span', 'kb-enc-dica', nTot
       ? 'NCRs deste marco fora do Waiver, já encerradas no banco NCR — ' + (aberta ? 'clique para recolher' : 'clique para ver')
-      : 'Nenhuma NCR deste marco em “CEDOC Closure”.'));
+      : 'Nenhuma NCR fechada deste marco fora do Waiver.'));
     b.addEventListener('click', function () { abrirEncerradas(!lerPref(CHAVE_ENCERRADAS, false)); });
     h.appendChild(b);
     box.appendChild(h);
@@ -874,7 +863,7 @@
       ['NCRs nesta planilha', linhas.length],
       ['NCRs no quadro (sem filtro)', e.todos.length],
       ['Filtros', descricaoDosFiltros()],
-      ['Observação', 'Uma linha por NCR, na ordem das colunas do quadro. “Encerradas — CEDOC Closure” é a área ' +
+      ['Observação', 'Uma linha por NCR, na ordem das colunas do quadro. “Encerradas” (NCRs já fechadas no banco NCR) é a área ' +
         'abaixo do quadro. Situação do waiver: a do relatório (ou a do relatório de origem, para as que vêm de outro marco).']
     ];
     return { nome: 'Kanban_' + str(st.marco).replace(/[^\w-]+/g, '_'), colunas: colunas, linhas: linhas, recorte: recorte };
@@ -1180,7 +1169,7 @@
     var cont = el('fieldset', 'kb-imp-grupo');
     cont.appendChild(el('legend', null, 'Conteúdo'));
     cont.appendChild(caixa('kbDesc', 'Descrição das NCRs nos cartões', o.descricao));
-    cont.appendChild(caixa('kbEnc', 'Encerradas (CEDOC Closure), em lista no fim', o.encerradas));
+    cont.appendChild(caixa('kbEnc', 'Encerradas (fechadas no banco NCR), em lista no fim', o.encerradas));
     grade.appendChild(cont);
     body.appendChild(grade);
     var previa = el('p', 'kb-imp-previa');
@@ -1225,7 +1214,6 @@
     marcos: marcos,
     planilha: planilha,
     funcaoCurta: funcaoCurta,
-    emCedoc: emCedoc,
     FORA: FORA,
     ENCERRADA: ENCERRADA
   };

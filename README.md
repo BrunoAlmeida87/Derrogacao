@@ -51,7 +51,7 @@ login e nenhum dado sai do computador.
 
 - **Aba Kanban.** As NCRs de um marco (J09, por exemplo) em cartões
   compactos, uma coluna por situação do waiver, com as cores de sempre; as já
-  encerradas em *CEDOC Closure* numa área à parte. Arrastar o cartão muda a
+  fechadas no banco NCR (*Closed*, *CEDOC Closure*, *7.2 - TA Unfounded*…) numa área à parte. Arrastar o cartão muda a
   situação. Exporta em **PDF para imprimir (A4 ou A3)** e em **Excel**. Ver
   [Aba Kanban](#aba-kanban).
 
@@ -878,9 +878,9 @@ fila, cada uma com quantas NCRs tem) e veja cada NCR num cartão.
 
 | Coluna | O que entra |
 | --- | --- |
-| **NCR to be closed** | toda NCR do marco que **não está no Waiver dele**: as do banco com **Marco Atual** igual ao marco (o cartão diz se ela está no Waiver de outro marco ou em nenhum, e tem o botão **+ J09 Waiver**) e os itens de **outros marcos** cujo waiver vale até este (*Approved Expiry*, ou *Request Expiry*) e ainda não foram levados. Sem waiver, a NCR precisa ser fechada até o marco: aqui o status **fechada fica verde (✓)** e a aberta em âmbar, as abertas vêm primeiro, e o alto da coluna conta "37 de 114 já fechadas · 77 a fechar" |
+| **NCR to be closed** | toda NCR do marco que **não está no Waiver dele**: as do banco com **Marco Atual** igual ao marco (o cartão diz se ela está no Waiver de outro marco ou em nenhum, e tem o botão **+ J09 Waiver**) e os itens de **outros marcos** cujo waiver vale até este (*Approved Expiry*, ou *Request Expiry*) e ainda não foram levados. Sem waiver, a NCR precisa ser fechada até o marco: aqui a NCR aberta aparece em âmbar e o alto da coluna conta "77 a fechar" — as já fechadas vão para a área **Encerradas**, abaixo do quadro |
 | **Em preenchimento · Waiver requested · Improve justification · Waiver accepted** | os itens NCR do relatório do marco, pela situação |
-| **Encerradas — CEDOC Closure** (abaixo do quadro) | as NCRs da primeira coluna que já estão em **CEDOC Closure** no banco NCR: encerradas, saíram de "NCR to be closed". A área recolhe (a escolha fica neste navegador), mas o título mostra sempre quantas são; a primeira coluna e a faixa de números também avisam |
+| **Encerradas** (abaixo do quadro) | as NCRs do marco fora do Waiver que já estão **fechadas** no banco NCR (*Closed*, *CEDOC Closure*, *7.2 - TA Unfounded*… — a lista da seção "NCR fechada"): saem de "NCR to be closed", que fica só com o que ainda falta fechar. A área recolhe (a escolha fica neste navegador), mas o título mostra sempre quantas são; a primeira coluna e a faixa de números também avisam |
 
 - **Cartões compactos.** Recolhido, o cartão é quase uma linha de lista: o
   número, o status da NCR no banco, a função vital em poucas letras (`FV03`),

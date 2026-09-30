@@ -3169,7 +3169,7 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
 .st-cor--justificar  { --st-cor: #eb6834; --st-sf: #fde9df; --st-tx: #97390f; }
 .st-cor--aceito      { --st-cor: #1baf7a; --st-sf: #dff5ec; --st-tx: #0c6645; }
 .st-cor--fora        { --st-cor: #6b4f9e; --st-sf: #f2eef9; --st-tx: #4a3278; }
-/* a área das encerradas (CEDOC Closure) no Kanban: cinza, de coisa arquivada */
+/* a área das encerradas (NCRs fechadas) no Kanban: cinza, de coisa arquivada */
 .st-cor--encerrada   { --st-cor: #7b8494; --st-sf: #f1f2f4; --st-tx: #3f4654; }
 .st-cor-ponto {
   display: inline-block; width: 9px; height: 9px; border-radius: 50%;
@@ -3410,7 +3410,7 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
 }
 .kb-ir-enc { align-self: center; }
 
-/* As encerradas no CEDOC: fora da coluna "NCR to be closed", numa área própria
+/* As encerradas (fechadas): fora da coluna "NCR to be closed", numa área própria
    abaixo do quadro. O título, com a quantidade, fica sempre à vista. */
 .kb-enc {
   background: var(--st-sf); border: 1px solid var(--line); border-radius: 12px;

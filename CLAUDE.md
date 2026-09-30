@@ -1054,9 +1054,9 @@ Excel/CSV e a aba "Recorte"), senha. Com a área aberta, a ficha ganha
 ### Aba Kanban (`kanban.js`)
 O quadro de um marco. Colunas: **"NCR to be closed"** + as quatro de
 `Store.STATUS`. O nome é do Bruno: NCR do marco que não está no Waiver dele
-não tem waiver, então tem de ser fechada até o marco — por isso ali a
-fechada é verde e a aberta é a que falta (o contrário do resto do programa,
-onde fechada é vermelho), e as abertas vêm primeiro. Entram os itens NCR dos relatórios com **o mesmo marco pelo
+não tem waiver, então tem de ser fechada até o marco — por isso ali só fica
+a que ainda falta fechar; a fechada (verde, o contrário do resto do programa,
+onde fechada é vermelho) vai para a área Encerradas, abaixo. Entram os itens NCR dos relatórios com **o mesmo marco pelo
 texto** (`Ncrs.marcoChave`, a regra do Banco NCR), as NCRs do banco com esse
 Marco Atual que não estão lá, e os itens de outros marcos que `Herdar.avanco`
 diz que vão para ele e ainda não foram (a mesma "segunda porta" do painel).
@@ -1088,14 +1088,15 @@ Deduplicado pela chave da NCR.
   `aria-controls`) mostra a descrição inteira, a origem, o alerta por extenso
   e a autoria. `st.abertos` (por `c.id`) só vive na memória: abrir não grava
   e não muda a coluna, e sobrevive ao redesenho.
-- **Encerradas em CEDOC Closure numa área própria** (pedido do Bruno). Em
-  `cartoes()`, a carta da coluna `fora` cujo status é CEDOC Closure
-  (`Kanban.emCedoc`, pelo texto normalizado — pega o "Unfounded" também)
-  passa para a coluna `encerrada`, que não é coluna do quadro: é a seção
+- **Encerradas numa área própria** (pedido do Bruno). Em `cartoes()`, a
+  carta da coluna `fora` que está **fechada** (`c.fechada` = `Ncrs.fechada`,
+  isto é, a lista `Config.STATUS_NCR_FECHADA` e o critério por palavra:
+  Closed, CEDOC Closure, 7.2 - TA Unfounded…) passa para a coluna
+  `encerrada`, que não é coluna do quadro: é a seção
   recolhível abaixo dele (`areaEncerradas`), com o mesmo cartão (as mesmas
-  ações). **Só CEDOC Closure sai**: uma "Closed" ainda sem o CEDOC continua
-  em "NCR to be closed", verde, como antes — se o Bruno quiser tirar as
-  "Closed" também, é trocar `emCedoc` por `c.fechada` naquela linha. A área
+  ações). **Todo status de fechada sai** — era só o CEDOC Closure, e o Bruno
+  estranhou ver "Closed" em "NCR to be closed" (setembro): a coluna passou a
+  ter só o que ainda falta fechar, e o alto dela conta "N a fechar". A área
   aberta/recolhida fica em `derrogacao:kanbanEncerradas` (preferência de
   tela); a quantidade fica sempre à vista (título, faixa de números e aviso
   no alto da primeira coluna).
@@ -1815,7 +1816,7 @@ desta máquina às vezes bloqueia `github.io`.
 | Voltar para a janela não recomeça a contagem; só roda se o prazo venceu lá fora | o "roda ao voltar" recomeçava de 5:00 a cada troca de aba |
 | A conferência de 20 s não roda em segundo plano | ao voltar, o ciclo confere na hora; ler a pasta com a janela escondida é trabalho para ninguém |
 | Cartão do Kanban recolhido, "+" para a descrição; abrir não grava | pedido do Bruno: mais NCRs à vista |
-| Só "CEDOC Closure" sai de "NCR to be closed" (as "Closed" ficam, verdes) | foi o status que o Bruno nomeou; trocar para "qualquer fechada" é uma linha (`emCedoc` → `c.fechada`) |
+| Toda NCR fechada (`Ncrs.fechada`) sai de "NCR to be closed" para a área Encerradas | pedido do Bruno: "Closed" na coluna de NCRs a fechar não faz sentido; antes só o CEDOC Closure saía |
 | A área das encerradas fica abaixo do quadro, recolhível, com a quantidade sempre à vista | pedido do Bruno; recolhida por padrão, a escolha fica no navegador |
 | Kanban impresso pela janela de impressão, A4/A3, com escala automática | o mesmo caminho do relatório (§5): fidelidade e zero dependência; "Margens: Nenhuma" continua valendo |
 | Planilha do Kanban em .xlsx, com a aba "Recorte" | a regra das outras planilhas (§10, "Toda exportação leva a aba Recorte") |
