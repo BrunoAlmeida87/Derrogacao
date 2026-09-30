@@ -1293,6 +1293,31 @@ dialog.dlg--wide { max-width: 620px; }
 }
 .pick-tag--dev { background: #e4f3f8; color: #0e7490; border-color: #b9dce8; }
 .pick-here { font-size: 11px; color: var(--muted); font-style: italic; flex: 0 0 auto; }
+.pick-itens-btn { flex: 0 0 auto; }
+
+/* a escolha de itens de um relatório: lista que abre sob a linha dele */
+.pick-itens {
+  margin: 0 0 6px 28px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  max-height: 220px;
+  overflow: auto;
+}
+.pick-itens-acoes { display: flex; gap: 6px; margin-bottom: 4px; }
+.pick-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 2px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pick-item input { accent-color: var(--accent); }
+.pick-item-nome { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.pick-item-sit { font-size: 11px; color: var(--muted); flex: 0 0 auto; }
+.pick-item.is-fora { opacity: .45; }
 
 .pick-summary { font-size: 13px; color: var(--muted); margin: 0 0 12px !important; }
 

@@ -364,6 +364,13 @@ Em **Exportar PDF…** a janela tem duas escolhas:
   numa situação (por exemplo, só os *Waiver requested*, para mandar ao
   arquiteto o que está pendente). Dá para marcar mais de uma. **Todas as
   situações** volta ao relatório inteiro, que é como a janela sempre abre.
+- **Escolher itens** — em cada relatório, o botão abre a lista das NCRs (ou
+  DEVs) dele, todas marcadas; desmarque as que não quer (**Todos** / **Nenhum**
+  ajudam). Só as marcadas saem no índice e nas páginas, e a capa diz
+  *Partial list — 2 of 31 items selected.* Vale junto com a situação: entra
+  quem passa nas duas escolhas.
+- **Só o item aberto** — um clique: o relatório da aba em que você está, e
+  nele só o item que está aberto na tela.
 
 Cada pastilha mostra quantos itens existem naquela situação, e cada relatório
 passa a dizer quantos itens dele entram no recorte. Relatório que fica sem

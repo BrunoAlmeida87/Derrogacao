@@ -4223,9 +4223,27 @@
     return { filtro: filtroDeSituacao(), recorte: recorteDoPdf() };
   }
 
-  /** Quantos itens de um relatório passam no filtro de situação. */
+  /* Quais itens de CADA relatório entram — a escolha "só estas NCRs/DEVs".
+     Chave `<id do relatório>|<ncr|dev>` → { <id do item>: true }. Ausente =
+     o relatório inteiro, que é como a janela abre e como sempre foi. Some
+     junto com o recorte de situação ao fechar a janela (ver exportPdf). */
+  var pdfItens = {};
+
+  function chaveDoRelatorio(project, kind) { return project.id + '|' + kind; }
+
+  /** O filtro de um relatório: situação E itens escolhidos; null = inteiro. */
+  function filtroDoRelatorio(project, kind) {
+    var sit = filtroDeSituacao();
+    var esc = pdfItens[chaveDoRelatorio(project, kind)];
+    if (!sit && !esc) return null;
+    return function (item) {
+      return (!sit || sit(item)) && (!esc || esc[item.id] === true);
+    };
+  }
+
+  /** Quantos itens de um relatório passam nos filtros (situação e escolha). */
   function quantosNoRecorte(project, kind) {
-    var f = filtroDeSituacao();
+    var f = filtroDoRelatorio(project, kind);
     var lista = project[Store.itemsKey(kind)] || [];
     return f ? lista.filter(f).length : lista.length;
   }
@@ -4286,17 +4304,109 @@
       var linha = cb.parentNode;
       var sub = $('.pick-row-sub', linha);
       var total = (p[Store.itemsKey(cb.dataset.kind)] || []).length;
+      var esc = !!pdfItens[chaveDoRelatorio(p, cb.dataset.kind)];
       if (sub) {
         sub.textContent = !total ? 'sem itens'
-          : (pdfSituacoes.length
-            ? n + ' de ' + total + ' item(ns) neste recorte'
+          : (pdfSituacoes.length || esc
+            ? n + ' de ' + total + ' item(ns)' + (esc ? ' escolhido(s)' : '') +
+              (pdfSituacoes.length ? ' neste recorte' : '')
             : total + (total === 1 ? ' item' : ' itens') + ' · ' + (total + 1) + ' páginas ou mais');
       }
       /* relatório que ficou sem nenhum item no recorte não gera folha */
       cb.disabled = !n;
       linha.classList.toggle('is-empty', !n);
       if (!n) cb.checked = false;
+
+      /* as caixas da lista de itens seguem sempre a escolha guardada, e o
+         item que a situação deixa de fora aparece apagado */
+      var escolha = pdfItens[chaveDoRelatorio(p, cb.dataset.kind)];
+      $$('.pick-item-cb', linha.parentNode).forEach(function (ic) {
+        ic.checked = !escolha || escolha[ic.value] === true;
+        ic.parentNode.classList.toggle('is-fora',
+          pdfSituacoes.length > 0 && pdfSituacoes.indexOf(ic.dataset.st) < 0);
+      });
+      var bt = $('.pick-itens-btn', linha);
+      if (bt) bt.textContent = esc ? 'Itens ▾ (' + n + ')' : 'Escolher itens ▾';
     });
+  }
+
+  /** A lista de itens de um relatório, para marcar só os que entram. */
+  function listaDeItensDoPdf(project, kind, host) {
+    host.innerHTML = '';
+    var acoes = el('div', 'pick-itens-acoes');
+    var todos = el('button', 'btn btn--sm', 'Todos');
+    var nenhum = el('button', 'btn btn--sm', 'Nenhum');
+    todos.type = nenhum.type = 'button';
+    acoes.appendChild(todos);
+    acoes.appendChild(nenhum);
+    host.appendChild(acoes);
+
+    var aberto = state.project && project.id === state.project.id && kind === state.kind
+      ? selectedId() : null;
+    Store.ordenar(project, kind).forEach(function (n) {
+      var lab = el('label', 'pick-item');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'pick-item-cb';
+      cb.value = n.id;
+      cb.dataset.st = Store.statusInfo(n.status).id;
+      cb.checked = true;
+      lab.appendChild(cb);
+      var extra = kind === 'dev' ? n.func : n.systems;
+      lab.appendChild(el('span', 'pick-item-nome',
+        (n.ncrId || '(sem número)') + (extra ? ' | ' + extra : '')));
+      lab.appendChild(el('span', 'pick-item-sit', Store.statusInfo(n.status).nome));
+      if (aberto && n.id === aberto) lab.appendChild(el('span', 'pick-here', 'aberto'));
+      host.appendChild(lab);
+    });
+
+    function guardar() {
+      var cbs = $$('.pick-item-cb', host);
+      var marcados = cbs.filter(function (c) { return c.checked; });
+      var k = chaveDoRelatorio(project, kind);
+      if (marcados.length === cbs.length) {
+        delete pdfItens[k];
+      } else {
+        var m = {};
+        marcados.forEach(function (c) { m[c.value] = true; });
+        pdfItens[k] = m;
+      }
+      redesenharEscolhaDoPdf();
+      /* escolher um item é querer imprimir aquele relatório */
+      var rcb = $$('.pick-cb').filter(function (c) {
+        return c.dataset.pid === project.id && c.dataset.kind === kind;
+      })[0];
+      if (rcb && !rcb.disabled) rcb.checked = true;
+      updatePickSummary();
+    }
+    host.addEventListener('change', function (e) {
+      if (e.target && e.target.className === 'pick-item-cb') guardar();
+    });
+    todos.addEventListener('click', function () {
+      $$('.pick-item-cb', host).forEach(function (c) { c.checked = true; });
+      guardar();
+    });
+    nenhum.addEventListener('click', function () {
+      $$('.pick-item-cb', host).forEach(function (c) { c.checked = false; });
+      guardar();
+    });
+  }
+
+  /** "Só o item aberto": o relatório da tela, e nele só o item em que estou. */
+  function soOItemAberto() {
+    var atual = currentNcr();
+    if (!atual) return;
+    pdfSituacoes = [];
+    pdfItens = {};
+    var m = {};
+    m[atual.id] = true;
+    pdfItens[chaveDoRelatorio(state.project, state.kind)] = m;
+    $$('.pick-cb').forEach(function (cb) {
+      cb.checked = cb.dataset.pid === state.project.id && cb.dataset.kind === state.kind;
+    });
+    renderSituacoesDoPdf();
+    redesenharEscolhaDoPdf();
+    updatePickSummary();
   }
 
   function exportPdf() {
@@ -4306,6 +4416,14 @@
        ainda está filtrado é mandar meio Waiver Request para o cliente. Quem
        quer o recorte escolhe de novo — são dois cliques. */
     pdfSituacoes = [];
+    pdfItens = {};
+    var atual = currentNcr();
+    var soEste = $('#pdfSoEsteBtn');
+    soEste.disabled = !atual;
+    soEste.title = atual
+      ? 'Só o item que está aberto: ' + (atual.ncrId || '(sem número)') +
+        ' (' + (state.kind === 'dev' ? 'Waiver DEV' : 'Waiver NCR') + ')'
+      : 'Abra um item nas abas Waiver NCR ou Waiver DEV para usar esta opção';
     var list = availableReports();
     var body = $('#pdfPick');
     body.innerHTML = '';
@@ -4321,6 +4439,7 @@
       group.appendChild(el('div', 'pick-group-title', rows[0].project.marco || rows[0].project.name || 'Sem marco'));
 
       rows.forEach(function (r) {
+        var rel = el('div', 'pick-rel');
         var row = el('label', 'pick-row' + (r.count ? '' : ' is-empty'));
         var cb = document.createElement('input');
         cb.type = 'checkbox';
@@ -4343,7 +4462,30 @@
         row.appendChild(main);
 
         if (r.current) row.appendChild(el('span', 'pick-here', 'aba aberta'));
-        group.appendChild(row);
+
+        /* escolher quais itens do relatório entram (o padrão é todos) */
+        var detalhe = el('div', 'pick-itens');
+        detalhe.hidden = true;
+        if (r.count) {
+          var bt = el('button', 'btn btn--sm pick-itens-btn', 'Escolher itens ▾');
+          bt.type = 'button';
+          bt.setAttribute('aria-expanded', 'false');
+          bt.title = 'Marcar só algumas ' + (r.kind === 'dev' ? 'DEVs' : 'NCRs') +
+            ' deste relatório';
+          bt.addEventListener('click', function (e) {
+            e.preventDefault();
+            if (detalhe.hidden && !detalhe.firstChild) {
+              listaDeItensDoPdf(r.project, r.kind, detalhe);
+              redesenharEscolhaDoPdf();
+            }
+            detalhe.hidden = !detalhe.hidden;
+            bt.setAttribute('aria-expanded', detalhe.hidden ? 'false' : 'true');
+          });
+          row.appendChild(bt);
+        }
+        rel.appendChild(row);
+        rel.appendChild(detalhe);
+        group.appendChild(rel);
       });
       body.appendChild(group);
     });
@@ -4367,7 +4509,18 @@
           kind: cb.dataset.kind
         };
       })
-      .filter(function (r) { return r.project; });
+      .filter(function (r) { return r.project; })
+      .map(function (r) {
+        var esc = pdfItens[chaveDoRelatorio(r.project, r.kind)];
+        if (esc) {
+          var lista = r.project[Store.itemsKey(r.kind)] || [];
+          var k = lista.filter(function (it) { return esc[it.id] === true; }).length;
+          r.filtro = function (it) { return esc[it.id] === true; };
+          /* a capa tem de dizer que não é o relatório inteiro (§10, "Recorte") */
+          r.recorte = 'Partial list — ' + k + ' of ' + lista.length + ' items selected.';
+        }
+        return r;
+      });
   }
 
   function updatePickSummary() {
@@ -4381,14 +4534,18 @@
       : (n === 1
         ? 'Um arquivo com o relatório escolhido'
         : 'Um único arquivo com os ' + n + ' relatórios, em sequência');
+    var escolhidos = picked.some(function (r) { return !!r.filtro; });
     if (n === 0) {
       $('#pdfSummary').textContent = base;
-    } else if (!pdfSituacoes.length) {
+    } else if (!pdfSituacoes.length && !escolhidos) {
       $('#pdfSummary').textContent = base + ' — ' + itens + ' item(ns), todos.';
     } else {
-      $('#pdfSummary').textContent = base + ' — só os itens em ' +
-        Store.STATUS.filter(function (o) { return pdfSituacoes.indexOf(o.id) >= 0; })
-          .map(function (o) { return '“' + o.nome + '”'; }).join(' e ') +
+      $('#pdfSummary').textContent = base + ' — ' +
+        (pdfSituacoes.length
+          ? 'só os itens em ' + Store.STATUS.filter(function (o) { return pdfSituacoes.indexOf(o.id) >= 0; })
+            .map(function (o) { return '“' + o.nome + '”'; }).join(' e ') +
+            (escolhidos ? ', entre os itens que você escolheu' : '')
+          : 'só os itens que você escolheu') +
         ': ' + itens + ' item(ns). A capa vai dizer que é uma lista parcial.';
     }
     renderGaps(picked);
@@ -8239,6 +8396,7 @@
       $$('.pick-cb').forEach(function (cb) { cb.checked = false; });
       updatePickSummary();
     });
+    $('#pdfSoEsteBtn').addEventListener('click', soOItemAberto);
     $('#pdfGoBtn').addEventListener('click', doPrint);
 
     $('#backupBtn').addEventListener('click', function () { exportBackup(false); });

@@ -544,10 +544,17 @@
     root.innerHTML = '';
     zerarContagem();
     selection.forEach(function (sel) {
+      /* `sel.filtro`/`sel.recorte` são a escolha de itens DENTRO deste
+         relatório; somam-se ao filtro de situação, que vale para todos. */
+      var fGeral = opts && opts.filtro;
+      var fSel = sel.filtro;
+      var recortes = [opts && opts.recorte, sel.recorte].filter(Boolean);
       build(sel.project, root, sel.kind, {
         append: true,
-        filtro: opts && opts.filtro,
-        recorte: opts && opts.recorte
+        filtro: fGeral && fSel
+          ? function (it) { return fGeral(it) && fSel(it); }
+          : (fSel || fGeral),
+        recorte: recortes.join(' ')
       });
     });
     return root;

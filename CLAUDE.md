@@ -1214,6 +1214,13 @@ página que não existe.
   mandar meio relatório para o cliente.
 - Relatório que fica sem nenhum item no recorte é desmarcado e desabilitado:
   ele não geraria folha.
+- **Escolher itens dentro de um relatório** (pedido do Bruno): `pdfItens`
+  (`<projeto>|<ncr|dev>` → `{id: true}`; ausente = o relatório inteiro, que é
+  o padrão e não mudou). `pickedReports` põe em cada seleção `filtro` e
+  `recorte` ("Partial list — k of n items selected."), e `Report.buildMany`
+  os soma ao filtro de situação e ao texto da capa. "Só o item aberto" é o
+  mesmo mecanismo com um item só. Some ao fechar a janela, como o recorte de
+  situação. Teste: `tests/imprimir.test.js`.
 
 ### O diário do console (`log.js`)
 Pedido do Bruno depois do `InvalidStateError`: ver o processamento acontecendo
