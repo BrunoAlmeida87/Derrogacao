@@ -517,18 +517,19 @@
 
     fluido(SummaryView.kpiRow(st));
 
-    var g1 = SummaryView.bloco('Progresso');
-    g1.appendChild(SummaryView.graficoProgresso(dados.porMarco));
-    fluido(g1);
-
-    var g2 = SummaryView.bloco('Situação dos itens (controle interno)');
-    g2.appendChild(SummaryView.graficoSituacao(dados.porMarco));
-    fluido(g2);
-
-    var g3 = SummaryView.bloco('Itens por sistema');
-    g3.appendChild(SummaryView.graficoSistemas(
-      project ? dados.porMarco[0].porSistema : dados.geral.porSistema));
-    fluido(g3);
+    /* Os gráficos do PDF são partíveis entre as barras (ver
+       SummaryView.blocoGrafico): com muitos marcos ou sistemas eles
+       continuam na folha seguinte com o título e a legenda, em vez de um
+       gráfico por folha com o resto em branco. */
+    var dp = SummaryView.dadosProgresso(dados.porMarco);
+    pg.appendChild(SummaryView.blocoGrafico('Progresso', null, dp.linhas, dp.series,
+      SummaryView.VAZIO_PROGRESSO));
+    var ds = SummaryView.dadosSituacao(dados.porMarco);
+    pg.appendChild(SummaryView.blocoGrafico('Situação dos itens (controle interno)', null, ds.linhas, ds.series,
+      SummaryView.VAZIO_SITUACAO));
+    pg.appendChild(SummaryView.blocoGrafico('Itens por sistema', null,
+      SummaryView.linhasDeSistemas(project ? dados.porMarco[0].porSistema : dados.geral.porSistema), null,
+      SummaryView.VAZIO_SISTEMAS));
 
     if ((st.parados || []).length) {
       pg.appendChild(SummaryView.blocoLista(
@@ -540,10 +541,11 @@
     if (project) {
       pg.appendChild(SummaryView.blocoLista('Itens', null, [
         { titulo: 'Tipo', larg: 7, valor: function (r) { return r.kind === 'dev' ? 'DEV' : 'NCR'; } },
-        { titulo: 'Número', larg: 22, valor: function (r) { return r.item.ncrId || '(sem número)'; } },
-        { titulo: 'Sistemas', larg: 12, valor: function (r) { return r.item.systems || '—'; } },
-        { titulo: 'Função / descrição', larg: 24, valor: function (r) { return r.item.func || '—'; } },
-        { titulo: 'Situação', larg: 16, valor: function (r) { return Summary.situacao(r.item); } },
+        { titulo: 'Número', larg: 19, valor: function (r) { return r.item.ncrId || '(sem número)'; } },
+        { titulo: 'Sistemas', larg: 13, valor: function (r) { return r.item.systems || '—'; } },
+        { titulo: 'Função / descrição', larg: 20, valor: function (r) { return r.item.func || '—'; } },
+        /* "Em preenchimento" cabe inteira aqui; com 16% saía "preenchiment/o" */
+        { titulo: 'Situação', larg: 20, valor: function (r) { return Summary.situacao(r.item); } },
         /* "WAIVER REQUESTED" é a resposta mais comprida e a mais comum:
            mais estreito do que isto, ela sai partida ao meio */
         { titulo: 'Arch Status', larg: 19, valor: function (r) { return r.item.archStatus || '—'; } }
@@ -968,7 +970,7 @@
       num.appendChild(a);
     }
     id.appendChild(num);
-    var partes = (r.kind === 'dev' ? [r.item.func] : [r.item.systems, r.item.func]);
+    var partes = [r.item.systems, r.item.func];
     /* fora do relatório aberto, o número sozinho não identifica: a NCR-001 do
        J06 e a do J08 são itens diferentes */
     if (fluxosFiltro.escopo === 'todos' && r.marco) partes.unshift(r.marco);
@@ -1632,7 +1634,7 @@
 
       var main = el('div', 'ncr-item-main');
       main.appendChild(el('div', 'ncr-item-id', ncr.ncrId || '(sem número)'));
-      var sub = (isDev() ? [ncr.func] : [ncr.systems, ncr.func]).filter(Boolean).join(' | ');
+      var sub = [ncr.systems, ncr.func].filter(Boolean).join(' | ');
       main.appendChild(el('div', 'ncr-item-sub', sub || 'sem descrição'));
       li.appendChild(main);
 
@@ -2096,6 +2098,13 @@
       if (opts.refreshList) renderNcrList();
       scheduleSave();
     });
+    /* `fixo`: o valor vem de outro lugar (a Função Vital do Banco NCR) e aqui
+       só se vê; `data-livre` para o item travado não mudar a aparência dele */
+    if (opts.fixo) {
+      input.readOnly = true;
+      input.classList.add('is-banco');
+      input.setAttribute('data-livre', '');
+    }
     wrap.appendChild(input);
     if (opts.hint) wrap.appendChild(el('div', 'hint', opts.hint));
     return wrap;
@@ -2188,17 +2197,23 @@
     var idCard = card('Identificação da ' + kindName(), '#4B0082');
     var watched;
     if (isDev()) {
-      /* A DEV junta sistema e descrição num campo só, como no original. */
-      var gd = el('div', 'grid grid--2');
+      /* A DEV junta sistema e descrição num campo só, como no original — e
+         ganhou o campo Sistema(s), o mesmo da NCR, só para os indicadores:
+         ele não sai no PDF (o título da DEV continua sendo o de sempre). */
+      var gd = el('div', 'grid grid--3');
       gd.appendChild(field('Número da DEV', 'ncrId', {
         placeholder: 'DEV-78154', refreshList: true
+      }));
+      gd.appendChild(field('Sistema(s)', 'systems', {
+        placeholder: 'RM   ou   BX, BQ, BD', refreshList: true,
+        hint: 'Alimenta os indicadores (Resumo, Tabela). Não sai no PDF.'
       }));
       gd.appendChild(field('Sistema e descrição', 'func', {
         placeholder: 'BQ - Modification des compensateurs', refreshList: true,
         hint: 'Sai no título como DEV-78154|BQ - Modification des compensateurs.'
       }));
       idCard.appendChild(gd);
-      watched = ['f-ncrId', 'f-func'];
+      watched = ['f-ncrId', 'f-systems', 'f-func'];
     } else {
       var g = el('div', 'grid grid--3');
       g.appendChild(field('Número da NCR', 'ncrId', {
@@ -2207,8 +2222,16 @@
       g.appendChild(field('Sistema(s)', 'systems', {
         placeholder: 'RM   ou   BX,BQ,BD', refreshList: true
       }));
-      g.appendChild(field('Função', 'func', {
-        placeholder: 'FV 01 - Sea water circuit integrity', refreshList: true
+      /* A Função é a Função Vital da NCR no Banco NCR, que é a orientação
+         correta (pedido do Bruno): com ela preenchida lá, aqui só se vê. */
+      var recFv = Ncrs.recDoItem(ncr);
+      var fvBanco = recFv && Ncrs.funcaoParaWaiver(recFv.waiver.funcaoVital);
+      g.appendChild(field('Função', 'func', fvBanco ? {
+        refreshList: true, fixo: true,
+        hint: 'Vem da Função Vital da NCR no Banco NCR. Para mudar, altere lá (“Ver a ficha”, logo abaixo).'
+      } : {
+        placeholder: 'FV 01 - Sea water circuit integrity', refreshList: true,
+        hint: Ncrs.recDoItem(ncr) ? 'A NCR ainda não tem Função Vital no Banco NCR; quando tiver, ela passa a valer aqui.' : ''
       }));
       idCard.appendChild(g);
       watched = ['f-ncrId', 'f-systems', 'f-func'];
@@ -3914,7 +3937,7 @@
         b.appendChild(el('strong', null,
           (c.kind === 'dev' ? 'DEV · ' : 'NCR · ') + (c.item.ncrId || 'sem número')));
         var marco = Report.marcoOf(c.project, c.kind) || c.project.name || 'sem marco';
-        var sub = (c.kind === 'dev' ? [c.item.func] : [c.item.systems, c.item.func])
+        var sub = [c.item.systems, c.item.func]
           .filter(Boolean).join(' | ');
         b.appendChild(el('span', null, marco + (sub ? ' · ' + sub : '')));
         b.addEventListener('click', function () {
@@ -4004,7 +4027,7 @@
         cb.value = n.id;
         cb.className = 'copy-ncr';
         row.appendChild(cb);
-        var extra = isDev() ? n.func : n.systems;
+        var extra = isDev() ? (n.systems ? n.systems + ' | ' + n.func : n.func) : n.systems;
         row.appendChild(document.createTextNode((n.ncrId || '(sem número)') +
           (extra ? ' | ' + extra : '')));
         listBox.appendChild(row);
@@ -4352,7 +4375,7 @@
       cb.dataset.st = Store.statusInfo(n.status).id;
       cb.checked = true;
       lab.appendChild(cb);
-      var extra = kind === 'dev' ? n.func : n.systems;
+      var extra = kind === 'dev' ? (n.systems ? n.systems + ' | ' + n.func : n.func) : n.systems;
       lab.appendChild(el('span', 'pick-item-nome',
         (n.ncrId || '(sem número)') + (extra ? ' | ' + extra : '')));
       lab.appendChild(el('span', 'pick-item-sit', Store.statusInfo(n.status).nome));
@@ -5076,6 +5099,7 @@
       return Ncrs.editarWaiver(rec, campo, valor, Store.getUser())
         .then(function () {
           agendarGravacaoPasta();
+          if (campo === 'funcaoVital') alinharFuncoes();
           /* Marco Atual passou a ser um marco dos comunicados: oferece — e
              só oferece; quem decide é quem editou */
           if (campo === 'marcoAtual' && valor !== antes && Comunicados.daNcr(rec)) {
@@ -5116,6 +5140,7 @@
       .then(function () {
         agendarGravacaoPasta();
         agendarPublicacao();
+        alinharFuncoes();
       })
       .catch(function (e) { markError(e); });
   }
@@ -5313,12 +5338,12 @@
   }
 
   /** Abre o relatório e o item — usado pelas etiquetas da coluna Waiver. */
-  function abrirItemDoWaiver(project, item) {
+  function abrirItemDoWaiver(project, item, kind) {
     var d = $('#ncrDialog');
     if (d && d.open) d.close();
     function ir() {
       aberturaPendente = false;
-      state.kind = 'ncr';
+      state.kind = kind === 'dev' ? 'dev' : 'ncr';
       if (!state.project || state.project.id !== project.id) loadProject(project);
       renderTabs();
       renderNcrList();
@@ -5390,7 +5415,7 @@
     leitura: Leitura.ativo(),
     projects: function () { return state.projects; },
     marcoInicial: function () { return state.project ? state.project.marco : ''; },
-    abrir: function (project, item) { abrirItemDoWaiver(project, item); },
+    abrir: function (project, item, kind) { abrirItemDoWaiver(project, item, kind); },
     abrirFicha: function (key) {
       flushSave().then(function () {
         switchKind('banco');
@@ -5398,7 +5423,7 @@
       });
     },
     adicionar: function (rec, project, situacao) { return adicionarAoWaiver(rec, project, situacao); },
-    mudarSituacao: function (project, item, id) { return mudarSituacaoDe(project, item, id); },
+    mudarSituacao: function (project, item, id, kind) { return mudarSituacaoDe(project, item, id, kind); },
     usuario: function () { return Store.getUser(); },
     exportarPlanilha: function (d) { exportarKanbanXlsx(d); },
     medirImpressao: function (montar) { return montarKanbanImpresso(montar, true); },
@@ -5468,13 +5493,13 @@
    * que não são os do relatório aberto. Mesmo caminho do editor:
    * Store.setStatus, a sessão (autoria), gravar e mandar para a pasta.
    */
-  function mudarSituacaoDe(project, item, id) {
+  function mudarSituacaoDe(project, item, id, kind) {
     if (Leitura.ativo()) return Promise.resolve(false);   /* visualizador: nada grava */
     if (item.status === id) return Promise.resolve(false);
     var antes = item.status;
     Store.setStatus(item, id);
     anotarTroca(item, antes);
-    Store.logChange(project, SESSION_ID, 'ncr', item, 'editou');
+    Store.logChange(project, SESSION_ID, kind || 'ncr', item, 'editou');
     return Store.save(project).then(function () {
       if (state.project && state.project.id === project.id) renderNcrList();
       renderTabs();
@@ -5482,13 +5507,58 @@
       agendarGravacaoPasta();
       var aceito = id === Store.STATUS_CONCLUIDO;
       toast((item.ncrId || 'Item') + ': ' + Store.statusInfo(id).nome + '.', aceito ? 9000 : 0,
-        aceito ? ofertaDoItem(project, 'ncr', item, 'waiver-aceito', antes) : null);
+        aceito && kind !== 'dev' ? ofertaDoItem(project, 'ncr', item, 'waiver-aceito', antes) : null);
       return true;
     }).catch(function (e) {
       markError(e);
       alert('Não foi possível gravar a situação.');
       return false;
     });
+  }
+
+  /* --- a Função do item segue a Função Vital do Banco NCR ------------------------ */
+
+  /* Pedido do Bruno: a função vital era escrita em dois lugares (no Banco NCR e
+     no Waiver NCR). O Banco NCR é a orientação correta; o que está lá é o que
+     vale no Waiver, sem digitar de novo.
+
+     O item continua guardando o texto (`func`) — é ele que o PDF, o Kanban, a
+     Tabela e a publicação leem —, e este passo o alinha com o Banco sempre
+     que o Banco muda (edição, importação, pasta, ligação temporária →
+     definitiva) e na abertura. Só troca quando o texto é DE FATO outro: "FV 01 -
+     Sea water…" e "FV01 - SEA WATER…" são a mesma função, e um item que já
+     estava certo não muda de aparência no PDF. Banco sem função vital para a
+     NCR: o campo do item continua à mão, como sempre foi. */
+  function alinharFuncoes() {
+    if (Leitura.ativo() || !state.projects.length) return Promise.resolve(0);
+    var mudados = [], n = 0, atualMudou = false;
+    state.projects.forEach(function (p) {
+      var alterou = false;
+      (p.ncrs || []).forEach(function (it) {
+        var rec = Ncrs.recDoItem(it);
+        var alvo = rec ? Ncrs.funcaoParaWaiver(rec.waiver.funcaoVital) : '';
+        if (!alvo || Ncrs.norm(alvo) === Ncrs.norm(it.func)) return;
+        it.func = alvo;
+        Store.logChange(p, SESSION_ID, 'ncr', it, 'editou');
+        alterou = true;
+        n++;
+        if (state.project && state.project.id === p.id && state.kind === 'ncr' && it.id === selectedId()) atualMudou = true;
+      });
+      if (alterou) mudados.push(p);
+    });
+    if (!n) return Promise.resolve(0);
+    Log.ok('banco NCR', 'a Função de itens do Waiver foi alinhada com a Função Vital do banco', { itens: n });
+    return Promise.all(mudados.map(function (p) { return Store.save(p); })).then(function () {
+      renderNcrList();
+      renderTabs();
+      renderSessionInfo();
+      if (atualMudou) renderEditor();
+      if (isKanban()) renderKanban();
+      if (isTabela()) renderTabela(true);
+      agendarGravacaoPasta();
+      agendarPublicacao();
+      return n;
+    }).catch(function (e) { markError(e); return 0; });
   }
 
   /* --- importações ----------------------------------------------------------- */
@@ -5606,6 +5676,7 @@
       agendarGravacaoPasta();
       renderTabs();
       if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
+      alinharFuncoes();
       mostrarResumoImportacao(r.resumo);
     }).catch(function (e) {
       /* arquivo recusado é situação normal: quem usa recebe o aviso abaixo */
@@ -6340,6 +6411,7 @@
     var mudou = resumo && (resumo.entraram || resumo.atualizados || resumo.removidos ||
                            resumo.novosRelatorios || resumo.relatoriosRemovidos);
     var rn = resumo && resumo.ncr;
+    if (rn && (rn.correcoes || rn.entraram || rn.atualizados)) alinharFuncoes();
     if (rn && rn.correcoes && !(rn.entraram || rn.atualizados)) {
       /* só as correções mudaram (uma ligação temporária → definitiva, um
          ajuste do administrador): redesenha quem lê NCR, sem aviso */
@@ -8711,6 +8783,7 @@
       });
     }).then(function () {
       Log.detalhe('abertura', 'histórico do texto carregado', { linhas: (revisoes || []).length });
+      alinharFuncoes();
       iniciarConversa();
       return iniciarPasta();
     }).then(function () {

@@ -53,6 +53,7 @@
     soAlertas: false,
     caminho: true,      // mostrar os que vêm de outros marcos
     ind: false,         // mostrar os marcos industriais ("J09 Ind")
+    devs: false,        // incluir as DEVs do marco (vista geral, NCR e DEV juntas)
     abertos: {}         // cartões com a descrição à vista — só tela, nunca gravado
   };
   var ctx = null;
@@ -148,6 +149,18 @@
       });
     });
 
+    /* As DEVs do marco (pedido do Bruno: uma vista geral com DEV incluída).
+       DEV não tem NCR no banco, então não há "to be closed" nem alerta: cada
+       uma cai direto na coluna da sua situação, com a etiqueta "DEV". */
+    if (st.devs) {
+      projects.forEach(function (p) {
+        if (Ncrs.marcoChave(Report.marcoOf(p, 'dev')) !== k) return;
+        (p.devs || []).forEach(function (it) {
+          out.push({ coluna: Store.statusInfo(it.status).id, tipo: 'item', kind: 'dev', project: p, item: it, rec: null, chave: '' });
+        });
+      });
+    }
+
     Ncrs.lista().forEach(function (rec) {
       if (Ncrs.marcoChave(rec.waiver.marcoAtual) !== k || jaTem[rec.key]) return;
       /* temporária já substituída: quem continua o caso é a definitiva */
@@ -185,6 +198,10 @@
     });
     return out;
   }
+
+  function ehDev(c) { return c.kind === 'dev'; }
+  /** O relatório do item, dito pelo tipo: "J09 Waiver" (NCR) ou "J09 Waiver DEV". */
+  function relatorioDe(c) { return marcoRel(c.project) + ' Waiver' + (ehDev(c) ? ' DEV' : ''); }
 
   function numeroDe(c) { return c.item ? (c.item.ncrId || '(sem número)') : c.rec.numero; }
   function descricaoDe(c) { return (c.item && c.item.description) || (c.rec && Ncrs.fonte(c.rec).descricao) || ''; }
@@ -225,6 +242,8 @@
   function ordenar(cs) {
     return cs.slice().sort(function (a, b) {
       if (a.alerta !== b.alerta) return a.alerta ? -1 : 1;
+      /* as DEVs depois das NCRs, dentro da coluna */
+      if (ehDev(a) !== ehDev(b)) return ehDev(a) ? 1 : -1;
       return Store.cmpTexto(numeroDe(a), numeroDe(b));
     });
   }
@@ -322,6 +341,18 @@
     bc.setAttribute('aria-pressed', st.caminho ? 'true' : 'false');
     ferr.appendChild(bc);
 
+    var nDevs = 0;
+    projects.forEach(function (p) {
+      if (Ncrs.marcoChave(Report.marcoOf(p, 'dev')) === Ncrs.marcoChave(st.marco)) nDevs += (p.devs || []).length;
+    });
+    var bd = botao('Incluir as DEVs' + (nDevs ? ' (' + nDevs + ')' : ''), 'btn--sm kb-toggle' + (st.devs ? ' is-on' : ''),
+      function () { st.devs = !st.devs; render(host, ctx); },
+      'Vista geral: as DEVs deste marco entram no quadro, nas colunas da situação do waiver delas (etiqueta “DEV”)');
+    bd.id = 'kbDevs';
+    bd.setAttribute('aria-pressed', st.devs ? 'true' : 'false');
+    bd.disabled = !nDevs && !st.devs;
+    ferr.appendChild(bd);
+
     var nInd = marcos.todos(projects).filter(ehInd).length;
     if (nInd) {
       var bi = botao('Marcos industriais (Ind)', 'btn--sm kb-toggle' + (st.ind ? ' is-on' : ''),
@@ -417,16 +448,19 @@
 
   /** Os números da faixa — os mesmos na tela e na folha impressa. */
   function numerosDoResumo(todos) {
+    var devs = todos.filter(ehDev);
+    todos = todos.filter(function (c) { return !ehDev(c); });
     var noRel = todos.filter(function (c) { return c.tipo === 'item'; });
     var aceitos = noRel.filter(function (c) { return c.coluna === Store.STATUS_CONCLUIDO; }).length;
-    return [
+    return (st.devs ? [{ n: String(devs.length), rot: 'DEVs incluídas (' +
+      devs.filter(function (c) { return c.coluna === Store.STATUS_CONCLUIDO; }).length + ' aceitas)' }] : []).concat([
       { n: String(todos.length), rot: 'NCRs neste marco' },
       { n: String(noRel.length), rot: 'no relatório' },
       { n: noRel.length ? Math.round(aceitos * 100 / noRel.length) + '%' : '—', rot: 'aceitas (do relatório)' },
       { n: String(todos.filter(function (c) { return c.coluna === FORA && !c.fechada; }).length), rot: 'to be closed (ainda abertas)' },
       { n: String(todos.filter(function (c) { return c.alerta; }).length), rot: 'fechadas com waiver pendente', alerta: true },
       { n: String(todos.filter(function (c) { return c.coluna === ENCERRADA; }).length), rot: 'encerradas (fechadas)' }
-    ];
+    ]);
   }
 
   function quadro(vis, todos) {
@@ -537,10 +571,10 @@
     var topo = el('div', 'kb-card-topo');
     var num = el('button', 'kb-card-num', numeroDe(c));
     num.type = 'button';
-    num.title = c.tipo === 'banco' ? 'Abrir a ficha da NCR' : 'Abrir o item no relatório ' + marcoRel(c.project) + ' Waiver';
+    num.title = c.tipo === 'banco' ? 'Abrir a ficha da NCR' : 'Abrir o item no relatório ' + relatorioDe(c);
     num.addEventListener('click', function () {
       if (c.tipo === 'banco') ctx.abrirFicha(c.rec.key);
-      else ctx.abrir(c.project, c.item);
+      else ctx.abrir(c.project, c.item, c.kind);
     });
     topo.appendChild(num);
     if (c.alerta) {
@@ -638,6 +672,11 @@
 
   /** O status da NCR no banco, com a leitura certa para cada coluna. */
   function chipStatus(c) {
+    if (ehDev(c)) {
+      var dv = el('span', 'kb-st-ncr is-dev', 'DEV');
+      dv.title = 'Deviation (DEV) do relatório ' + relatorioDe(c) + ' — não tem NCR no banco NCR';
+      return dv;
+    }
     var stNcr = statusDe(c);
     if (stNcr && (c.coluna === FORA || c.coluna === ENCERRADA)) {
       /* aqui a meta é fechar: fechada é o verde, aberta é o que falta */
@@ -734,7 +773,7 @@
   function seletorSituacao(c) {
     var sel = el('select', 'kb-sel st-cor--' + c.coluna);
     sel.setAttribute('aria-label', 'Situação do waiver de ' + numeroDe(c));
-    sel.title = 'Situação do waiver no relatório ' + marcoRel(c.project);
+    sel.title = 'Situação do waiver no relatório ' + relatorioDe(c);
     Store.STATUS.forEach(function (s) {
       var o = el('option', null, s.nome);
       o.value = s.id;
@@ -782,7 +821,7 @@
       if (desfazer) desfazer();
       return;
     }
-    ctx.mudarSituacao(c.project, c.item, id).then(function () { render(host, ctx); });
+    ctx.mudarSituacao(c.project, c.item, id, c.kind).then(function () { render(host, ctx); });
   }
 
   /* ==========================================================================
@@ -794,6 +833,7 @@
     var partes = [];
     if (st.busca) partes.push('busca: “' + st.busca + '”');
     if (st.soAlertas) partes.push('só com alerta (NCR fechada com waiver pendente)');
+    if (st.devs) partes.push('com as DEVs');
     partes.push(st.caminho ? 'com as que vêm de outros marcos' : 'sem as que vêm de outros marcos');
     return partes.join(' · ');
   }
@@ -805,7 +845,7 @@
   }
 
   function origemCurta(c) {
-    if (c.tipo === 'item') return 'No relatório ' + marcoRel(c.project) + ' Waiver';
+    if (c.tipo === 'item') return 'No relatório ' + relatorioDe(c);
     if (c.tipo === 'banco') return 'Só no banco NCR (fora do Waiver)';
     return 'Vem do ' + marcoRel(c.project) + (c.aprovado ? ' (Approved Expiry)' : ' (Request Expiry)');
   }
@@ -829,6 +869,7 @@
         var edit = c.item ? { por: c.item.editedBy, em: c.item.editedAt } : { por: c.rec.waiver.editedBy, em: c.rec.waiver.editedAt };
         linhas.push([
           numeroDe(c),
+          ehDev(c) ? 'DEV' : 'NCR',
           st.marco,
           nomeColuna(c.coluna),
           c.tipo === 'item' ? Store.statusInfo(c.item.status).nome : (c.tipo === 'caminho' ? Store.statusInfo(c.item.status).nome + ' (no ' + marcoRel(c.project) + ')' : ''),
@@ -847,7 +888,7 @@
       });
     });
     var colunas = [
-      { titulo: 'Número da NCR', larg: 26 }, { titulo: 'Marco', larg: 10 }, { titulo: 'Coluna do Kanban', larg: 26 },
+      { titulo: 'Número da NCR / DEV', larg: 26 }, { titulo: 'Tipo', larg: 8 }, { titulo: 'Marco', larg: 10 }, { titulo: 'Coluna do Kanban', larg: 26 },
       { titulo: 'Situação do waiver', larg: 22 }, { titulo: 'Origem', larg: 30 }, { titulo: 'Sistema', larg: 12 },
       { titulo: 'Função / função vital', larg: 40 }, { titulo: 'Status da NCR (banco)', larg: 22 },
       { titulo: 'NCR fechada?', larg: 12 }, { titulo: 'Alerta', larg: 30 }, { titulo: 'Caminho do waiver', larg: 24 },
@@ -912,6 +953,8 @@
     if (statusDe(c)) {
       l2.appendChild(el('span', 'kbp-st' + (c.fechada ? ' is-fechada' : ''),
         (c.fechada && (c.coluna === FORA || c.coluna === ENCERRADA) ? '✓ ' : '') + statusDe(c)));
+    } else if (ehDev(c)) {
+      l2.appendChild(el('span', 'kbp-st is-sem', 'DEV'));
     } else if (!c.rec) {
       l2.appendChild(el('span', 'kbp-st is-sem', 'fora do banco'));
     }

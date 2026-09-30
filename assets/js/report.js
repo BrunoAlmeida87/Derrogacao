@@ -242,6 +242,17 @@
     return resto;
   }
 
+  /* Lista que perdeu todas as unidades só tem o cabeçalho, e o cabeçalho
+     sozinho ainda ocupa altura: medir com ele faria a lista anterior perder
+     unidades que caberiam. Escondido, não conta — e `limparListasVazias` o
+     remove de vez no fim. */
+  function esconderSeVazia(lista) {
+    for (var j = 0; j < lista.children.length; j++) {
+      if (!lista.children[j].hasAttribute('data-cabecalho')) return;
+    }
+    lista.style.display = 'none';
+  }
+
   /** Tira do fim da folha o que não coube; devolve os blocos retirados. */
   function retirarExcedente(pag) {
     var lista = unidades(pag);
@@ -249,6 +260,7 @@
     while (lista.length > 1 && transbordou(pag)) {
       var u = lista.pop();
       (u.lista || pag).removeChild(u.no);
+      if (u.lista) esconderSeVazia(u.lista);
       fora.unshift(u);
     }
     if (transbordou(pag) && lista.length === 1) {
@@ -286,6 +298,7 @@
         if (u.lista !== listaAtual) {
           listaAtual = u.lista;
           clone = u.lista.cloneNode(false);
+          clone.style.display = '';   /* a original pode estar escondida (esconderSeVazia) */
           repetirCabecalho(u.lista, clone);
           nova.appendChild(clone);
         }

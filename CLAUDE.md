@@ -597,6 +597,23 @@ Havendo número no texto, é o número que manda; o reconhecimento por nome só
 vale quando não há nenhum. É o que deixa o marco do RANAE conviver com os
 relatórios que a equipe já chama de "RANAE J06", "RANAE J08".
 
+### A Função do item segue a Função Vital do Banco (`alinharFuncoes`)
+Pedido do Bruno: a função vital era escrita em dois lugares; o Banco NCR é a
+orientação correta. O item continua guardando `func` (o PDF, o Kanban, a
+Tabela e a publicação o leem), e `alinharFuncoes()` (app.js) o alinha com
+`Ncrs.funcaoParaWaiver(rec.waiver.funcaoVital)` — na abertura, depois de
+editar a Função Vital, de uma importação, de uma junção da pasta e de uma
+ligação temporária → definitiva. **Só troca quando `Ncrs.norm` difere**: "FV 01 -
+Sea water…" e "FV01 - SEA WATER…" são a mesma função, e o item que já estava
+certo não muda no PDF (conferido: o PDF do J06 de exemplo, sem ligação, saiu
+idêntico). Sem Função Vital no banco o campo do item é livre; com ela é
+`fixo` (`field(…, {fixo: true})`: `readOnly`, `data-livre`). A troca é edição
+comum (`logChange`, autoria de quem abriu primeiro) e converge entre as
+máquinas porque todas chegam ao mesmo texto. Visualizador: não escreve.
+**Consequência para testes e sementes:** item de teste ligado ao banco tem de
+ter o `func` do banco, senão o programa o regrava na abertura (e o projeto
+vira o "mais recente").
+
 ### Levar o item aceito para o marco seguinte (`herdar.js`)
 Waiver aceito não acaba: ele vale até um marco à frente, e o item terá de ser
 reescrito lá. Era trabalho manual — copiar item por item, lembrando de trocar
@@ -873,6 +890,12 @@ tela que responde "onde está a NCR-018?" sem abrir marco por marco.
   a mesma classe das páginas de anexo — `Report.limite` já conhece os 210 mm).
   Retrato com dez colunas partia toda palavra ao meio.
 
+### Planilhas (`xlsx.js`): nada pintado além da última coluna
+O cabeçalho vai com `s="1"` **nas células**, nunca na `<row>`: o estilo na linha
+pinta a linha até a última coluna da folha, e o Excel e quem lê a planilha
+passam a ver "dados" em centenas de colunas vazias. A folha também diz a
+`<dimension>` usada. (Teste: `tests/melhorias.test.js`.)
+
 ### Banco NCR (`ncrs.js`, `ncrfluxo.js`, `ncrview.js`)
 - **Marcos em ordem de fila, não alfabética** (`Fluxo.ordemMarco`/`cmpMarco`,
   a mesma `posicao` do desenho): listas, filtros, ordenação das colunas de
@@ -928,7 +951,8 @@ tela que responde "onde está a NCR-018?" sem abrir marco por marco.
   do filtro fica à vista (`st.fixadas`, amarelo) até o filtro mudar. As
   listas da tabela são botões que viram `<select>` no clique — 1.600 linhas ×
   3 listas de até 45 opções montadas de saída seriam ~200 mil elementos.
-  Filtros de múltipla escolha; o filtro **não é guardado** (mesma regra da
+  Filtros de múltipla escolha (com "Marcar todos", para tirar só o que não se
+  quer); o filtro **não é guardado** (mesma regra da
   Tabela); colunas, painel recolhido e "destacar fechadas" são preferência do
   navegador (`localStorage`). Excel/CSV exportam o que está à vista, com a
   aba "Recorte".
@@ -1095,6 +1119,12 @@ Deduplicado pela chave da NCR.
   e nunca somados ao marco sem Ind. Cuidado: `Fluxo.marco("J09 Ind")` é o
   J09 (ignora o Ind), então a porta "a caminho" confere o **texto** do
   Expiry (`ehInd`) — senão um waiver até "J09 Ind" cairia no quadro do J09.
+- **DEVs no quadro** (`st.devs`, botão "Incluir as DEVs"): vista geral —
+  as DEVs dos relatórios cujo **marco de DEV** (`Report.marcoOf(p,'dev')`)
+  casa com o marco entram como `tipo: 'item', kind: 'dev'`, na coluna da
+  situação, sem `rec` (logo sem "to be closed", encerrada nem alerta), com a
+  etiqueta `.kb-st-ncr.is-dev`. `ctx.abrir` e `ctx.mudarSituacao` recebem o
+  `kind`. Desligado de saída; não é guardado. A planilha tem a coluna Tipo.
 - **Cartão compacto** (pedido do Bruno: ver mais NCRs de uma vez). Recolhido:
   número (inteiro — é ele que identifica), ⚠ e o "+" na linha 1; status da
   NCR no banco, função em poucas letras (`Kanban.funcaoCurta`: "FV03 - …" e
@@ -1138,6 +1168,26 @@ também perdeu o padding lateral. Só tela — o PDF da tabela é o de antes.
 (Em setembro o Bruno pediu para essas três abas não terem barra lateral
 nenhuma — "layout vertical" —; ficou para confirmar com ele o que isso quer
 dizer, porque no código o trilho já é "as abas na vertical".)
+
+### Sistemas (bigramas) e a DEV
+`Summary.sistemasDoTexto` é o único lugar que separa "MB, DT" em sistemas
+(vírgula, `;`, `/`, `&`, `+`, `|`, " e "; códigos de até 3 letras separados só
+por espaço; repetido no mesmo item conta uma vez). Resumo, painel, filtros da
+Tabela e do Banco NCR usam. A DEV ganhou `systems` no editor (mesmo campo da
+NCR, `grid--3`) **só para os indicadores**: o título e o índice do PDF da DEV
+continuam `ncrId|func` — o PDF é sagrado (há teste).
+
+### Gráficos do resumo em PDF (`SummaryView.blocoGrafico`)
+Um gráfico inteiro era uma unidade só: não cabia no que sobrava da folha, ia
+para a seguinte e deixava meia folha em branco (com muitos marcos, uma folha por
+gráfico). Agora o PDF monta cada gráfico como `data-lista`: pedidos de
+`LINHAS_POR_PEDACO` barras são as unidades, título e legenda são
+`data-cabecalho` (repetem), e todos os pedaços usam a mesma escala
+(`opts.max`). `Report.retirarExcedente` passou a esconder (`esconderSeVazia`) a
+lista que perdeu todas as unidades — o cabeçalho sozinho contava na medição e
+empurrava para fora unidades que caberiam; o clone da continuação zera o
+`display`. A tela continua com `graficoProgresso` etc. (um SVG só). Os cinco
+indicadores cabem numa linha no PDF (`repeat(5, 1fr)`).
 
 ### Aba Resumo (`summary.js`)
 Gráficos em **SVG escrito à mão** — sem biblioteca, imprimem em vetor e

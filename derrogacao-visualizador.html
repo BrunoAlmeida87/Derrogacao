@@ -2366,8 +2366,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .rep-page--summary .sm-kpis,
 .rep-page--summary .sm-card { max-width: none; margin-left: 0; margin-right: 0; }
 /* na folha A4 os quatro números cabem lado a lado */
-.rep-page--summary .sm-kpis { grid-template-columns: repeat(4, 1fr); gap: 4mm; }
-.rep-page--summary .sm-kpi { padding: 3mm 4mm; }
+.rep-page--summary .sm-kpis { grid-template-columns: repeat(5, 1fr); gap: 3mm; }
+.rep-page--summary .sm-kpi { padding: 3mm 3mm; }
 .rep-page--summary .sm-kpi-label { font-size: 8pt; }
 .rep-page--summary .sm-kpi-sub { font-size: 9pt; }
 .rep-page--summary .sm-card { border-radius: 0; box-shadow: none; break-inside: avoid; page-break-inside: avoid; }
@@ -2405,6 +2405,12 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 /* a folha já é partida pela paginação: deixar o navegador partir de novo
    traria de volta o texto colado na borda do papel */
 .rep-page--summary .sm-grade { break-inside: auto; page-break-inside: auto; }
+/* o gráfico partido em pedaços: o título e a legenda repetem em cada folha;
+   entre um pedaço e outro não sobra espaço, para parecer um gráfico só */
+.rep-page--summary .sm-grafico .sm-chart-parte { break-inside: avoid; }
+.rep-page--summary .sm-grafico .sm-legend { margin: 0 0 6px; }
+.rep-page--summary .sm-grafico .sm-card-head { margin-bottom: 6px; }
+
 /* a lista usa a largura toda da folha — cada milímetro a mais é uma palavra
    que deixa de ser partida ao meio numa coluna estreita */
 .rep-page--summary .sm-grade { padding-left: 4px; padding-right: 4px; }
@@ -2991,7 +2997,7 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .nb2-ms-op input { margin: 0; accent-color: var(--kind); }
 .nb2-ms-nome { flex: 1; min-width: 0; }
 .nb2-ms-n { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.nb2-ms-pe { display: flex; justify-content: space-between; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line-2); }
+.nb2-ms-pe { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line-2); }
 
 .nb2-recorte {
   display: flex; align-items: center; gap: 10px;
@@ -3406,6 +3412,7 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
 }
 .kb-st-ncr.is-fechada { background: #fdecec; color: #b42318; }
 .kb-st-ncr.is-sem { background: #f1f2f5; color: var(--muted); }
+.kb-st-ncr.is-dev { background: #e4f3f8; color: #0e7490; }
 .kb-st-ncr.is-ok { background: #dff5ec; color: #0c6645; }
 .kb-st-ncr.is-falta { background: #fdf4e3; color: #8a4b00; }
 .kb-alerta-ic { color: #b42318; font-size: 13px; line-height: 1; flex: 0 0 auto; }
@@ -3644,6 +3651,8 @@ body.modo-leitura .editor-scroll textarea[readonly] {
   background: #f8f9fb;
   border-color: var(--line-2);
 }
+/* campo que só mostra o que vem do Banco NCR (a Função Vital) */
+input.is-banco { background: #f3f5f9; border-color: var(--line-2); color: var(--ink, inherit); cursor: default; }
 body.modo-leitura .status-op:disabled { opacity: 1; cursor: default; }
 body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
 .kb-sel--so { display: inline-flex; align-items: center; padding: 2px 8px; }
@@ -11172,6 +11181,7 @@ if(isWorker){
     relatorioDoMarco: relatorioDoMarco,
     funcaoParaWaiver: funcaoParaWaiver,
     paraItemWaiver: paraItemWaiver,
+    funcaoParaWaiver: funcaoParaWaiver,
     registrarAdicao: registrarAdicao,
     editarWaiver: editarWaiver,
     importarBase: importarBase,
@@ -12580,6 +12590,17 @@ if(isWorker){
     return resto;
   }
 
+  /* Lista que perdeu todas as unidades só tem o cabeçalho, e o cabeçalho
+     sozinho ainda ocupa altura: medir com ele faria a lista anterior perder
+     unidades que caberiam. Escondido, não conta — e `limparListasVazias` o
+     remove de vez no fim. */
+  function esconderSeVazia(lista) {
+    for (var j = 0; j < lista.children.length; j++) {
+      if (!lista.children[j].hasAttribute('data-cabecalho')) return;
+    }
+    lista.style.display = 'none';
+  }
+
   /** Tira do fim da folha o que não coube; devolve os blocos retirados. */
   function retirarExcedente(pag) {
     var lista = unidades(pag);
@@ -12587,6 +12608,7 @@ if(isWorker){
     while (lista.length > 1 && transbordou(pag)) {
       var u = lista.pop();
       (u.lista || pag).removeChild(u.no);
+      if (u.lista) esconderSeVazia(u.lista);
       fora.unshift(u);
     }
     if (transbordou(pag) && lista.length === 1) {
@@ -12624,6 +12646,7 @@ if(isWorker){
         if (u.lista !== listaAtual) {
           listaAtual = u.lista;
           clone = u.lista.cloneNode(false);
+          clone.style.display = '';   /* a original pode estar escondida (esconderSeVazia) */
           repetirCabecalho(u.lista, clone);
           nova.appendChild(clone);
         }
@@ -14190,9 +14213,31 @@ if(isWorker){
     return d !== null && d >= DIAS_PARADO;
   }
 
+  /** Separa um texto de sistemas (bigramas) em sistemas diferentes.
+      "MB, DT" são DOIS sistemas, não um: vírgula, ponto e vírgula, barra, &, +
+      e " e " separam. Sem nenhum separador e com só códigos curtos ("MB DT"),
+      o espaço separa também; uma frase ("Sea water") continua inteira. */
+  function sistemasDoTexto(texto) {
+    var t = clean(texto);
+    if (!t) return [];
+    var partes = t.split(/\s*(?:[,;\/&+|]|\s[eE]\s)\s*/).map(clean).filter(Boolean);
+    if (partes.length === 1) {
+      var palavras = partes[0].split(/\s+/);
+      if (palavras.length > 1 && palavras.every(function (w) { return w.length <= 3; })) partes = palavras;
+    }
+    /* o mesmo sistema escrito duas vezes no mesmo item conta uma vez só */
+    var vistos = {};
+    return partes.filter(function (x) {
+      var k = x.toUpperCase();
+      if (vistos[k]) return false;
+      vistos[k] = true;
+      return true;
+    });
+  }
+
   /** Um item pode citar vários sistemas ("BX,BQ,BD"). */
   function sistemas(item) {
-    return clean(item.systems).split(/[,;/]+/).map(clean).filter(Boolean);
+    return sistemasDoTexto(item.systems);
   }
 
   /* --- filtros ------------------------------------------------------------ */
@@ -14348,9 +14393,15 @@ if(isWorker){
       var t = l.valores.reduce(function (a, b) { return a + b; }, 0);
       if (t > maxTotal) maxTotal = t;
     });
+    /* `opts.max`: a escala de um gráfico repartido em pedaços — todos usam o
+       total do gráfico inteiro, senão a mesma barra teria comprimentos
+       diferentes em duas folhas */
+    if (opts.max) maxTotal = opts.max;
     if (!maxTotal) return eixoVazio(opts.vazio || 'Sem dados para exibir.');
 
-    var alt = linhas.length * (ALT_BARRA + ESPACO) + 6;
+    /* pedaço de um gráfico partido: cada linha ocupa a sua altura inteira, para
+       o espaçamento não mudar de um pedaço para o outro */
+    var alt = linhas.length * (ALT_BARRA + ESPACO) + (opts.max ? 0 : 6);
     var largBarra = LARG - ROTULO - 60;
     var svg = sv('svg', {
       viewBox: '0 0 ' + LARG + ' ' + alt,
@@ -14409,7 +14460,7 @@ if(isWorker){
 
     var wrap = el('div', 'sm-chart');
     wrap.appendChild(svg);
-    wrap.appendChild(legenda(series));
+    if (!opts.semLegenda) wrap.appendChild(legenda(series));
     return wrap;
   }
 
@@ -14425,11 +14476,14 @@ if(isWorker){
     opts = opts || {};
     var max = 0;
     linhas.forEach(function (l) { if (l.valor > max) max = l.valor; });
+    if (opts.max) max = opts.max;
     if (!max) return eixoVazio(opts.vazio || 'Sem dados para exibir.');
 
     var LARGURA = opts.larg || LARG;
     var ROT = opts.rotulo || ROTULO;
-    var alt = linhas.length * (ALT_BARRA + ESPACO) + 6;
+    /* pedaço de um gráfico partido: cada linha ocupa a sua altura inteira, para
+       o espaçamento não mudar de um pedaço para o outro */
+    var alt = linhas.length * (ALT_BARRA + ESPACO) + (opts.max ? 0 : 6);
     var largBarra = LARGURA - ROT - 60;
     var svg = sv('svg', { viewBox: '0 0 ' + LARGURA + ' ' + alt, role: 'img', class: 'sm-svg' });
 
@@ -14484,6 +14538,7 @@ if(isWorker){
     passa: passa,
     opcoesDe: opcoesDe,
     sistemas: sistemas,
+    sistemasDoTexto: sistemasDoTexto,
     compute: compute,
     statsDe: statsDe,
     barrasEmpilhadas: barrasEmpilhadas,
@@ -14619,38 +14674,52 @@ if(isWorker){
 
   /* --- gráficos montados a partir das estatísticas ---------------------- */
 
-  function graficoProgresso(marcos) {
-    return S.barrasEmpilhadas(
-      marcos.map(function (m) {
+  var VAZIO_PROGRESSO = 'Nenhum item cadastrado ainda.';
+  var VAZIO_SITUACAO = 'Nenhum item para situar.';
+  var VAZIO_SISTEMAS = 'Nenhum sistema informado nos itens.';
+
+  /** As linhas e as séries do gráfico de progresso (tela e PDF usam as mesmas). */
+  function dadosProgresso(marcos) {
+    return {
+      linhas: marcos.map(function (m) {
         return { rotulo: m.marco, valores: [m.concluidos, m.pendentes] };
       }),
-      [{ nome: 'Waiver accepted', cor: S.C3 },
-       { nome: 'Em andamento', cor: S.NEUTRO, claro: true }],
-      { vazio: 'Nenhum item cadastrado ainda.' }
-    );
+      series: [{ nome: 'Waiver accepted', cor: S.C3 },
+               { nome: 'Em andamento', cor: S.NEUTRO, claro: true }]
+    };
+  }
+
+  function graficoProgresso(marcos) {
+    var d = dadosProgresso(marcos);
+    return S.barrasEmpilhadas(d.linhas, d.series, { vazio: VAZIO_PROGRESSO });
   }
 
   /* As barras vão do fim para o começo do fluxo: o verde à esquerda mostra
      de imediato quanto de cada marco já está aceito. */
   var ORDEM_SITUACAO = ['aceito', 'justificar', 'solicitado', 'preenchendo'];
 
-  function graficoSituacao(marcos) {
+  function dadosSituacao(marcos) {
     var faixas = ORDEM_SITUACAO.map(function (id) { return Store.statusInfo(id); });
-    return S.barrasEmpilhadas(
-      marcos.map(function (m) {
+    return {
+      linhas: marcos.map(function (m) {
         return {
           rotulo: m.marco,
           valores: faixas.map(function (f) { return m.porSituacao[f.nome] || 0; })
         };
       }),
-      faixas.map(function (f) {
+      series: faixas.map(function (f) {
         return { nome: f.nome, cor: f.cor, claro: f.id === 'preenchendo' };
-      }),
-      { vazio: 'Nenhum item para situar.' }
-    );
+      })
+    };
   }
 
-  function graficoSistemas(porSistema) {
+  function graficoSituacao(marcos) {
+    var d = dadosSituacao(marcos);
+    return S.barrasEmpilhadas(d.linhas, d.series, { vazio: VAZIO_SITUACAO });
+  }
+
+  /** As linhas do gráfico de sistemas: os dez mais citados, e o resto junto. */
+  function linhasDeSistemas(porSistema) {
     var linhas = Object.keys(porSistema)
       .map(function (s) { return { rotulo: s, valor: porSistema[s] }; })
       .sort(function (a, b) { return b.valor - a.valor; });
@@ -14661,7 +14730,59 @@ if(isWorker){
       linhas = linhas.slice(0, 10);
       linhas.push({ rotulo: 'Outros', valor: resto });
     }
-    return S.barras(linhas, { vazio: 'Nenhum sistema informado nos itens.' });
+    return linhas;
+  }
+
+  function graficoSistemas(porSistema) {
+    return S.barras(linhasDeSistemas(porSistema), { vazio: VAZIO_SISTEMAS });
+  }
+
+  /**
+   * O gráfico para o PDF, num bloco que a paginação sabe partir.
+   *
+   * Um gráfico inteiro como uma unidade só não cabia no que sobrava da folha:
+   * ia inteiro para a seguinte e deixava meia folha em branco — e com muitos
+   * marcos ficava uma folha por gráfico. Aqui cada pedaço de linhas é uma
+   * unidade (`data-lista`), o título e a legenda são repetidos em cada folha
+   * (`data-cabecalho`) e todos os pedaços usam a mesma escala (`max`), então
+   * o gráfico é partido entre barras, nunca no meio de uma. O que cabe numa
+   * folha sai como antes: um bloco só.
+   */
+  var LINHAS_POR_PEDACO = 3;
+
+  function blocoGrafico(titulo, sub, linhas, series, vazio) {
+    var c = el('section', 'sm-card sm-grade sm-grafico');
+    c.setAttribute('data-fluido', '');
+    c.setAttribute('data-lista', '');
+    var h = el('header', 'sm-card-head');
+    h.setAttribute('data-cabecalho', '');
+    h.appendChild(el('h3', null, titulo));
+    if (sub) h.appendChild(el('p', null, sub));
+    c.appendChild(h);
+
+    var max = 0;
+    linhas.forEach(function (l) {
+      var t = series ? l.valores.reduce(function (a, b) { return a + b; }, 0) : l.valor;
+      if (t > max) max = t;
+    });
+    if (!max) {
+      c.appendChild(el('p', 'sm-empty', vazio || 'Sem dados para exibir.'));
+      return c;
+    }
+    if (series) {
+      var lg = S.legenda(series);
+      lg.setAttribute('data-cabecalho', '');
+      c.appendChild(lg);
+    }
+    for (var i = 0; i < linhas.length; i += LINHAS_POR_PEDACO) {
+      var parte = linhas.slice(i, i + LINHAS_POR_PEDACO);
+      var u = el('div', 'sm-chart-parte');
+      u.appendChild(series
+        ? S.barrasEmpilhadas(parte, series, { max: max, semLegenda: true })
+        : S.barras(parte, { max: max }));
+      c.appendChild(u);
+    }
+    return c;
   }
 
   /* --- exportação ------------------------------------------------------- */
@@ -15024,7 +15145,14 @@ if(isWorker){
     bloco: bloco,
     graficoProgresso: graficoProgresso,
     graficoSituacao: graficoSituacao,
-    graficoSistemas: graficoSistemas
+    graficoSistemas: graficoSistemas,
+    dadosProgresso: dadosProgresso,
+    dadosSituacao: dadosSituacao,
+    linhasDeSistemas: linhasDeSistemas,
+    blocoGrafico: blocoGrafico,
+    VAZIO_PROGRESSO: VAZIO_PROGRESSO,
+    VAZIO_SITUACAO: VAZIO_SITUACAO,
+    VAZIO_SISTEMAS: VAZIO_SISTEMAS
   };
 })(window);
 
@@ -15737,6 +15865,10 @@ if(isWorker){
 
     partes.push('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
     partes.push('<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">');
+    /* a área usada, dita por extenso: só as colunas com conteúdo */
+    if (colunas.length) {
+      partes.push('<dimension ref="A1:' + coluna(colunas.length) + Math.max(1, linhas.length + 1) + '"/>');
+    }
     /* congela o cabeçalho: numa lista de 200 itens, rolar sem isso é perder
        de vista que coluna é qual */
     partes.push('<sheetViews><sheetView workbookViewId="0">' +
@@ -15756,7 +15888,11 @@ if(isWorker){
       return '<c r="' + coluna(i + 1) + '1" t="inlineStr" s="1"><is><t xml:space="preserve">' +
         xml(c.titulo) + '</t></is></c>';
     }).join('');
-    partes.push('<row r="1" s="1" customFormat="1">' + celulas + '</row>');
+    /* O estilo vai só nas células do cabeçalho. Um `s`/`customFormat` na
+       própria linha pintaria a linha INTEIRA, até a última coluna da folha:
+       o Excel e quem lê a planilha passavam a ver "dados" (cabeçalho pintado)
+       em centenas de colunas vazias depois da última coluna de verdade. */
+    partes.push('<row r="1">' + celulas + '</row>');
 
     linhas.forEach(function (linha, li) {
       var r = li + 2;
@@ -17472,7 +17608,7 @@ if(isWorker){
     linha.appendChild(etiqueta);
     box.appendChild(linha);
 
-    var sub = (kind === 'dev' ? [item.func] : [item.systems, item.func])
+    var sub = [item.systems, item.func]
       .filter(function (x) { return str(x); }).join(' | ');
     box.appendChild(el('div', 'lado-id-sub', sub || 'sem sistema nem função'));
 
@@ -17871,7 +18007,7 @@ if(isWorker){
   }
 
   function sistemasDe(rec) {
-    return str(Ncrs.fonte(rec).sistema).split(/[,;\/]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    return Summary.sistemasDoTexto(Ncrs.fonte(rec).sistema);
   }
 
   /* valores de cada filtro para uma linha (uma linha pode ter vários sistemas) */
@@ -18642,6 +18778,23 @@ if(isWorker){
       });
     }
     var pe = el('div', 'nb2-ms-pe');
+    /* "Marcar todos" para depois tirar os que não se quer — é mais rápido do
+       que marcar um a um quando só dois ou três ficam de fora. Com a busca
+       da lista preenchida, marca só o que está à vista. */
+    var todos = botao('Marcar todos', 'btn--sm nb2-ms-todos', function () {
+      var sel = st.filtros[chave].slice();
+      Array.prototype.forEach.call(lista.children, function (r) {
+        if (r.hidden) return;
+        var c = r.querySelector('input');
+        c.checked = true;
+        if (sel.indexOf(c.value) < 0) sel.push(c.value);
+      });
+      st.filtros[chave] = sel;
+      txt.textContent = resumoBotao(chave);
+      btn.classList.toggle('is-on', sel.length > 0);
+      filtroMudou();
+    });
+    pe.appendChild(todos);
     pe.appendChild(botao('Limpar', 'btn--sm', function () {
       st.filtros[chave] = [];
       Array.prototype.forEach.call(lista.querySelectorAll('input'), function (c) { c.checked = false; });
@@ -19461,6 +19614,7 @@ if(isWorker){
     soAlertas: false,
     caminho: true,      // mostrar os que vêm de outros marcos
     ind: false,         // mostrar os marcos industriais ("J09 Ind")
+    devs: false,        // incluir as DEVs do marco (vista geral, NCR e DEV juntas)
     abertos: {}         // cartões com a descrição à vista — só tela, nunca gravado
   };
   var ctx = null;
@@ -19556,6 +19710,18 @@ if(isWorker){
       });
     });
 
+    /* As DEVs do marco (pedido do Bruno: uma vista geral com DEV incluída).
+       DEV não tem NCR no banco, então não há "to be closed" nem alerta: cada
+       uma cai direto na coluna da sua situação, com a etiqueta "DEV". */
+    if (st.devs) {
+      projects.forEach(function (p) {
+        if (Ncrs.marcoChave(Report.marcoOf(p, 'dev')) !== k) return;
+        (p.devs || []).forEach(function (it) {
+          out.push({ coluna: Store.statusInfo(it.status).id, tipo: 'item', kind: 'dev', project: p, item: it, rec: null, chave: '' });
+        });
+      });
+    }
+
     Ncrs.lista().forEach(function (rec) {
       if (Ncrs.marcoChave(rec.waiver.marcoAtual) !== k || jaTem[rec.key]) return;
       /* temporária já substituída: quem continua o caso é a definitiva */
@@ -19593,6 +19759,10 @@ if(isWorker){
     });
     return out;
   }
+
+  function ehDev(c) { return c.kind === 'dev'; }
+  /** O relatório do item, dito pelo tipo: "J09 Waiver" (NCR) ou "J09 Waiver DEV". */
+  function relatorioDe(c) { return marcoRel(c.project) + ' Waiver' + (ehDev(c) ? ' DEV' : ''); }
 
   function numeroDe(c) { return c.item ? (c.item.ncrId || '(sem número)') : c.rec.numero; }
   function descricaoDe(c) { return (c.item && c.item.description) || (c.rec && Ncrs.fonte(c.rec).descricao) || ''; }
@@ -19633,6 +19803,8 @@ if(isWorker){
   function ordenar(cs) {
     return cs.slice().sort(function (a, b) {
       if (a.alerta !== b.alerta) return a.alerta ? -1 : 1;
+      /* as DEVs depois das NCRs, dentro da coluna */
+      if (ehDev(a) !== ehDev(b)) return ehDev(a) ? 1 : -1;
       return Store.cmpTexto(numeroDe(a), numeroDe(b));
     });
   }
@@ -19730,6 +19902,18 @@ if(isWorker){
     bc.setAttribute('aria-pressed', st.caminho ? 'true' : 'false');
     ferr.appendChild(bc);
 
+    var nDevs = 0;
+    projects.forEach(function (p) {
+      if (Ncrs.marcoChave(Report.marcoOf(p, 'dev')) === Ncrs.marcoChave(st.marco)) nDevs += (p.devs || []).length;
+    });
+    var bd = botao('Incluir as DEVs' + (nDevs ? ' (' + nDevs + ')' : ''), 'btn--sm kb-toggle' + (st.devs ? ' is-on' : ''),
+      function () { st.devs = !st.devs; render(host, ctx); },
+      'Vista geral: as DEVs deste marco entram no quadro, nas colunas da situação do waiver delas (etiqueta “DEV”)');
+    bd.id = 'kbDevs';
+    bd.setAttribute('aria-pressed', st.devs ? 'true' : 'false');
+    bd.disabled = !nDevs && !st.devs;
+    ferr.appendChild(bd);
+
     var nInd = marcos.todos(projects).filter(ehInd).length;
     if (nInd) {
       var bi = botao('Marcos industriais (Ind)', 'btn--sm kb-toggle' + (st.ind ? ' is-on' : ''),
@@ -19825,16 +20009,19 @@ if(isWorker){
 
   /** Os números da faixa — os mesmos na tela e na folha impressa. */
   function numerosDoResumo(todos) {
+    var devs = todos.filter(ehDev);
+    todos = todos.filter(function (c) { return !ehDev(c); });
     var noRel = todos.filter(function (c) { return c.tipo === 'item'; });
     var aceitos = noRel.filter(function (c) { return c.coluna === Store.STATUS_CONCLUIDO; }).length;
-    return [
+    return (st.devs ? [{ n: String(devs.length), rot: 'DEVs incluídas (' +
+      devs.filter(function (c) { return c.coluna === Store.STATUS_CONCLUIDO; }).length + ' aceitas)' }] : []).concat([
       { n: String(todos.length), rot: 'NCRs neste marco' },
       { n: String(noRel.length), rot: 'no relatório' },
       { n: noRel.length ? Math.round(aceitos * 100 / noRel.length) + '%' : '—', rot: 'aceitas (do relatório)' },
       { n: String(todos.filter(function (c) { return c.coluna === FORA && !c.fechada; }).length), rot: 'to be closed (ainda abertas)' },
       { n: String(todos.filter(function (c) { return c.alerta; }).length), rot: 'fechadas com waiver pendente', alerta: true },
       { n: String(todos.filter(function (c) { return c.coluna === ENCERRADA; }).length), rot: 'encerradas (fechadas)' }
-    ];
+    ]);
   }
 
   function quadro(vis, todos) {
@@ -19945,10 +20132,10 @@ if(isWorker){
     var topo = el('div', 'kb-card-topo');
     var num = el('button', 'kb-card-num', numeroDe(c));
     num.type = 'button';
-    num.title = c.tipo === 'banco' ? 'Abrir a ficha da NCR' : 'Abrir o item no relatório ' + marcoRel(c.project) + ' Waiver';
+    num.title = c.tipo === 'banco' ? 'Abrir a ficha da NCR' : 'Abrir o item no relatório ' + relatorioDe(c);
     num.addEventListener('click', function () {
       if (c.tipo === 'banco') ctx.abrirFicha(c.rec.key);
-      else ctx.abrir(c.project, c.item);
+      else ctx.abrir(c.project, c.item, c.kind);
     });
     topo.appendChild(num);
     if (c.alerta) {
@@ -20046,6 +20233,11 @@ if(isWorker){
 
   /** O status da NCR no banco, com a leitura certa para cada coluna. */
   function chipStatus(c) {
+    if (ehDev(c)) {
+      var dv = el('span', 'kb-st-ncr is-dev', 'DEV');
+      dv.title = 'Deviation (DEV) do relatório ' + relatorioDe(c) + ' — não tem NCR no banco NCR';
+      return dv;
+    }
     var stNcr = statusDe(c);
     if (stNcr && (c.coluna === FORA || c.coluna === ENCERRADA)) {
       /* aqui a meta é fechar: fechada é o verde, aberta é o que falta */
@@ -20142,7 +20334,7 @@ if(isWorker){
   function seletorSituacao(c) {
     var sel = el('select', 'kb-sel st-cor--' + c.coluna);
     sel.setAttribute('aria-label', 'Situação do waiver de ' + numeroDe(c));
-    sel.title = 'Situação do waiver no relatório ' + marcoRel(c.project);
+    sel.title = 'Situação do waiver no relatório ' + relatorioDe(c);
     Store.STATUS.forEach(function (s) {
       var o = el('option', null, s.nome);
       o.value = s.id;
@@ -20190,7 +20382,7 @@ if(isWorker){
       if (desfazer) desfazer();
       return;
     }
-    ctx.mudarSituacao(c.project, c.item, id).then(function () { render(host, ctx); });
+    ctx.mudarSituacao(c.project, c.item, id, c.kind).then(function () { render(host, ctx); });
   }
 
   /* ==========================================================================
@@ -20202,6 +20394,7 @@ if(isWorker){
     var partes = [];
     if (st.busca) partes.push('busca: “' + st.busca + '”');
     if (st.soAlertas) partes.push('só com alerta (NCR fechada com waiver pendente)');
+    if (st.devs) partes.push('com as DEVs');
     partes.push(st.caminho ? 'com as que vêm de outros marcos' : 'sem as que vêm de outros marcos');
     return partes.join(' · ');
   }
@@ -20213,7 +20406,7 @@ if(isWorker){
   }
 
   function origemCurta(c) {
-    if (c.tipo === 'item') return 'No relatório ' + marcoRel(c.project) + ' Waiver';
+    if (c.tipo === 'item') return 'No relatório ' + relatorioDe(c);
     if (c.tipo === 'banco') return 'Só no banco NCR (fora do Waiver)';
     return 'Vem do ' + marcoRel(c.project) + (c.aprovado ? ' (Approved Expiry)' : ' (Request Expiry)');
   }
@@ -20237,6 +20430,7 @@ if(isWorker){
         var edit = c.item ? { por: c.item.editedBy, em: c.item.editedAt } : { por: c.rec.waiver.editedBy, em: c.rec.waiver.editedAt };
         linhas.push([
           numeroDe(c),
+          ehDev(c) ? 'DEV' : 'NCR',
           st.marco,
           nomeColuna(c.coluna),
           c.tipo === 'item' ? Store.statusInfo(c.item.status).nome : (c.tipo === 'caminho' ? Store.statusInfo(c.item.status).nome + ' (no ' + marcoRel(c.project) + ')' : ''),
@@ -20255,7 +20449,7 @@ if(isWorker){
       });
     });
     var colunas = [
-      { titulo: 'Número da NCR', larg: 26 }, { titulo: 'Marco', larg: 10 }, { titulo: 'Coluna do Kanban', larg: 26 },
+      { titulo: 'Número da NCR / DEV', larg: 26 }, { titulo: 'Tipo', larg: 8 }, { titulo: 'Marco', larg: 10 }, { titulo: 'Coluna do Kanban', larg: 26 },
       { titulo: 'Situação do waiver', larg: 22 }, { titulo: 'Origem', larg: 30 }, { titulo: 'Sistema', larg: 12 },
       { titulo: 'Função / função vital', larg: 40 }, { titulo: 'Status da NCR (banco)', larg: 22 },
       { titulo: 'NCR fechada?', larg: 12 }, { titulo: 'Alerta', larg: 30 }, { titulo: 'Caminho do waiver', larg: 24 },
@@ -20320,6 +20514,8 @@ if(isWorker){
     if (statusDe(c)) {
       l2.appendChild(el('span', 'kbp-st' + (c.fechada ? ' is-fechada' : ''),
         (c.fechada && (c.coluna === FORA || c.coluna === ENCERRADA) ? '✓ ' : '') + statusDe(c)));
+    } else if (ehDev(c)) {
+      l2.appendChild(el('span', 'kbp-st is-sem', 'DEV'));
     } else if (!c.rec) {
       l2.appendChild(el('span', 'kbp-st is-sem', 'fora do banco'));
     }
@@ -21687,18 +21883,19 @@ if(isWorker){
 
     fluido(SummaryView.kpiRow(st));
 
-    var g1 = SummaryView.bloco('Progresso');
-    g1.appendChild(SummaryView.graficoProgresso(dados.porMarco));
-    fluido(g1);
-
-    var g2 = SummaryView.bloco('Situação dos itens (controle interno)');
-    g2.appendChild(SummaryView.graficoSituacao(dados.porMarco));
-    fluido(g2);
-
-    var g3 = SummaryView.bloco('Itens por sistema');
-    g3.appendChild(SummaryView.graficoSistemas(
-      project ? dados.porMarco[0].porSistema : dados.geral.porSistema));
-    fluido(g3);
+    /* Os gráficos do PDF são partíveis entre as barras (ver
+       SummaryView.blocoGrafico): com muitos marcos ou sistemas eles
+       continuam na folha seguinte com o título e a legenda, em vez de um
+       gráfico por folha com o resto em branco. */
+    var dp = SummaryView.dadosProgresso(dados.porMarco);
+    pg.appendChild(SummaryView.blocoGrafico('Progresso', null, dp.linhas, dp.series,
+      SummaryView.VAZIO_PROGRESSO));
+    var ds = SummaryView.dadosSituacao(dados.porMarco);
+    pg.appendChild(SummaryView.blocoGrafico('Situação dos itens (controle interno)', null, ds.linhas, ds.series,
+      SummaryView.VAZIO_SITUACAO));
+    pg.appendChild(SummaryView.blocoGrafico('Itens por sistema', null,
+      SummaryView.linhasDeSistemas(project ? dados.porMarco[0].porSistema : dados.geral.porSistema), null,
+      SummaryView.VAZIO_SISTEMAS));
 
     if ((st.parados || []).length) {
       pg.appendChild(SummaryView.blocoLista(
@@ -21710,10 +21907,11 @@ if(isWorker){
     if (project) {
       pg.appendChild(SummaryView.blocoLista('Itens', null, [
         { titulo: 'Tipo', larg: 7, valor: function (r) { return r.kind === 'dev' ? 'DEV' : 'NCR'; } },
-        { titulo: 'Número', larg: 22, valor: function (r) { return r.item.ncrId || '(sem número)'; } },
-        { titulo: 'Sistemas', larg: 12, valor: function (r) { return r.item.systems || '—'; } },
-        { titulo: 'Função / descrição', larg: 24, valor: function (r) { return r.item.func || '—'; } },
-        { titulo: 'Situação', larg: 16, valor: function (r) { return Summary.situacao(r.item); } },
+        { titulo: 'Número', larg: 19, valor: function (r) { return r.item.ncrId || '(sem número)'; } },
+        { titulo: 'Sistemas', larg: 13, valor: function (r) { return r.item.systems || '—'; } },
+        { titulo: 'Função / descrição', larg: 20, valor: function (r) { return r.item.func || '—'; } },
+        /* "Em preenchimento" cabe inteira aqui; com 16% saía "preenchiment/o" */
+        { titulo: 'Situação', larg: 20, valor: function (r) { return Summary.situacao(r.item); } },
         /* "WAIVER REQUESTED" é a resposta mais comprida e a mais comum:
            mais estreito do que isto, ela sai partida ao meio */
         { titulo: 'Arch Status', larg: 19, valor: function (r) { return r.item.archStatus || '—'; } }
@@ -22138,7 +22336,7 @@ if(isWorker){
       num.appendChild(a);
     }
     id.appendChild(num);
-    var partes = (r.kind === 'dev' ? [r.item.func] : [r.item.systems, r.item.func]);
+    var partes = [r.item.systems, r.item.func];
     /* fora do relatório aberto, o número sozinho não identifica: a NCR-001 do
        J06 e a do J08 são itens diferentes */
     if (fluxosFiltro.escopo === 'todos' && r.marco) partes.unshift(r.marco);
@@ -22802,7 +23000,7 @@ if(isWorker){
 
       var main = el('div', 'ncr-item-main');
       main.appendChild(el('div', 'ncr-item-id', ncr.ncrId || '(sem número)'));
-      var sub = (isDev() ? [ncr.func] : [ncr.systems, ncr.func]).filter(Boolean).join(' | ');
+      var sub = [ncr.systems, ncr.func].filter(Boolean).join(' | ');
       main.appendChild(el('div', 'ncr-item-sub', sub || 'sem descrição'));
       li.appendChild(main);
 
@@ -23266,6 +23464,13 @@ if(isWorker){
       if (opts.refreshList) renderNcrList();
       scheduleSave();
     });
+    /* `fixo`: o valor vem de outro lugar (a Função Vital do Banco NCR) e aqui
+       só se vê; `data-livre` para o item travado não mudar a aparência dele */
+    if (opts.fixo) {
+      input.readOnly = true;
+      input.classList.add('is-banco');
+      input.setAttribute('data-livre', '');
+    }
     wrap.appendChild(input);
     if (opts.hint) wrap.appendChild(el('div', 'hint', opts.hint));
     return wrap;
@@ -23358,17 +23563,23 @@ if(isWorker){
     var idCard = card('Identificação da ' + kindName(), '#4B0082');
     var watched;
     if (isDev()) {
-      /* A DEV junta sistema e descrição num campo só, como no original. */
-      var gd = el('div', 'grid grid--2');
+      /* A DEV junta sistema e descrição num campo só, como no original — e
+         ganhou o campo Sistema(s), o mesmo da NCR, só para os indicadores:
+         ele não sai no PDF (o título da DEV continua sendo o de sempre). */
+      var gd = el('div', 'grid grid--3');
       gd.appendChild(field('Número da DEV', 'ncrId', {
         placeholder: 'DEV-78154', refreshList: true
+      }));
+      gd.appendChild(field('Sistema(s)', 'systems', {
+        placeholder: 'RM   ou   BX, BQ, BD', refreshList: true,
+        hint: 'Alimenta os indicadores (Resumo, Tabela). Não sai no PDF.'
       }));
       gd.appendChild(field('Sistema e descrição', 'func', {
         placeholder: 'BQ - Modification des compensateurs', refreshList: true,
         hint: 'Sai no título como DEV-78154|BQ - Modification des compensateurs.'
       }));
       idCard.appendChild(gd);
-      watched = ['f-ncrId', 'f-func'];
+      watched = ['f-ncrId', 'f-systems', 'f-func'];
     } else {
       var g = el('div', 'grid grid--3');
       g.appendChild(field('Número da NCR', 'ncrId', {
@@ -23377,8 +23588,16 @@ if(isWorker){
       g.appendChild(field('Sistema(s)', 'systems', {
         placeholder: 'RM   ou   BX,BQ,BD', refreshList: true
       }));
-      g.appendChild(field('Função', 'func', {
-        placeholder: 'FV 01 - Sea water circuit integrity', refreshList: true
+      /* A Função é a Função Vital da NCR no Banco NCR, que é a orientação
+         correta (pedido do Bruno): com ela preenchida lá, aqui só se vê. */
+      var recFv = Ncrs.recDoItem(ncr);
+      var fvBanco = recFv && Ncrs.funcaoParaWaiver(recFv.waiver.funcaoVital);
+      g.appendChild(field('Função', 'func', fvBanco ? {
+        refreshList: true, fixo: true,
+        hint: 'Vem da Função Vital da NCR no Banco NCR. Para mudar, altere lá (“Ver a ficha”, logo abaixo).'
+      } : {
+        placeholder: 'FV 01 - Sea water circuit integrity', refreshList: true,
+        hint: Ncrs.recDoItem(ncr) ? 'A NCR ainda não tem Função Vital no Banco NCR; quando tiver, ela passa a valer aqui.' : ''
       }));
       idCard.appendChild(g);
       watched = ['f-ncrId', 'f-systems', 'f-func'];
@@ -25084,7 +25303,7 @@ if(isWorker){
         b.appendChild(el('strong', null,
           (c.kind === 'dev' ? 'DEV · ' : 'NCR · ') + (c.item.ncrId || 'sem número')));
         var marco = Report.marcoOf(c.project, c.kind) || c.project.name || 'sem marco';
-        var sub = (c.kind === 'dev' ? [c.item.func] : [c.item.systems, c.item.func])
+        var sub = [c.item.systems, c.item.func]
           .filter(Boolean).join(' | ');
         b.appendChild(el('span', null, marco + (sub ? ' · ' + sub : '')));
         b.addEventListener('click', function () {
@@ -25174,7 +25393,7 @@ if(isWorker){
         cb.value = n.id;
         cb.className = 'copy-ncr';
         row.appendChild(cb);
-        var extra = isDev() ? n.func : n.systems;
+        var extra = isDev() ? (n.systems ? n.systems + ' | ' + n.func : n.func) : n.systems;
         row.appendChild(document.createTextNode((n.ncrId || '(sem número)') +
           (extra ? ' | ' + extra : '')));
         listBox.appendChild(row);
@@ -25522,7 +25741,7 @@ if(isWorker){
       cb.dataset.st = Store.statusInfo(n.status).id;
       cb.checked = true;
       lab.appendChild(cb);
-      var extra = kind === 'dev' ? n.func : n.systems;
+      var extra = kind === 'dev' ? (n.systems ? n.systems + ' | ' + n.func : n.func) : n.systems;
       lab.appendChild(el('span', 'pick-item-nome',
         (n.ncrId || '(sem número)') + (extra ? ' | ' + extra : '')));
       lab.appendChild(el('span', 'pick-item-sit', Store.statusInfo(n.status).nome));
@@ -26246,6 +26465,7 @@ if(isWorker){
       return Ncrs.editarWaiver(rec, campo, valor, Store.getUser())
         .then(function () {
           agendarGravacaoPasta();
+          if (campo === 'funcaoVital') alinharFuncoes();
           /* Marco Atual passou a ser um marco dos comunicados: oferece — e
              só oferece; quem decide é quem editou */
           if (campo === 'marcoAtual' && valor !== antes && Comunicados.daNcr(rec)) {
@@ -26286,6 +26506,7 @@ if(isWorker){
       .then(function () {
         agendarGravacaoPasta();
         agendarPublicacao();
+        alinharFuncoes();
       })
       .catch(function (e) { markError(e); });
   }
@@ -26483,12 +26704,12 @@ if(isWorker){
   }
 
   /** Abre o relatório e o item — usado pelas etiquetas da coluna Waiver. */
-  function abrirItemDoWaiver(project, item) {
+  function abrirItemDoWaiver(project, item, kind) {
     var d = $('#ncrDialog');
     if (d && d.open) d.close();
     function ir() {
       aberturaPendente = false;
-      state.kind = 'ncr';
+      state.kind = kind === 'dev' ? 'dev' : 'ncr';
       if (!state.project || state.project.id !== project.id) loadProject(project);
       renderTabs();
       renderNcrList();
@@ -26560,7 +26781,7 @@ if(isWorker){
     leitura: Leitura.ativo(),
     projects: function () { return state.projects; },
     marcoInicial: function () { return state.project ? state.project.marco : ''; },
-    abrir: function (project, item) { abrirItemDoWaiver(project, item); },
+    abrir: function (project, item, kind) { abrirItemDoWaiver(project, item, kind); },
     abrirFicha: function (key) {
       flushSave().then(function () {
         switchKind('banco');
@@ -26568,7 +26789,7 @@ if(isWorker){
       });
     },
     adicionar: function (rec, project, situacao) { return adicionarAoWaiver(rec, project, situacao); },
-    mudarSituacao: function (project, item, id) { return mudarSituacaoDe(project, item, id); },
+    mudarSituacao: function (project, item, id, kind) { return mudarSituacaoDe(project, item, id, kind); },
     usuario: function () { return Store.getUser(); },
     exportarPlanilha: function (d) { exportarKanbanXlsx(d); },
     medirImpressao: function (montar) { return montarKanbanImpresso(montar, true); },
@@ -26638,13 +26859,13 @@ if(isWorker){
    * que não são os do relatório aberto. Mesmo caminho do editor:
    * Store.setStatus, a sessão (autoria), gravar e mandar para a pasta.
    */
-  function mudarSituacaoDe(project, item, id) {
+  function mudarSituacaoDe(project, item, id, kind) {
     if (Leitura.ativo()) return Promise.resolve(false);   /* visualizador: nada grava */
     if (item.status === id) return Promise.resolve(false);
     var antes = item.status;
     Store.setStatus(item, id);
     anotarTroca(item, antes);
-    Store.logChange(project, SESSION_ID, 'ncr', item, 'editou');
+    Store.logChange(project, SESSION_ID, kind || 'ncr', item, 'editou');
     return Store.save(project).then(function () {
       if (state.project && state.project.id === project.id) renderNcrList();
       renderTabs();
@@ -26652,13 +26873,58 @@ if(isWorker){
       agendarGravacaoPasta();
       var aceito = id === Store.STATUS_CONCLUIDO;
       toast((item.ncrId || 'Item') + ': ' + Store.statusInfo(id).nome + '.', aceito ? 9000 : 0,
-        aceito ? ofertaDoItem(project, 'ncr', item, 'waiver-aceito', antes) : null);
+        aceito && kind !== 'dev' ? ofertaDoItem(project, 'ncr', item, 'waiver-aceito', antes) : null);
       return true;
     }).catch(function (e) {
       markError(e);
       alert('Não foi possível gravar a situação.');
       return false;
     });
+  }
+
+  /* --- a Função do item segue a Função Vital do Banco NCR ------------------------ */
+
+  /* Pedido do Bruno: a função vital era escrita em dois lugares (no Banco NCR e
+     no Waiver NCR). O Banco NCR é a orientação correta; o que está lá é o que
+     vale no Waiver, sem digitar de novo.
+
+     O item continua guardando o texto (`func`) — é ele que o PDF, o Kanban, a
+     Tabela e a publicação leem —, e este passo o alinha com o Banco sempre
+     que o Banco muda (edição, importação, pasta, ligação temporária →
+     definitiva) e na abertura. Só troca quando o texto é DE FATO outro: "FV 01 -
+     Sea water…" e "FV01 - SEA WATER…" são a mesma função, e um item que já
+     estava certo não muda de aparência no PDF. Banco sem função vital para a
+     NCR: o campo do item continua à mão, como sempre foi. */
+  function alinharFuncoes() {
+    if (Leitura.ativo() || !state.projects.length) return Promise.resolve(0);
+    var mudados = [], n = 0, atualMudou = false;
+    state.projects.forEach(function (p) {
+      var alterou = false;
+      (p.ncrs || []).forEach(function (it) {
+        var rec = Ncrs.recDoItem(it);
+        var alvo = rec ? Ncrs.funcaoParaWaiver(rec.waiver.funcaoVital) : '';
+        if (!alvo || Ncrs.norm(alvo) === Ncrs.norm(it.func)) return;
+        it.func = alvo;
+        Store.logChange(p, SESSION_ID, 'ncr', it, 'editou');
+        alterou = true;
+        n++;
+        if (state.project && state.project.id === p.id && state.kind === 'ncr' && it.id === selectedId()) atualMudou = true;
+      });
+      if (alterou) mudados.push(p);
+    });
+    if (!n) return Promise.resolve(0);
+    Log.ok('banco NCR', 'a Função de itens do Waiver foi alinhada com a Função Vital do banco', { itens: n });
+    return Promise.all(mudados.map(function (p) { return Store.save(p); })).then(function () {
+      renderNcrList();
+      renderTabs();
+      renderSessionInfo();
+      if (atualMudou) renderEditor();
+      if (isKanban()) renderKanban();
+      if (isTabela()) renderTabela(true);
+      agendarGravacaoPasta();
+      agendarPublicacao();
+      return n;
+    }).catch(function (e) { markError(e); return 0; });
   }
 
   /* --- importações ----------------------------------------------------------- */
@@ -26776,6 +27042,7 @@ if(isWorker){
       agendarGravacaoPasta();
       renderTabs();
       if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
+      alinharFuncoes();
       mostrarResumoImportacao(r.resumo);
     }).catch(function (e) {
       /* arquivo recusado é situação normal: quem usa recebe o aviso abaixo */
@@ -27510,6 +27777,7 @@ if(isWorker){
     var mudou = resumo && (resumo.entraram || resumo.atualizados || resumo.removidos ||
                            resumo.novosRelatorios || resumo.relatoriosRemovidos);
     var rn = resumo && resumo.ncr;
+    if (rn && (rn.correcoes || rn.entraram || rn.atualizados)) alinharFuncoes();
     if (rn && rn.correcoes && !(rn.entraram || rn.atualizados)) {
       /* só as correções mudaram (uma ligação temporária → definitiva, um
          ajuste do administrador): redesenha quem lê NCR, sem aviso */
@@ -29881,6 +30149,7 @@ if(isWorker){
       });
     }).then(function () {
       Log.detalhe('abertura', 'histórico do texto carregado', { linhas: (revisoes || []).length });
+      alinharFuncoes();
       iniciarConversa();
       return iniciarPasta();
     }).then(function () {

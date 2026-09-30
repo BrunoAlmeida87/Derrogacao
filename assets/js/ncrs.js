@@ -1546,6 +1546,7 @@
     relatorioDoMarco: relatorioDoMarco,
     funcaoParaWaiver: funcaoParaWaiver,
     paraItemWaiver: paraItemWaiver,
+    funcaoParaWaiver: funcaoParaWaiver,
     registrarAdicao: registrarAdicao,
     editarWaiver: editarWaiver,
     importarBase: importarBase,

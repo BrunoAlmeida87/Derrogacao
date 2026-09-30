@@ -94,7 +94,7 @@
     linha.appendChild(etiqueta);
     box.appendChild(linha);
 
-    var sub = (kind === 'dev' ? [item.func] : [item.systems, item.func])
+    var sub = [item.systems, item.func]
       .filter(function (x) { return str(x); }).join(' | ');
     box.appendChild(el('div', 'lado-id-sub', sub || 'sem sistema nem função'));
 

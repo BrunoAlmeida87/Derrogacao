@@ -122,7 +122,9 @@ function dadosDeExemplo(opts) {
     const sit = SITUACOES[i % 4];
     return Object.assign({
       ncrId: numero(i), systems: ['BX', 'HP', 'RM', 'BD'][i % 4],
-      func: 'FV' + String(3 + (i % 5)).padStart(2, '0') + ' - ' + FUNCOES[i % 5].replace(/^\d+ - /, '').toUpperCase(),
+      /* a mesma função vital do banco (FUNCOES): o Waiver segue o Banco NCR, e o programa
+      alinha o item ao abrir — um item diferente seria regravado na abertura */
+      func: 'FV' + FUNCOES[i % 5].split(' - ')[0] + ' - ' + FUNCOES[i % 5].replace(/^\d+ - /, '').toUpperCase(),
       description: (i % 3 === 0 ? LONGO + LONGO : 'Descrição curta da NCR ' + numero(i) + '.'),
       currentSituation: 'Situação atual do item ' + i, whyNotPossible: 'Material atrasado',
       arguments: 'Argumentos do item ' + i, archAnswer: '', requestExpiry: '', archStatus: '',

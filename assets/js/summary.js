@@ -55,9 +55,31 @@
     return d !== null && d >= DIAS_PARADO;
   }
 
+  /** Separa um texto de sistemas (bigramas) em sistemas diferentes.
+      "MB, DT" são DOIS sistemas, não um: vírgula, ponto e vírgula, barra, &, +
+      e " e " separam. Sem nenhum separador e com só códigos curtos ("MB DT"),
+      o espaço separa também; uma frase ("Sea water") continua inteira. */
+  function sistemasDoTexto(texto) {
+    var t = clean(texto);
+    if (!t) return [];
+    var partes = t.split(/\s*(?:[,;\/&+|]|\s[eE]\s)\s*/).map(clean).filter(Boolean);
+    if (partes.length === 1) {
+      var palavras = partes[0].split(/\s+/);
+      if (palavras.length > 1 && palavras.every(function (w) { return w.length <= 3; })) partes = palavras;
+    }
+    /* o mesmo sistema escrito duas vezes no mesmo item conta uma vez só */
+    var vistos = {};
+    return partes.filter(function (x) {
+      var k = x.toUpperCase();
+      if (vistos[k]) return false;
+      vistos[k] = true;
+      return true;
+    });
+  }
+
   /** Um item pode citar vários sistemas ("BX,BQ,BD"). */
   function sistemas(item) {
-    return clean(item.systems).split(/[,;/]+/).map(clean).filter(Boolean);
+    return sistemasDoTexto(item.systems);
   }
 
   /* --- filtros ------------------------------------------------------------ */
@@ -213,9 +235,15 @@
       var t = l.valores.reduce(function (a, b) { return a + b; }, 0);
       if (t > maxTotal) maxTotal = t;
     });
+    /* `opts.max`: a escala de um gráfico repartido em pedaços — todos usam o
+       total do gráfico inteiro, senão a mesma barra teria comprimentos
+       diferentes em duas folhas */
+    if (opts.max) maxTotal = opts.max;
     if (!maxTotal) return eixoVazio(opts.vazio || 'Sem dados para exibir.');
 
-    var alt = linhas.length * (ALT_BARRA + ESPACO) + 6;
+    /* pedaço de um gráfico partido: cada linha ocupa a sua altura inteira, para
+       o espaçamento não mudar de um pedaço para o outro */
+    var alt = linhas.length * (ALT_BARRA + ESPACO) + (opts.max ? 0 : 6);
     var largBarra = LARG - ROTULO - 60;
     var svg = sv('svg', {
       viewBox: '0 0 ' + LARG + ' ' + alt,
@@ -274,7 +302,7 @@
 
     var wrap = el('div', 'sm-chart');
     wrap.appendChild(svg);
-    wrap.appendChild(legenda(series));
+    if (!opts.semLegenda) wrap.appendChild(legenda(series));
     return wrap;
   }
 
@@ -290,11 +318,14 @@
     opts = opts || {};
     var max = 0;
     linhas.forEach(function (l) { if (l.valor > max) max = l.valor; });
+    if (opts.max) max = opts.max;
     if (!max) return eixoVazio(opts.vazio || 'Sem dados para exibir.');
 
     var LARGURA = opts.larg || LARG;
     var ROT = opts.rotulo || ROTULO;
-    var alt = linhas.length * (ALT_BARRA + ESPACO) + 6;
+    /* pedaço de um gráfico partido: cada linha ocupa a sua altura inteira, para
+       o espaçamento não mudar de um pedaço para o outro */
+    var alt = linhas.length * (ALT_BARRA + ESPACO) + (opts.max ? 0 : 6);
     var largBarra = LARGURA - ROT - 60;
     var svg = sv('svg', { viewBox: '0 0 ' + LARGURA + ' ' + alt, role: 'img', class: 'sm-svg' });
 
@@ -349,6 +380,7 @@
     passa: passa,
     opcoesDe: opcoesDe,
     sistemas: sistemas,
+    sistemasDoTexto: sistemasDoTexto,
     compute: compute,
     statsDe: statsDe,
     barrasEmpilhadas: barrasEmpilhadas,
@@ -484,38 +516,52 @@
 
   /* --- gráficos montados a partir das estatísticas ---------------------- */
 
-  function graficoProgresso(marcos) {
-    return S.barrasEmpilhadas(
-      marcos.map(function (m) {
+  var VAZIO_PROGRESSO = 'Nenhum item cadastrado ainda.';
+  var VAZIO_SITUACAO = 'Nenhum item para situar.';
+  var VAZIO_SISTEMAS = 'Nenhum sistema informado nos itens.';
+
+  /** As linhas e as séries do gráfico de progresso (tela e PDF usam as mesmas). */
+  function dadosProgresso(marcos) {
+    return {
+      linhas: marcos.map(function (m) {
         return { rotulo: m.marco, valores: [m.concluidos, m.pendentes] };
       }),
-      [{ nome: 'Waiver accepted', cor: S.C3 },
-       { nome: 'Em andamento', cor: S.NEUTRO, claro: true }],
-      { vazio: 'Nenhum item cadastrado ainda.' }
-    );
+      series: [{ nome: 'Waiver accepted', cor: S.C3 },
+               { nome: 'Em andamento', cor: S.NEUTRO, claro: true }]
+    };
+  }
+
+  function graficoProgresso(marcos) {
+    var d = dadosProgresso(marcos);
+    return S.barrasEmpilhadas(d.linhas, d.series, { vazio: VAZIO_PROGRESSO });
   }
 
   /* As barras vão do fim para o começo do fluxo: o verde à esquerda mostra
      de imediato quanto de cada marco já está aceito. */
   var ORDEM_SITUACAO = ['aceito', 'justificar', 'solicitado', 'preenchendo'];
 
-  function graficoSituacao(marcos) {
+  function dadosSituacao(marcos) {
     var faixas = ORDEM_SITUACAO.map(function (id) { return Store.statusInfo(id); });
-    return S.barrasEmpilhadas(
-      marcos.map(function (m) {
+    return {
+      linhas: marcos.map(function (m) {
         return {
           rotulo: m.marco,
           valores: faixas.map(function (f) { return m.porSituacao[f.nome] || 0; })
         };
       }),
-      faixas.map(function (f) {
+      series: faixas.map(function (f) {
         return { nome: f.nome, cor: f.cor, claro: f.id === 'preenchendo' };
-      }),
-      { vazio: 'Nenhum item para situar.' }
-    );
+      })
+    };
   }
 
-  function graficoSistemas(porSistema) {
+  function graficoSituacao(marcos) {
+    var d = dadosSituacao(marcos);
+    return S.barrasEmpilhadas(d.linhas, d.series, { vazio: VAZIO_SITUACAO });
+  }
+
+  /** As linhas do gráfico de sistemas: os dez mais citados, e o resto junto. */
+  function linhasDeSistemas(porSistema) {
     var linhas = Object.keys(porSistema)
       .map(function (s) { return { rotulo: s, valor: porSistema[s] }; })
       .sort(function (a, b) { return b.valor - a.valor; });
@@ -526,7 +572,59 @@
       linhas = linhas.slice(0, 10);
       linhas.push({ rotulo: 'Outros', valor: resto });
     }
-    return S.barras(linhas, { vazio: 'Nenhum sistema informado nos itens.' });
+    return linhas;
+  }
+
+  function graficoSistemas(porSistema) {
+    return S.barras(linhasDeSistemas(porSistema), { vazio: VAZIO_SISTEMAS });
+  }
+
+  /**
+   * O gráfico para o PDF, num bloco que a paginação sabe partir.
+   *
+   * Um gráfico inteiro como uma unidade só não cabia no que sobrava da folha:
+   * ia inteiro para a seguinte e deixava meia folha em branco — e com muitos
+   * marcos ficava uma folha por gráfico. Aqui cada pedaço de linhas é uma
+   * unidade (`data-lista`), o título e a legenda são repetidos em cada folha
+   * (`data-cabecalho`) e todos os pedaços usam a mesma escala (`max`), então
+   * o gráfico é partido entre barras, nunca no meio de uma. O que cabe numa
+   * folha sai como antes: um bloco só.
+   */
+  var LINHAS_POR_PEDACO = 3;
+
+  function blocoGrafico(titulo, sub, linhas, series, vazio) {
+    var c = el('section', 'sm-card sm-grade sm-grafico');
+    c.setAttribute('data-fluido', '');
+    c.setAttribute('data-lista', '');
+    var h = el('header', 'sm-card-head');
+    h.setAttribute('data-cabecalho', '');
+    h.appendChild(el('h3', null, titulo));
+    if (sub) h.appendChild(el('p', null, sub));
+    c.appendChild(h);
+
+    var max = 0;
+    linhas.forEach(function (l) {
+      var t = series ? l.valores.reduce(function (a, b) { return a + b; }, 0) : l.valor;
+      if (t > max) max = t;
+    });
+    if (!max) {
+      c.appendChild(el('p', 'sm-empty', vazio || 'Sem dados para exibir.'));
+      return c;
+    }
+    if (series) {
+      var lg = S.legenda(series);
+      lg.setAttribute('data-cabecalho', '');
+      c.appendChild(lg);
+    }
+    for (var i = 0; i < linhas.length; i += LINHAS_POR_PEDACO) {
+      var parte = linhas.slice(i, i + LINHAS_POR_PEDACO);
+      var u = el('div', 'sm-chart-parte');
+      u.appendChild(series
+        ? S.barrasEmpilhadas(parte, series, { max: max, semLegenda: true })
+        : S.barras(parte, { max: max }));
+      c.appendChild(u);
+    }
+    return c;
   }
 
   /* --- exportação ------------------------------------------------------- */
@@ -889,6 +987,13 @@
     bloco: bloco,
     graficoProgresso: graficoProgresso,
     graficoSituacao: graficoSituacao,
-    graficoSistemas: graficoSistemas
+    graficoSistemas: graficoSistemas,
+    dadosProgresso: dadosProgresso,
+    dadosSituacao: dadosSituacao,
+    linhasDeSistemas: linhasDeSistemas,
+    blocoGrafico: blocoGrafico,
+    VAZIO_PROGRESSO: VAZIO_PROGRESSO,
+    VAZIO_SITUACAO: VAZIO_SITUACAO,
+    VAZIO_SISTEMAS: VAZIO_SISTEMAS
   };
 })(window);

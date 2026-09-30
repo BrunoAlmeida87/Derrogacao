@@ -201,6 +201,10 @@
 
     partes.push('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
     partes.push('<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">');
+    /* a área usada, dita por extenso: só as colunas com conteúdo */
+    if (colunas.length) {
+      partes.push('<dimension ref="A1:' + coluna(colunas.length) + Math.max(1, linhas.length + 1) + '"/>');
+    }
     /* congela o cabeçalho: numa lista de 200 itens, rolar sem isso é perder
        de vista que coluna é qual */
     partes.push('<sheetViews><sheetView workbookViewId="0">' +
@@ -220,7 +224,11 @@
       return '<c r="' + coluna(i + 1) + '1" t="inlineStr" s="1"><is><t xml:space="preserve">' +
         xml(c.titulo) + '</t></is></c>';
     }).join('');
-    partes.push('<row r="1" s="1" customFormat="1">' + celulas + '</row>');
+    /* O estilo vai só nas células do cabeçalho. Um `s`/`customFormat` na
+       própria linha pintaria a linha INTEIRA, até a última coluna da folha:
+       o Excel e quem lê a planilha passavam a ver "dados" (cabeçalho pintado)
+       em centenas de colunas vazias depois da última coluna de verdade. */
+    partes.push('<row r="1">' + celulas + '</row>');
 
     linhas.forEach(function (linha, li) {
       var r = li + 2;

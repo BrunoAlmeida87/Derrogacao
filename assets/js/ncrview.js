@@ -259,7 +259,7 @@
   }
 
   function sistemasDe(rec) {
-    return str(Ncrs.fonte(rec).sistema).split(/[,;\/]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    return Summary.sistemasDoTexto(Ncrs.fonte(rec).sistema);
   }
 
   /* valores de cada filtro para uma linha (uma linha pode ter vários sistemas) */
@@ -1030,6 +1030,23 @@
       });
     }
     var pe = el('div', 'nb2-ms-pe');
+    /* "Marcar todos" para depois tirar os que não se quer — é mais rápido do
+       que marcar um a um quando só dois ou três ficam de fora. Com a busca
+       da lista preenchida, marca só o que está à vista. */
+    var todos = botao('Marcar todos', 'btn--sm nb2-ms-todos', function () {
+      var sel = st.filtros[chave].slice();
+      Array.prototype.forEach.call(lista.children, function (r) {
+        if (r.hidden) return;
+        var c = r.querySelector('input');
+        c.checked = true;
+        if (sel.indexOf(c.value) < 0) sel.push(c.value);
+      });
+      st.filtros[chave] = sel;
+      txt.textContent = resumoBotao(chave);
+      btn.classList.toggle('is-on', sel.length > 0);
+      filtroMudou();
+    });
+    pe.appendChild(todos);
     pe.appendChild(botao('Limpar', 'btn--sm', function () {
       st.filtros[chave] = [];
       Array.prototype.forEach.call(lista.querySelectorAll('input'), function (c) { c.checked = false; });

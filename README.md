@@ -889,6 +889,13 @@ fila, cada uma com quantas NCRs tem) e veja cada NCR num cartão.
 | **Em preenchimento · Waiver requested · Improve justification · Waiver accepted** | os itens NCR do relatório do marco, pela situação |
 | **Encerradas** (abaixo do quadro) | as NCRs do marco fora do Waiver que já estão **fechadas** no banco NCR (*Closed*, *CEDOC Closure*, *7.2 - TA Unfounded*… — a lista da seção "NCR fechada"): saem de "NCR to be closed", que fica só com o que ainda falta fechar. A área recolhe (a escolha fica neste navegador), mas o título mostra sempre quantas são; a primeira coluna e a faixa de números também avisam |
 
+- **Incluir as DEVs.** O botão **Incluir as DEVs (n)** do alto faz a vista
+  geral: as DEVs do marco (o relatório *Waiver DEV* com o mesmo marco) entram
+  nas colunas pela situação delas, com a etiqueta **DEV**. Elas mudam de
+  situação como as NCRs (arrastando ou pelo seletor), o número abre a aba
+  *Waiver DEV*, e a planilha ganha a coluna *Tipo*. DEV não tem NCR no banco:
+  não há "to be closed" nem alerta para ela. De saída o botão está desligado
+  e o quadro é o de sempre.
 - **Cartões compactos.** Recolhido, o cartão é quase uma linha de lista: o
   número, o status da NCR no banco, a função vital em poucas letras (`FV03`),
   os bigramas, o caminho e as ações. O **+** abre a descrição inteira, a
@@ -942,6 +949,8 @@ de correlação e os relatórios têm em comum.
 
 ### A tela
 
+- **Filtros de múltipla escolha** têm **Marcar todos** (para depois tirar só os
+  que você não quer — o status, por exemplo), **Limpar** e **Pronto**.
 - **A tabela é a página inteira** e mostra **todas** as NCRs, rolando para
   baixo; o cabeçalho fica grudado no alto. A barra lateral vira um trilho
   estreito, só com as abas.
@@ -1043,6 +1052,19 @@ resumo dá para **baixar essa cópia** ou **desfazer a importação**; o botão
 ligada, uma cópia vai para `historico-ncr\`. **Exportar backup** (e o
 *Salvar backup de tudo* do menu) leva os relatórios **e** o banco NCR num
 arquivo só; *Restaurar de um backup…* traz o banco NCR de volta.
+
+### A Função Vital é uma só: a do Banco NCR
+
+A função vital era escrita em dois lugares (no Banco NCR e no **Função** do
+Waiver NCR). Agora o **Banco NCR manda**: com a Função Vital preenchida na NCR,
+o campo **Função** do item do Waiver só mostra o que está lá (“Vem da Função
+Vital da NCR no Banco NCR”) e acompanha sozinho quando ela muda — ao editar no
+banco, ao importar, ao vir da pasta e ao abrir o programa. Sem digitar de novo.
+A mudança só acontece quando o texto é **outro** (“FV 01 - Sea water…” e
+“FV01 - SEA WATER…” são a mesma função), então o que já estava certo não muda
+no PDF. NCR sem Função Vital no banco: o campo do item continua à mão, e quando
+o banco passar a ter, ela vale. Para trocar a função de um item, troque a
+Função Vital da NCR na ficha do Banco NCR.
 
 ### Levar a NCR para o relatório de Waiver
 
@@ -1250,8 +1272,16 @@ fechar a página. A barra logo abaixo diz o escopo por extenso — "Marco J09" o
 - **Progresso por marco** — barras empilhadas de *waiver accepted* sobre o total.
 - **Situação dos itens** — as quatro situações de acompanhamento, na ordem do
   fluxo, com a cor de cada uma.
-- **Itens por sistema** — um item que cita vários sistemas (`BX,BQ,BD`) conta em
-  cada um; acima de dez sistemas o excedente vira "Outros".
+- **Itens por sistema** — um item que cita vários sistemas conta em cada um:
+  `MB, DT` são **dois** sistemas (vírgula, ponto e vírgula, barra, `&` e `+`
+  separam; códigos curtos só com espaço, `MB DT`, também). Vale para NCR e para
+  DEV — a DEV ganhou o campo **Sistema(s)**, o mesmo da NCR, que alimenta os
+  indicadores e **não sai no PDF**. Acima de dez sistemas o excedente vira
+  "Outros".
+- **No PDF, os gráficos se partem entre as barras.** Com muitos marcos ou
+  sistemas o gráfico continua na folha seguinte, com o título e a legenda
+  repetidos — em vez de um gráfico por folha com o resto em branco. Os cinco
+  indicadores ficam numa linha só.
 - **Tabela de marcos**, com percentual aceito e quem editou por último.
 - **Parados há 30+ dias** — os itens pendentes em que ninguém toca há um mês ou
   mais, do mais esquecido para o menos, com o número de dias e quem mexeu por
