@@ -1044,11 +1044,13 @@ Quando o **Marco Atual** é igual ao marco de um relatório existente, a coluna
 com:
 
 - **Description** ← a descrição do banco NCR;
-- **Observation** ← a Observação da NCR — campo próprio do item, **separado da
-  Observação interna (anotação)**, e que também **não sai no PDF**;
-- **Obs Ship Manager** ← a Obs Ship Manager da NCR, num cartão próprio do
-  editor, logo abaixo da Observation — interna também, **fora do PDF**, e
-  editável mesmo com o item travado (a Tabela tem a coluna, em *Colunas*);
+- **Observação** e **Obs Ship Manager** da NCR: **não aparecem no editor do
+  Waiver de saída**. Em **Ajustes → Observações do Banco NCR** dá para ligar
+  dois cartões, abaixo da anotação do item, que mostram (e gravam) essas duas
+  colunas da NCR no Banco NCR — **fora do PDF**, editáveis mesmo com o item
+  travado, só nos itens ligados a uma NCR do banco. A escolha vale só para
+  o seu navegador. Na tabela do Banco NCR as duas colunas se editam na própria
+  célula (*+ escrever*);
 - **Função**, **Sistema(s)** e **Waiver Historic** já preenchidos
   (`09 - Coordinate damage control` vira `FV09 - COORDINATE DAMAGE CONTROL`).
 

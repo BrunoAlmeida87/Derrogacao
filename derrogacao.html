@@ -23084,39 +23084,50 @@ if(isWorker){
    *   aceito continua aceito, e é justamente nele que se anota "conferir o
    *   certificado na próxima revisão". Daí o `data-livre`.
    */
-  /* A Observation é a Observação da NCR no Banco NCR, copiada quando a NCR
-     entra no relatório. Campo próprio, separado da anotação (decisão do
-     Bruno): a anotação é o recado de pendência; esta é o texto da NCR. Como
-     a anotação, não sai no PDF — o SECTIONS do report.js não a conhece — e
-     continua editável com o item travado. */
-  function cardDeObservation() {
-    var c = card('Observation — do Banco NCR', '#1d6b45');
-    c.classList.add('card--observation');
-    c.appendChild(el('div', 'hint nota-aviso',
-      'Interna: não entra no relatório em PDF. Recebe a Observação da NCR quando ela é ' +
-      'adicionada pelo Banco NCR; depois disso, o que se escreve aqui fica só neste item.'));
-    /* o rótulo fica: sem ele o campo não tem nome para o leitor de tela */
-    var campo = field('Texto da Observação da NCR', 'observation', { rows: 3 });
-    var ta = $('#f-observation', campo);
-    if (ta) ta.setAttribute('data-livre', '');
-    c.appendChild(campo);
-    return c;
+  /* As observações da NCR no Banco NCR (Observação e Obs Ship Manager) no
+     editor do Waiver: **opcionais** (pedido do Bruno: não querer os boxes ali
+     de saída), ligadas em Ajustes, por navegador. Quando ligadas, o cartão
+     não é uma cópia: mostra e grava a própria NCR do banco (Ncrs.recDoItem),
+     a mesma coluna da tabela do Banco NCR e da ficha. Fora do PDF, e editável
+     com o item travado (`data-livre`) — como a anotação. Os campos
+     `observation`/`obsShipManager` do item continuam existindo nos dados
+     (compatibilidade), mas o editor não os mostra. */
+  var CHAVE_OBS_BANCO = 'derrogacao:obsBanco';
+  function obsBancoLigada() {
+    try { return localStorage.getItem(CHAVE_OBS_BANCO) === '1'; } catch (e) { return false; }
+  }
+  function ligarObsBanco(v) {
+    try { if (v) localStorage.setItem(CHAVE_OBS_BANCO, '1'); else localStorage.removeItem(CHAVE_OBS_BANCO); } catch (e) { /* sem armazenamento: vale até recarregar */ }
   }
 
-  /* A Obs Ship Manager: as observações que o Ship Manager manda para a
-     equipe (pedido do Bruno). O mesmo comportamento da Observation: vem da
-     coluna "Obs Ship Manager" do Banco NCR quando a NCR entra no relatório,
-     não sai no PDF e continua editável com o item travado. */
-  function cardDeObsShipManager() {
-    var c = card('Obs Ship Manager — do Banco NCR', '#0e7490');
-    c.classList.add('card--observation', 'card--shipmanager');
+  function cardDeObsBanco(rec, campo, titulo, cor, rotulo) {
+    var c = card(titulo + ' — do Banco NCR', cor);
+    c.classList.add('card--observation');
+    if (campo === 'obsShipManager') c.classList.add('card--shipmanager');
     c.appendChild(el('div', 'hint nota-aviso',
-      'Interna: não entra no relatório em PDF. Recebe a Obs Ship Manager da NCR quando ela é ' +
-      'adicionada pelo Banco NCR; depois disso, o que se escreve aqui fica só neste item.'));
-    var campo = field('Observações enviadas pelo Ship Manager', 'obsShipManager', { rows: 3 });
-    var ta = $('#f-obsShipManager', campo);
-    if (ta) ta.setAttribute('data-livre', '');
-    c.appendChild(campo);
+      'Interna: não entra no relatório em PDF. É a coluna "' + titulo + '" da ' + rec.numero +
+      ' no Banco NCR — o que se escreve aqui grava lá.'));
+    var wrap = el('div', 'field');
+    var id = 'f-banco-' + campo;
+    var lab = el('label', null, rotulo);
+    lab.htmlFor = id;
+    wrap.appendChild(lab);
+    var ta = document.createElement('textarea');
+    ta.id = id;
+    ta.rows = 3;
+    ta.value = rec.waiver[campo] || '';
+    ta.setAttribute('data-livre', '');
+    if (Leitura.ativo()) {
+      ta.readOnly = true;
+    } else {
+      var tm = null;
+      ta.addEventListener('input', function () {
+        clearTimeout(tm);
+        tm = setTimeout(function () { ctxBanco.editar(rec, campo, ta.value); }, 400);
+      });
+    }
+    wrap.appendChild(ta);
+    c.appendChild(wrap);
     return c;
   }
 
@@ -23372,12 +23383,14 @@ if(isWorker){
     /* --- a anotação, antes do conteúdo do documento --- */
     if (!Leitura.ativo()) host.appendChild(cardDeAnotacao(ncr));
 
-    /* --- a Observation que veio do Banco NCR: interna, como a anotação --- */
-    /* no visualizador, só quando há o que ler */
-    var temObs = !!(ncr.observation || '').trim();
-    if (Leitura.ativo() ? temObs : (!isDev() || temObs)) host.appendChild(cardDeObservation());
-    var temSm = !!(ncr.obsShipManager || '').trim();
-    if (Leitura.ativo() ? temSm : (!isDev() || temSm)) host.appendChild(cardDeObsShipManager());
+    /* --- as observações do Banco NCR: só se ligadas em Ajustes --- */
+    if (!isDev() && obsBancoLigada()) {
+      var recObs = Ncrs.recDoItem(ncr);
+      if (recObs) {
+        host.appendChild(cardDeObsBanco(recObs, 'observacao', 'Observação', '#1d6b45', 'Observação da NCR'));
+        host.appendChild(cardDeObsBanco(recObs, 'obsShipManager', 'Obs Ship Manager', '#0e7490', 'Observações enviadas pelo Ship Manager'));
+      }
+    }
 
     /* --- seções textuais, na ordem e nas cores do relatório --- */
     var textCard = card('Conteúdo da derrogação');
@@ -24782,11 +24795,45 @@ if(isWorker){
     var velho = $('#conversaAjuste');
     if (velho && velho.parentNode) velho.parentNode.removeChild(velho);
     caixa.appendChild(ajusteDaConversa());
+    var velhoObs = $('#obsBancoAjuste');
+    if (velhoObs && velhoObs.parentNode) velhoObs.parentNode.removeChild(velhoObs);
+    caixa.appendChild(ajusteDasObservacoes());
     /* a área administrativa: fecha com senha, e é deste programa, não do relatório */
     var velhoAdm = $('#adminAjuste');
     if (velhoAdm && velhoAdm.parentNode) velhoAdm.parentNode.removeChild(velhoAdm);
     caixa.appendChild(Admin.blocoAjustes());
     $('#settingsDialog').showModal();
+  }
+
+  /**
+   * Mostrar, no editor do Waiver, os cartões com a Observação e a Obs Ship
+   * Manager da NCR no Banco NCR. Desligado de saída; vale só para este
+   * navegador, como a Conversa.
+   */
+  function ajusteDasObservacoes() {
+    var box = el('div', 'dlg-sec');
+    box.id = 'obsBancoAjuste';
+    box.appendChild(el('div', 'dlg-sec-tit', 'Observações do Banco NCR'));
+    var f = el('div', 'field');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = 'obsBancoLigada';
+    cb.checked = obsBancoLigada();
+    cb.style.width = 'auto';
+    var lab = el('label', 'field-check');
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode('Mostrar a Observação e a Obs Ship Manager no editor do Waiver'));
+    f.appendChild(lab);
+    f.appendChild(el('div', 'hint',
+      'Dois cartões, abaixo da anotação do item, com o que está nessas colunas da NCR no Banco NCR. ' +
+      'O que se escreve neles grava na própria NCR do banco (a mesma coluna da tabela), não no item, e ' +
+      'não entra no PDF. Só aparecem nos itens ligados a uma NCR do banco. Vale só para este navegador.'));
+    box.appendChild(f);
+    cb.addEventListener('change', function () {
+      ligarObsBanco(cb.checked);
+      renderEditor();
+    });
+    return box;
   }
 
   /**

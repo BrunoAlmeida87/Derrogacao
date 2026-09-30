@@ -95,12 +95,23 @@ const L = require('./lib');
     await pg.selectOption('#projectSelect', opJ09);
     await pg.waitForTimeout(300);
     await pg.click('.ncr-item:has-text("' + NUM + '")');
-    await pg.waitForSelector('#f-obsShipManager');
-    const ed = await pg.evaluate(() => ({ v: document.getElementById('f-obsShipManager').value,
-      livre: document.getElementById('f-obsShipManager').hasAttribute('data-livre') }));
-    L.ok(ed.v === TEXTO && ed.livre, 'no editor: o cartão "Obs Ship Manager" com o texto, editável mesmo com o item travado');
-    await pg.fill('#f-obsShipManager', TEXTO + ' (conferido)');
+    await pg.waitForSelector('#f-nota');
+    L.ok(!(await pg.$('#f-banco-obsShipManager')) && !(await pg.$('#f-banco-observacao')),
+      'no editor do Waiver os boxes das observações não aparecem de saída');
+    await pg.evaluate(() => { document.getElementById('settingsBtn').click(); });
+    await pg.check('#obsBancoLigada');
+    await pg.click('#settingsCloseBtn');
+    await pg.waitForSelector('#f-banco-obsShipManager');
+    const ed = await pg.evaluate(() => ({ v: document.getElementById('f-banco-obsShipManager').value,
+      livre: document.getElementById('f-banco-obsShipManager').hasAttribute('data-livre'),
+      obs: !!document.getElementById('f-banco-observacao') }));
+    L.ok(ed.v === TEXTO && ed.livre && ed.obs, 'ligado em Ajustes: os dois cartões, com o texto do Banco NCR, editáveis mesmo com o item travado');
+    await pg.fill('#f-banco-obsShipManager', TEXTO + ' (conferido)');
+    await pg.fill('#f-banco-observacao', 'Observação escrita pelo editor');
     await pg.waitForTimeout(900);
+    const noBanco = await pg.evaluate((n) => ({ sm: Ncrs.get(n).waiver.obsShipManager, ob: Ncrs.get(n).waiver.observacao }), NUM);
+    L.ok(noBanco.sm === TEXTO + ' (conferido)' && noBanco.ob === 'Observação escrita pelo editor',
+      'o que se escreve no cartão grava na NCR do Banco NCR');
     const pdf = await pg.evaluate(async (a) => {
       const ps = await Store.list();
       const j09 = ps.filter(p => p.marco === 'J09')[0];
@@ -109,9 +120,8 @@ const L = require('./lib');
       Report.build(j09, root, 'ncr');
       const html = root.innerHTML;
       root.innerHTML = '';
-      return { salvo: it.obsShipManager, noPapel: html.indexOf('SM pede nova') >= 0, temItem: html.indexOf(a.n) >= 0 };
+      return { noPapel: html.indexOf('SM pede nova') >= 0, temItem: html.indexOf(a.n) >= 0 };
     }, { n: NUM });
-    L.ok(pdf.salvo === TEXTO + ' (conferido)', 'o que se escreve no item fica gravado no item');
     L.ok(pdf.temItem && !pdf.noPapel, 'o PDF do relatório tem o item e não tem a Obs Ship Manager');
 
     console.log('correlação e versões anteriores');
@@ -137,7 +147,7 @@ const L = require('./lib');
         { editedAt: '2099-01-01T00:00:00.000Z', campoDoFuturo: 'x' }) }] });
       return { devolve: r.localMaisNovo, manteve: rec.waiver.obsShipManager, futuro: Ncrs.get(n).waiver.campoDoFuturo };
     }, NUM);
-    L.ok(velha.devolve && velha.manteve === TEXTO, 'arquivo regravado sem o campo: o texto fica aqui e volta para a pasta');
+    L.ok(velha.devolve && velha.manteve === TEXTO + ' (conferido)', 'arquivo regravado sem o campo: o texto fica aqui e volta para a pasta');
     L.igual(velha.futuro, 'x', 'campo que esta versão não conhece passa intacto (para a próxima novidade)');
 
     console.log('visualizador');
@@ -153,7 +163,7 @@ const L = require('./lib');
     await v.pagina.evaluate((n) => NcrView.abrirFicha(n), NUM);
     await v.pagina.waitForSelector('#nbFicha-obsShipManager');
     const vis = await v.pagina.$eval('#nbFicha-obsShipManager', t => ({ v: t.value, ro: t.readOnly }));
-    L.ok(vis.v === TEXTO && vis.ro, 'no visualizador: o texto à vista, só leitura');
+    L.ok(vis.v === TEXTO + ' (conferido)' && vis.ro, 'no visualizador: o texto à vista, só leitura');
   } finally {
     const errosOutros = [];
     outros.forEach(o => errosOutros.push.apply(errosOutros, o.erros.filter(e => !/404|Failed to load resource/.test(e))));

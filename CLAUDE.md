@@ -235,10 +235,21 @@ Bruno: "igual à Observação"). É a Observação repetida, nos dois lugares:
   vez**, na escolha que cada um já tinha gravada (`incluirColunaNova`, com a
   marca `derrogacao:ncrColunaShipManager`) — trocar a chave `ncrColunas2`
   teria desfeito a escolha de todo mundo;
-- **no item** (`obsShipManager`): copiada por `paraItemWaiver`, cartão próprio
-  no editor (`cardDeObsShipManager`, `data-livre`), em `CAMPOS_VISIVEIS` e
-  `CAMPOS_MESCLA`, **fora da `signature()` e do PDF**, sem subir o `SCHEMA`
-  (`extrasDe`) — as regras da `observation`; coluna opcional na Tabela.
+- **no item** (`obsShipManager`): copiada por `paraItemWaiver`, em
+  `CAMPOS_VISIVEIS` e `CAMPOS_MESCLA`, **fora da `signature()` e do PDF**, sem
+  subir o `SCHEMA` (`extrasDe`) — as regras da `observation`; coluna opcional
+  na Tabela. **O editor já não mostra o campo do item** (ver abaixo).
+
+**Cartões opcionais no editor** (pedido do Bruno: "não os quero ali"): a
+Observação e a Obs Ship Manager deixaram de ser cartões fixos do editor do
+Waiver. Em Ajustes → "Observações do Banco NCR" (`derrogacao:obsBanco`, por
+navegador, desligado de saída) `cardDeObsBanco` desenha dois cartões que
+**mostram e gravam a NCR do banco** (`Ncrs.recDoItem` + `ctxBanco.editar`, a
+mesma coluna da tabela e da ficha), não o campo do item — "buscaria as
+informações que estão lá no banco". `data-livre`, fora do PDF, só NCR (não
+DEV) ligada a uma NCR do banco. Os campos `observation`/`obsShipManager` do
+item continuam nos dados (compatibilidade; `CAMPOS_MESCLA`), só não têm tela.
+No visualizador os cartões não aparecem (os Ajustes não abrem lá).
 
 **O `waiver` da NCR não tinha `extrasDe`**: `normalizarWaiver` remontava campo a
 campo, e a versão anterior do programa, ao regravar
