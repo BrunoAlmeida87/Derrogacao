@@ -94,7 +94,7 @@ const L = require('./lib');
     await pg.click('#ncrList .ncr-item:first-child');
     await pg.waitForSelector('#f-func');
     L.ok(await pg.$eval('#f-func', f => f.readOnly), 'no editor a Função só se vê (vem do Banco NCR)');
-    L.ok(/Banco NCR/.test(await pg.$eval('#f-func', f => f.parentNode.textContent)), 'e diz de onde vem');
+    
 
     console.log('4. Kanban com as DEVs');
     await pg.click('.tab[data-kind="kanban"]');

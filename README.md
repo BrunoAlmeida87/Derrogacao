@@ -1057,8 +1057,8 @@ arquivo só; *Restaurar de um backup…* traz o banco NCR de volta.
 
 A função vital era escrita em dois lugares (no Banco NCR e no **Função** do
 Waiver NCR). Agora o **Banco NCR manda**: com a Função Vital preenchida na NCR,
-o campo **Função** do item do Waiver só mostra o que está lá (“Vem da Função
-Vital da NCR no Banco NCR”) e acompanha sozinho quando ela muda — ao editar no
+o campo **Função** do item do Waiver só mostra o que está lá (somente leitura)
+e acompanha sozinho quando ela muda — ao editar no
 banco, ao importar, ao vir da pasta e ao abrir o programa. Sem digitar de novo.
 A mudança só acontece quando o texto é **outro** (“FV 01 - Sea water…” e
 “FV01 - SEA WATER…” são a mesma função), então o que já estava certo não muda

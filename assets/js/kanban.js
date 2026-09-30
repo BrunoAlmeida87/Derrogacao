@@ -984,10 +984,6 @@
     cab.appendChild(el('div', 'kbp-info', (rel ? 'Relatório: ' + marcoRel(rel) + ' Waiver' : 'Ainda não há relatório de Waiver deste marco') +
       ' · Gerado em ' + new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) +
       (ctx.usuario && ctx.usuario() ? ' por ' + ctx.usuario() : '')));
-    var filtros = descricaoDosFiltros();
-    var n = e.vis.length;
-    cab.appendChild(el('div', 'kbp-info kbp-filtros', 'Filtros: ' + filtros + ' · ' + n + ' de ' + e.todos.length +
-      ' NCR(s) à vista' + (o.encerradas ? '' : ' · sem a área das encerradas')));
     cab.appendChild(el('div', 'kbp-nums', numerosDoResumo(e.todos).map(function (p) { return p.n + ' ' + p.rot; }).join(' · ')));
     return cab;
   }

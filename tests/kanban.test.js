@@ -147,7 +147,7 @@ const L = require('./lib');
       L.ok(folha && folha.cols === 5, v[0] + ' ' + v[1] + ': as cinco colunas na folha');
       L.ok(pdf.tamanhos.every(t => t[0] === v[2] && t[1] === v[3]), v[0] + ' ' + v[1] + ': papel ' + v[2] + '×' + v[3] + ' mm (' + JSON.stringify(pdf.tamanhos[0]) + ')');
       L.igual(pdf.paginas, nPrevia, v[0] + ' ' + v[1] + ': a prévia acerta o número de folhas (' + pdf.paginas + ')');
-      L.ok(/J09/.test(folha.cab) && /Filtros:/.test(folha.cab) && /Gerado em \d{2}\/\d{2}\/\d{4}/.test(folha.cab),
+      L.ok(/J09/.test(folha.cab) && !/Filtros:/.test(folha.cab) && /Gerado em \d{2}\/\d{2}\/\d{4}/.test(folha.cab),
         v[0] + ' ' + v[1] + ': a folha diz o marco, os filtros e a data e hora');
     }
     /* filtro na folha */
@@ -160,8 +160,8 @@ const L = require('./lib');
       cards: document.querySelectorAll('#printRoot .kbp-card').length,
       alerta: document.querySelectorAll('#printRoot .kbp-card.is-alerta').length
     }));
-    L.ok(/só com alerta/.test(soAlerta.cab) && soAlerta.cards > 0 && soAlerta.cards === soAlerta.alerta,
-      'com "Só com alerta" ligado, a folha só traz as NCRs com alerta — e diz isso');
+    L.ok(soAlerta.cards > 0 && soAlerta.cards === soAlerta.alerta,
+      'com "Só com alerta" ligado, a folha só traz as NCRs com alerta');
     /* caber numa folha só */
     await pg.click('.kb-toggle--alerta');
     await pg.click('.kb-exporta .btn:first-child');

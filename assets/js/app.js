@@ -2205,12 +2205,10 @@
         placeholder: 'DEV-78154', refreshList: true
       }));
       gd.appendChild(field('Sistema(s)', 'systems', {
-        placeholder: 'RM   ou   BX, BQ, BD', refreshList: true,
-        hint: 'Alimenta os indicadores (Resumo, Tabela). Não sai no PDF.'
+        placeholder: 'RM   ou   BX, BQ, BD', refreshList: true
       }));
       gd.appendChild(field('Sistema e descrição', 'func', {
-        placeholder: 'BQ - Modification des compensateurs', refreshList: true,
-        hint: 'Sai no título como DEV-78154|BQ - Modification des compensateurs.'
+        placeholder: 'BQ - Modification des compensateurs', refreshList: true
       }));
       idCard.appendChild(gd);
       watched = ['f-ncrId', 'f-systems', 'f-func'];
@@ -2227,11 +2225,9 @@
       var recFv = Ncrs.recDoItem(ncr);
       var fvBanco = recFv && Ncrs.funcaoParaWaiver(recFv.waiver.funcaoVital);
       g.appendChild(field('Função', 'func', fvBanco ? {
-        refreshList: true, fixo: true,
-        hint: 'Vem da Função Vital da NCR no Banco NCR. Para mudar, altere lá (“Ver a ficha”, logo abaixo).'
+        refreshList: true, fixo: true
       } : {
-        placeholder: 'FV 01 - Sea water circuit integrity', refreshList: true,
-        hint: Ncrs.recDoItem(ncr) ? 'A NCR ainda não tem Função Vital no Banco NCR; quando tiver, ela passa a valer aqui.' : ''
+        placeholder: 'FV 01 - Sea water circuit integrity', refreshList: true
       }));
       idCard.appendChild(g);
       watched = ['f-ncrId', 'f-systems', 'f-func'];
