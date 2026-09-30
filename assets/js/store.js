@@ -11,6 +11,19 @@
   var USER_KEY = 'derrogacao:user';
   var BACKUP_KEY = 'derrogacao:lastBackupAt';
   var FOLDER_KEY = 'derrogacao:pastaBackup';
+  var DB_FOLDER_KEY = 'derrogacao:pastaBanco';
+
+  /* Onde a equipe combinou que fica o banco de dados. Fica aqui, e não na
+     interface, porque é o valor de saída: quem abre o programa pela primeira
+     vez já vê o caminho certo no diálogo, em vez de ter de perguntar a
+     alguém. Trocar é um botão — a pasta pode mudar de lugar.
+
+     Isto é texto, e só. O navegador não abre pasta por caminho: quem escolhe
+     é sempre a pessoa, na janela do Windows (ver o cabeçalho do pasta.js).
+     O que o programa guarda depois disso é o crachá da pasta escolhida, e é
+     esse crachá que evita ter de escolher de novo a cada vez. */
+  var CAMINHO_PADRAO =
+    'G:\\DOP\\GTO\\3_INTERNO\\01_SAFE TO DIVE\\10_SISTEMA DE DERROGAÇÃO\\00_BD';
   var DB_NAME = 'derrogacao';
   var DB_VERSION = 3;
   var STORE = 'projects';
@@ -38,18 +51,25 @@
     };
   }
 
-  /* Situação de acompanhamento do item. É controle interno: não sai em
-     nenhuma página do PDF — quem vai para o relatório é o campo
-     "Arch Status Waiver", que segue independente deste. O item só conta como
-     concluído quando chega em "Waiver accepted". */
+  /* Situação de acompanhamento do item. Nasceu como controle interno, e
+     continua sendo o que o editor mostra e o que os filtros contam. Desde
+     que o Bruno pediu, é também **o que fecha a linha do item no índice da
+     capa** do relatório — o Arch Status Waiver, que é texto livre, continua
+     impresso no bloco de status da página do item, mas quem diz em que pé o
+     waiver está, na capa, é esta situação (§10). O item só conta como
+     concluído quando chega em "Waiver accepted".
+
+     `en` é o rótulo que vai para o papel: o relatório é um documento em
+     inglês, e "Em preenchimento" no meio da capa seria a única palavra em
+     português da folha. */
   var STATUS = [
-    { id: 'preenchendo', nome: 'Em preenchimento',     cor: '#9aa1ae',
+    { id: 'preenchendo', nome: 'Em preenchimento',     en: 'Under preparation', cor: '#9aa1ae',
       ajuda: 'Ainda sendo escrito.' },
-    { id: 'solicitado',  nome: 'Waiver requested',     cor: '#2a78d6',
+    { id: 'solicitado',  nome: 'Waiver requested',     en: 'Waiver requested', cor: '#2a78d6',
       ajuda: 'Enviado, aguardando resposta.' },
-    { id: 'justificar',  nome: 'Improve justification', cor: '#eb6834',
+    { id: 'justificar',  nome: 'Improve justification', en: 'Improve justification', cor: '#eb6834',
       ajuda: 'Voltou pedindo justificativa melhor.' },
-    { id: 'aceito',      nome: 'Waiver accepted',      cor: '#1baf7a',
+    { id: 'aceito',      nome: 'Waiver accepted',      en: 'Waiver accepted', cor: '#1baf7a',
       ajuda: 'Aceito — o item conta como concluído.' }
   ];
   var STATUS_PADRAO = 'preenchendo';
@@ -84,7 +104,13 @@
       historic: '',
       certificates: [],
       evidence: [],
-      status: STATUS_PADRAO, // acompanhamento interno; não sai no PDF
+      nota: '',              // anotação interna livre; NÃO sai no PDF (§4)
+      observation: '',       // Observação vinda do banco NCR; interna, NÃO sai no PDF
+      obsShipManager: '',    // Obs Ship Manager, vinda do banco NCR; interna, NÃO sai no PDF
+      ncrKey: '',            // chave da NCR do banco à qual o item foi vinculado
+      herdadoDe: '',         // marco de onde este item foi trazido (§5, herdar.js)
+      herdadoEm: '',         // quando foi trazido — ISO
+      status: STATUS_PADRAO, // acompanhamento do item; fecha a linha da capa
       done: false,           // espelho de status === 'aceito', para filtros e contagens
       editedBy: '',          // quem mexeu nele por último
       editedAt: '',
@@ -125,24 +151,75 @@
 
   function str(v) { return typeof v === 'string' ? v : (v == null ? '' : String(v)); }
 
+  /**
+   * Campos que este programa ainda não conhece.
+   *
+   * A normalização remonta cada registro só com os campos da lista — e era
+   * por isso que uma versão mais antiga da página, lendo um arquivo gravado
+   * por uma versão mais nova, apagava em silêncio o que não entendia e
+   * regravava a perda na pasta compartilhada. Guardar os desconhecidos e
+   * devolvê-los intactos custa quase nada e evita esse estrago.
+   */
+  function extrasDe(raw, conhecidos) {
+    var out = {};
+    if (!raw || typeof raw !== 'object') return out;
+    for (var k in raw) {
+      if (!Object.prototype.hasOwnProperty.call(raw, k)) continue;
+      if (k.slice(0, 2) === '__') continue;           /* nada de __proto__ */
+      if (conhecidos.indexOf(k) >= 0) continue;
+      out[k] = raw[k];
+    }
+    return out;
+  }
+
+  var CAMPOS_IMAGEM = ['id', 'src', 'caption', 'arquivo'];
+  var CAMPOS_EVIDENCIA = ['id', 'ref', 'note', 'orientation', 'images'];
+  var CAMPOS_ITEM = ['id', 'ncrId', 'systems', 'func', 'description', 'currentSituation',
+    'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
+    'approvedExpiry', 'historic', 'certificates', 'evidence', 'nota',
+    'observation', 'obsShipManager', 'ncrKey',
+    'herdadoDe', 'herdadoEm', 'status', 'done',
+    'editedBy', 'editedAt', 'syncBase'];
+  var CAMPOS_PROJETO = ['id', 'schema', 'name', 'marco', 'marcoDev', 'lastEditedBy',
+    'lastEditedAt', 'lastBackupBy', 'lastBackupAt', 'coverTitle', 'coverTitleDev',
+    'coverSubtitle', 'footer', 'showCoverDate', 'ordem', 'ncrs', 'devs', 'deleted',
+    'sessions', 'createdAt', 'updatedAt'];
+
+  /* As imagens do programa nascem de canvas.toDataURL: são sempre "data:".
+     Um .json recebido pode trazer um endereço de rede no lugar, e aí bastaria
+     abrir o item para o navegador ir buscá-lo — o servidor do outro lado
+     ficaria sabendo o IP, a hora e, pela URL, qual item foi aberto. Nada sai
+     do computador: o que não for data: ou blob: é descartado. O nome em
+     `arquivo` é outra coisa — é um arquivo dentro da pasta escolhida, lido
+     pelo crachá do File System Access, sem rede nenhuma. */
+  function srcLocal(v) {
+    v = str(v);
+    return /^(data:image\/|blob:)/i.test(v) ? v : '';
+  }
+
   function normalizeImage(img) {
-    if (typeof img === 'string') return { id: uid(), src: img, caption: '' };
-    return {
-      id: str(img && img.id) || uid(),
-      src: str(img && img.src),
-      caption: str(img && img.caption)
-    };
+    if (typeof img === 'string') return { id: uid(), src: srcLocal(img), caption: '' };
+    var out = extrasDe(img, CAMPOS_IMAGEM);
+    out.id = str(img && img.id) || uid();
+    out.src = srcLocal(img && img.src);
+    out.caption = str(img && img.caption);
+    /* Na pasta compartilhada a imagem mora num arquivo ao lado; aqui fica o
+       nome dele, para buscar o conteúdo quando faltar. */
+    if (str(img && img.arquivo)) out.arquivo = str(img.arquivo);
+    return out;
   }
 
   function normalizeEvidence(ev, i) {
-    var images = Array.isArray(ev && ev.images) ? ev.images.map(normalizeImage).filter(function (im) { return im.src; }) : [];
-    return {
-      id: str(ev && ev.id) || uid(),
-      ref: str(ev && ev.ref) || 'Attachment ' + (i + 1),
-      note: str(ev && ev.note),
-      orientation: str(ev && ev.orientation) === 'portrait' ? 'portrait' : 'landscape',
-      images: images
-    };
+    var images = Array.isArray(ev && ev.images)
+      ? ev.images.map(normalizeImage).filter(function (im) { return im.src || im.arquivo; })
+      : [];
+    var out = extrasDe(ev, CAMPOS_EVIDENCIA);
+    out.id = str(ev && ev.id) || uid();
+    out.ref = str(ev && ev.ref) || 'Attachment ' + (i + 1);
+    out.note = str(ev && ev.note);
+    out.orientation = str(ev && ev.orientation) === 'portrait' ? 'portrait' : 'landscape';
+    out.images = images;
+    return out;
   }
 
   function normalizeNcr(raw) {
@@ -155,7 +232,8 @@
     var status = str(raw.status);
     var conhecido = STATUS.some(function (o) { return o.id === status; });
     if (!conhecido) status = raw.done === true ? STATUS_CONCLUIDO : STATUS_PADRAO;
-    return {
+    var extras = extrasDe(raw, CAMPOS_ITEM);
+    var out = {
       id: str(raw.id) || base.id,
       ncrId: str(raw.ncrId),
       systems: str(raw.systems),
@@ -171,12 +249,20 @@
       historic: str(raw.historic),
       certificates: certs,
       evidence: Array.isArray(raw.evidence) ? raw.evidence.map(normalizeEvidence) : [],
+      nota: str(raw.nota),
+      observation: str(raw.observation),
+      obsShipManager: str(raw.obsShipManager),
+      ncrKey: str(raw.ncrKey),
+      herdadoDe: str(raw.herdadoDe),
+      herdadoEm: str(raw.herdadoEm),
       status: status,
       done: status === STATUS_CONCLUIDO,
       editedBy: str(raw.editedBy),
       editedAt: str(raw.editedAt),
       syncBase: str(raw.syncBase)
     };
+    for (var k in extras) if (Object.prototype.hasOwnProperty.call(extras, k)) out[k] = extras[k];
+    return out;
   }
 
   /* Aceita backups gravados antes da aba DEV existir: nesses arquivos há
@@ -194,9 +280,12 @@
   function normalizeProject(raw) {
     var base = newProject('');
     if (!raw || typeof raw !== 'object') return base;
-    return {
+    var extras = extrasDe(raw, CAMPOS_PROJETO);
+    var out = {
       id: str(raw.id) || base.id,
-      schema: SCHEMA,
+      /* Um arquivo gravado por uma versão mais nova continua marcado como
+         tal: é assim que esta página sabe que não deve regravar a pasta. */
+      schema: Math.max(SCHEMA, Number(raw.schema) || 0),
       name: str(raw.name) || str(raw.marco) || 'Relatório sem nome',
       marco: str(raw.marco),
       marcoDev: str(raw.marcoDev),
@@ -217,6 +306,18 @@
       createdAt: str(raw.createdAt) || base.createdAt,
       updatedAt: str(raw.updatedAt) || base.updatedAt
     };
+    for (var k in extras) if (Object.prototype.hasOwnProperty.call(extras, k)) out[k] = extras[k];
+    return out;
+  }
+
+  /** O arquivo veio de uma versão mais nova do que esta página entende? */
+  function maisNovoQueEu(lista) {
+    var maior = 0;
+    (lista || []).forEach(function (p) {
+      var n = Number(p && p.schema) || 0;
+      if (n > maior) maior = n;
+    });
+    return maior > SCHEMA;
   }
 
   /* Uma sessão é um período de trabalho num navegador: começa quando a
@@ -251,6 +352,10 @@
    * imagem gera um id novo, então a diferença é detectada sem comparar os
    * megabytes do base64.
    */
+  /* Note que a `nota` fica de fora: a assinatura é o critério de desempate
+     quando duas edições têm o carimbo de tempo idêntico, e ele tem de dar o
+     mesmo resultado nesta versão e nas anteriores — senão as duas bases
+     desempatam diferente e divergem para sempre (§10). */
   function signature(item) {
     return JSON.stringify([
       item.ncrId, item.systems, item.func,
@@ -264,6 +369,248 @@
           (ev.images || []).map(function (im) { return [im.id, im.caption]; })];
       })
     ]);
+  }
+
+  /* Campos de texto do item, com o nome que a pessoa vê. Serve para dizer
+     "o que mudou" numa linguagem que não seja a do código. */
+  var CAMPOS_VISIVEIS = [
+    ['ncrId', 'Número'],
+    ['systems', 'Sistema(s)'],
+    ['func', 'Função'],
+    ['description', 'Description'],
+    ['currentSituation', 'Current Situation'],
+    ['whyNotPossible', 'Why is not possible to treat the deviation'],
+    ['arguments', 'What are the arguments for the derrogation'],
+    ['archAnswer', 'Arch Answer'],
+    ['requestExpiry', 'Waiver Request Expiry'],
+    ['archStatus', 'Arch Status Waiver'],
+    ['approvedExpiry', 'Waiver Approved Expiry'],
+    ['historic', 'Waiver Historic'],
+    /* A anotação não é do documento — é recado interno. Entra aqui porque
+       esta lista serve a duas coisas que ela precisa: a busca (procurar pelo
+       motivo da pendência tem de achar o item) e o "o que mudou" da faixa de
+       mesclagem. Quem manda no PDF é o SECTIONS do report.js, não esta lista. */
+    ['nota', 'Observação interna'],
+    /* Veio da Observação da NCR, no Banco NCR. Interna como a anotação, e
+       pelo mesmo motivo está aqui e fora do SECTIONS do report.js. */
+    ['observation', 'Observation (banco NCR)'],
+    /* a Obs Ship Manager: o mesmo caminho da Observation */
+    ['obsShipManager', 'Obs Ship Manager']
+  ];
+
+  function resumoEvidencia(item) {
+    var evs = item.evidence || [];
+    var imgs = 0;
+    evs.forEach(function (ev) { imgs += (ev.images || []).length; });
+    if (!evs.length) return '';
+    return evs.length + ' anexo(s), ' + imgs + ' imagem(ns)';
+  }
+
+  /**
+   * O que mudou de um retrato do item para outro, campo a campo.
+   * Devolve só o que realmente diferiu — e nunca carrega o base64 das
+   * imagens: das evidências vai apenas a contagem.
+   */
+  function difCampos(antes, depois) {
+    var out = [];
+    if (!antes || !depois) return out;
+    CAMPOS_VISIVEIS.forEach(function (c) {
+      var a = str(antes[c[0]]), b = str(depois[c[0]]);
+      if (a !== b) out.push({ campo: c[0], rotulo: c[1], antes: a, depois: b });
+    });
+    var ca = (antes.certificates || []).join('\n');
+    var cb = (depois.certificates || []).join('\n');
+    if (ca !== cb) out.push({ campo: 'certificates', rotulo: 'Certificate Impacted', antes: ca, depois: cb });
+    var sa = statusInfo(antes.status).nome, sb = statusInfo(depois.status).nome;
+    if (sa !== sb) out.push({ campo: 'status', rotulo: 'Situação do item', antes: sa, depois: sb });
+    var ea = resumoEvidencia(antes), eb = resumoEvidencia(depois);
+    if (ea !== eb) out.push({ campo: 'evidence', rotulo: 'Evidências', antes: ea, depois: eb });
+    return out;
+  }
+
+  /* --- a base da mesclagem: o texto que os dois lados tinham em comum -----
+     "Vale quem editou por último" decide o item inteiro, e o item inteiro é
+     grande demais para ser a unidade: duas pessoas mexendo em campos
+     diferentes da mesma NCR não estão em conflito nenhum, mas uma delas
+     perdia tudo. O que faltava era a terceira ponta — o que os dois tinham
+     antes de se separarem. Guardando esse retrato dá para dizer, campo a
+     campo, quem mudou o quê; e só quando os dois mudaram o MESMO campo é que
+     alguém precisa ganhar. */
+
+  /* Os campos que se mesclam um a um. As evidências ficam de fora de
+     propósito: são listas com imagens, e juntar meia lista de anexos daria
+     um item que ninguém montou. Elas seguem o item inteiro, como antes. */
+  var CAMPOS_MESCLA = ['ncrId', 'systems', 'func', 'description', 'currentSituation',
+    'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
+    'approvedExpiry', 'historic', 'nota', 'observation', 'obsShipManager', 'ncrKey', 'herdadoDe',
+    'certificates', 'status'];
+
+  function rotuloCampo(campo) {
+    var achado = '';
+    CAMPOS_VISIVEIS.forEach(function (c) { if (c[0] === campo) achado = c[1]; });
+    if (achado) return achado;
+    if (campo === 'certificates') return 'Certificate Impacted';
+    if (campo === 'status') return 'Situação do item';
+    if (campo === 'herdadoDe') return 'Herdada do marco';
+    return campo;
+  }
+
+  /** O valor de um campo como texto — é assim que ele é comparado e guardado. */
+  function valorCampo(item, campo) {
+    if (!item) return '';
+    if (campo === 'certificates') return (item.certificates || []).join('\n');
+    if (campo === 'status') return statusInfo(item.status).id;
+    return str(item[campo]);
+  }
+
+  /** O caminho de volta: escreve no item o valor que veio como texto. */
+  function porCampo(item, campo, valor) {
+    valor = str(valor);
+    if (campo === 'certificates') {
+      item.certificates = valor ? valor.split('\n') : [];
+      return;
+    }
+    if (campo === 'status') {
+      item.status = statusInfo(valor).id;
+      item.done = item.status === STATUS_CONCLUIDO;
+      return;
+    }
+    item[campo] = valor;
+  }
+
+  /* As evidências não se mesclam campo a campo, mas precisam saber se
+     mudaram: sem isso, quem ganhasse o desempate levaria consigo a lista de
+     anexos do outro. A chave é a mesma que a assinatura usa — id e legenda,
+     nunca os megabytes da foto. */
+  function evidChave(item) {
+    return JSON.stringify(((item && item.evidence) || []).map(function (ev) {
+      return [ev.id, ev.ref, ev.note, ev.orientation,
+        (ev.images || []).map(function (im) { return [im.id, im.caption]; })];
+    }));
+  }
+
+  function retratoItem(item) {
+    var out = {};
+    CAMPOS_MESCLA.forEach(function (c) { out[c] = valorCampo(item, c); });
+    out.evid = evidChave(item);
+    return out;
+  }
+
+  /**
+   * O retrato compacto de tudo o que está aqui, para servir de base na
+   * próxima junção. Só texto: nem imagem, nem evidência, nem carimbo — cabe
+   * no armazenamento do navegador mesmo com centenas de itens.
+   */
+  function baseDe(projects) {
+    var mapa = {};
+    (projects || []).forEach(function (p) {
+      if (!p || !p.id) return;
+      var itens = {};
+      ['ncrs', 'devs'].forEach(function (k) {
+        (p[k] || []).forEach(function (n) { if (n && n.id) itens[n.id] = retratoItem(n); });
+      });
+      mapa[p.id] = itens;
+    });
+    return mapa;
+  }
+
+  /**
+   * Junta dois retratos do mesmo item campo a campo, tendo `base` como o que
+   * os dois tinham em comum.
+   *
+   * Devolve { item, perdidos, recebi, mantive }. `perdidos` só tem coisa
+   * quando os dois escreveram no MESMO campo — o único caso em que ainda é
+   * preciso escolher, e o único em que o relógio ainda decide. O texto que
+   * perdeu sai daqui inteiro para o histórico poder oferecê-lo de volta.
+   */
+  function mesclarCampos(meu, dele, base, venceDele) {
+    var out = normalizeNcr(venceDele ? dele : meu);
+    var res = { item: out, perdidos: [], recebi: 0, mantive: 0 };
+    CAMPOS_MESCLA.forEach(function (campo) {
+      var vm = valorCampo(meu, campo);
+      var vd = valorCampo(dele, campo);
+      var vb = str(base[campo]);
+      if (vm === vd) { porCampo(out, campo, vm); return; }
+      if (vd === vb) { porCampo(out, campo, vm); res.mantive++; return; }   /* só eu mexi */
+      if (vm === vb) { porCampo(out, campo, vd); res.recebi++; return; }    /* só ele mexeu */
+      porCampo(out, campo, venceDele ? vd : vm);
+      res.perdidos.push({
+        campo: campo,
+        rotulo: rotuloCampo(campo),
+        perdeu: venceDele ? vm : vd,
+        ficou: venceDele ? vd : vm,
+        de: str((venceDele ? meu : dele).editedBy)
+      });
+    });
+    /* Os anexos vão inteiros, mas para o lado certo: quem mexeu neles desde
+       a base leva. Só quando os dois mexeram é que um deles sai — e fica
+       anotado, porque uma foto não se recupera de um histórico de texto. */
+    var em = evidChave(meu), ed = evidChave(dele), eb = str(base.evid);
+    if (em !== ed && typeof base.evid === 'string') {
+      var deEv = ed === eb ? meu : (em === eb ? dele : null);
+      if (deEv) {
+        out.evidence = normalizeNcr(deEv).evidence;
+        if (deEv === meu) res.mantive++; else res.recebi++;
+      } else {
+        var perdedor = venceDele ? meu : dele;
+        res.perdidos.push({
+          campo: 'evidence',
+          rotulo: 'Evidências',
+          perdeu: resumoEvidencia(perdedor),
+          ficou: resumoEvidencia(venceDele ? dele : meu),
+          de: str(perdedor.editedBy),
+          semTexto: true          /* não dá para restaurar com um clique */
+        });
+      }
+    }
+
+    /* O resultado é mais novo do que os dois lados: ele carrega o trabalho
+       dos dois. A assinatura de quem ganhou o desempate fica como autoria. */
+    out.editedAt = maisRecente(str(meu.editedAt), str(dele.editedAt));
+    out.editedBy = str((venceDele ? dele : meu).editedBy);
+    return res;
+  }
+
+  /**
+   * Todo o texto do item, para a busca. Inclui o que está dentro das
+   * evidências: procurar "latch" tem de achar a legenda da foto também.
+   */
+  function textoBusca(item) {
+    var partes = [];
+    CAMPOS_VISIVEIS.forEach(function (c) { partes.push(str(item[c[0]])); });
+    partes.push((item.certificates || []).join(' '));
+    (item.evidence || []).forEach(function (ev) {
+      partes.push(str(ev.ref), str(ev.note));
+      (ev.images || []).forEach(function (im) { partes.push(str(im.caption)); });
+    });
+    return partes.join(' ').toLowerCase();
+  }
+
+  /** Cópia independente de um item, pronta para virar outro número. */
+  function duplicar(item) {
+    var copia = normalizeNcr(JSON.parse(JSON.stringify(item)));
+    copia.id = uid();
+    /* O número não pode repetir: a mesclagem pareia itens pelo número quando
+       os ids são diferentes, e dois itens com o mesmo número acabariam
+       virando um só no computador do colega. */
+    copia.ncrId = (str(item.ncrId) ? str(item.ncrId) + ' (cópia)' : '');
+    copia.evidence.forEach(function (ev) {
+      ev.id = uid();
+      ev.images.forEach(function (im) { im.id = uid(); });
+    });
+    setStatus(copia, STATUS_PADRAO);
+    copia.editedBy = '';
+    copia.editedAt = '';
+    copia.syncBase = '';
+    return copia;
+  }
+
+  /** Dias inteiros desde uma data ISO — vazio devolve null. */
+  function diasDesde(iso) {
+    if (!iso) return null;
+    var t = Date.parse(iso);
+    if (isNaN(t)) return null;
+    return Math.max(0, Math.floor((Date.now() - t) / 86400000));
   }
 
   /**
@@ -465,6 +812,62 @@
 
   function maisRecente(a, b) { return String(a || '') >= String(b || '') ? String(a || '') : String(b || ''); }
 
+  /* --- lápides de relatório inteiro --------------------------------------- */
+
+  /* Excluir um relatório precisa deixar marca pela mesma razão que excluir um
+     item: sem ela o relatório voltaria na sincronização seguinte, vindo do
+     computador de quem ainda não soube — e a exclusão nunca alcançaria os
+     outros. Ficam no navegador (o relatório em si já não existe para
+     guardá-las) e viajam no arquivo da pasta. */
+  var DEL_PROJ_KEY = 'derrogacao:relatoriosExcluidos';
+  var MAX_PROJ_LAPIDES = 200;
+
+  function lapidesProjeto() {
+    try {
+      var lista = JSON.parse(global.localStorage.getItem(DEL_PROJ_KEY) || '[]');
+      if (!Array.isArray(lista)) return [];
+      return lista.filter(function (t) { return t && t.id; }).map(function (t) {
+        return { id: str(t.id), marco: str(t.marco), at: str(t.at), by: str(t.by) };
+      });
+    } catch (e) { return []; }
+  }
+
+  function gravarLapidesProjeto(lista) {
+    try {
+      global.localStorage.setItem(DEL_PROJ_KEY, JSON.stringify(
+        lista.sort(function (a, b) { return String(a.at).localeCompare(String(b.at)); })
+          .slice(-MAX_PROJ_LAPIDES)));
+    } catch (e) { /* sem espaço: a exclusão vale ao menos neste navegador */ }
+  }
+
+  /** Hora da edição mais recente dentro do relatório. */
+  function editadoEm(p) {
+    var m = '';
+    ['ncrs', 'devs'].forEach(function (k) {
+      ((p && p[k]) || []).forEach(function (n) { m = maisRecente(m, n && n.editedAt); });
+    });
+    return m;
+  }
+
+  function tombstoneProjeto(project) {
+    var lista = lapidesProjeto().filter(function (t) { return t.id !== project.id; });
+    lista.push({
+      id: str(project.id),
+      marco: marcoChave(project),
+      at: depoisDe(editadoEm(project)),
+      by: getUser()
+    });
+    gravarLapidesProjeto(lista);
+    return lista;
+  }
+
+  /** Restaurar um relatório inteiro desfaz a lápide dele. */
+  function esquecerLapideProjeto(p) {
+    gravarLapidesProjeto(lapidesProjeto().filter(function (t) {
+      return t.id !== str(p && p.id);
+    }));
+  }
+
   /**
    * Junta dois retratos do MESMO relatório pela regra "vale quem editou por
    * último", item a item, respeitando as lápides.
@@ -478,10 +881,20 @@
    * próxima sincronização de cada lado traz de volta o que faltava, porque
    * cada um ainda tem os seus itens com a sua hora de edição.
    *
+   * `base` é o retrato do que este computador viu na pasta da última vez
+   * (`Store.baseDe`), por id de item. Com ela a junção é campo a campo, e
+   * "vale quem editou por último" fica restrito ao caso em que os dois
+   * escreveram no mesmo campo. Sem ela — item novo, primeira sincronização,
+   * navegador recém-instalado — vale o item inteiro, como antes.
+   *
    * Altera `local` no lugar e devolve o que mudou aqui.
    */
-  function mergeLWW(local, remoto) {
-    var res = { entraram: 0, atualizados: 0, removidos: 0 };
+  function mergeLWW(local, remoto, base) {
+    /* `substituidos` guarda o que o texto de outra pessoa apagou aqui: é a
+       única pista de que a regra "vale a edição mais recente" passou por
+       cima de alguma coisa, e o editor usa isso para mostrar o antes. */
+    var res = { entraram: 0, atualizados: 0, removidos: 0, substituidos: [], conflitos: 0 };
+    base = base || null;
 
     /* a lápide mais recente de cada item, vinda de qualquer um dos lados */
     var lapides = {};
@@ -512,9 +925,48 @@
           return;
         }
         if (meu && dele) {
-          var novo = String(dele.editedAt || '') > String(meu.editedAt || '');
-          if (novo && signature(meu) !== signature(dele)) res.atualizados++;
-          saida.push(novo ? normalizeNcr(dele) : meu);
+          var meuAt = String(meu.editedAt || '');
+          var deleAt = String(dele.editedAt || '');
+          var assMeu = signature(meu), assDele = signature(dele);
+          var novo;
+          if (deleAt !== meuAt) {
+            novo = deleAt > meuAt;
+          } else {
+            /* Mesmo carimbo e conteúdos diferentes: sem um critério fixo cada
+               lado ficaria com o seu e as duas bases nunca mais se
+               encontrariam. A assinatura decide — e decide igual aqui e lá. */
+            novo = assDele > assMeu;
+          }
+          var oBase = base ? base[id] : null;
+          var trocado, perdidos = [];
+          if (oBase && assMeu !== assDele) {
+            /* há terceira ponta: junta campo a campo */
+            var junto = mesclarCampos(meu, dele, oBase, novo);
+            trocado = junto.item;
+            perdidos = junto.perdidos;
+          } else {
+            trocado = novo ? normalizeNcr(dele) : meu;
+          }
+          var assFim = signature(trocado);
+          if (assFim !== assMeu) {
+            res.atualizados++;
+            var campos = difCampos(meu, trocado);
+            if (campos.length || perdidos.length) {
+              res.substituidos.push({
+                kind: key === 'devs' ? 'dev' : 'ncr',
+                id: id,
+                ncrId: str(trocado.ncrId) || str(meu.ncrId),
+                quem: str(dele.editedBy),
+                quando: str(dele.editedAt),
+                campos: campos,
+                /* só o que foi realmente escrito por cima: os dois mexeram
+                   no mesmo campo e um dos textos teve de sair */
+                perdidos: perdidos
+              });
+            }
+          }
+          if (perdidos.length) res.conflitos += perdidos.length;
+          saida.push(trocado);
         } else if (dele) {
           res.entraram++;
           saida.push(normalizeNcr(dele));
@@ -524,6 +976,10 @@
       });
       local[key] = saida;
     });
+
+    /* Depois de absorver dados de uma versão mais nova, esta cópia também
+       os carrega: a marca segue com ela, para avisar a próxima página. */
+    local.schema = Math.max(Number(local.schema) || 0, Number(remoto.schema) || 0);
 
     /* Textos de capa e rodapé não têm hora própria: segue o retrato do
        relatório que foi gravado por último. */
@@ -587,6 +1043,7 @@
       var alvo = porId[r.id] || (k ? porMarco[k] : null);
       if (!alvo) {
         var novo = normalizeProject(r);
+        esquecerLapideProjeto(novo);   /* restaurar desfaz a exclusão */
         locais.push(novo);
         res.relatorios++;
         res.voltaram += novo.ncrs.length + novo.devs.length;
@@ -616,8 +1073,39 @@
    * identificador e, na falta, pelo marco. Devolve a lista resultante e um
    * resumo do que mudou deste lado.
    */
-  function mergeListas(locais, recebidos) {
-    var res = { entraram: 0, atualizados: 0, removidos: 0, novosRelatorios: 0 };
+  function mergeListas(locais, recebidos, lapidesRecebidas, base) {
+    var res = { entraram: 0, atualizados: 0, removidos: 0, novosRelatorios: 0,
+                relatoriosRemovidos: 0, substituidos: [], conflitos: 0 };
+
+    /* a lápide de relatório mais recente de cada lado */
+    var tumbas = {};
+    [lapidesProjeto(), lapidesRecebidas].forEach(function (lista) {
+      (Array.isArray(lista) ? lista : []).forEach(function (t) {
+        if (!t || !t.id) return;
+        var atual = tumbas[t.id];
+        if (!atual || String(t.at) > String(atual.at)) {
+          tumbas[t.id] = { id: str(t.id), marco: str(t.marco), at: str(t.at), by: str(t.by) };
+        }
+      });
+    });
+    /**
+     * Só pelo id — nunca pelo marco. Dá para ter dois relatórios repetidos do
+     * mesmo marco (o menu ⋯ até oferece juntá-los), e casar por marco faria a
+     * exclusão de um apagar o outro. No banco compartilhado o id é o mesmo
+     * para todo mundo, que é o caso que a lápide precisa cobrir.
+     *
+     * Como na lápide de item: só vale enquanto ninguém editou depois dela.
+     */
+    function excluido(p) {
+      var t = tumbas[str(p && p.id)];
+      return !!(t && String(t.at) >= editadoEm(p));
+    }
+
+    /* o que outra pessoa excluiu sai daqui também */
+    for (var i = locais.length - 1; i >= 0; i--) {
+      if (excluido(locais[i])) { locais.splice(i, 1); res.relatoriosRemovidos++; }
+    }
+
     var porId = {}, porMarco = {};
     locais.forEach(function (p) {
       porId[p.id] = p;
@@ -629,6 +1117,7 @@
       var k = marcoChave(r);
       var alvo = porId[r.id] || (k ? porMarco[k] : null);
       if (!alvo) {
+        if (excluido(r)) return;   /* excluído por alguém, e ninguém mexeu depois */
         var novo = normalizeProject(r);
         locais.push(novo);
         porId[novo.id] = novo;
@@ -637,11 +1126,20 @@
         res.entraram += novo.ncrs.length + novo.devs.length;
         return;
       }
-      var um = mergeLWW(alvo, normalizeProject(r));
+      /* a base é a do relatório de cá: é com o que ESTE computador viu que
+         se compara o que voltou da pasta */
+      var um = mergeLWW(alvo, normalizeProject(r), base ? base[alvo.id] : null);
       res.entraram += um.entraram;
       res.atualizados += um.atualizados;
       res.removidos += um.removidos;
+      res.conflitos += um.conflitos || 0;
+      um.substituidos.forEach(function (sub) {
+        sub.projeto = alvo.id;
+        res.substituidos.push(sub);
+      });
     });
+
+    gravarLapidesProjeto(Object.keys(tumbas).map(function (k) { return tumbas[k]; }));
     return res;
   }
 
@@ -649,23 +1147,118 @@
 
   var dbPromise = null;
 
+  var STORES_NECESSARIOS = [STORE, 'snapshots', 'handles'];
+
+  function criarQueFalta(db) {
+    if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
+    if (!db.objectStoreNames.contains('snapshots')) db.createObjectStore('snapshots', { keyPath: 'id' });
+    /* guarda o "crachá" da pasta compartilhada, que não é um caminho de
+       texto e sim um objeto que só o navegador sabe interpretar */
+    if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles');
+  }
+
+  /**
+   * Abre o banco do navegador.
+   *
+   * Pede a versão 3, mas aceita um banco que já esteja numa versão maior. Uma
+   * versão de teste da integração com o banco NCR subiu o banco para a 4, e o
+   * navegador recusa abrir um banco "mais novo" do que o pedido
+   * (VersionError): sem este desvio o programa não gravava nada, não lia os
+   * relatórios e não conseguia guardar o crachá da pasta — com todos os dados
+   * intactos lá dentro. Abrir sem pedir versão abre o banco como ele está;
+   * as prateleiras extras de uma versão maior são ignoradas.
+   */
   function openDb() {
     if (dbPromise) return dbPromise;
     dbPromise = new Promise(function (resolve, reject) {
       if (!global.indexedDB) { reject(new Error('IndexedDB indisponível')); return; }
-      var req = global.indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = function () {
-        var db = req.result;
-        if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
-        if (!db.objectStoreNames.contains('snapshots')) db.createObjectStore('snapshots', { keyPath: 'id' });
-        /* guarda o "crachá" da pasta compartilhada, que não é um caminho de
-           texto e sim um objeto que só o navegador sabe interpretar */
-        if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles');
-      };
-      req.onsuccess = function () { resolve(req.result); };
-      req.onerror = function () { reject(req.error || new Error('Falha ao abrir o banco local')); };
+      function abrir(versao) {
+        var req = versao ? global.indexedDB.open(DB_NAME, versao) : global.indexedDB.open(DB_NAME);
+        req.onupgradeneeded = function () { criarQueFalta(req.result); };
+        req.onsuccess = function () {
+          var db = req.result;
+          var falta = STORES_NECESSARIOS.filter(function (n) { return !db.objectStoreNames.contains(n); });
+          if (falta.length) {
+            /* banco de outra versão sem alguma prateleira nossa: cria só o que falta */
+            var v = db.version + 1;
+            db.close();
+            abrir(v);
+            return;
+          }
+          /* se outra aba precisar atualizar o banco, esta sai da frente */
+          db.onversionchange = function () { db.close(); dbPromise = null; };
+          migrarNcrV4(db).then(function () { resolve(db); }, function () { resolve(db); });
+        };
+        req.onerror = function (ev) {
+          var e = req.error;
+          if (e && e.name === 'VersionError' && versao) {
+            if (ev && ev.preventDefault) ev.preventDefault();
+            Log.aviso('armazenamento', 'o banco deste navegador está numa versão maior que a pedida',
+              'quase sempre é de uma versão de teste do programa. Ele é aberto como está — ' +
+              'nenhum dado se perde.', { pedida: versao });
+            abrir(0);
+            return;
+          }
+          reject(e || new Error('Falha ao abrir o banco local'));
+        };
+      }
+      abrir(DB_VERSION);
     });
     return dbPromise;
+  }
+
+  /**
+   * A versão de teste guardava o banco NCR em prateleiras próprias ("ncrs" e
+   * "ncrmeta"). Se elas existem neste navegador, o que está lá é copiado uma
+   * vez para o armazém "snapshots", onde esta versão o procura — sem apagar
+   * nada e sem passar por cima de uma NCR que já esteja no lugar novo.
+   */
+  function migrarNcrV4(db) {
+    if (!db.objectStoreNames.contains('ncrs')) return Promise.resolve(0);
+    return new Promise(function (ok) {
+      var nomes = ['ncrs', SNAP_STORE];
+      if (db.objectStoreNames.contains('ncrmeta')) nomes.push('ncrmeta');
+      var copiadas = 0;
+      var tx;
+      try { tx = db.transaction(nomes, 'readwrite'); } catch (e) { ok(0); return; }
+      var snap = tx.objectStore(SNAP_STORE);
+      var chaves = snap.getAllKeys();
+      chaves.onsuccess = function () {
+        var tem = {};
+        (chaves.result || []).forEach(function (k) { tem[k] = true; });
+        if (tem['ncrmeta:migradoV4']) return;
+        var r1 = tx.objectStore('ncrs').getAll();
+        r1.onsuccess = function () {
+          (r1.result || []).forEach(function (r) {
+            if (!r || !r.key || tem['ncr:' + r.key]) return;
+            var c = JSON.parse(JSON.stringify(r));
+            c.id = 'ncr:' + r.key;
+            snap.put(c);
+            copiadas++;
+          });
+        };
+        if (nomes.indexOf('ncrmeta') >= 0) {
+          var r2 = tx.objectStore('ncrmeta').getAll();
+          r2.onsuccess = function () {
+            (r2.result || []).forEach(function (m) {
+              if (!m || !m.id || tem['ncrmeta:' + m.id]) return;
+              var c = JSON.parse(JSON.stringify(m));
+              c.id = 'ncrmeta:' + m.id;
+              snap.put(c);
+            });
+          };
+        }
+        snap.put({ id: 'ncrmeta:migradoV4', em: nowIso() });
+      };
+      tx.oncomplete = function () {
+        if (copiadas) {
+          Log.passo('armazenamento', 'banco NCR da versão de teste trazido para o lugar novo', { ncrs: copiadas });
+        }
+        ok(copiadas);
+      };
+      tx.onerror = function () { ok(0); };
+      tx.onabort = function () { ok(0); };
+    });
   }
 
   function idbAll() {
@@ -705,35 +1298,37 @@
   /* --- crachá da pasta compartilhada -------------------------------------- */
 
   /* O handle não é um caminho: é um objeto que o navegador serializa e só ele
-     sabe reabrir. Por isso vive no IndexedDB e não no localStorage. */
+     sabe reabrir. Por isso vive no IndexedDB e não no localStorage.
+     A chave separa as pastas: 'pasta' é a do banco (o padrão, de sempre);
+     'publicacao' é a dos visualizadores. */
   var HANDLE_STORE = 'handles';
 
-  function putHandle(handle) {
+  function putHandle(handle, chave) {
     return openDb().then(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(HANDLE_STORE, 'readwrite');
-        tx.objectStore(HANDLE_STORE).put(handle, 'pasta');
+        tx.objectStore(HANDLE_STORE).put(handle, chave || 'pasta');
         tx.oncomplete = function () { resolve(handle); };
         tx.onerror = function () { reject(tx.error); };
       });
     });
   }
 
-  function getHandle() {
+  function getHandle(chave) {
     return openDb().then(function (db) {
       return new Promise(function (resolve, reject) {
-        var req = db.transaction(HANDLE_STORE).objectStore(HANDLE_STORE).get('pasta');
+        var req = db.transaction(HANDLE_STORE).objectStore(HANDLE_STORE).get(chave || 'pasta');
         req.onsuccess = function () { resolve(req.result || null); };
         req.onerror = function () { reject(req.error); };
       });
     }).catch(function () { return null; });
   }
 
-  function clearHandle() {
+  function clearHandle(chave) {
     return openDb().then(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(HANDLE_STORE, 'readwrite');
-        tx.objectStore(HANDLE_STORE).delete('pasta');
+        tx.objectStore(HANDLE_STORE).delete(chave || 'pasta');
         tx.oncomplete = resolve;
         tx.onerror = function () { reject(tx.error); };
       });
@@ -759,7 +1354,11 @@
         tx.oncomplete = function () { resolve(); };
         tx.onerror = function () { reject(tx.error); };
       });
-    }).catch(function (e) { console.warn('Não foi possível guardar o retrato.', e); });
+    }).catch(function (e) {
+      Log.aviso('armazenamento', 'não consegui guardar o retrato de desfazer',
+        'a última mesclagem não vai poder ser desfeita; o resto funciona normalmente.',
+        { erro: e && e.name });
+    });
   }
 
   function getSnapshot() {
@@ -767,6 +1366,63 @@
       return new Promise(function (resolve, reject) {
         var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).get('last');
         req.onsuccess = function () { resolve(req.result || null); };
+        req.onerror = function () { reject(req.error); };
+      });
+    }).catch(function () { return null; });
+  }
+
+  /* --- a base da última troca com a pasta ---------------------------------
+     Mora no mesmo armazém do retrato ("snapshots"), com outra chave, de
+     propósito: criar uma prateleira nova obrigaria a subir a versão do
+     IndexedDB, e uma página da versão anterior abrindo o mesmo navegador
+     depois disso não conseguiria mais abrir o banco. */
+
+  var BASE_ID = 'mesclaBase';
+
+  /**
+   * Dois retratos, e não um, porque eles andam em ritmos diferentes:
+   *
+   * - `base` é o que já foi para a pasta. Só avança quando a gravação dá
+   *   certo — avançá-la antes disso faria a junção seguinte tomar o meu
+   *   trabalho ainda não gravado por "coisa que o outro escreveu", e aí a
+   *   regra que deveria salvar o texto seria a que o apagaria.
+   * - `diario` é o que o histórico de alterações já contou. Avança a cada
+   *   captura, com ou sem pasta, para a mesma escrita não virar vinte linhas.
+   */
+  function saveBase(mapa, diario, lida, carimbo) {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(SNAP_STORE, 'readwrite');
+        tx.objectStore(SNAP_STORE).put({
+          id: BASE_ID, at: nowIso(), base: mapa || {}, diario: diario || {},
+          /* o que a pasta TINHA quando eu li, na mesma rodada — a base que
+             vale quando a minha gravação foi atropelada (ver `sincronizar`) */
+          lida: lida || {},
+          /* lastModified da minha última gravação: é por ele que a rodada
+             seguinte sabe se o arquivo da pasta ainda é o meu */
+          carimbo: Number(carimbo) || 0
+        });
+        tx.oncomplete = function () { resolve(true); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    }).catch(function (e) {
+      Log.aviso('armazenamento', 'não consegui guardar a base da mesclagem',
+        'a próxima junção com a pasta vai comparar item inteiro em vez de campo a ' +
+        'campo. Funciona, mas protege menos — recarregue a página quando puder.',
+        { erro: e && e.name });
+      return false;
+    });
+  }
+
+  function getBase() {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).get(BASE_ID);
+        req.onsuccess = function () {
+          var r = req.result;
+          resolve(r ? { base: r.base || null, diario: r.diario || null,
+                        lida: r.lida || null, carimbo: Number(r.carimbo) || 0 } : null);
+        };
         req.onerror = function () { reject(req.error); };
       });
     }).catch(function () { return null; });
@@ -781,6 +1437,113 @@
         tx.onerror = function () { resolve(); };
       });
     }).catch(function () { /* sem retrato: nada a limpar */ });
+  }
+
+  /* --- banco de NCRs ------------------------------------------------------
+     Mora no armazém "snapshots", como a base da mesclagem, e pelo mesmo
+     motivo: criar prateleira nova obrigaria a subir a versão do IndexedDB, e a
+     versão anterior do programa deixaria de abrir o mesmo navegador (§10).
+     Uma linha por NCR (id "ncr:<chave>"), para editar um campo não regravar
+     o banco inteiro; e as linhas "ncrmeta:<nome>" para listas e retratos.
+     Nenhuma importação do banco NCR passa perto do armazém "projects". */
+
+  var NCR_PREFIXO = 'ncr:';
+  var NCR_META_PREFIXO = 'ncrmeta:';
+  var LS_NCRS = 'derrogacao:ncrs';
+  var LS_NCR_META = 'derrogacao:ncrmeta';
+
+  function lsLer(chave, padrao) {
+    try {
+      var raw = global.localStorage.getItem(chave);
+      return raw ? JSON.parse(raw) : padrao;
+    } catch (e) { return padrao; }
+  }
+
+  function lsGravar(chave, valor) {
+    try { global.localStorage.setItem(chave, JSON.stringify(valor)); return true; }
+    catch (e) {
+      Log.aviso('armazenamento', 'sem espaço no armazenamento de reserva para o banco NCR',
+        'o banco NCR continua na memória desta aba; use a pasta da rede ou faça um backup.',
+        { erro: e && e.name });
+      return false;
+    }
+  }
+
+  function ncrAll() {
+    if (!useIdb) return Promise.resolve(lsLer(LS_NCRS, []));
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var faixa = global.IDBKeyRange.bound(NCR_PREFIXO, NCR_PREFIXO + '\uffff');
+        var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).getAll(faixa);
+        req.onsuccess = function () {
+          resolve((req.result || []).map(function (r) { delete r.id; return r; }));
+        };
+        req.onerror = function () { reject(req.error); };
+      });
+    }).catch(function (e) { fallback(e); return lsLer(LS_NCRS, []); });
+  }
+
+  /** Grava várias NCRs numa transação só. Não apaga nenhuma. */
+  function ncrPutMany(recs) {
+    recs = (recs || []).filter(function (r) { return r && r.key; });
+    if (!recs.length) return Promise.resolve(0);
+    var copias = JSON.parse(JSON.stringify(recs));
+    function reserva() {
+      var todas = {};
+      lsLer(LS_NCRS, []).forEach(function (r) { if (r && r.key) todas[r.key] = r; });
+      copias.forEach(function (r) { todas[r.key] = r; });
+      lsGravar(LS_NCRS, Object.keys(todas).map(function (k) { return todas[k]; }));
+      return copias.length;
+    }
+    if (!useIdb) return Promise.resolve(reserva());
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(SNAP_STORE, 'readwrite');
+        var st = tx.objectStore(SNAP_STORE);
+        copias.forEach(function (r) { r.id = NCR_PREFIXO + r.key; st.put(r); });
+        tx.oncomplete = function () { resolve(copias.length); };
+        tx.onerror = function () { reject(tx.error); };
+        tx.onabort = function () { reject(tx.error || new Error('Gravação abortada')); };
+      });
+    }).catch(function (e) { fallback(e); return reserva(); });
+  }
+
+  function ncrMetaGet(nome) {
+    if (!useIdb) return Promise.resolve(lsLer(LS_NCR_META, {})[nome] || null);
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).get(NCR_META_PREFIXO + nome);
+        req.onsuccess = function () {
+          var r = req.result || null;
+          if (r) { r.id = nome; }
+          resolve(r);
+        };
+        req.onerror = function () { reject(req.error); };
+      });
+    }).catch(function (e) { fallback(e); return lsLer(LS_NCR_META, {})[nome] || null; });
+  }
+
+  /** Grava um registro de meta; `obj.id` é o nome (meta, antes-importacao…). */
+  function ncrMetaPut(obj) {
+    var copia = JSON.parse(JSON.stringify(obj));
+    var nome = copia.id;
+    function reserva() {
+      var tudo = lsLer(LS_NCR_META, {});
+      tudo[nome] = copia;
+      lsGravar(LS_NCR_META, tudo);
+      return copia;
+    }
+    if (!useIdb) return Promise.resolve(reserva());
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(SNAP_STORE, 'readwrite');
+        var reg = JSON.parse(JSON.stringify(copia));
+        reg.id = NCR_META_PREFIXO + nome;
+        tx.objectStore(SNAP_STORE).put(reg);
+        tx.oncomplete = function () { resolve(copia); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    }).catch(function (e) { fallback(e); return reserva(); });
   }
 
   /* --- localStorage (reserva) ------------------------------------------- */
@@ -830,6 +1593,20 @@
     try { global.localStorage.setItem(FOLDER_KEY, str(caminho).trim()); } catch (e) { /* ignora */ }
   }
 
+  /* O caminho do banco é outro campo que o da pasta de backup: são pastas
+     diferentes, e uma sobrescrevia a outra quando os dois usavam a mesma
+     chave. Em branco vale o combinado. */
+  function getDbFolder() {
+    try {
+      var v = global.localStorage.getItem(DB_FOLDER_KEY);
+      return v === null ? CAMINHO_PADRAO : v;
+    } catch (e) { return CAMINHO_PADRAO; }
+  }
+
+  function setDbFolder(caminho) {
+    try { global.localStorage.setItem(DB_FOLDER_KEY, str(caminho).trim()); } catch (e) { /* ignora */ }
+  }
+
   function getLastBackupAt() {
     try { return global.localStorage.getItem(BACKUP_KEY) || ''; } catch (e) { return ''; }
   }
@@ -844,13 +1621,17 @@
 
   function fallback(err) {
     useIdb = false;
-    console.warn('IndexedDB indisponível, usando localStorage.', err);
+    Log.aviso('armazenamento', 'o banco do navegador (IndexedDB) não abriu — ' +
+      'usando o armazenamento simples',
+      'funciona, mas cabe bem menos (uns 5 MB no total). Com muitas imagens isto ' +
+      'vai encher: faça backups com mais frequência.', { erro: err && err.name });
   }
 
   var Store = {
     SCHEMA: SCHEMA,
     uid: uid,
     nowIso: nowIso,
+    depoisDe: depoisDe,
     newProject: newProject,
     newNcr: newNcr,
     STATUS: STATUS,
@@ -878,6 +1659,9 @@
     getUser: getUser,
     getFolder: getFolder,
     setFolder: setFolder,
+    CAMINHO_PADRAO: CAMINHO_PADRAO,
+    getDbFolder: getDbFolder,
+    setDbFolder: setDbFolder,
     setUser: setUser,
     MAX_SESSIONS: MAX_SESSIONS,
     signature: signature,
@@ -886,14 +1670,35 @@
     reviver: reviver,
     marcoChave: marcoChave,
     tombstone: tombstone,
+    tombstoneProjeto: tombstoneProjeto,
+    lapidesProjeto: lapidesProjeto,
+    esquecerLapideProjeto: esquecerLapideProjeto,
     mergeLWW: mergeLWW,
     mergeListas: mergeListas,
+    duplicar: duplicar,
+    textoBusca: textoBusca,
+    difCampos: difCampos,
+    diasDesde: diasDesde,
+    maisNovoQueEu: maisNovoQueEu,
+    CAMPOS_VISIVEIS: CAMPOS_VISIVEIS,
     putHandle: putHandle,
     getHandle: getHandle,
     clearHandle: clearHandle,
     saveSnapshot: saveSnapshot,
+    ncrAll: ncrAll,
+    ncrPutMany: ncrPutMany,
+    ncrMetaGet: ncrMetaGet,
+    ncrMetaPut: ncrMetaPut,
     getSnapshot: getSnapshot,
     clearSnapshot: clearSnapshot,
+    saveBase: saveBase,
+    getBase: getBase,
+    baseDe: baseDe,
+    retratoItem: retratoItem,
+    CAMPOS_MESCLA: CAMPOS_MESCLA,
+    rotuloCampo: rotuloCampo,
+    valorCampo: valorCampo,
+    porCampo: porCampo,
 
     /**
      * Anota, na sessão corrente do projeto, que um item foi criado, editado

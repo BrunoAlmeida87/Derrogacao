@@ -23,14 +23,23 @@
 
   var isDev = function () { return state.kind === 'dev'; };
   var isResumo = function () { return state.kind === 'resumo'; };
+  var isFluxos = function () { return state.kind === 'fluxos'; };
+  var isConversa = function () { return state.kind === 'conversa'; };
+  var isTabela = function () { return state.kind === 'tabela'; };
+  var isBanco = function () { return state.kind === 'banco'; };
+  var isKanban = function () { return state.kind === 'kanban'; };
+  /* Abas que tomam a tela inteira: não têm lista lateral nem formulário. */
+  var telaCheia = function () {
+    return isResumo() || isFluxos() || isConversa() || isTabela() || isBanco() || isKanban();
+  };
   /** Lista de itens da aba ativa — o vetor de verdade, para alterar. */
   var items = function () {
-    if (!state.project || isResumo()) return [];
+    if (!state.project || telaCheia()) return [];
     return state.project[Store.itemsKey(state.kind)];
   };
   /** A mesma lista na ordem escolhida — para mostrar e para exportar. */
   var itemsNaOrdem = function () {
-    if (!state.project || isResumo()) return [];
+    if (!state.project || telaCheia()) return [];
     return Store.ordenar(state.project, state.kind);
   };
   /** Nome da aba, para textos da interface. */
@@ -48,15 +57,38 @@
   /* ---------------------------------------------------------------------- */
 
   var toastTimer = null;
-  function toast(msg) {
+  /**
+   * Aviso rápido no pé da tela.
+   * `acao` — {rotulo, fn}, ou uma lista delas — vira botão dentro do aviso:
+   * é assim que o "Desfazer" da exclusão e o "📣 Comunicar" ficam à mão sem
+   * virar mais uma janela.
+   */
+  function toast(msg, ms, acao) {
     var t = $('#toast');
-    t.textContent = msg;
+    /* mostrar antes de escrever: escondido, o aviso está fora da árvore de
+       acessibilidade e a mudança de texto não seria anunciada */
     t.hidden = false;
+    t.textContent = '';
+    t.appendChild(document.createTextNode(msg));
+    (Array.isArray(acao) ? acao : (acao ? [acao] : [])).forEach(function (a) {
+      if (!a) return;
+      var b = document.createElement('button');
+      b.className = 'btn btn--sm btn--accent toast-acao';
+      b.type = 'button';
+      b.textContent = a.rotulo;
+      b.addEventListener('click', function () {
+        t.hidden = true;
+        clearTimeout(toastTimer);
+        a.fn();
+      });
+      t.appendChild(b);
+    });
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.hidden = true; }, 2600);
+    toastTimer = setTimeout(function () { t.hidden = true; }, ms || 2600);
   }
 
   var saveTimer = null;
+  var ultimaCaptura = 0;
   function markSaving() {
     var s = $('#saveState');
     s.dataset.state = 'saving';
@@ -93,7 +125,9 @@
     var s = $('#saveState');
     s.dataset.state = 'error';
     s.textContent = 'erro ao salvar';
-    console.error(e);
+    Log.erro('salvar', 'não consegui gravar neste navegador', e,
+      'o armazenamento do navegador pode estar cheio ou bloqueado. Faça um backup ' +
+      '(⋯ Mais → Salvar backup de tudo) AGORA, antes de escrever mais.');
   }
 
   /** Grava o projeto atual com atraso, para não escrever a cada tecla. */
@@ -115,7 +149,18 @@
     clearTimeout(saveTimer);
     if (!state.project) return Promise.resolve();
     return Store.save(state.project).then(function () {
+      Log.detalhe('salvar', 'gravado neste navegador', {
+        relatorio: state.project.marco || state.project.name,
+        itens: (state.project.ncrs || []).length + (state.project.devs || []).length
+      });
       agendarGravacaoPasta();
+      agendarPublicacao();
+      /* O diário também vale para quem trabalha sem a pasta — mas não a cada
+         tecla: de minuto em minuto a escrita já virou um parágrafo. */
+      if (Date.now() - ultimaCaptura > 60000) {
+        ultimaCaptura = Date.now();
+        capturarRevisoes();
+      }
       markSaved();
       refreshProjectSelect();
       refreshSuggestions();
@@ -123,6 +168,9 @@
       renderUser();
       renderBackupNotice();
       if (isResumo()) renderSummary();
+      if (isFluxos()) renderFluxos(true);
+      if (isTabela()) renderTabela(true);
+      if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
     }).catch(markError);
   }
 
@@ -142,6 +190,38 @@
     var id = selectedId();
     if (!state.project || !id) return null;
     return items().filter(function (n) { return n.id === id; })[0] || null;
+  }
+
+  /**
+   * Copia texto para a área de transferência.
+   *
+   * `navigator.clipboard` não existe fora de contexto seguro, e abrir o
+   * programa do disco (`file://`) é exatamente isso — era assim que o arquivo
+   * único respondia "cópia indisponível". A reserva é o `<textarea>` com
+   * `execCommand('copy')`, que funciona em qualquer lugar por vir de um
+   * clique do usuário.
+   */
+  function copiarTexto(txt, ok, falha) {
+    ok = ok || function () {};
+    falha = falha || function () {};
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(ok, function () { reservaDeCopia(txt, ok, falha); });
+      return;
+    }
+    reservaDeCopia(txt, ok, falha);
+  }
+
+  function reservaDeCopia(txt, ok, falha) {
+    var ta = document.createElement('textarea');
+    ta.value = txt;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    var deu = false;
+    try { deu = document.execCommand('copy'); } catch (e) { deu = false; }
+    ta.remove();
+    if (deu) ok(); else falha();
   }
 
   function download(blob, filename) {
@@ -189,6 +269,10 @@
     renderSessionInfo();
     renderBackupNotice();
     if (isResumo()) renderSummary();
+    if (isFluxos()) renderFluxos();
+    if (isTabela()) renderTabela();
+    if (isBanco()) renderBanco(); if (isKanban()) renderKanban();
+    if (isConversa()) renderCanais();
     markSaved();
   }
 
@@ -202,28 +286,87 @@
     $$('.tab').forEach(function (t) {
       var on = t.dataset.kind === state.kind;
       t.setAttribute('aria-selected', on ? 'true' : 'false');
+      /* uma faixa de abas é um ponto só na tabulação; entre elas, as setas */
+      t.tabIndex = on ? 0 : -1;
+      /* a contagem é de itens: as abas que não têm itens usam a etiqueta
+         para outra coisa (a Conversa mostra ali os recados não lidos) */
       var cnt = $('.tab-count', t);
-      if (cnt) cnt.textContent = state.project[Store.itemsKey(t.dataset.kind)].length;
+      if (cnt && (t.dataset.kind === 'ncr' || t.dataset.kind === 'dev')) {
+        cnt.textContent = state.project[Store.itemsKey(t.dataset.kind)].length;
+      }
     });
+    renderConversaBadge();
 
-    /* a aba de resumo troca a tela inteira: não há lista nem formulário */
-    $('#sidebarBody').hidden = isResumo();
+    /* resumo, fluxos e conversa trocam a tela inteira: não há lista nem formulário */
+    $('#sidebarBody').hidden = telaCheia();
     $('#sidebarResumo').hidden = !isResumo();
-    $('#editorScroll').hidden = isResumo();
+    $('#sidebarFluxos').hidden = !isFluxos();
+    $('#sidebarTabela').hidden = !isTabela();
+    $('#sidebarConversa').hidden = !isConversa();
+    $('#sidebarBanco').hidden = !isBanco();
+    $('#sidebarKanban').hidden = !isKanban();
+    $('#editorScroll').hidden = telaCheia();
+    $('#editorScroll').setAttribute('aria-labelledby', isDev() ? 'tabDev' : 'tabNcr');
     $('#summaryScroll').hidden = !isResumo();
-    $('#previewBtn').hidden = isResumo();
-    if (isResumo()) {
-      $('#pdfBtn').textContent = 'Exportar PDF…';
+    $('#fluxosScroll').hidden = !isFluxos();
+    $('#tabelaScroll').hidden = !isTabela();
+    $('#conversaScroll').hidden = !isConversa();
+    $('#bancoScroll').hidden = !isBanco();
+    $('#kanbanScroll').hidden = !isKanban();
+    $('#previewBtn').hidden = telaCheia();
+    renderAoLado();     /* o item ao lado só existe onde há editor ao lado dele */
+    renderSeletorGlobal();
+    if (telaCheia()) {
+      /* nas abas que têm exportação própria (o Kanban, a Tabela, o Resumo…),
+         o botão de cima diz de quem é o PDF que ele gera */
+      $('#pdfBtn').textContent = 'PDF dos relatórios…';
+      $('#pdfBtn').title = 'Gerar o PDF dos relatórios de Waiver (NCR e DEV) — o documento Waiver Request. ' +
+        'A exportação desta tela fica na própria tela.';
       return;
     }
+    $('#pdfBtn').textContent = 'Exportar PDF…';
+    $('#pdfBtn').title = 'Gerar o PDF dos relatórios de Waiver (NCR e DEV)';
 
     var t = kindName();
     $('#addNcrBtn').textContent = '+ Nova ' + t;
     $('#addNcrBtn').title = 'Adicionar ' + t + ' a este relatório';
     $('#sidebarTitle').textContent = t + 's';
-    $('#ncrFilter').placeholder = 'Filtrar ' + t + 's…';
+    /* a busca não é só pelo número: dizer isso no campo é o que faz alguém
+       tentar procurar por um certificado ou por um trecho do texto */
+    $('#ncrFilter').placeholder = 'Buscar em todo o texto da ' + t + '…';
     $('#previewBtn').textContent = 'Pré-visualizar';
     $('#previewBtn').title = 'Ver as folhas do relatório de ' + t + ' como sairão no PDF';
+  }
+
+  /**
+   * O seletor "Relatório" (e o campo "Marco") da barra de cima só aparece
+   * onde o relatório aberto decide o que está na tela: nas abas Waiver NCR e
+   * Waiver DEV, e na aba Fluxos quando ela olha "este relatório". O Banco
+   * NCR, o Kanban, a Tabela, o Resumo e a Conversa têm o próprio recorte
+   * (pastilhas de marco, filtros) e o seletor não mudava nada neles — era um
+   * filtro que não filtra ao lado do que filtra. Ali ele some.
+   *
+   * Na aba Fluxos ele fica no lugar (trocar de vista não deve fazer a barra
+   * pular), mas desabilitado e dizendo por quê, quando a vista escolhida
+   * olha todos os marcos. O campo "Marco" é edição do relatório: só nas abas
+   * dele.
+   */
+  function renderSeletorGlobal() {
+    var doRelatorio = !telaCheia();
+    var fluxosTodos = isFluxos() && (fluxosFiltro.escopo === 'todos' || fluxosFiltro.vista === 'painel');
+    $('#relatorioCampo').hidden = !(doRelatorio || isFluxos());
+    $('#marcoCampo').hidden = !doRelatorio;
+    var sel = $('#projectSelect');
+    var nota = $('#relatorioNota');
+    /* sem dados no visualizador o seletor já vem desabilitado por outro motivo */
+    if (Leitura.ativo() && !state.projects.length) return;
+    sel.disabled = fluxosTodos;
+    nota.hidden = !fluxosTodos;
+    nota.textContent = fluxosTodos ? 'não se aplica: a vista mostra todos os marcos' : '';
+    sel.title = fluxosTodos
+      ? 'Esta vista dos Fluxos olha todos os relatórios deste navegador: o relatório escolhido aqui não muda o que aparece. ' +
+        'Em “Itens de: este relatório” ele volta a valer.'
+      : 'O relatório aberto nas abas Waiver NCR e Waiver DEV';
   }
 
   function switchKind(kind) {
@@ -231,6 +374,11 @@
     state.kind = kind;
     renderTabs();
     if (isResumo()) { renderSummary(); return; }
+    if (isFluxos()) { renderFluxos(); return; }
+    if (isTabela()) { renderTabela(); return; }
+    if (isBanco()) { renderBanco(); return; }
+    if (isKanban()) { renderKanban(); return; }
+    if (isConversa()) { abrirCanal(canalAberto); return; }
     renderNcrList();
     renderEditor();
     $('#editorScroll').scrollTop = 0;
@@ -240,10 +388,25 @@
   /* aba de resumo                                                           */
   /* ---------------------------------------------------------------------- */
 
-  var summaryFilter = '';
+  /* O marco do Resumo: o id do relatório, ou '' para todos os marcos. Nasce
+     null — "ninguém escolheu ainda" — e na primeira vez vale o marco da vez
+     (Config.MARCO_INICIAL), ou todos se ele não existir. Depois fica o que a
+     pessoa escolheu, até fechar a página. */
+  var summaryFilter = null;
   var summaryFiltros = {};
+  /* aba Fluxos: recorte do que está à vista */
+  var fluxosFiltro = {
+    busca: '', soComFluxo: false, marcos: [], tipo: '',
+    vista: 'lista', escopo: 'projeto',
+    /* o marco do painel: qual é a chegada que estamos olhando */
+    painel: ''
+  };
 
   function renderSummary(semRolar) {
+    if (summaryFilter === null) {
+      var inicial = Config.relatorioInicial(state.projects);
+      summaryFilter = inicial ? inicial.id : '';
+    }
     SummaryView.render($('#summaryScroll'), state.projects, summaryFilter, {
       onFiltro: function (id) { summaryFilter = id; renderSummary(); },
       onFiltros: function (f) {
@@ -259,7 +422,7 @@
       },
       onCsv: exportarCsv,
       onPdf: exportarResumoPdf,
-      onBackup: function (project) {
+      onBackup: Leitura.ativo() ? null : function (project) {
         var antes = state.project;
         state.project = project;
         exportBackup(false);
@@ -269,18 +432,36 @@
     if (!semRolar) $('#summaryScroll').scrollTop = 0;
   }
 
+  /** A planilha do resumo: do marco escolhido, ou de todos (project null). */
   function exportarCsv(project) {
-    var csv = SummaryView.toCsv(project, summaryFiltros);
+    var csv = project ? SummaryView.toCsv(project, summaryFiltros)
+      : SummaryView.toCsvTodos(state.projects, summaryFiltros);
     var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    download(blob, Report.suggestedFileName(project, 'csv').replace('WaiverRequest_', 'Resumo_'));
-    toast('Planilha do marco salva.');
+    download(blob, project
+      ? Report.suggestedFileName(project, 'csv').replace('WaiverRequest_', 'Resumo_')
+      : 'Resumo_todos_os_marcos_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.csv');
+    toast(project ? 'Planilha do marco salva.' : 'Planilha de todos os marcos salva.');
   }
 
-  /** Monta as páginas A4 do resumo e manda para a impressão. */
+  /** Monta as folhas A4 do resumo e manda para a impressão. */
   function exportarResumoPdf(project) {
     var root = $('#printRoot');
     root.innerHTML = '';
-    root.appendChild(buildSummaryPage(project));
+    /* A mesma paginação do relatório. Sem ela, um resumo com muitos itens
+       passava do fim da folha e continuava colado na borda do papel — as
+       margens do layout são padding da folha, e padding não se repete. */
+    var medida = Report.abrirMedida(root);
+    try {
+      var folha = buildSummaryPage(project);
+      root.appendChild(folha.pag);
+      Report.paginar(folha.pag, root, function () {
+        var c = el('section', 'rep-page rep-page--summary rep-page--cont');
+        c.appendChild(el('div', 'rep-cover-title', folha.titulo + ' (cont.)'));
+        return c;
+      }, folha.rodape);
+    } finally {
+      Report.fecharMedida(medida);
+    }
     var titulo = document.title;
     document.title = project
       ? Report.suggestedFileName(project, 'pdf', 'ncr').replace('WaiverRequest_', 'Resumo_').replace(/\.pdf$/, '')
@@ -291,18 +472,33 @@
     }, 60);
   }
 
-  /** Uma folha A4 com os números, os gráficos e a tabela do escopo. */
+  /**
+   * As folhas A4 com os números, os gráficos e a lista do escopo.
+   *
+   * Cada bloco é marcado `data-fluido`: é a unidade que a paginação leva
+   * para a folha seguinte quando não couber nesta. A lista de itens vai
+   * além — cada linha é uma unidade, para uma lista comprida ser partida no
+   * ponto certo em vez de transbordar.
+   */
   function buildSummaryPage(project) {
     var pg = el('section', 'rep-page rep-page--summary');
+    /* acrescenta o bloco já marcado como movível */
+    function fluido(node) {
+      node.setAttribute('data-fluido', '');
+      pg.appendChild(node);
+      return node;
+    }
     var alvos = project ? [project] : state.projects;
     var dados = Summary.compute(alvos, summaryFiltros);
+    /* os gráficos na fila dos marcos, como os mini cards da tela */
+    dados.porMarco = SummaryView.ordenarPorMarco(dados.porMarco);
     var st = project ? dados.porMarco[0] : dados.geral;
 
     var titulo = project
       ? 'Resumo de derrogações — ' + (Report.marcoOf(project, 'ncr') || project.name)
       : 'Resumo de derrogações — todos os marcos';
     pg.appendChild(el('div', 'rep-cover-title', titulo));
-    pg.appendChild(el('div', 'sm-print-date',
+    fluido(el('div', 'sm-print-date',
       'Gerado em ' + new Date().toLocaleDateString('pt-BR') +
       (Store.getUser() ? ' por ' + Store.getUser() : '')));
 
@@ -315,42 +511,55 @@
       if (summaryFiltros.archStatus) ditos.push('arch status: ' + summaryFiltros.archStatus);
       if (summaryFiltros.evidencia) ditos.push(summaryFiltros.evidencia === 'com' ? 'só com anexo' : 'só sem anexo');
       if (summaryFiltros.busca) ditos.push('texto: “' + summaryFiltros.busca + '”');
-      pg.appendChild(el('div', 'sm-print-filtro',
+      fluido(el('div', 'sm-print-filtro',
         'Recorte: ' + ditos.join(' · ') + ' — ' + st.total + ' de ' + st.totalSemFiltro + ' itens.'));
     }
 
-    pg.appendChild(SummaryView.kpiRow(st));
+    fluido(SummaryView.kpiRow(st));
 
-    var g1 = SummaryView.bloco('Progresso');
-    g1.appendChild(SummaryView.graficoProgresso(dados.porMarco));
-    pg.appendChild(g1);
+    /* Os gráficos do PDF são partíveis entre as barras (ver
+       SummaryView.blocoGrafico): com muitos marcos ou sistemas eles
+       continuam na folha seguinte com o título e a legenda, em vez de um
+       gráfico por folha com o resto em branco. */
+    var dp = SummaryView.dadosProgresso(dados.porMarco);
+    pg.appendChild(SummaryView.blocoGrafico('Progresso', null, dp.linhas, dp.series,
+      SummaryView.VAZIO_PROGRESSO));
+    var ds = SummaryView.dadosSituacao(dados.porMarco);
+    pg.appendChild(SummaryView.blocoGrafico('Situação dos itens (controle interno)', null, ds.linhas, ds.series,
+      SummaryView.VAZIO_SITUACAO));
+    pg.appendChild(SummaryView.blocoGrafico('Itens por sistema', null,
+      SummaryView.linhasDeSistemas(project ? dados.porMarco[0].porSistema : dados.geral.porSistema), null,
+      SummaryView.VAZIO_SISTEMAS));
 
-    var g2 = SummaryView.bloco('Situação dos itens (controle interno)');
-    g2.appendChild(SummaryView.graficoSituacao(dados.porMarco));
-    pg.appendChild(g2);
-
-    var g3 = SummaryView.bloco('Itens por sistema');
-    g3.appendChild(SummaryView.graficoSistemas(
-      project ? dados.porMarco[0].porSistema : dados.geral.porSistema));
-    pg.appendChild(g3);
+    if ((st.parados || []).length) {
+      pg.appendChild(SummaryView.blocoLista(
+        'Parados há ' + Summary.DIAS_PARADO + '+ dias',
+        'Pendentes sem nenhuma edição há ' + Summary.DIAS_PARADO + ' dias ou mais.',
+        SummaryView.colunasParados(true), st.parados));
+    }
 
     if (project) {
-      var t = SummaryView.bloco('Itens');
-      t.appendChild(SummaryView.tabela([
-        { titulo: 'Tipo', valor: function (r) { return r.kind === 'dev' ? 'DEV' : 'NCR'; } },
-        { titulo: 'Número', valor: function (r) { return r.item.ncrId || '(sem número)'; } },
-        { titulo: 'Sistemas', valor: function (r) { return r.item.systems || '—'; } },
-        { titulo: 'Função / descrição', valor: function (r) { return r.item.func || '—'; } },
-        { titulo: 'Situação', valor: function (r) { return Summary.situacao(r.item); } },
-        { titulo: 'Arch Status', valor: function (r) { return r.item.archStatus || '—'; } }
-      ], dados.porMarco[0].linhas));
-      pg.appendChild(t);
+      pg.appendChild(SummaryView.blocoLista('Itens', null, [
+        { titulo: 'Tipo', larg: 7, valor: function (r) { return r.kind === 'dev' ? 'DEV' : 'NCR'; } },
+        { titulo: 'Número', larg: 19, valor: function (r) { return r.item.ncrId || '(sem número)'; } },
+        { titulo: 'Sistemas', larg: 13, valor: function (r) { return r.item.systems || '—'; } },
+        { titulo: 'Função / descrição', larg: 20, valor: function (r) { return r.item.func || '—'; } },
+        /* "Em preenchimento" cabe inteira aqui; com 16% saía "preenchiment/o" */
+        { titulo: 'Situação', larg: 20, valor: function (r) { return Summary.situacao(r.item); } },
+        /* "WAIVER REQUESTED" é a resposta mais comprida e a mais comum:
+           mais estreito do que isto, ela sai partida ao meio */
+        { titulo: 'Arch Status', larg: 19, valor: function (r) { return r.item.archStatus || '—'; } }
+      ], dados.porMarco[0].linhas, 'Nenhum item neste recorte.'));
     }
 
+    /* O rodapé fica dentro da folha desde já, para entrar na conta da
+       paginação — e é repetido em cada folha de continuação. */
+    var rodape = null;
     if (state.project && state.project.footer) {
-      pg.appendChild(el('div', 'rep-footer', state.project.footer));
+      rodape = el('div', 'rep-footer', state.project.footer);
+      pg.appendChild(rodape);
     }
-    return pg;
+    return { pag: pg, titulo: titulo, rodape: rodape };
   }
 
   /* ---------------------------------------------------------------------- */
@@ -358,6 +567,1037 @@
   /* ---------------------------------------------------------------------- */
 
   var dragFrom = null;
+
+  /* ---------------------------------------------------------------------- */
+  /* aba Fluxos — o caminho de cada item, tudo junto                        */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * Uma linha por item, na ordem do PDF, com o fluxo já analisado.
+   *
+   * O escopo escolhido decide de onde vêm os itens: só o relatório aberto
+   * (o de sempre) ou todos os marcos deste navegador — no mapa, ver o
+   * caminho de um marco só responde metade da pergunta.
+   */
+  function linhasDeFluxo() {
+    var out = [];
+    var alvos = fluxosFiltro.escopo === 'todos'
+      ? state.projects
+      : (state.project ? [state.project] : []);
+    alvos.forEach(function (p) {
+      ['ncr', 'dev'].forEach(function (kind) {
+        var marco = Report.marcoOf(p, kind) || p.name || 'sem marco';
+        Store.ordenar(p, kind).forEach(function (item) {
+          out.push({
+            projeto: p, projetoId: p.id, marco: marco,
+            kind: kind, item: item, fluxo: Fluxo.analisar(item.historic)
+          });
+        });
+      });
+    });
+    return out;
+  }
+
+  function passaNoFiltroDeFluxo(r) {
+    if (fluxosFiltro.soComFluxo && r.fluxo.vazio) return false;
+    if (fluxosFiltro.tipo && r.kind !== fluxosFiltro.tipo) return false;
+    /* marco marcado: só passa quem tem aquele card no próprio fluxo. É o que
+       responde "o que veio do J04?" sem ler item por item. */
+    if (!Fluxo.passaPor(r.fluxo, fluxosFiltro.marcos)) return false;
+    var t = (fluxosFiltro.busca || '').trim().toLowerCase();
+    if (!t) return true;
+    var palheiro = (Store.textoBusca(r.item) + ' ' + Fluxo.caminhoTexto(r.fluxo)).toLowerCase();
+    return palheiro.indexOf(t) >= 0;
+  }
+
+  /* As três leituras da mesma coisa. A lista responde "por onde passou esta
+     NCR"; o mapa e a matriz respondem "por onde passou o trabalho deste
+     marco", que é outra pergunta e não se enxerga em trinta desenhos
+     separados. */
+  var VISTAS = [
+    { id: 'lista', nome: 'Lista', ajuda: 'Um fluxo por item, na ordem do PDF.' },
+    { id: 'mapa', nome: 'Mapa do marco', ajuda: 'Todos os fluxos somados num desenho só: a seta engorda com o número de itens que passam por ela.' },
+    { id: 'matriz', nome: 'Matriz de/para', ajuda: 'Uma linha por seta escrita, da mais usada para a menos.' },
+    { id: 'painel', nome: 'Painel do marco', ajuda: 'Tudo o que está indo para um marco: quantos itens, de onde vêm, em que pé estão e quais são. Olha todos os relatórios deste navegador e sai em PDF.' }
+  ];
+
+  function vistaAtual() {
+    var v = fluxosFiltro.vista || 'lista';
+    return VISTAS.filter(function (x) { return x.id === v; })[0] || VISTAS[0];
+  }
+
+  function fluxosDe(linhas) {
+    return linhas.map(function (r) { return r.fluxo; });
+  }
+
+  /* Os marcos que alguém escreveu como DESTINO de uma seta. O painel do J09
+     só faz sentido se alguém disse "… To: J09" em algum lugar; oferecer a
+     lista fixa dos marcos do programa encheria o seletor de painéis vazios. */
+  function marcosDoPainel() {
+    return Painel.marcosDeDestino(state.projects);
+  }
+
+  /**
+   * O marco do painel. Sem escolha guardada, vale o marco do relatório
+   * aberto — quase sempre é ele que a pessoa quer ver chegando.
+   */
+  function marcoDoPainel() {
+    var lista = marcosDoPainel();
+    if (!lista.length) return null;
+    var achado = null;
+    lista.forEach(function (m) { if (m.chave === fluxosFiltro.painel) achado = m; });
+    if (achado) return achado;
+    var meu = marcoDesteRelatorio();
+    if (meu) lista.forEach(function (m) { if (!achado && m.chave === meu.chave) achado = m; });
+    /* nada combinou: o último da fila é o marco mais adiantado que alguém
+       escreveu, e é o que costuma estar por vir */
+    return achado || lista[lista.length - 1];
+  }
+
+  /** O mapa: os fluxos dos itens à vista somados num desenho só. */
+  function blocoMapaDeFluxo(linhas, paraImpressao) {
+    var ag = Fluxo.agregado(fluxosDe(linhas));
+    var bloco = SummaryView.bloco('Mapa do marco',
+      ag.vazio
+        ? 'Nenhum dos itens à vista tem waiver anterior escrito.'
+        : ag.itens + ' item(ns) com fluxo, somados. A espessura da seta e o ' +
+          'número ao lado dizem quantos itens passam por ali.');
+    if (paraImpressao) bloco.setAttribute('data-fluido', '');
+    if (ag.vazio) return bloco;
+
+    var palco = el('div', 'fx-palco');
+    palco.appendChild(Fluxo.svg(ag, {
+      pesos: true,
+      destaque: marcoDesteRelatorio()
+    }));
+    bloco.appendChild(palco);
+    return bloco;
+  }
+
+  /** Quantos marcos cada item já atravessou — o waiver que vem se arrastando. */
+  function blocoSaltos(linhas, paraImpressao) {
+    var s = Fluxo.saltos(fluxosDe(linhas));
+    var bloco = SummaryView.bloco('Quantos marcos cada item atravessou',
+      'Um item em quatro colunas é um waiver renovado três vezes. ' +
+      s.comFluxo + ' item(ns) com fluxo escrito.');
+    if (paraImpressao) bloco.setAttribute('data-fluido', '');
+    bloco.appendChild(Summary.barras(s.linhas, { vazio: 'Nenhum fluxo escrito ainda.' }));
+    return bloco;
+  }
+
+  /** A matriz de/para: uma linha por seta, da mais usada para a menos. */
+  function blocoMatriz(linhas) {
+    var m = Fluxo.matriz(fluxosDe(linhas));
+    return SummaryView.blocoLista('Matriz de/para',
+      'Cada linha é uma seta escrita no Waiver Historic dos ' + m.itens +
+      ' item(ns) com fluxo à vista.',
+      [
+        { titulo: 'De', larg: 26, valor: function (r) { return r.de; } },
+        { titulo: 'Para', larg: 26, valor: function (r) { return r.para; } },
+        { titulo: 'Itens', larg: 14, num: true, valor: function (r) { return r.peso; } },
+        { titulo: 'Dos itens com fluxo', larg: 30, num: true, valor: function (r) {
+          return m.itens ? Math.round((r.peso / m.itens) * 100) + '%' : '—';
+        } }
+      ],
+      m.linhas, 'Nenhuma seta escrita nos itens à vista.');
+  }
+
+  function renderFluxos(semRolar) {
+    var host = $('#fluxosScroll');
+    if (!state.project) return;
+    /* a vista e o escopo decidem se o relatório da barra de cima vale aqui */
+    renderSeletorGlobal();
+    var antes = host.scrollTop;
+    host.innerHTML = '';
+
+    var todas = linhasDeFluxo();
+    var linhas = todas.filter(passaNoFiltroDeFluxo);
+    var comFluxo = todas.filter(function (r) { return !r.fluxo.vazio; }).length;
+    var marcosDisponiveis = Fluxo.marcosCitados(fluxosDe(todas));
+    var vista = vistaAtual();
+    /* um índice por categoria, montado uma vez: a lista pergunta por cada
+       card de cada item, e remontar a procura a cada pergunta seria refazer
+       o mesmo trabalho dezenas de vezes */
+    var idxs = { ncr: indiceDeAnteriores('ncr'), dev: indiceDeAnteriores('dev') };
+
+    /* --- barra: o que está à vista e como exportar --- */
+    var barra = el('div', 'sm-bar');
+    var info = el('div', 'fx-info');
+    info.appendChild(el('strong', null, vista.id === 'painel'
+      ? 'Painel do marco'
+      : (fluxosFiltro.escopo === 'todos'
+        ? 'Todos os marcos deste navegador'
+        : (Report.marcoOf(state.project, 'ncr') || state.project.name || 'sem marco'))));
+    info.appendChild(el('span', null, vista.id === 'painel'
+      ? 'O painel lê o Waiver Historic de todos os relatórios deste navegador.'
+      : comFluxo + ' de ' + todas.length +
+        ' item(ns) com waivers anteriores escritos · ' + linhas.length + ' no recorte.'));
+    /* preenchido no fim, quando os cards já estão na tela e dá para contar
+       quantos acharam o mesmo item em outro relatório */
+    var achou = el('span', 'fx-achou');
+    info.appendChild(achou);
+    barra.appendChild(info);
+
+    var acoes = el('div', 'sm-bar-actions');
+    var bpdf = el('button', 'btn btn--sm btn--primary', 'Esta vista em PDF');
+    bpdf.type = 'button';
+    bpdf.title = 'Gera em A4 exatamente o que está na tela: ' + vista.nome.toLowerCase() +
+      ', com o recorte aplicado.';
+    bpdf.addEventListener('click', function () { exportarFluxosPdf(); });
+    acoes.appendChild(bpdf);
+    barra.appendChild(acoes);
+    host.appendChild(barra);
+
+    /* --- escolha da vista --- */
+    var vistas = el('div', 'fx-vistas');
+    vistas.setAttribute('role', 'tablist');
+    vistas.setAttribute('aria-label', 'Como ver os fluxos');
+    VISTAS.forEach(function (v) {
+      var b = el('button', 'fx-vista' + (v.id === vista.id ? ' is-on' : ''), v.nome);
+      b.type = 'button';
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', v.id === vista.id ? 'true' : 'false');
+      b.title = v.ajuda;
+      b.addEventListener('click', function () {
+        fluxosFiltro.vista = v.id;
+        renderFluxos(true);
+      });
+      vistas.appendChild(b);
+    });
+    vistas.appendChild(el('span', 'fx-vista-ajuda', vista.ajuda));
+    host.appendChild(vistas);
+
+    /* O painel tem uma regra só — quem tem seta terminando no marco — e ela
+       vale para todos os relatórios. Escopo, busca, tipo e "passa por" são do
+       fluxo por item; mostrá-los aqui seria oferecer botões que não fazem
+       nada. Quem recorta o painel é o seletor de marco, logo abaixo. */
+    var soDoFluxo = vista.id !== 'painel';
+
+    /* De onde vêm os itens. O mapa de um marco só responde "por onde passou
+       este marco"; com todos, responde "por onde passa o programa". */
+    var escopo = el('div', 'fx-vistas fx-vistas--escopo');
+    escopo.appendChild(el('span', 'fx-marcos-rot', 'Itens de:'));
+    [['projeto', 'este relatório'], ['todos', 'todos os marcos']].forEach(function (o) {
+      var b = el('button', 'fx-vista' + (fluxosFiltro.escopo === o[0] ? ' is-on' : ''), o[1]);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', fluxosFiltro.escopo === o[0] ? 'true' : 'false');
+      b.addEventListener('click', function () {
+        fluxosFiltro.escopo = o[0];
+        renderFluxos(true);
+      });
+      escopo.appendChild(b);
+    });
+    if (soDoFluxo) host.appendChild(escopo);
+
+    /* --- filtros --- */
+    var fb = el('div', 'sm-filtros');
+    var busca = el('div', 'sm-bar-field');
+    busca.appendChild(el('label', null, 'Buscar'));
+    var inp = document.createElement('input');
+    inp.type = 'search';
+    inp.value = fluxosFiltro.busca;
+    inp.setAttribute('aria-label', fluxosFiltro.escopo === 'todos'
+      ? 'Buscar nos itens de todos os marcos'
+      : 'Buscar nos itens deste relatório');
+    inp.placeholder = 'número, função ou marco do fluxo…';
+    inp.addEventListener('input', function () {
+      fluxosFiltro.busca = inp.value;
+      renderFluxos(true);
+      var novo = $('#fluxosScroll input[type="search"]');
+      if (novo) { novo.focus(); novo.setSelectionRange(novo.value.length, novo.value.length); }
+    });
+    busca.appendChild(inp);
+    fb.appendChild(busca);
+
+    var tipo = el('div', 'sm-bar-field sm-bar-field--curto');
+    tipo.appendChild(el('label', null, 'Tipo'));
+    var selTipo = document.createElement('select');
+    selTipo.setAttribute('aria-label', 'Tipo de item');
+    [['', 'NCR e DEV'], ['ncr', 'só NCR'], ['dev', 'só DEV']].forEach(function (o) {
+      var op = document.createElement('option');
+      op.value = o[0]; op.textContent = o[1];
+      selTipo.appendChild(op);
+    });
+    selTipo.value = fluxosFiltro.tipo || '';
+    selTipo.addEventListener('change', function () {
+      fluxosFiltro.tipo = selTipo.value;
+      renderFluxos(true);
+    });
+    tipo.appendChild(selTipo);
+    fb.appendChild(tipo);
+
+    var so = el('label', 'fx-check');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = fluxosFiltro.soComFluxo;
+    cb.addEventListener('change', function () {
+      fluxosFiltro.soComFluxo = cb.checked;
+      renderFluxos(true);
+    });
+    so.appendChild(cb);
+    so.appendChild(document.createTextNode(' esconder quem não tem fluxo'));
+    fb.appendChild(so);
+    if (soDoFluxo) host.appendChild(fb);
+
+    /* --- filtro por marco: os marcos que os próprios textos citam --------- */
+    if (marcosDisponiveis.length && soDoFluxo) {
+      var chips = el('div', 'fx-marcos');
+      chips.appendChild(el('span', 'fx-marcos-rot', 'Passa por:'));
+      marcosDisponiveis.forEach(function (m) {
+        var ligado = fluxosFiltro.marcos.indexOf(m.chave) >= 0;
+        var b = el('button', 'fx-chip' + (ligado ? ' is-on' : ''), m.rotulo);
+        b.type = 'button';
+        b.appendChild(el('span', 'fx-chip-n', String(m.n)));
+        b.setAttribute('aria-pressed', ligado ? 'true' : 'false');
+        b.title = (ligado ? 'Tirar ' : 'Mostrar só ') + 'os itens cujo fluxo passa por ' +
+          m.rotulo + ' (' + m.n + ' item(ns)).';
+        b.addEventListener('click', function () {
+          fluxosFiltro.marcos = ligado
+            ? fluxosFiltro.marcos.filter(function (c) { return c !== m.chave; })
+            : fluxosFiltro.marcos.concat([m.chave]);
+          renderFluxos(true);
+        });
+        chips.appendChild(b);
+      });
+      if (fluxosFiltro.marcos.length) {
+        var limpa = el('button', 'btn btn--sm', 'todos os marcos');
+        limpa.type = 'button';
+        limpa.addEventListener('click', function () {
+          fluxosFiltro.marcos = [];
+          renderFluxos(true);
+        });
+        chips.appendChild(limpa);
+      }
+      host.appendChild(chips);
+    }
+
+    /* --- o conteúdo da vista escolhida --- */
+    if (vista.id === 'painel') {
+      var mp = marcoDoPainel();
+      host.appendChild(escolhaDoPainel(mp));
+      var caixa = el('div', 'pn-tela');
+      if (mp) Painel.montar(caixa, state.projects, mp, { abrir: abrirDaTabela });
+      else caixa.appendChild(el('p', 'hint',
+        'Nenhuma seta escrita ainda: o painel lê o campo “Waiver Historic” ' +
+        'dos itens. Escreva “J08 To: J09” em um item e o J09 aparece aqui.'));
+      host.appendChild(caixa);
+      achou.textContent = '';
+      if (!semRolar) host.scrollTop = 0; else host.scrollTop = antes;
+      return;
+    }
+    if (vista.id === 'mapa') {
+      host.appendChild(blocoMapaDeFluxo(linhas));
+      host.appendChild(blocoSaltos(linhas));
+    } else if (vista.id === 'matriz') {
+      host.appendChild(blocoMatriz(linhas));
+    } else {
+      /* --- um bloco por categoria --- */
+      ['ncr', 'dev'].forEach(function (kind) {
+        var minhas = linhas.filter(function (r) { return r.kind === kind; });
+        var nome = kind === 'dev' ? 'DEV' : 'NCR';
+        var total = todas.filter(function (r) { return r.kind === kind; }).length;
+        if (!total) return;
+        var bloco = SummaryView.bloco(nome + 's', minhas.length + ' de ' + total +
+          ' item(ns), na mesma ordem do PDF.');
+        if (!minhas.length) {
+          bloco.appendChild(el('p', 'hint', 'Nada aqui com este recorte.'));
+        }
+        minhas.forEach(function (r) { bloco.appendChild(linhaDeFluxo(r, false, idxs)); });
+        host.appendChild(bloco);
+      });
+    }
+
+    var marcados = $$('.fx-card.is-achado', host).length;
+    achou.textContent = marcados
+      ? marcados + ' card(s) com ponto: o mesmo item está no relatório daquele ' +
+        'marco, aqui no navegador. Passe o mouse para ler o Arch Answer de lá.'
+      : (vista.id === 'lista'
+        ? 'Nenhum card com resposta de outro marco neste navegador.'
+        : '');
+
+    if (!semRolar) host.scrollTop = 0; else host.scrollTop = antes;
+  }
+
+  /** A escolha do marco do painel — a única coisa que o painel filtra. */
+  function escolhaDoPainel(atual) {
+    var box = el('div', 'fx-vistas fx-vistas--escopo pn-escolha');
+    box.appendChild(el('span', 'fx-marcos-rot', 'Chegando no marco:'));
+    var sel = document.createElement('select');
+    sel.setAttribute('aria-label', 'Marco do painel');
+    marcosDoPainel().forEach(function (m) {
+      var op = document.createElement('option');
+      op.value = m.chave;
+      op.textContent = m.rotulo + ' (' + m.n + ')';
+      sel.appendChild(op);
+    });
+    if (atual) sel.value = atual.chave;
+    sel.addEventListener('change', function () {
+      fluxosFiltro.painel = sel.value;
+      renderFluxos(true);
+    });
+    box.appendChild(sel);
+    box.appendChild(el('span', 'fx-vista-ajuda',
+      'O painel olha todos os relatórios deste navegador e ignora os filtros ' +
+      'acima: a regra dele é uma só — entra quem tem uma seta terminando neste marco.'));
+    return box;
+  }
+
+  /** A linha de um item: identificação à esquerda, fluxo à direita. */
+  function linhaDeFluxo(r, paraImpressao, idxs) {
+    var linha = el('div', 'fx-linha');
+    if (paraImpressao) linha.setAttribute('data-fluido', '');
+
+    var id = el('div', 'fx-linha-id');
+    var num = el('div', 'fx-linha-num', r.item.ncrId || '(sem número)');
+    if (!paraImpressao) {
+      var a = el('a', 'sm-link', r.item.ncrId || '(sem número)');
+      a.href = '#';
+      a.title = 'Abrir este item';
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        /* com o escopo em "todos os marcos", o item pode estar em outro
+           relatório: abrir sem trocar de relatório mostraria o item errado */
+        if (r.projetoId && state.project && r.projetoId !== state.project.id) {
+          abrirDaTabela(r);
+          return;
+        }
+        state.kind = r.kind;
+        renderTabs();
+        renderNcrList();
+        selectNcr(r.item.id);
+      });
+      num.textContent = '';
+      num.appendChild(a);
+    }
+    id.appendChild(num);
+    var partes = [r.item.systems, r.item.func];
+    /* fora do relatório aberto, o número sozinho não identifica: a NCR-001 do
+       J06 e a do J08 são itens diferentes */
+    if (fluxosFiltro.escopo === 'todos' && r.marco) partes.unshift(r.marco);
+    var sub = partes.filter(Boolean).join(' | ');
+    id.appendChild(el('div', 'fx-linha-sub', sub || '—'));
+    linha.appendChild(id);
+
+    var palco = el('div', 'fx-palco fx-palco--linha');
+    /* na impressão não vai `antes`: o papel não tem mouse, e a marca sem o
+       balão seria uma pergunta sem resposta */
+    palco.appendChild(Fluxo.svg(r.fluxo, {
+      escala: 'compacto',
+      destaque: marcoDesteRelatorio(),
+      antes: paraImpressao ? null : buscadorDeAnteriores(idxs && idxs[r.kind], r.item),
+      abrir: paraImpressao ? null : abrirAchado
+    }));
+    linha.appendChild(palco);
+    return linha;
+  }
+
+  /**
+   * O compilado em PDF. Usa a mesma paginação do relatório: uma lista
+   * comprida não pode terminar no fim da folha e continuar na borda do papel.
+   */
+  function exportarFluxosPdf() {
+    if (vistaAtual().id === 'painel') { exportarPainelPdf(); return; }
+    var root = $('#printRoot');
+    root.innerHTML = '';
+    var medida = Report.abrirMedida(root);
+    try {
+      var pg = el('section', 'rep-page rep-page--summary');
+      var marco = fluxosFiltro.escopo === 'todos'
+        ? 'todos os marcos'
+        : (Report.marcoOf(state.project, 'ncr') || state.project.name || '');
+      pg.appendChild(el('div', 'rep-cover-title', 'Fluxo dos waivers — ' + marco));
+      pg.appendChild(el('div', 'sm-print-date',
+        'Gerado em ' + new Date().toLocaleDateString('pt-BR') +
+        (Store.getUser() ? ' por ' + Store.getUser() : '')));
+
+      var linhas = linhasDeFluxo().filter(passaNoFiltroDeFluxo);
+      var vista = vistaAtual();
+
+      /* o recorte tem de estar escrito na folha: fluxo filtrado que não diz
+         que está filtrado é lido como se fosse o marco inteiro */
+      var ditos = [];
+      if (fluxosFiltro.tipo) ditos.push('tipo: ' + (fluxosFiltro.tipo === 'dev' ? 'DEV' : 'NCR'));
+      if (fluxosFiltro.marcos.length) ditos.push('passa por: ' + fluxosFiltro.marcos.join(', '));
+      if (fluxosFiltro.soComFluxo) ditos.push('só quem tem fluxo');
+      if (fluxosFiltro.busca) ditos.push('texto: \u201c' + fluxosFiltro.busca + '\u201d');
+      if (ditos.length) {
+        var av = el('div', 'sm-print-filtro',
+          'Recorte: ' + ditos.join(' \u00b7 ') + ' \u2014 ' + linhas.length + ' item(ns).');
+        av.setAttribute('data-fluido', '');
+        pg.appendChild(av);
+      }
+
+      if (vista.id === 'mapa') {
+        pg.appendChild(blocoMapaDeFluxo(linhas, true));
+        pg.appendChild(blocoSaltos(linhas, true));
+      } else if (vista.id === 'matriz') {
+        pg.appendChild(blocoMatriz(linhas));
+      } else {
+        var lista = el('div', 'fx-lista');
+        lista.setAttribute('data-fluido', '');
+        lista.setAttribute('data-lista', '');
+        linhas.forEach(function (r) { lista.appendChild(linhaDeFluxo(r, true)); });
+        if (!linhas.length) lista.appendChild(el('p', null, 'Nenhum item neste recorte.'));
+        pg.appendChild(lista);
+      }
+      root.appendChild(pg);
+
+      Report.paginar(pg, root, function () {
+        var c = el('section', 'rep-page rep-page--summary rep-page--cont');
+        c.appendChild(el('div', 'rep-cover-title', 'Fluxo dos waivers — ' + marco + ' (cont.)'));
+        return c;
+      });
+    } finally {
+      Report.fecharMedida(medida);
+    }
+
+    var titulo = document.title;
+    document.title = Report.suggestedFileName(state.project, 'pdf', 'ncr')
+      .replace('WaiverRequest_', 'Fluxos_').replace(/\.pdf$/, '');
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.title = titulo; }, 500);
+    }, 60);
+  }
+
+  /**
+   * O painel do marco em A4. Mesma montagem da tela — é o mesmo
+   * `Painel.montar` —, só que sem os links e com os blocos marcados para a
+   * paginação poder levá-los à folha seguinte.
+   */
+  function exportarPainelPdf() {
+    var mp = marcoDoPainel();
+    if (!mp) { toast('Não há marco de destino escrito em nenhum item.'); return; }
+    var root = $('#printRoot');
+    root.innerHTML = '';
+    var medida = Report.abrirMedida(root);
+    try {
+      /* duas folhas de propósito: os números e os gráficos numa, a lista na
+         outra (ver o comentário de Painel.montar). Cada uma é paginada por
+         conta própria, então a lista comprida continua atravessando folhas
+         com o cabeçalho repetido. */
+      var cont = function (titulo) {
+        return function () {
+          var c = el('section', 'rep-page rep-page--summary rep-page--painel rep-page--cont');
+          c.appendChild(el('div', 'rep-cover-title', titulo + ' (cont.)'));
+          return c;
+        };
+      };
+      var titulo = 'Painel do marco ' + mp.rotulo;
+
+      var folha = el('section', 'rep-page rep-page--summary rep-page--painel');
+      var res = Painel.montar(folha, state.projects, mp, { impressao: true, parte: 'painel' });
+      root.appendChild(folha);
+      Report.paginar(folha, root, cont(titulo));
+
+      if (res.st.total) {
+        var lista = el('section', 'rep-page rep-page--summary rep-page--painel');
+        lista.appendChild(el('div', 'rep-cover-title', titulo));
+        Painel.montar(lista, state.projects, mp, { impressao: true, parte: 'lista' });
+        root.appendChild(lista);
+        Report.paginar(lista, root, cont(titulo));
+      }
+    } finally {
+      Report.fecharMedida(medida);
+    }
+    var tituloDoc = document.title;
+    document.title = 'Painel_' + mp.rotulo.replace(/[^\w]+/g, '_') + '_' + Report.timeStamp();
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.title = tituloDoc; }, 500);
+    }, 60);
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* aba Tabela — todos os itens, de todos os relatórios                     */
+  /* ---------------------------------------------------------------------- */
+
+  /* Colunas e ordenação vêm do navegador de quem está aqui (Tabela.lerEstado);
+     o filtro nasce vazio a cada abertura, de propósito — reabrir o programa
+     com uma busca velha aplicada esconde itens sem dizer por quê. */
+  var tabelaEstado = null;
+
+  function renderTabela(semRolar) {
+    var host = $('#tabelaScroll');
+    if (!tabelaEstado) tabelaEstado = Tabela.lerEstado();
+    var antes = host.scrollTop;
+    /* a busca redesenha a cada tecla: guarda onde estava o cursor */
+    var focado = document.activeElement;
+    var eraBusca = focado && focado.id === 'tabelaBusca';
+    var caret = eraBusca ? focado.selectionStart : 0;
+
+    Tabela.render(host, state.projects, tabelaEstado, {
+      onMudou: function () { renderTabela(true); },
+      abrir: abrirDaTabela,
+      onXlsx: exportarTabelaXlsx,
+      onCsv: exportarTabelaCsv,
+      onPdf: exportarTabelaPdf
+    });
+
+    if (eraBusca) {
+      var novo = $('#tabelaBusca');
+      if (novo) { novo.focus(); novo.setSelectionRange(caret, caret); }
+    }
+    host.scrollTop = semRolar ? antes : 0;
+  }
+
+  /**
+   * Clique numa linha: abre aquele item, mesmo que ele esteja em outro marco.
+   * Grava o que está na tela antes de sair — trocar de relatório redesenha
+   * tudo, e o que estivesse esperando os 500 ms da gravação se perderia.
+   */
+  function abrirDaTabela(r) {
+    var alvo = state.projects.filter(function (p) { return p.id === r.projetoId; })[0];
+    if (!alvo) { toast('Esse relatório não está mais neste navegador.'); return; }
+    function ir() {
+      aberturaPendente = false;
+      state.kind = r.kind;
+      if (!state.project || alvo.id !== state.project.id) loadProject(alvo);
+      renderTabs();
+      renderNcrList();
+      selectNcr(r.item.id);
+      toast((r.item.ncrId || 'Item') + ' aberta no relatório ' + r.marco + '.');
+    }
+    flushSave().then(ir, ir);
+  }
+
+  function nomeDeArquivoDaTabela(ext) {
+    return 'Derrogacoes_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.' + ext;
+  }
+
+  /** As linhas do "recorte": o que estava filtrado quando o arquivo saiu. */
+  function recorteDaTabela(f, cols, quantos) {
+    var linhas = [
+      ['Gerado em', new Date().toLocaleString('pt-BR')],
+      ['Gerado por', Store.getUser() || '(sem nome)'],
+      ['Itens nesta planilha', quantos],
+      ['Recorte', Tabela.descricaoDoFiltro(f, state.projects) || 'sem filtro — todos os itens'],
+      ['Colunas', cols.map(function (c) { return c.titulo; }).join(' · ')],
+      ['Observação', 'A ordem desta planilha é a da tela. Ela não altera a ordem ' +
+        'dos itens no relatório nem no PDF.']
+    ];
+    return linhas;
+  }
+
+  /**
+   * A planilha do Excel. Vai com duas abas: os itens e o recorte que os
+   * produziu — planilha que anda pela empresa sem dizer de que filtro veio
+   * é planilha que alguém lê como se fosse o total.
+   */
+  function exportarTabelaXlsx(lista, cols, f) {
+    var planilha = {
+      nome: 'Derrogações',
+      colunas: cols.map(function (c) { return { titulo: c.titulo, larg: c.larg || 16 }; }),
+      linhas: Tabela.valores(lista, cols)
+    };
+    var recorte = {
+      nome: 'Recorte',
+      colunas: [{ titulo: 'Campo', larg: 24 }, { titulo: 'Valor', larg: 80 }],
+      linhas: recorteDaTabela(f, cols, lista.length),
+      filtros: false
+    };
+    try {
+      download(Xlsx.blob([planilha, recorte]), nomeDeArquivoDaTabela('xlsx'));
+      toast('Planilha salva em Downloads: ' + lista.length + ' item(ns).', 4000);
+    } catch (e) {
+      markError(e);
+      toast('Não foi possível gerar a planilha.');
+    }
+  }
+
+  function exportarTabelaCsv(lista, cols) {
+    var csv = Tabela.toCsv(lista, cols);
+    download(new Blob([csv], { type: 'text/csv;charset=utf-8' }), nomeDeArquivoDaTabela('csv'));
+    toast('CSV salvo em Downloads: ' + lista.length + ' item(ns).', 4000);
+  }
+
+  /** A mesma tabela em folhas A4, com a paginação do relatório. */
+  function exportarTabelaPdf(lista, cols, f) {
+    var root = $('#printRoot');
+    root.innerHTML = '';
+    var medida = Report.abrirMedida(root);
+    var titulo = 'Derrogações — todos os marcos';
+    /* com muita coluna, retrato parte toda palavra ao meio (medido: "MARCO"
+       saindo "MARC O"). A folha deitada é a mesma das páginas de anexo. */
+    var deitada = cols.length > 5 ? ' rep-page--landscape' : '';
+    try {
+      var pg = el('section', 'rep-page rep-page--summary' + deitada);
+      pg.appendChild(el('div', 'rep-cover-title', titulo));
+      var cab = el('div', 'sm-print-date',
+        'Gerado em ' + new Date().toLocaleDateString('pt-BR') +
+        (Store.getUser() ? ' por ' + Store.getUser() : '') +
+        ' · ' + lista.length + ' item(ns)');
+      cab.setAttribute('data-fluido', '');
+      pg.appendChild(cab);
+
+      var recorte = Tabela.descricaoDoFiltro(f, state.projects);
+      if (recorte) {
+        var av = el('div', 'sm-print-filtro', 'Recorte: ' + recorte + '.');
+        av.setAttribute('data-fluido', '');
+        pg.appendChild(av);
+      }
+
+      /* Larguras proporcionais ao que a coluna pede na planilha: sem isso,
+         "Arch Status" e "Tipo" saem com a mesma fatia da folha.
+         O rótulo entra na conta porque ele também tem de caber — uma coluna
+         estreita demais sai com "MARCO" partido em "MARC O" no cabeçalho. */
+      var peso = function (c) { return Math.max(c.larg || 16, c.titulo.length + 1); };
+      var soma = cols.reduce(function (a, c) { return a + peso(c); }, 0);
+      var colunas = cols.map(function (c) {
+        return {
+          titulo: c.titulo,
+          num: !!c.num,
+          larg: Math.max(6, Math.round((peso(c) / soma) * 100)),
+          valor: function (r) { var v = c.valor(r); return (v === '' || v == null) ? '—' : String(v); }
+        };
+      });
+      pg.appendChild(SummaryView.blocoLista('Itens', null, colunas, lista,
+        'Nenhum item neste recorte.'));
+      root.appendChild(pg);
+
+      Report.paginar(pg, root, function () {
+        var c = el('section', 'rep-page rep-page--summary rep-page--cont' + deitada);
+        c.appendChild(el('div', 'rep-cover-title', titulo + ' (cont.)'));
+        return c;
+      });
+    } finally {
+      Report.fecharMedida(medida);
+    }
+
+    var doc = document.title;
+    document.title = nomeDeArquivoDaTabela('pdf').replace(/\.pdf$/, '');
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.title = doc; }, 500);
+    }, 60);
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* aba Conversa — recados da equipe, pela pasta da rede                    */
+  /* ---------------------------------------------------------------------- */
+
+  /* Tudo o que este navegador conhece da conversa. A cópia que vale é a da
+     pasta; esta existe para a aba abrir antes de a pasta responder, e para o
+     que você escreveu não se perder se a rede estiver fora do ar. */
+  var conversas = [];
+  var canalAberto = Chat.GERAL;
+  var pessoasConhecidas = [];
+  var conversaTimer = null;
+  var sincronizandoConversa = false;
+  /* arquivo de conversa gravado por uma versão mais nova: só leitura, pela
+     mesma razão dos dados — o que esta página não conhece sumiria */
+  var conversaSoLeitura = false;
+  var caixaDeTexto = null;
+
+  function podeConversar() {
+    return Chat.ligado() && Pasta.ligada() && pastaEstado === 'on';
+  }
+
+  function atualizarPessoas() {
+    pessoasConhecidas = Chat.pessoas(state.projects, conversas, Store.getUser());
+    return pessoasConhecidas;
+  }
+
+  function nomeDaChave(chave) {
+    var achado = pessoasConhecidas.filter(function (p) { return p.chave === chave; })[0];
+    return achado ? achado.nome : chave;
+  }
+
+  function rotuloCanal(canal) {
+    return canal === Chat.GERAL ? 'Geral' : nomeDaChave(Chat.outroLado(canal, Store.getUser()));
+  }
+
+  /** Recados não lidos, na etiqueta da aba. */
+  function renderConversaBadge() {
+    var tab = $('.tab[data-kind="conversa"]');
+    if (!tab) return;
+    tab.hidden = !Chat.ligado();
+    var box = $('#conversaCount');
+    var n = Chat.ligado() ? Chat.naoLidas(conversas, Store.getUser()).total : 0;
+    box.hidden = !n;
+    tab.title = n
+      ? n + (n === 1 ? ' recado não lido' : ' recados não lidos')
+      : 'Recados da equipe, pela pasta da rede';
+  }
+
+  /** A lista de canais, na lateral: o geral e uma linha por pessoa. */
+  function renderCanais() {
+    var host = $('#convCanais');
+    if (!host) return;
+    host.innerHTML = '';
+    atualizarPessoas();
+    var contas = Chat.naoLidas(conversas, Store.getUser()).canais;
+
+    function linha(canal, rotulo, sub) {
+      var b = el('button', 'conv-canal' + (canal === canalAberto ? ' is-on' : ''));
+      b.type = 'button';
+      var topo = el('div', 'conv-canal-topo');
+      topo.appendChild(el('span', 'conv-canal-nome', rotulo));
+      var n = contas[canal] || 0;
+      if (n) topo.appendChild(el('span', 'conv-canal-n', String(n)));
+      b.appendChild(topo);
+      if (sub) b.appendChild(el('span', 'conv-canal-sub', sub));
+      b.addEventListener('click', function () { abrirCanal(canal); });
+      host.appendChild(b);
+    }
+
+    linha(Chat.GERAL, 'Geral', 'todo mundo que abre esta pasta');
+    host.appendChild(el('div', 'conv-canais-tit', 'Conversa direta'));
+
+    if (!Store.getUser()) {
+      host.appendChild(el('p', 'hint',
+        'Informe o seu nome (no menu “⋯ Mais”) para falar com alguém em separado.'));
+      return;
+    }
+    if (!pessoasConhecidas.length) {
+      host.appendChild(el('p', 'hint',
+        'Ninguém mais assinou nada nesta pasta ainda. Quem editar um item ou ' +
+        'escrever no geral aparece aqui.'));
+      return;
+    }
+    pessoasConhecidas.forEach(function (p) {
+      linha(Chat.canalDireto(Store.getUser(), p.nome), p.nome, '');
+    });
+  }
+
+  /** Lido até a mensagem mais nova que está à vista neste canal. */
+  function marcarCanalLido(canal) {
+    var msgs = Chat.doCanal(conversas, canal);
+    Chat.marcarLido(canal, msgs.length ? msgs[msgs.length - 1].em : '');
+  }
+
+  function abrirCanal(canal) {
+    canalAberto = canal;
+    marcarCanalLido(canal);
+    renderCanais();
+    renderConversa();
+    renderConversaBadge();
+  }
+
+  /**
+   * Monta a aba. O campo de escrever é montado aqui e só aqui: a lista de
+   * mensagens se redesenha sozinha a cada sincronização, e refazer o campo
+   * junto apagaria o que está sendo digitado.
+   */
+  function renderConversa() {
+    var host = $('#conversaScroll');
+    if (!host) return;
+    var rascunho = caixaDeTexto ? caixaDeTexto.value : '';
+    host.innerHTML = '';
+    caixaDeTexto = null;
+
+    var cab = el('div', 'conv-cab');
+    cab.appendChild(el('strong', null, rotuloCanal(canalAberto)));
+    cab.appendChild(el('span', 'conv-cab-sub', canalAberto === Chat.GERAL
+      ? 'Recado para quem abrir esta pasta.'
+      : 'Conversa entre você e ' + rotuloCanal(canalAberto) + '.'));
+    host.appendChild(cab);
+
+    /* O aviso não é enfeite: sem ele alguém trataria a conversa direta como
+       canal reservado, que ela não é. */
+    var aviso = el('div', 'conv-aviso');
+    aviso.appendChild(el('strong', null, 'Isto não é canal seguro. '));
+    aviso.appendChild(document.createTextNode(
+      'Tudo fica num arquivo dentro da pasta da rede (' + Pasta.CONVERSAS + '), ' +
+      'inclusive as conversas diretas: quem abre a pasta pode ler. E o nome é o ' +
+      'que cada um digitou — não há senha que prove quem escreveu.'));
+    host.appendChild(aviso);
+
+    if (!Pasta.ligada() || pastaEstado !== 'on') {
+      var sem = el('div', 'conv-sem-pasta');
+      sem.appendChild(el('strong', null, 'A pasta da rede não está ligada. '));
+      sem.appendChild(document.createTextNode(
+        'O que você escrever fica só neste navegador até a pasta voltar — ' +
+        'e ninguém mais vê. Ligue em “⋯ Mais → Pasta da rede como banco de dados”.'));
+      host.appendChild(sem);
+    } else if (conversaSoLeitura) {
+      host.appendChild(el('div', 'conv-sem-pasta',
+        'A conversa desta pasta foi gravada por uma versão mais nova do programa. ' +
+        'Só leitura até você recarregar a página (Ctrl+F5).'));
+    }
+
+    var lista = el('div', 'conv-lista');
+    lista.id = 'convLista';
+    host.appendChild(lista);
+
+    var form = el('div', 'conv-form');
+    var caixa = document.createElement('textarea');
+    caixa.rows = 2;
+    caixa.id = 'convTexto';
+    caixa.maxLength = Chat.MAX_TEXTO;
+    caixa.placeholder = 'Escreva o recado… (Enter envia, Shift+Enter quebra a linha)';
+    caixa.value = rascunho;
+    caixa.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarConversa(); }
+    });
+    form.appendChild(caixa);
+    caixaDeTexto = caixa;
+
+    var enviar = el('button', 'btn btn--primary', 'Enviar');
+    enviar.type = 'button';
+    enviar.id = 'convEnviarBtn';
+    enviar.addEventListener('click', enviarConversa);
+    form.appendChild(enviar);
+    host.appendChild(form);
+
+    renderMensagens(true);
+  }
+
+  /** Só a lista de mensagens — é o que a sincronização redesenha. */
+  function renderMensagens(irParaOFim) {
+    var lista = $('#convLista');
+    if (!lista) return;
+    /* quem estava lendo mais acima não é jogado para o fim a cada recado */
+    var colado = irParaOFim ||
+      (lista.scrollTop + lista.clientHeight >= lista.scrollHeight - 30);
+    lista.innerHTML = '';
+
+    var msgs = Chat.doCanal(conversas, canalAberto).filter(function (m) { return !m.apagada; });
+    if (!msgs.length) {
+      lista.appendChild(el('p', 'hint', canalAberto === Chat.GERAL
+        ? 'Nenhum recado ainda. O primeiro é seu.'
+        : 'Vocês ainda não trocaram nenhum recado.'));
+      return;
+    }
+
+    var meu = Chat.chaveNome(Store.getUser());
+    var diaAnterior = '';
+    msgs.forEach(function (m) {
+      var dia = String(m.em).slice(0, 10);
+      if (dia !== diaAnterior) {
+        diaAnterior = dia;
+        var d = new Date(m.em);
+        lista.appendChild(el('div', 'conv-dia',
+          isNaN(d) ? dia : d.toLocaleDateString('pt-BR')));
+      }
+
+      var ehMinha = Chat.chaveNome(m.de) === meu && !!meu;
+      var linha = el('div', 'conv-msg' + (ehMinha ? ' is-minha' : ''));
+      var cabMsg = el('div', 'conv-msg-cab');
+      cabMsg.appendChild(el('span', 'conv-msg-quem', m.de || 'sem nome'));
+      cabMsg.appendChild(el('span', 'conv-msg-quando', horaDe(m.em)));
+      if (ehMinha) {
+        var x = el('button', 'conv-msg-apagar', '✕');
+        x.type = 'button';
+        x.title = 'Apagar este recado para todo mundo';
+        x.addEventListener('click', function () { apagarMensagem(m); });
+        cabMsg.appendChild(x);
+      }
+      linha.appendChild(cabMsg);
+      linha.appendChild(el('div', 'conv-msg-txt', m.texto));
+      lista.appendChild(linha);
+    });
+
+    if (colado) lista.scrollTop = lista.scrollHeight;
+  }
+
+  function horaDe(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return '';
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function enviarConversa() {
+    var texto = (caixaDeTexto ? caixaDeTexto.value : '').trim();
+    if (!texto) return;
+    /* o recado é assinado: sem nome não dá para saber de quem veio */
+    if (!Store.getUser()) {
+      openUserDialog(function () { enviarConversa(); });
+      toast('Informe o seu nome — é ele que assina o recado.');
+      return;
+    }
+    conversas = Chat.juntar(conversas, [Chat.nova(canalAberto, texto, Store.getUser())]);
+    Chat.gravarLocais(conversas);
+    marcarCanalLido(canalAberto);
+    caixaDeTexto.value = '';
+    caixaDeTexto.focus();
+    renderMensagens(true);
+    renderCanais();
+    renderConversaBadge();
+    sincronizarConversas({ forcar: true }).then(function (r) {
+      if (r === 'sem-pasta') {
+        toast('Sem a pasta da rede, o recado fica só neste navegador.', 4500);
+      }
+    });
+  }
+
+  /* Apagar vale para todo mundo: a marca viaja junto, senão o recado voltaria
+     pela sincronização de quem ainda não soube — a mesma lápide dos itens. */
+  function apagarMensagem(m) {
+    if (!confirm('Apagar este recado para todo mundo?')) return;
+    m.apagada = true;
+    m.texto = '';
+    Chat.gravarLocais(conversas);
+    renderMensagens();
+    sincronizarConversas({ forcar: true });
+  }
+
+  /**
+   * Lê a conversa da pasta, junta com a daqui e grava de volta o resultado.
+   *
+   * Ler-juntar-gravar, e não só gravar: dois navegadores escrevendo ao mesmo
+   * tempo apagariam o recado um do outro. Como mensagem não se edita, a
+   * junção é união por identificador — e sempre converge.
+   */
+  function sincronizarConversas(opts) {
+    opts = opts || {};
+    if (!Chat.ligado()) return Promise.resolve(null);
+    if (!Pasta.ligada() || pastaEstado !== 'on') return Promise.resolve('sem-pasta');
+    if (sincronizandoConversa) return Promise.resolve(null);
+    sincronizandoConversa = true;
+
+    var antes = Chat.naoLidas(conversas, Store.getUser()).total;
+    return Pasta.lerConversas()
+      .then(function (dados) {
+        if (dados && Number(dados.schema) > 1) conversaSoLeitura = true;
+        var remotas = (dados && Array.isArray(dados.mensagens)) ? dados.mensagens : [];
+        conversas = Chat.juntar(conversas, remotas);
+        Chat.gravarLocais(conversas);
+        if (conversaSoLeitura) return false;
+        if (!opts.forcar && !Chat.faltamLa(conversas, remotas)) return false;
+        return Pasta.gravarConversas(Chat.envelope(conversas));
+      })
+      .then(function () {
+        sincronizandoConversa = false;
+        var depois = Chat.naoLidas(conversas, Store.getUser()).total;
+        if (isConversa()) {
+          /* o canal aberto está à vista: o que chega nele já está lido */
+          marcarCanalLido(canalAberto);
+          renderMensagens();
+          renderCanais();
+        } else if (depois > antes) {
+          toast('Recado novo na aba Conversa.', 4000);
+        }
+        renderConversaBadge();
+        return depois;
+      })
+      .catch(function (e) {
+        sincronizandoConversa = false;
+        Log.aviso('conversa', 'os recados não foram trocados com a pasta desta vez',
+          Pasta.explicar(e) + ' As suas mensagens continuam aqui e vão na próxima.',
+          { erro: e && e.name });
+        return null;
+      });
+  }
+
+  /* De tempos em tempos, como os dados. Não é conversa ao vivo, e o programa
+     não promete que seja: o recado chega na próxima leitura da pasta. */
+  function agendarConversa() {
+    clearInterval(conversaTimer);
+    if (!Chat.ligado()) return;
+    conversaTimer = setInterval(function () {
+      if (!podeConversar() || sincronizandoConversa) return;
+      if (document.hidden) return;
+      sincronizarConversas({});
+    }, POLL_MS);
+  }
+
+  function iniciarConversa() {
+    conversas = Chat.juntar(Chat.locais(), []);
+    renderConversaBadge();
+    agendarConversa();
+    if (podeConversar()) sincronizarConversas({});
+  }
 
   function renderNcrList() {
     var ul = $('#ncrList');
@@ -379,13 +1619,14 @@
     var pendingOnly = $('#pendingOnly').checked;
     var touched = touchedIds();
     rows.forEach(function (ncr, i) {
-      var hay = (ncr.ncrId + ' ' + ncr.systems + ' ' + ncr.func).toLowerCase();
-      if (term && hay.indexOf(term) === -1) return;
+      /* a busca alcança todo o texto do item — é o que responde "onde foi
+         mesmo que a gente citou aquele certificado?" */
+      if (term && Store.textoBusca(ncr).indexOf(term) === -1) return;
       if (pendingOnly && ncr.done) return;
 
       var li = el('li', 'ncr-item');
       li.tabIndex = 0;
-      li.draggable = true;
+      li.draggable = !Leitura.ativo();
       li.dataset.id = ncr.id;
       if (ncr.id === selectedId()) li.setAttribute('aria-current', 'true');
 
@@ -393,7 +1634,7 @@
 
       var main = el('div', 'ncr-item-main');
       main.appendChild(el('div', 'ncr-item-id', ncr.ncrId || '(sem número)'));
-      var sub = (isDev() ? [ncr.func] : [ncr.systems, ncr.func]).filter(Boolean).join(' | ');
+      var sub = [ncr.systems, ncr.func].filter(Boolean).join(' | ');
       main.appendChild(el('div', 'ncr-item-sub', sub || 'sem descrição'));
       li.appendChild(main);
 
@@ -406,6 +1647,35 @@
       var badges = el('div', 'ncr-item-badge');
       var imgCount = ncr.evidence.reduce(function (s, e) { return s + e.images.length; }, 0);
       if (imgCount) badges.appendChild(el('span', null, '🖼 ' + imgCount));
+      /* o item com anotação é o que tem pendência escrita: dá para varrer a
+         lista e achar onde alguém parou, sem abrir um por um */
+      /* veio do marco anterior e ainda não foi conferido: é o lembrete que
+         o Bruno pediu — "algumas informações terão que ser alteradas" */
+      var herd = (ncr.herdadoDe || '').trim();
+      if (herd) {
+        var hb = el('span', 'herd-dot', '⤵');
+        hb.title = 'Herdada do ' + herd + ' — confira o que precisa mudar neste marco.';
+        badges.appendChild(hb);
+      }
+      /* NCR já fechada no banco NCR com o waiver ainda em aberto */
+      if (!isDev() && !ncr.done) {
+        /* a NCR que responde pelo item: com número temporário já
+           substituído, é a definitiva que diz se o caso fechou */
+        var recB = Ncrs.recDoItem(ncr);
+        if (recB && Ncrs.fechada(recB)) {
+          var ab = el('span', 'alerta-dot', '⚠');
+          ab.title = 'A NCR está fechada no banco NCR (' + (Ncrs.fonte(recB).status || 'fechada') +
+            '), mas o waiver ainda não foi aceito.';
+          badges.appendChild(ab);
+        }
+      }
+      var anot = (ncr.nota || '').trim();
+      if (anot) {
+        var nb = el('span', 'nota-dot', '📝');
+        nb.title = 'Observação interna: ' +
+          (anot.length > 160 ? anot.slice(0, 160) + '…' : anot);
+        badges.appendChild(nb);
+      }
       if (ncr.done) {
         li.classList.add('is-done');
         badges.appendChild(el('span', 'done-tick', '✓'));
@@ -414,6 +1684,11 @@
         sd.title = 'Situação: ' + st.nome;
         badges.appendChild(sd);
       }
+      if (mudancasDeFora[ncr.id]) {
+        var fora = el('span', 'fora-dot', '⇄');
+        fora.title = 'Alterado por outra pessoa — abra o item para ver o que mudou';
+        badges.appendChild(fora);
+      }
       if (touched[ncr.id]) {
         li.classList.add('is-touched');
         var dot = el('span', 'touch-dot', '●');
@@ -421,6 +1696,21 @@
         badges.appendChild(dot);
       }
       if (badges.childNodes.length) li.appendChild(badges);
+
+      var mover = el('div', 'ncr-move-box');
+      [['↑', -1, 'Subir'], ['↓', 1, 'Descer']].forEach(function (m) {
+        var bt = el('button', 'ncr-move', m[0]);
+        bt.type = 'button';
+        bt.dataset.passo = String(m[1]);
+        bt.setAttribute('aria-label', m[2] + ' ' + (ncr.ncrId || 'item sem número'));
+        bt.title = m[2] + ' na ordem da lista e do PDF';
+        bt.addEventListener('click', function (e) {
+          e.stopPropagation();
+          moverNcr(ncr.id, m[1]);
+        });
+        mover.appendChild(bt);
+      });
+      li.appendChild(mover);
 
       li.addEventListener('click', function () { selectNcr(ncr.id); });
       li.addEventListener('keydown', function (e) {
@@ -465,7 +1755,26 @@
     box.classList.toggle('is-complete', total > 0 && done === total);
   }
 
+  /* Arrastar exige um gesto de ponteiro que nem todo mundo consegue fazer
+     (WCAG 2.5.7). Os mesmos passos, com um clique só — e pelo teclado. */
+  function moverNcr(id, passo) {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
+    if (!state.project) return;
+    if (state.project.ordem !== 'manual') fixarOrdem(true);
+    var list = items();
+    var de = list.findIndex(function (n) { return n.id === id; });
+    var para = de + passo;
+    if (de < 0 || para < 0 || para >= list.length) return;
+    list.splice(para, 0, list.splice(de, 1)[0]);
+    renderNcrList();
+    renderOrdem();
+    scheduleSave();
+    var volta = $('.ncr-item[data-id="' + id + '"] .ncr-move[data-passo="' + passo + '"]');
+    if (volta) volta.focus();
+  }
+
   function moveNcr(fromId, toId) {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
     /* Arrastar é um gesto manual: se havia uma ordenação automática, ela vira
        o ponto de partida da ordem manual, em vez de a arrastada ser desfeita
        no próximo desenho da tela. */
@@ -518,6 +1827,7 @@
   }
 
   function addNcr() {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
     var ncr = Store.newNcr();
     items().push(ncr);
     touch(ncr, 'criou');
@@ -531,6 +1841,7 @@
   }
 
   function deleteNcr() {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
     var ncr = currentNcr();
     if (!ncr) return;
     if (!confirm('Excluir a ' + kindName() + ' "' + (ncr.ncrId || 'sem número') + '" e todas as suas evidências?')) return;
@@ -546,6 +1857,75 @@
     renderNcrList();
     renderEditor();
     scheduleSave();
+    toast(kindName() + ' "' + (ncr.ncrId || 'sem número') + '" excluída.', 9000, {
+      rotulo: '↩ Desfazer',
+      fn: function () { desfazerExclusao(state.project, state.kind, ncr, at); }
+    });
+  }
+
+  /**
+   * Traz de volta o item que acabou de ser excluído.
+   *
+   * Tirar a lápide não basta: ela pode já ter viajado para o computador do
+   * colega. O que faz o item sobreviver lá também é a hora de edição nova,
+   * posterior à exclusão — pela regra da mesclagem, quem editou por último
+   * vence a lápide.
+   */
+  function desfazerExclusao(projeto, kind, item, posicao) {
+    var lista = projeto[Store.itemsKey(kind)];
+    var lapide = (projeto.deleted || []).filter(function (t) { return t.id === item.id; })[0];
+    projeto.deleted = (projeto.deleted || []).filter(function (t) { return t.id !== item.id; });
+    lista.splice(Math.min(posicao, lista.length), 0, item);
+
+    if (state.project && state.project.id === projeto.id) {
+      state.kind = kind;
+      setSelectedId(item.id);
+      touch(item, 'criou');
+      /* na sessão o item não foi "excluído": foi excluído e trazido de volta,
+         o que é uma edição — deixar "excluiu" no histórico seria mentira */
+      var sess = currentSession();
+      if (sess) {
+        sess.changes.forEach(function (c) { if (c.itemId === item.id) c.action = 'editou'; });
+      }
+    } else {
+      item.editedBy = Store.getUser();
+      item.editedAt = Store.nowIso();
+    }
+    /* A hora de edição tem de ficar depois da lápide: é ela que ressuscita o
+       item também no computador de quem já recebeu a exclusão. */
+    if (lapide) item.editedAt = Store.depoisDe(lapide.at);
+
+    if (state.project && state.project.id === projeto.id) {
+      renderTabs();
+      renderNcrList();
+      renderEditor();
+      scheduleSave();
+    } else {
+      Store.save(projeto).then(agendarGravacaoPasta).catch(markError);
+    }
+    toast('"' + (item.ncrId || 'sem número') + '" de volta.');
+  }
+
+  /** Cópia do item selecionado, logo abaixo dele. */
+  function duplicarNcr() {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
+    var ncr = currentNcr();
+    if (!ncr) return;
+    var copia = Store.duplicar(ncr);
+    var list = items();
+    var at = list.findIndex(function (n) { return n.id === ncr.id; });
+    list.splice(at + 1, 0, copia);
+    touch(copia, 'criou');
+    /* A cópia nasce ao lado do original; com a lista em outra ordem, isso só
+       se vê depois de fixar a ordem — mas o item existe do mesmo jeito. */
+    setSelectedId(copia.id);
+    renderTabs();
+    renderNcrList();
+    renderEditor();
+    scheduleSave();
+    var campo = $('#f-ncrId');
+    if (campo) { campo.focus(); campo.select(); }
+    toast('Cópia criada. Troque o número — ele veio marcado como "(cópia)".', 5000);
   }
 
   /* ---------------------------------------------------------------------- */
@@ -557,6 +1937,133 @@
     if (cls) n.className = cls;
     if (text != null) n.textContent = text;
     return n;
+  }
+
+  /**
+   * O bloco de anotação do item.
+   *
+   * Existe para o caso mais comum do dia a dia: o preenchimento está parado e
+   * o motivo mora na cabeça de quem parou. O campo Situação já diz *que* está
+   * pendente ("Em preenchimento", "Improve justification"); aqui fica o *por
+   * quê* — o que falta, o que foi combinado, de quem se espera resposta.
+   *
+   * Duas regras que valem sempre:
+   * - **Não sai no PDF.** É recado interno, como o campo Situação (§4). Quem
+   *   monta a folha é o SECTIONS do report.js, e a nota não está lá.
+   * - **Vale com o item travado.** Anotar não é editar o documento: um waiver
+   *   aceito continua aceito, e é justamente nele que se anota "conferir o
+   *   certificado na próxima revisão". Daí o `data-livre`.
+   */
+  /* As observações da NCR no Banco NCR (Observação e Obs Ship Manager) no
+     editor do Waiver: **opcionais** (pedido do Bruno: não querer os boxes ali
+     de saída), ligadas em Ajustes, por navegador. Quando ligadas, o cartão
+     não é uma cópia: mostra e grava a própria NCR do banco (Ncrs.recDoItem),
+     a mesma coluna da tabela do Banco NCR e da ficha. Fora do PDF, e editável
+     com o item travado (`data-livre`) — como a anotação. Os campos
+     `observation`/`obsShipManager` do item continuam existindo nos dados
+     (compatibilidade), mas o editor não os mostra. */
+  var CHAVE_OBS_BANCO = 'derrogacao:obsBanco';
+  function obsBancoLigada() {
+    try { return localStorage.getItem(CHAVE_OBS_BANCO) === '1'; } catch (e) { return false; }
+  }
+  function ligarObsBanco(v) {
+    try { if (v) localStorage.setItem(CHAVE_OBS_BANCO, '1'); else localStorage.removeItem(CHAVE_OBS_BANCO); } catch (e) { /* sem armazenamento: vale até recarregar */ }
+  }
+
+  function cardDeObsBanco(rec, campo, titulo, cor, rotulo) {
+    var c = card(titulo + ' — do Banco NCR', cor);
+    c.classList.add('card--observation');
+    if (campo === 'obsShipManager') c.classList.add('card--shipmanager');
+    c.appendChild(el('div', 'hint nota-aviso',
+      'Interna: não entra no relatório em PDF. É a coluna "' + titulo + '" da ' + rec.numero +
+      ' no Banco NCR — o que se escreve aqui grava lá.'));
+    var wrap = el('div', 'field');
+    var id = 'f-banco-' + campo;
+    var lab = el('label', null, rotulo);
+    lab.htmlFor = id;
+    wrap.appendChild(lab);
+    var ta = document.createElement('textarea');
+    ta.id = id;
+    ta.rows = 3;
+    ta.value = rec.waiver[campo] || '';
+    ta.setAttribute('data-livre', '');
+    if (Leitura.ativo()) {
+      ta.readOnly = true;
+    } else {
+      var tm = null;
+      ta.addEventListener('input', function () {
+        clearTimeout(tm);
+        tm = setTimeout(function () { ctxBanco.editar(rec, campo, ta.value); }, 400);
+      });
+    }
+    wrap.appendChild(ta);
+    c.appendChild(wrap);
+    return c;
+  }
+
+  function cardDeAnotacao(ncr) {
+    var c = card('Observação interna', '#E4A11B');
+    c.classList.add('card--nota');
+
+    var acoes = el('div', 'nota-acoes');
+    acoes.style.marginLeft = 'auto';
+    var limpar = el('button', 'btn btn--sm', 'Apagar anotação');
+    limpar.type = 'button';
+    limpar.setAttribute('data-livre', '');
+    limpar.title = 'Tira a anotação do item — dá para desfazer logo depois';
+    limpar.hidden = !(ncr.nota || '').trim();
+    acoes.appendChild(limpar);
+    $('h3', c).appendChild(acoes);
+
+    c.appendChild(el('div', 'hint nota-aviso',
+      'Fica só aqui e na pasta da equipe: não entra no relatório em PDF. ' +
+      'A busca da lista e a aba Tabela alcançam este texto.'));
+
+    var campo = field('O que está pendente, e por quê', 'nota', {
+      rows: 3,
+      placeholder: 'esperando o certificado do fornecedor — cobrar na reunião de 5ª'
+    });
+    var ta = $('#f-nota', campo);
+    /* a anotação continua editável no item aceito: ver o comentário acima */
+    ta.setAttribute('data-livre', '');
+
+    /* Só redesenha a lista quando o 📝 aparece ou some — refazer a lateral a
+       cada tecla de um texto comprido é trabalho à toa. */
+    var tinha = !!(ncr.nota || '').trim();
+    ta.addEventListener('input', function () {
+      var agora = !!ta.value.trim();
+      limpar.hidden = !agora;
+      if (agora === tinha) return;
+      tinha = agora;
+      renderNcrList();
+    });
+
+    limpar.addEventListener('click', function () {
+      var n = currentNcr();
+      if (!n) return;
+      var antes = n.nota || '';
+      if (!antes.trim()) return;
+      n.nota = '';
+      touch(n);
+      renderNcrList();
+      renderEditor();
+      scheduleSave();
+      toast('Anotação apagada.', 6000, {
+        rotulo: 'Desfazer',
+        fn: function () {
+          var alvo = currentNcr();
+          if (!alvo) return;
+          alvo.nota = antes;
+          touch(alvo);
+          renderNcrList();
+          renderEditor();
+          scheduleSave();
+        }
+      });
+    });
+
+    c.appendChild(campo);
+    return c;
   }
 
   /** Campo de texto ligado a uma propriedade da NCR. */
@@ -591,6 +2098,13 @@
       if (opts.refreshList) renderNcrList();
       scheduleSave();
     });
+    /* `fixo`: o valor vem de outro lugar (a Função Vital do Banco NCR) e aqui
+       só se vê; `data-livre` para o item travado não mudar a aparência dele */
+    if (opts.fixo) {
+      input.readOnly = true;
+      input.classList.add('is-banco');
+      input.setAttribute('data-livre', '');
+    }
     wrap.appendChild(input);
     if (opts.hint) wrap.appendChild(el('div', 'hint', opts.hint));
     return wrap;
@@ -618,36 +2132,86 @@
     return c;
   }
 
+  /**
+   * Onde o cursor estava, para voltar ao mesmo lugar depois de redesenhar.
+   *
+   * Redesenhar o editor quando o colega muda o item aberto é obrigatório —
+   * deixar o texto velho à vista faria a tecla seguinte gravar por cima do
+   * que ele escreveu. O preço, até agora, era brutal: o `innerHTML = ''`
+   * destrói o campo que está em uso, o foco volta para o corpo da página e
+   * **as teclas seguintes não vão para lugar nenhum**. Quem estava escrevendo
+   * continuava escrevendo no vazio — era isto que o Bruno via como "a tela
+   * fica atualizando e às vezes perdemos dados".
+   *
+   * Os campos têm id fixo (`f-<campo>`), então dá para achar o mesmo campo no
+   * editor novo e devolver o cursor à mesma posição.
+   */
+  function guardarCursor() {
+    var a = document.activeElement;
+    if (!a || !a.id || !$('#editorScroll').contains(a)) return null;
+    var pos = null;
+    try { pos = { ini: a.selectionStart, fim: a.selectionEnd }; } catch (e) { /* não é campo de texto */ }
+    return { id: a.id, pos: pos, rolagem: $('#editorScroll').scrollTop };
+  }
+
+  function devolverCursor(marca) {
+    if (!marca) return;
+    var campo = document.getElementById(marca.id);
+    if (!campo) return;
+    $('#editorScroll').scrollTop = marca.rolagem;
+    try {
+      campo.focus({ preventScroll: true });
+      if (marca.pos && campo.setSelectionRange) {
+        var fim = campo.value.length;
+        campo.setSelectionRange(Math.min(marca.pos.ini, fim), Math.min(marca.pos.fim, fim));
+      }
+    } catch (e) { /* campo que não aceita seleção: o foco já basta */ }
+  }
+
   function renderEditor() {
     var host = $('#editorScroll');
+    var cursor = guardarCursor();
     host.innerHTML = '';
     var ncr = currentNcr();
 
+    renderAoLado();
     if (!state.project) return;
     if (!ncr) {
       var empty = el('div', 'editor-empty');
       empty.appendChild(el('p', null, 'Nenhuma ' + kindName() + ' selecionada.'));
-      empty.appendChild(el('p', null, 'Use “+ Nova ' + kindName() + '” no painel à esquerda para começar, ' +
-        'ou abra um arquivo de backup pelo menu “⋯ Mais”.'));
+      empty.appendChild(el('p', null, Leitura.ativo()
+        ? 'Escolha uma ' + kindName() + ' na lista à esquerda.'
+        : 'Use “+ Nova ' + kindName() + '” no painel à esquerda para começar, ' +
+          'ou abra um arquivo de backup pelo menu “⋯ Mais”.'));
       host.appendChild(empty);
       return;
     }
+    /* de aqui em diante o editor é montado; o cursor volta no fim */
+
+    /* A faixa de herdada vem antes de tudo: é a primeira coisa a saber sobre
+       um item que chegou pronto de outro marco. */
+    var herd = cardDeHerdada(ncr);
+    if (herd) host.appendChild(herd);
 
     /* --- identificação --- */
     var idCard = card('Identificação da ' + kindName(), '#4B0082');
     var watched;
     if (isDev()) {
-      /* A DEV junta sistema e descrição num campo só, como no original. */
-      var gd = el('div', 'grid grid--2');
+      /* A DEV junta sistema e descrição num campo só, como no original — e
+         ganhou o campo Sistema(s), o mesmo da NCR, só para os indicadores:
+         ele não sai no PDF (o título da DEV continua sendo o de sempre). */
+      var gd = el('div', 'grid grid--3');
       gd.appendChild(field('Número da DEV', 'ncrId', {
         placeholder: 'DEV-78154', refreshList: true
       }));
+      gd.appendChild(field('Sistema(s)', 'systems', {
+        placeholder: 'RM   ou   BX, BQ, BD', refreshList: true
+      }));
       gd.appendChild(field('Sistema e descrição', 'func', {
-        placeholder: 'BQ - Modification des compensateurs', refreshList: true,
-        hint: 'Sai no título como DEV-78154|BQ - Modification des compensateurs.'
+        placeholder: 'BQ - Modification des compensateurs', refreshList: true
       }));
       idCard.appendChild(gd);
-      watched = ['f-ncrId', 'f-func'];
+      watched = ['f-ncrId', 'f-systems', 'f-func'];
     } else {
       var g = el('div', 'grid grid--3');
       g.appendChild(field('Número da NCR', 'ncrId', {
@@ -656,12 +2220,40 @@
       g.appendChild(field('Sistema(s)', 'systems', {
         placeholder: 'RM   ou   BX,BQ,BD', refreshList: true
       }));
-      g.appendChild(field('Função', 'func', {
+      /* A Função é a Função Vital da NCR no Banco NCR, que é a orientação
+         correta (pedido do Bruno): com ela preenchida lá, aqui só se vê. */
+      var recFv = Ncrs.recDoItem(ncr);
+      var fvBanco = recFv && Ncrs.funcaoParaWaiver(recFv.waiver.funcaoVital);
+      g.appendChild(field('Função', 'func', fvBanco ? {
+        refreshList: true, fixo: true
+      } : {
         placeholder: 'FV 01 - Sea water circuit integrity', refreshList: true
       }));
       idCard.appendChild(g);
       watched = ['f-ncrId', 'f-systems', 'f-func'];
     }
+    /* Ao lado do título, como o "Recolher preenchidos" do cartão de baixo.
+       `data-livre` porque só mostra: vale mesmo com o item travado. */
+    var ladoBtn = el('button', 'btn btn--sm', '⇥ Ver outra ao lado');
+    ladoBtn.type = 'button';
+    ladoBtn.title = 'Mostra outro item numa coluna à direita, em só leitura';
+    ladoBtn.setAttribute('data-livre', '');
+    ladoBtn.setAttribute('data-mostra', '');
+    ladoBtn.addEventListener('click', abrirEscolhaDoLado);
+
+    /* Também só mostra — por isso `data-livre`, que o vale no item travado. */
+    var histBtn = el('button', 'btn btn--sm', '🕘 Histórico do texto');
+    histBtn.type = 'button';
+    histBtn.title = 'Quem escreveu o quê neste item, campo a campo — e como trazer um texto de volta';
+    histBtn.setAttribute('data-livre', '');
+    histBtn.addEventListener('click', function () { abrirHistorico('item'); });
+
+    var acoesId = el('div', 'nota-acoes');
+    acoesId.style.marginLeft = 'auto';
+    acoesId.appendChild(histBtn);
+    acoesId.appendChild(ladoBtn);
+    $('h3', idCard).appendChild(acoesId);
+
     var prev = el('div', 'hint');
     prev.style.marginTop = '10px';
     prev.textContent = 'Título gerado: Waiver Request for ' + Report.ncrLabel(ncr, state.kind);
@@ -672,12 +2264,26 @@
         prev.textContent = 'Título gerado: Waiver Request for ' + Report.ncrLabel(currentNcr(), state.kind);
       });
     });
+    if (!isDev()) idCard.appendChild(renderLigacaoBanco(ncr));
     host.appendChild(idCard);
+
+    /* --- a anotação, antes do conteúdo do documento --- */
+    if (!Leitura.ativo()) host.appendChild(cardDeAnotacao(ncr));
+
+    /* --- as observações do Banco NCR: só se ligadas em Ajustes --- */
+    if (!isDev() && obsBancoLigada()) {
+      var recObs = Ncrs.recDoItem(ncr);
+      if (recObs) {
+        host.appendChild(cardDeObsBanco(recObs, 'observacao', 'Observação', '#1d6b45', 'Observação da NCR'));
+        host.appendChild(cardDeObsBanco(recObs, 'obsShipManager', 'Obs Ship Manager', '#0e7490', 'Observações enviadas pelo Ship Manager'));
+      }
+    }
 
     /* --- seções textuais, na ordem e nas cores do relatório --- */
     var textCard = card('Conteúdo da derrogação');
     var collapseBtn = el('button', 'btn btn--sm', 'Recolher preenchidos');
     collapseBtn.type = 'button';
+    collapseBtn.setAttribute('data-mostra', '');   /* só mostra: vale no visualizador */
     collapseBtn.style.marginLeft = 'auto';
     $('h3', textCard).appendChild(collapseBtn);
 
@@ -708,6 +2314,9 @@
       det.appendChild(sum);
 
       var f = field(d[1], d[0], { rows: d[3] });
+      /* o nome do bloco já está no <summary>; o rótulo sairia repetido na
+         tela, mas sem ele o campo fica sem nome para o leitor de tela */
+      $('#f-' + d[0], f).setAttribute('aria-label', d[1]);
       $('label', f).remove();
       det.appendChild(f);
 
@@ -748,6 +2357,7 @@
         : 'Uma entrada por linha.'
     }));
     stCard.appendChild(g2);
+    stCard.appendChild(renderFluxoDoItem(g2));
     stCard.appendChild(renderCertificates());
     host.appendChild(stCard);
 
@@ -756,11 +2366,581 @@
 
     /* --- situação de acompanhamento --- */
     host.appendChild(renderStatusBar());
+
+    /* --- travas e avisos, por cima do que já está montado --- */
+    if (Leitura.ativo()) travarParaLeitura(host);
+    else if (travado(ncr)) aplicarTrava(host);
+    var mudanca = mudancasDeFora[ncr.id];
+    if (mudanca) host.insertBefore(barraMudouPorFora(mudanca), host.firstChild);
+
+    /* O cursor volta para onde estava — por último, com tudo montado e as
+       travas já aplicadas (um campo travado não aceita foco, e tentar antes
+       o deixaria no lugar errado). */
+    devolverCursor(cursor);
   }
 
-  /* Situação de acompanhamento: controle interno, não sai no PDF. Substitui o
-     antigo botão "Concluir" — o item passa a contar como concluído quando, e
-     só quando, chega em "Waiver accepted". */
+  /* Item aceito é documento fechado: um clique distraído num campo dele se
+     espalha para todo mundo na sincronização seguinte. Fica travado até a
+     pessoa dizer que quer mesmo mexer. */
+  var destravados = {};
+
+  function travado(ncr) {
+    return !!(ncr && ncr.done && !destravados[ncr.id]);
+  }
+
+  function aplicarTrava(host) {
+    var aviso = el('div', 'trava');
+    aviso.appendChild(el('span', 'trava-txt',
+      '🔒 Waiver aceito — os campos estão travados para não sobrescrever por engano.'));
+    var b = el('button', 'btn btn--sm', 'Editar mesmo assim');
+    b.type = 'button';
+    b.addEventListener('click', function () {
+      destravados[currentNcr().id] = true;
+      renderEditor();
+    });
+    aviso.appendChild(b);
+
+    $$('.card', host).forEach(function (card) {
+      $$('input, textarea, select, button', card).forEach(function (n) {
+        /* o que só mostra continua valendo: travar é para não escrever sem
+           querer, não para deixar de ver */
+        if (n.hasAttribute('data-livre')) return;
+        if (n.tagName === 'TEXTAREA' || (n.tagName === 'INPUT' && n.type === 'text')) n.readOnly = true;
+        else n.disabled = true;
+      });
+      /* a área de soltar imagens não é um controle de formulário */
+      $$('.evid-drop', card).forEach(function (d) {
+        d.style.pointerEvents = 'none';
+        d.style.opacity = '.55';
+      });
+    });
+    host.insertBefore(aviso, host.firstChild);
+  }
+
+  /* --- o que mudou por fora --------------------------------------------- */
+
+  /* Itens que a sincronização substituiu pelo texto de outra pessoa, desde
+     que esta página foi aberta. A regra da pasta é "vale a edição mais
+     recente"; sem isto, o que foi por cima do meu texto passaria em branco. */
+  var mudancasDeFora = {};
+
+  function guardarMudancas(resumo) {
+    if (!resumo || !resumo.substituidos) return;
+    resumo.substituidos.forEach(function (sub) { mudancasDeFora[sub.id] = sub; });
+  }
+
+  function barraMudouPorFora(sub) {
+    var bar = el('div', 'mudou');
+    var perdidos = (sub.perdidos || []).length;
+    var txt = 'Este item foi alterado' +
+      (sub.quem ? ' por ' + sub.quem : ' em outro computador') +
+      (sub.quando ? ', ' + shortDate(sub.quando) : '') +
+      ' — ' + sub.campos.length + ' campo(s).';
+    if (perdidos) {
+      bar.classList.add('mudou--conflito');
+      txt += ' Em ' + perdidos + ' deles os dois escreveram ao mesmo tempo, e um ' +
+        'texto teve de sair — ele está guardado no histórico.';
+    }
+    bar.appendChild(el('span', 'mudou-txt', txt));
+    if (perdidos) {
+      var hist = el('button', 'btn btn--sm btn--accent', 'Ver o texto que saiu');
+      hist.type = 'button';
+      hist.addEventListener('click', function () { abrirHistorico('item'); });
+      bar.appendChild(hist);
+    }
+    var ver = el('button', 'btn btn--sm btn--accent', 'Ver o que mudou');
+    ver.type = 'button';
+    ver.addEventListener('click', function () { abrirDif(sub); });
+    bar.appendChild(ver);
+    var ok = el('button', 'btn btn--sm btn--quiet', 'Dispensar');
+    ok.type = 'button';
+    ok.addEventListener('click', function () {
+      delete mudancasDeFora[sub.id];
+      renderEditor();
+      renderNcrList();
+    });
+    bar.appendChild(ok);
+    return bar;
+  }
+
+  function abrirDif(sub) {
+    var body = $('#difBody');
+    body.innerHTML = '';
+    $('#difQuem').textContent = (sub.quem || 'Outro computador') +
+      (sub.quando ? ' · ' + shortDate(sub.quando) : '') +
+      ' · ' + (sub.ncrId || 'sem número');
+    (sub.perdidos || []).forEach(function (x) {
+      var aviso = el('div', 'dif-campo dif-campo--conflito');
+      aviso.appendChild(el('div', 'dif-rotulo', x.rotulo + ' — os dois escreveram ao mesmo tempo'));
+      var par = el('div', 'dif-par');
+      var saiu = el('div', 'dif-lado dif-lado--antes');
+      saiu.appendChild(el('div', 'dif-cab', 'Saiu daqui' + (x.de ? ' (' + x.de + ')' : '')));
+      saiu.appendChild(el('pre', 'dif-txt', x.perdeu || '(em branco)'));
+      var ficou = el('div', 'dif-lado dif-lado--depois');
+      ficou.appendChild(el('div', 'dif-cab', 'Ficou'));
+      ficou.appendChild(el('pre', 'dif-txt', x.ficou || '(em branco)'));
+      par.appendChild(saiu); par.appendChild(ficou);
+      aviso.appendChild(par);
+      body.appendChild(aviso);
+    });
+    sub.campos.forEach(function (c) {
+      var bloco = el('div', 'dif-campo');
+      bloco.appendChild(el('div', 'dif-rotulo', c.rotulo));
+      var par = el('div', 'dif-par');
+      var antes = el('div', 'dif-lado dif-lado--antes');
+      antes.appendChild(el('div', 'dif-cab', 'Estava aqui'));
+      antes.appendChild(el('pre', 'dif-txt', c.antes || '(em branco)'));
+      var depois = el('div', 'dif-lado dif-lado--depois');
+      depois.appendChild(el('div', 'dif-cab', 'Passou a ser'));
+      depois.appendChild(el('pre', 'dif-txt', c.depois || '(em branco)'));
+      par.appendChild(antes);
+      par.appendChild(depois);
+      bloco.appendChild(par);
+      body.appendChild(bloco);
+    });
+    $('#difDialog').showModal();
+  }
+
+  /* --- o histórico de alterações do item ---------------------------------
+     A pergunta que a versão inteira do histórico da pasta responde mal:
+     "quem apagou o meu texto, e o que estava escrito?". Aqui cada linha é
+     uma alteração de campo, com o texto de antes guardado — e um botão que
+     o traz de volta. */
+
+  var revEstado = { escopo: 'item', item: '', busca: '' };
+
+  function abrirHistorico(escopo) {
+    var ncr = currentNcr();
+    revEstado.escopo = escopo || (ncr ? 'item' : 'projeto');
+    revEstado.item = ncr ? ncr.id : '';
+    revEstado.busca = '';
+    var busca = $('#revBusca');
+    if (busca) busca.value = '';
+    renderHistorico();
+    $('#revDialog').showModal();
+  }
+
+  function linhasDoHistorico() {
+    var lista;
+    if (revEstado.escopo === 'item' && revEstado.item) lista = Revisoes.doItem(revisoes, revEstado.item);
+    else if (revEstado.escopo === 'projeto' && state.project) lista = Revisoes.doProjeto(revisoes, state.project.id);
+    else lista = Revisoes.todas(revisoes);
+    var t = revEstado.busca.trim().toLowerCase();
+    if (!t) return lista;
+    return lista.filter(function (r) {
+      return (r.de + ' ' + r.para + ' ' + r.rotulo + ' ' + r.por + ' ' + r.ncrId)
+        .toLowerCase().indexOf(t) >= 0;
+    });
+  }
+
+  /* O texto de que a linha trata: no atropelamento é o que SAIU — é ele que
+     a pessoa veio procurar. Nas demais, o que foi escrito. */
+  function textoDaLinha(r) {
+    return r.origem === 'substituido' ? r.de : r.para;
+  }
+
+  function renderHistorico() {
+    var host = $('#revBody');
+    var escopos = $('#revEscopo');
+    host.innerHTML = '';
+    escopos.innerHTML = '';
+
+    var ncr = currentNcr();
+    [['item', ncr ? (ncr.ncrId || 'este item') : 'este item', !!ncr],
+     ['projeto', 'este relatório', !!state.project],
+     ['tudo', 'todos os relatórios', true]].forEach(function (o) {
+      if (!o[2]) return;
+      var b = el('button', 'btn btn--sm' + (revEstado.escopo === o[0] ? ' is-on' : ''), o[1]);
+      b.type = 'button';
+      b.addEventListener('click', function () {
+        revEstado.escopo = o[0];
+        renderHistorico();
+      });
+      escopos.appendChild(b);
+    });
+
+    var lista = linhasDoHistorico();
+    var conflitos = lista.filter(function (r) { return r.origem === 'substituido'; }).length;
+    $('#revResumo').textContent = lista.length
+      ? lista.length + ' alteração(ões)' +
+        (conflitos ? ' · ' + conflitos + ' escrita(s) por cima' : '') +
+        ' · a mais recente primeiro'
+      : '';
+
+    if (!lista.length) {
+      var vazio = el('p', 'hint');
+      vazio.textContent = revEstado.busca
+        ? 'Nada no histórico com esse texto.'
+        : 'Ainda não há alterações registradas aqui. O histórico começa a ' +
+          'contar a partir desta versão do programa: o que foi escrito antes ' +
+          'dela não tem linha.';
+      host.appendChild(vazio);
+      return;
+    }
+
+    lista.slice(0, 300).forEach(function (r) {
+      host.appendChild(linhaDeHistorico(r));
+    });
+    if (lista.length > 300) {
+      host.appendChild(el('p', 'hint', 'Mostrando as 300 mais recentes de ' + lista.length + '.'));
+    }
+  }
+
+  var ROTULO_ORIGEM = {
+    substituido: 'escrito por cima',
+    criou: 'item novo',
+    restaurou: 'restaurado',
+    excluiu: 'excluído'
+  };
+
+  function linhaDeHistorico(r) {
+    var linha = el('div', 'rev-linha');
+    linha.dataset.origem = r.origem;
+
+    var cab = el('div', 'rev-cab');
+    cab.appendChild(el('span', 'rev-quem', r.por || '(sem nome)'));
+    cab.appendChild(el('span', 'rev-quando', shortDate(r.em)));
+    cab.appendChild(el('span', 'rev-campo', r.rotulo));
+    if (revEstado.escopo !== 'item') {
+      cab.appendChild(el('span', 'rev-item',
+        (r.ncrId || 'sem número') + (r.marco ? ' · ' + r.marco : '')));
+    }
+    if (ROTULO_ORIGEM[r.origem]) {
+      cab.appendChild(el('span', 'rev-tag', ROTULO_ORIGEM[r.origem]));
+    }
+    linha.appendChild(cab);
+
+    var texto = textoDaLinha(r);
+    if (r.origem === 'substituido') {
+      linha.appendChild(el('div', 'rev-rotulo', r.semTexto
+        ? 'O que saiu (não dá para trazer de volta por aqui)'
+        : 'O texto que saiu daqui'));
+    }
+    linha.appendChild(el('pre', 'rev-txt', texto || '(em branco)'));
+
+    var acoes = el('div', 'rev-acoes');
+    var outro = r.origem === 'substituido' ? r.para : r.de;
+    if (outro) {
+      var verBtn = el('button', 'btn btn--sm btn--quiet',
+        r.origem === 'substituido' ? 'Ver o que ficou' : 'Ver como estava antes');
+      verBtn.type = 'button';
+      var caixa = el('pre', 'rev-txt rev-txt--antes', outro);
+      caixa.hidden = true;
+      verBtn.addEventListener('click', function () {
+        caixa.hidden = !caixa.hidden;
+        verBtn.textContent = caixa.hidden
+          ? (r.origem === 'substituido' ? 'Ver o que ficou' : 'Ver como estava antes')
+          : 'Esconder';
+      });
+      acoes.appendChild(verBtn);
+      linha.appendChild(acoes);
+      linha.appendChild(caixa);
+    } else {
+      linha.appendChild(acoes);
+    }
+
+    if (!r.semTexto) {
+      var por = el('button', 'btn btn--sm btn--accent', 'Pôr este texto de volta');
+      por.type = 'button';
+      por.title = 'Escreve este texto no campo ' + r.rotulo + ' da ' + (r.ncrId || 'item');
+      por.addEventListener('click', function () { restaurarTexto(r, texto); });
+      acoes.appendChild(por);
+    }
+    return linha;
+  }
+
+  /**
+   * Devolve um texto do histórico ao campo de onde ele saiu.
+   *
+   * É uma edição como outra qualquer — e por isso ela viaja: a hora nova faz
+   * o texto restaurado valer também no computador dos outros, em vez de ser
+   * apagado de volta na sincronização seguinte.
+   */
+  function restaurarTexto(r, texto) {
+    var alvo = state.projects.filter(function (p) { return p.id === r.projeto; })[0];
+    if (!alvo) { toast('O relatório dessa alteração não está mais neste navegador.'); return; }
+    var lista = alvo[Store.itemsKey(r.kind)] || [];
+    var item = lista.filter(function (n) { return n.id === r.item; })[0];
+    if (!item) { toast('Esse item não existe mais — foi excluído depois dessa alteração.'); return; }
+
+    var antes = Store.valorCampo(item, r.campo);
+    if (antes === texto) { toast('Esse texto já é o que está no campo.'); return; }
+
+    function aplicar(valor, aviso) {
+      Store.porCampo(item, r.campo, valor);
+      state.kind = r.kind;
+      if (!state.project || state.project.id !== alvo.id) loadProject(alvo);
+      selectNcr(item.id);
+      touch(item);
+      revisoes = Revisoes.acrescentar(revisoes, [Revisoes.registro({
+        por: Store.getUser(), projeto: alvo.id, marco: alvo.marco || alvo.name,
+        kind: r.kind, item: item.id, ncrId: item.ncrId,
+        campo: r.campo, rotulo: r.rotulo,
+        de: antes, para: valor, origem: 'restaurou'
+      })]);
+      Revisoes.gravarLocais(revisoes);
+      baseDiario = Store.baseDe(state.projects);
+      guardarBases();
+      renderNcrList();
+      renderEditor();
+      scheduleSave();
+      if (aviso) toast(aviso, 8000, {
+        rotulo: 'Desfazer',
+        fn: function () { aplicar(antes, ''); }
+      });
+    }
+
+    $('#revDialog').close();
+    flushSave().then(function () {
+      aplicar(texto, r.rotulo + ' da ' + (item.ncrId || 'item') + ' voltou a este texto.');
+    });
+  }
+
+  /* --- o caminho do waiver, dentro do item ------------------------------- */
+
+  /** O marco deste relatório, no formato dos cards ("RANAE J06" -> "J06"). */
+  function marcoDesteRelatorio() {
+    var m = Fluxo.marco(Report.marcoOf(state.project, state.kind));
+    return m ? m.rotulo : '';
+  }
+
+  /**
+   * A procura que alimenta o balão dos cards: o mesmo número, no relatório do
+   * marco daquele card. O índice é montado uma vez por desenho e o item é
+   * lido a cada pergunta — assim o card acompanha quem troca o número do item
+   * sem refazer o índice a cada tecla.
+   */
+  function indiceDeAnteriores(kind) {
+    return Fluxo.indice(state.projects, kind, state.project ? state.project.id : '');
+  }
+
+  function buscadorDeAnteriores(idx, item) {
+    if (!idx || !item) return null;
+    return function (no) { return Fluxo.anterior(idx, no, item); };
+  }
+
+  /**
+   * Clique no card marcado: abre o item no relatório de onde veio a resposta.
+   * Grava o que está na tela antes de sair — trocar de relatório redesenha
+   * tudo, e o que estivesse esperando os 500 ms da gravação se perderia.
+   */
+  function abrirAchado(dados, ev) {
+    var alvo = state.projects.filter(function (p) { return p.id === dados.projectId; })[0];
+    if (!alvo) { toast('Esse relatório não está mais neste navegador.'); return; }
+    /* com Shift, em vez de trocar de tela, o item vai para a coluna ao lado —
+       é o caminho curto para escrever este olhando aquele */
+    if (ev && ev.shiftKey) {
+      if ($('#fluxoDialog').open) $('#fluxoDialog').close();
+      fixarAoLado(dados.projectId, dados.kind, dados.itemId);
+      toast('Preso ao lado: ' + (dados.ncrId || 'item') + ' (' + (dados.marco || 'sem marco') + ').');
+      return;
+    }
+    if ($('#fluxoDialog').open) $('#fluxoDialog').close();
+
+    function ir() {
+      state.kind = dados.kind;
+      if (!state.project || alvo.id !== state.project.id) loadProject(alvo);
+      renderTabs();
+      renderNcrList();
+      selectNcr(dados.itemId);
+      toast((dados.ncrId || 'Item') + ' aberta no relatório ' + (dados.marco || 'sem marco') + '.');
+    }
+    flushSave().then(ir, ir);
+  }
+
+  /**
+   * Mostra, embaixo do Waiver Historic, o caminho que aquelas linhas
+   * descrevem — e redesenha a cada tecla, para os cards irem aparecendo
+   * conforme o campo é preenchido.
+   *
+   * Só este pedaço é redesenhado: refazer o formulário durante a digitação
+   * faria o cursor pular.
+   */
+  function renderFluxoDoItem(ondeEstaOCampo) {
+    var bloco = el('div', 'fx-bloco');
+
+    var cab = el('div', 'fx-bloco-cab');
+    cab.appendChild(el('strong', null, 'Fluxo dos waivers'));
+    var sub = el('span', 'fx-bloco-sub', 'montado a partir do Waiver Historic acima');
+    cab.appendChild(sub);
+    var btn = el('button', 'btn btn--sm btn--accent', '⤳ Ver fluxo');
+    btn.type = 'button';
+    btn.id = 'fluxoAbrirBtn';
+    btn.title = 'Abre o fluxo em tamanho grande';
+    btn.setAttribute('data-livre', '');   /* só mostra: vale mesmo com o item travado */
+    btn.setAttribute('data-mostra', '');
+    btn.addEventListener('click', function () { abrirFluxo(currentNcr(), state.kind); });
+    cab.appendChild(btn);
+    bloco.appendChild(cab);
+
+    var palco = el('div', 'fx-palco fx-palco--mini');
+    bloco.appendChild(palco);
+
+    var idx = indiceDeAnteriores(state.kind);
+
+    function redesenhar() {
+      var n = currentNcr();
+      if (!n) return;
+      var a = Fluxo.analisar(n.historic);
+      palco.innerHTML = '';
+      palco.appendChild(Fluxo.svg(a, {
+        escala: 'compacto',
+        destaque: marcoDesteRelatorio(),
+        antes: buscadorDeAnteriores(idx, n),
+        abrir: abrirAchado
+      }));
+      btn.textContent = a.vazio ? '⤳ Ver fluxo' : '⤳ Ver fluxo (' + a.nos.length + ')';
+      var achados = $$('.fx-card.is-achado', palco).length;
+      sub.textContent = achados
+        ? 'montado a partir do Waiver Historic acima · ' + achados +
+          (achados > 1 ? ' marcos já responderam' : ' marco já respondeu') +
+          ' (passe o mouse no card)'
+        : 'montado a partir do Waiver Historic acima';
+    }
+    redesenhar();
+
+    /* O formulário ainda não está na tela quando este bloco é montado, então
+       o campo é procurado dentro do pedaço que o contém, e não no documento. */
+    var campo = $('#f-historic', ondeEstaOCampo);
+    if (campo) campo.addEventListener('input', redesenhar);
+    return bloco;
+  }
+
+  /** O fluxo em tamanho grande, com o texto de origem à mão. */
+  function abrirFluxo(item, kind) {
+    if (!item) return;
+    var a = Fluxo.analisar(item.historic);
+    $('#fluxoItem').textContent = (kind === 'dev' ? 'DEV ' : 'NCR ') +
+      (item.ncrId || 'sem número') +
+      (item.func ? ' · ' + item.func : '');
+
+    var palco = $('#fluxoPalco');
+    palco.innerHTML = '';
+    palco.appendChild(Fluxo.svg(a, {
+      destaque: marcoDesteRelatorio(),
+      antes: buscadorDeAnteriores(indiceDeAnteriores(kind), item),
+      abrir: abrirAchado
+    }));
+
+    var marcados = $$('.fx-card.is-achado', palco).length;
+    $('#fluxoCaminho').textContent = a.vazio
+      ? 'Escreva as entradas no Waiver Historic — uma por linha, no formato “J04 To: J06” — e os cards aparecem aqui.'
+      : a.nos.length + ' marco(s): ' + Fluxo.caminhoTexto(a) +
+        (marcados ? ' · ' + marcados + ' com ponto: passe o mouse para ver o que ' +
+          'aquele relatório respondeu, ou clique para abrir.' : '');
+
+    var avisos = $('#fluxoAvisos');
+    avisos.innerHTML = '';
+    avisos.hidden = !a.avisos.length;
+    a.avisos.forEach(function (x) { avisos.appendChild(el('p', null, x)); });
+
+    $('#fluxoCru').hidden = a.vazio;
+    $('#fluxoCruTxt').textContent = a.linhas.join('\n');
+    $('#fluxoDialog').showModal();
+  }
+
+  /**
+   * Leva o item aceito para o relatório do marco em que o waiver foi
+   * aprovado. O item de origem não é tocado: ele é o registro do que
+   * aconteceu no marco dele, e é dele que o ponto no card do fluxo lê o
+   * Arch Answer do marco anterior.
+   */
+  function levarAdiante() {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
+    var ncr = currentNcr();
+    if (!ncr) return;
+    var av = Herdar.avaliar(state.project, ncr, state.kind, state.projects);
+    if (!av.pode) { toast(av.motivo, 9000); return; }
+
+    if (!confirm('Levar a ' + (ncr.ncrId || 'NCR') + ' para o ' + av.destino.rotulo + '?\n\n' +
+        Herdar.resumo(av) + '\n\n' +
+        'O item deste marco não muda em nada.')) return;
+
+    Log.passo('herdar', 'levando ' + (ncr.ncrId || 'o item') + ' para o ' +
+      av.destino.rotulo, { de: av.origem ? av.origem.rotulo : '(sem marco)' });
+    var copia = Herdar.copiaPara(ncr, av.origem, av.destino);
+    var destino = av.projetoDestino;
+    var kind = state.kind;
+    destino[Store.itemsKey(kind)].push(copia);
+    /* a autoria tem de ficar no relatório de destino, senão o item chega lá
+       sem dono e sem hora — e a mesclagem do colega não sabe que é novo */
+    Store.logChange(destino, SESSION_ID, kind, copia, 'criou');
+
+    flushSave().then(function () { return Store.save(destino); }).then(function () {
+      refreshProjectSelect();
+      renderNcrList();
+      renderEditor();
+      agendarGravacaoPasta();
+      Log.ok('herdar', (ncr.ncrId || 'item') + ' copiada para o ' + av.destino.rotulo,
+        { situacao: 'Em preenchimento', historic: 'linha acrescentada' });
+      toast((ncr.ncrId || 'Item') + ' copiada para o ' + av.destino.rotulo +
+        ', em “Em preenchimento”.', 12000, [{
+        rotulo: 'Abrir lá',
+        fn: function () {
+          abrirDaTabela({ projetoId: destino.id, kind: kind, item: copia,
+            marco: Report.marcoOf(destino, kind) || destino.name });
+        }
+      }, ofertaDoItem(destino, kind, copia, 'novo-waiver')]);
+    }).catch(function (e) {
+      Log.erro('herdar', 'não consegui gravar a cópia no relatório de destino', e,
+        'o item de origem não foi tocado. Tente de novo; se insistir, faça um backup ' +
+        'antes de continuar.');
+      markError(e);
+    });
+  }
+
+  /**
+   * A faixa do item que veio de outro marco. Ela existe porque a cópia chega
+   * com o texto do marco anterior e **precisa** ser revista: o pedido do
+   * Bruno era ter onde lembrar disso. Sai quando a pessoa diz que conferiu.
+   */
+  function cardDeHerdada(ncr) {
+    var de = (ncr.herdadoDe || '').trim();
+    if (!de) return null;
+    var faixa = el('div', 'herd-faixa');
+    var txt = el('div', 'herd-faixa-txt');
+    txt.appendChild(el('strong', null, 'Herdada do ' + de));
+    txt.appendChild(el('span', null,
+      'Foi copiada de lá quando o waiver foi aceito e chegou aqui em ' +
+      '“Em preenchimento”. O Arch Answer, o Arch Status e as datas de ' +
+      'validade vieram em branco de propósito — são a resposta do marco ' +
+      'anterior. Confira o texto antes de mandar este pedido.'));
+    faixa.appendChild(txt);
+    var ok = el('button', 'btn btn--sm', 'Já conferi');
+    ok.type = 'button';
+    /* vale com o item travado: conferir não é editar o documento */
+    ok.setAttribute('data-livre', '');
+    ok.title = 'Tira a marca de herdada. O Waiver Historic continua como está.';
+    ok.addEventListener('click', function () {
+      var n = currentNcr();
+      if (!n) return;
+      n.herdadoDe = '';
+      touch(n);
+      renderNcrList();
+      renderEditor();
+      scheduleSave();
+      toast('Marca retirada.', 8000, {
+        rotulo: 'Desfazer',
+        fn: function () {
+          var alvo = currentNcr();
+          if (!alvo) return;
+          alvo.herdadoDe = de;
+          touch(alvo);
+          renderNcrList();
+          renderEditor();
+          scheduleSave();
+        }
+      });
+    });
+    faixa.appendChild(ok);
+    return faixa;
+  }
+
+  /* Situação de acompanhamento. Substituiu o antigo botão "Concluir" — o item
+     passa a contar como concluído quando, e só quando, chega em "Waiver
+     accepted". Desde o pedido do Bruno ela também fecha a linha do item no
+     índice da capa do PDF (§4 do CLAUDE.md); no resto do relatório continua
+     sem aparecer. */
   function renderStatusBar() {
     var ncr = currentNcr();
     var atual = Store.statusInfo(ncr.status);
@@ -770,8 +2950,8 @@
     var info = el('div', 'done-bar-info');
     info.appendChild(el('strong', null, 'Situação deste item'));
     info.appendChild(el('span', null,
-      'Controle interno: não sai no PDF do relatório. O item conta como ' +
-      'concluído ao chegar em “Waiver accepted”.'));
+      'Fecha a linha deste item no índice da capa do PDF (em inglês). O item ' +
+      'conta como concluído ao chegar em “Waiver accepted”.'));
     var who = el('span', 'done-bar-who');
     who.id = 'doneBarWho';
     info.appendChild(who);
@@ -793,13 +2973,18 @@
       b.addEventListener('click', function () {
         var n = currentNcr();
         if (n.status === op.id) return;
+        var antes = n.status;
         Store.setStatus(n, op.id);
+        anotarTroca(n, antes);
         touch(n);
+        var proj = state.project, kind = state.kind;
         flushSave().then(function () {
           renderNcrList();
           renderEditor();
           toast('Situação: ' + op.nome +
-            (op.id === Store.STATUS_CONCLUIDO ? ' — item concluído.' : '.'));
+            (op.id === Store.STATUS_CONCLUIDO ? ' — item concluído.' : '.'),
+            op.id === Store.STATUS_CONCLUIDO ? 9000 : 0,
+            op.id === Store.STATUS_CONCLUIDO ? ofertaDoItem(proj, kind, n, 'waiver-aceito', antes) : null);
         });
       });
       grupo.appendChild(b);
@@ -814,10 +2999,53 @@
       });
     });
 
+    /* Levar adiante. Fica à vista sempre, mesmo quando não dá: o botão
+       apagado que explica o que falta ensina o caminho; o botão escondido
+       faz a pessoa achar que a função não existe. */
+    var av = Herdar.avaliar(state.project, ncr, state.kind, state.projects);
+    var adiante = el('button', 'btn btn--herdar',
+      av.pode ? '⤵ Levar para o ' + av.destino.rotulo : '⤵ Levar para o marco seguinte');
+    adiante.type = 'button';
+    adiante.disabled = !av.pode;
+    adiante.title = Herdar.resumo(av);
+    adiante.addEventListener('click', function () { levarAdiante(); });
+
     var linha = el('div', 'status-row');
     linha.appendChild(grupo);
+    linha.appendChild(adiante);
     linha.appendChild(next);
+    /* 📣 só nos relatórios dos marcos de Config.MARCOS_COMUNICADOS: nos
+       outros o botão não teria o que fazer, e apareceria em todo item à toa.
+       Aparece mesmo com o número em branco (o item que acabou de nascer):
+       a barra não é redesenhada enquanto se digita, e o clique diz o que falta. */
+    if (!Leitura.ativo() && Comunicados.doRelatorio(state.project, state.kind)) {
+      var ja = ultimoComunicadoDoItem(state.project, state.kind, ncr);
+      var com = el('button', 'btn btn--comunicar', '📣 Comunicar');
+      com.type = 'button';
+      com.id = 'comunicarItemBtn';
+      com.title = 'Publicar um comunicado sobre este item para quem usa o visualizador' +
+        (ja ? '\nÚltimo: ' + Comunicados.rotulo(ja.tipo) + ', em ' + shortDate(ja.em) +
+          (ja.autor ? ' por ' + ja.autor : '') : '');
+      com.addEventListener('click', function () {
+        var n = currentNcr();
+        if (!String(n.ncrId || '').trim()) {
+          toast('Escreva o número do item antes — o comunicado precisa dele.', 5000);
+          var f = $('#f-ncrId');
+          if (f) f.focus();
+          return;
+        }
+        /* o aceito primeiro: é o acontecimento mais recente de um item aceito */
+        abrirComunicar(propostaDoItem(state.project, state.kind, n),
+          { project: state.project, kind: state.kind, item: n });
+      });
+      linha.appendChild(com);
+    }
     bar.appendChild(linha);
+    if (!av.pode && Store.statusInfo(ncr.status).id === Store.STATUS_CONCLUIDO) {
+      /* aceito e mesmo assim não dá: o motivo é acionável (falta a data, ou
+         falta o relatório do marco), então vai escrito e não só no title */
+      bar.appendChild(el('div', 'hint status-herdar-aviso', av.motivo));
+    }
 
     return bar;
   }
@@ -882,7 +3110,6 @@
   /* --- evidências -------------------------------------------------------- */
 
   function renderEvidenceCard() {
-    var ncr = currentNcr();
     var c = card('Evidências (páginas de anexo, em paisagem)');
     c.appendChild(el('div', 'hint',
       'Cada anexo vira uma página no fim do relatório, com o link “Go to Evidence” apontando para ela.'));
@@ -937,6 +3164,9 @@
     up.addEventListener('click', function () {
       var l = currentNcr().evidence;
       l.splice(index - 1, 0, l.splice(index, 1)[0]);
+      /* a ordem dos anexos é a ordem das páginas do PDF: mexer nela é
+         editar o item, e sem o registro a troca se perderia na mesclagem */
+      touch();
       redrawAll(); scheduleSave();
     });
 
@@ -947,6 +3177,7 @@
     down.addEventListener('click', function () {
       var l = currentNcr().evidence;
       l.splice(index + 1, 0, l.splice(index, 1)[0]);
+      touch();
       redrawAll(); scheduleSave();
     });
 
@@ -1003,10 +3234,19 @@
       thumbs.innerHTML = '';
       ev.images.forEach(function (img, i) {
         var t = el('div', 'evid-thumb');
-        var im = document.createElement('img');
-        im.src = img.src;
-        im.alt = img.caption || 'Evidência ' + (i + 1);
-        t.appendChild(im);
+        if (img.src) {
+          var im = document.createElement('img');
+          im.src = img.src;
+          im.alt = img.caption || 'Evidência ' + (i + 1);
+          t.appendChild(im);
+        } else {
+          /* imagem que mora na pasta e ainda não chegou aqui: some da tela
+             seria pior — a pessoa acharia que a foto se perdeu */
+          var falta = el('div', 'evid-thumb-falta', '⏳ na pasta');
+          falta.title = 'Imagem guardada na pasta compartilhada (' + (img.arquivo || '') +
+            '). Ela chega na próxima sincronização.';
+          t.appendChild(falta);
+        }
 
         var cap = document.createElement('input');
         cap.type = 'text';
@@ -1021,6 +3261,7 @@
         left.disabled = i === 0;
         left.addEventListener('click', function () {
           ev.images.splice(i - 1, 0, ev.images.splice(i, 1)[0]);
+          touch();
           redrawThumbs(); scheduleSave();
         });
         var right = el('button', 'btn btn--icon', '→');
@@ -1028,6 +3269,7 @@
         right.disabled = i === ev.images.length - 1;
         right.addEventListener('click', function () {
           ev.images.splice(i + 1, 0, ev.images.splice(i, 1)[0]);
+          touch();
           redrawThumbs(); scheduleSave();
         });
         var rm = el('button', 'btn btn--icon btn--danger', '✕');
@@ -1068,7 +3310,9 @@
         renderNcrList();
         scheduleSave();
       }).catch(function (e) {
-        console.error(e);
+        Log.erro('imagens', 'não consegui ler alguma imagem que você soltou aqui', e,
+          'confira se o arquivo é mesmo uma imagem (.jpg, .png) e se não está aberto ' +
+          'em outro programa.');
         drop.textContent = 'Não foi possível ler alguma imagem. Tente novamente.';
         toast('Falha ao carregar imagem.');
       });
@@ -1398,6 +3642,7 @@
   ];
 
   function openSettings() {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
     var body = $('#settingsBody');
     body.innerHTML = '';
     SETTINGS.forEach(function (def) {
@@ -1431,7 +3676,280 @@
       if (def[3]) f.appendChild(el('div', 'hint', def[3]));
       body.appendChild(f);
     });
+    /* Fora do #settingsBody de propósito: aquilo são ajustes do relatório, e
+       a conversa é deste navegador. Fica como seção à parte, no fim. */
+    var caixa = body.parentNode;
+    var velho = $('#conversaAjuste');
+    if (velho && velho.parentNode) velho.parentNode.removeChild(velho);
+    caixa.appendChild(ajusteDaConversa());
+    var velhoObs = $('#obsBancoAjuste');
+    if (velhoObs && velhoObs.parentNode) velhoObs.parentNode.removeChild(velhoObs);
+    caixa.appendChild(ajusteDasObservacoes());
+    /* a área administrativa: fecha com senha, e é deste programa, não do relatório */
+    var velhoAdm = $('#adminAjuste');
+    if (velhoAdm && velhoAdm.parentNode) velhoAdm.parentNode.removeChild(velhoAdm);
+    caixa.appendChild(Admin.blocoAjustes());
     $('#settingsDialog').showModal();
+  }
+
+  /**
+   * Mostrar, no editor do Waiver, os cartões com a Observação e a Obs Ship
+   * Manager da NCR no Banco NCR. Desligado de saída; vale só para este
+   * navegador, como a Conversa.
+   */
+  function ajusteDasObservacoes() {
+    var box = el('div', 'dlg-sec');
+    box.id = 'obsBancoAjuste';
+    box.appendChild(el('div', 'dlg-sec-tit', 'Observações do Banco NCR'));
+    var f = el('div', 'field');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = 'obsBancoLigada';
+    cb.checked = obsBancoLigada();
+    cb.style.width = 'auto';
+    var lab = el('label', 'field-check');
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode('Mostrar a Observação e a Obs Ship Manager no editor do Waiver'));
+    f.appendChild(lab);
+    f.appendChild(el('div', 'hint',
+      'Dois cartões, abaixo da anotação do item, com o que está nessas colunas da NCR no Banco NCR. ' +
+      'O que se escreve neles grava na própria NCR do banco (a mesma coluna da tabela), não no item, e ' +
+      'não entra no PDF. Só aparecem nos itens ligados a uma NCR do banco. Vale só para este navegador.'));
+    box.appendChild(f);
+    cb.addEventListener('change', function () {
+      ligarObsBanco(cb.checked);
+      renderEditor();
+    });
+    return box;
+  }
+
+  /**
+   * Ligar e desligar a aba Conversa.
+   *
+   * Fica guardado neste navegador, e não no relatório: quem decide ver
+   * recados é cada pessoa, e a escolha não tem nada a ver com o marco aberto.
+   * Por isso também: ligar aqui não liga a conversa dos outros.
+   */
+  function ajusteDaConversa() {
+    var box = el('div', 'dlg-sec');
+    box.id = 'conversaAjuste';
+    box.appendChild(el('div', 'dlg-sec-tit', 'Conversa da equipe'));
+
+    var f = el('div', 'field');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = 'conversaLigada';
+    cb.checked = Chat.ligado();
+    cb.style.width = 'auto';
+    var lab = el('label', 'field-check');
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode('Mostrar a aba Conversa'));
+    f.appendChild(lab);
+    f.appendChild(el('div', 'hint',
+      'Recados da equipe guardados na pasta da rede, no arquivo ' + Pasta.CONVERSAS +
+      ' — sem servidor e sem nuvem, como o resto do programa. Chegam a cada ' +
+      'sincronização (20 s), não na hora. Vale só para este navegador, e só ' +
+      'funciona entre quem aponta para a mesma pasta. Não é canal seguro: quem ' +
+      'abre a pasta lê tudo, inclusive as conversas diretas.'));
+    box.appendChild(f);
+
+    cb.addEventListener('change', function () {
+      Chat.ligar(cb.checked);
+      if (!cb.checked && isConversa()) {
+        state.kind = 'ncr';
+        renderNcrList();
+        renderEditor();
+      }
+      renderTabs();
+      agendarConversa();
+      if (cb.checked) {
+        iniciarConversa();
+        toast(Pasta.ligada()
+          ? 'Conversa ligada. A aba está na fila das outras, no alto da lista.'
+          : 'Conversa ligada — mas sem a pasta da rede ninguém recebe o que você escrever.', 5000);
+      } else {
+        toast('Conversa desligada. Nada foi apagado da pasta.');
+      }
+    });
+    return box;
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* o item preso ao lado                                                    */
+  /* ---------------------------------------------------------------------- */
+
+  /* Uma coluna à direita do editor com outro item, em só leitura: é o que
+     permite escrever a NCR-001 do J08 olhando a do J06 sem trocar de tela.
+
+     Por que só leitura está explicado no cabeçalho do lado.js: hoje cada
+     campo do formulário escreve no item *selecionado*, então dois formulários
+     abertos escreveriam no mesmo item. Quem quer editar o de lá clica em
+     "abrir" — aí ele passa a ser o selecionado.
+
+     A escolha vive no localStorage, como o nome de quem usa e a conversa: é
+     de quem está neste navegador, não do relatório. */
+
+  var CHAVE_LADO = 'derrogacao:aoLado';
+  var aoLado = null;          /* {projectId, kind, itemId} */
+
+  function lerAoLado() {
+    try {
+      var cru = localStorage.getItem(CHAVE_LADO);
+      var v = cru ? JSON.parse(cru) : null;
+      return (v && v.projectId && v.itemId) ? v : null;
+    } catch (e) { return null; }
+  }
+
+  function gravarAoLado(v) {
+    try {
+      if (v) localStorage.setItem(CHAVE_LADO, JSON.stringify(v));
+      else localStorage.removeItem(CHAVE_LADO);
+    } catch (e) { /* cheio ou bloqueado: a coluna só não volta ao reabrir */ }
+  }
+
+  /** O que está preso ao lado, se ainda existir. */
+  function itemDoLado() {
+    if (!aoLado) return null;
+    var p = state.projects.filter(function (x) { return x.id === aoLado.projectId; })[0];
+    if (!p) return null;
+    var item = (p[Store.itemsKey(aoLado.kind)] || []).filter(function (x) {
+      return x.id === aoLado.itemId;
+    })[0];
+    return item ? { project: p, item: item, kind: aoLado.kind } : null;
+  }
+
+  function fixarAoLado(projectId, kind, itemId) {
+    aoLado = { projectId: projectId, kind: kind, itemId: itemId };
+    gravarAoLado(aoLado);
+    renderAoLado();
+  }
+
+  function soltarAoLado() {
+    aoLado = null;
+    gravarAoLado(null);
+    renderAoLado();
+  }
+
+  function renderAoLado() {
+    var pane = $('#ladoPane');
+    if (!pane) return;
+    var achado = aoLado ? itemDoLado() : null;
+
+    /* estava preso e sumiu (excluído aqui ou pela pasta): não deixar a coluna
+       mostrando um retrato do que não existe mais */
+    if (aoLado && !achado && state.projects.length) {
+      aoLado = null;
+      gravarAoLado(null);
+      toast('O item que estava ao lado não está mais neste navegador.');
+    }
+
+    if (!achado || telaCheia() || !state.project) {
+      pane.hidden = true;
+      $('#ladoBody').innerHTML = '';
+      return;
+    }
+
+    pane.hidden = false;
+    var marco = Report.marcoOf(achado.project, achado.kind) || achado.project.name || 'sem marco';
+    var ehOAberto = achado.project.id === state.project.id && achado.item.id === selectedId() &&
+      achado.kind === state.kind;
+    $('#ladoTitulo').textContent = achado.item.ncrId || 'sem número';
+    $('#ladoOnde').textContent = (achado.kind === 'dev' ? 'DEV · ' : 'NCR · ') + marco +
+      (ehOAberto ? ' · é o item aberto à esquerda' : '');
+
+    Lado.montar($('#ladoBody'), achado.project, achado.item, achado.kind, {
+      copiar: function (txt, rotulo) {
+        copiarTexto(txt,
+          function () { toast('“' + rotulo + '” copiado — cole no campo daqui.'); },
+          function () { toast('Não foi possível copiar.'); });
+      }
+    });
+  }
+
+  /** Abre no editor o item que está ao lado. */
+  function abrirODoLado() {
+    var achado = itemDoLado();
+    if (!achado) return;
+    abrirAchado({
+      projectId: achado.project.id, kind: achado.kind, itemId: achado.item.id,
+      ncrId: achado.item.ncrId,
+      marco: Report.marcoOf(achado.project, achado.kind) || achado.project.name || ''
+    });
+  }
+
+  /** Todos os itens de todos os relatórios, o aberto primeiro. */
+  function candidatosDoLado() {
+    var out = [];
+    var ordemProj = state.projects.slice().sort(function (a, b) {
+      if (state.project) {
+        if (a.id === state.project.id) return -1;
+        if (b.id === state.project.id) return 1;
+      }
+      return String(b.updatedAt).localeCompare(String(a.updatedAt));
+    });
+    ordemProj.forEach(function (p) {
+      ['ncr', 'dev'].forEach(function (kind) {
+        Store.ordenar(p, kind).forEach(function (item) {
+          out.push({ project: p, kind: kind, item: item });
+        });
+      });
+    });
+    return out;
+  }
+
+  var MAX_ESCOLHA = 150;      /* lista comprida demais não se lê: refine a busca */
+
+  function abrirEscolhaDoLado() {
+    var body = $('#ladoEscolhaBody');
+    body.innerHTML = '';
+    var todos = candidatosDoLado();
+
+    var busca = el('div', 'sm-bar-field');
+    busca.appendChild(el('label', null, 'Buscar'));
+    var inp = document.createElement('input');
+    inp.type = 'search';
+    inp.placeholder = 'número, marco, sistema, função…';
+    busca.appendChild(inp);
+    body.appendChild(busca);
+
+    var conta = el('p', 'hint');
+    body.appendChild(conta);
+    var lista = el('div', 'lado-escolha');
+    body.appendChild(lista);
+
+    function desenhar() {
+      var t = inp.value.trim().toLowerCase();
+      var achados = todos.filter(function (c) {
+        if (!t) return true;
+        var marco = Report.marcoOf(c.project, c.kind) || c.project.name || '';
+        return (Store.textoBusca(c.item) + ' ' + marco).toLowerCase().indexOf(t) >= 0;
+      });
+      lista.innerHTML = '';
+      conta.textContent = achados.length + ' item(ns)' +
+        (achados.length > MAX_ESCOLHA ? ' — mostrando os ' + MAX_ESCOLHA + ' primeiros.' : '.');
+      achados.slice(0, MAX_ESCOLHA).forEach(function (c) {
+        var b = el('button', 'lado-op');
+        b.type = 'button';
+        b.appendChild(el('strong', null,
+          (c.kind === 'dev' ? 'DEV · ' : 'NCR · ') + (c.item.ncrId || 'sem número')));
+        var marco = Report.marcoOf(c.project, c.kind) || c.project.name || 'sem marco';
+        var sub = [c.item.systems, c.item.func]
+          .filter(Boolean).join(' | ');
+        b.appendChild(el('span', null, marco + (sub ? ' · ' + sub : '')));
+        b.addEventListener('click', function () {
+          fixarAoLado(c.project.id, c.kind, c.item.id);
+          $('#ladoDialog').close();
+          toast('Preso ao lado: ' + (c.item.ncrId || 'item') + ' (' + marco + ').');
+        });
+        lista.appendChild(b);
+      });
+      if (!achados.length) lista.appendChild(el('p', 'hint', 'Nada com esse texto.'));
+    }
+
+    inp.addEventListener('input', desenhar);
+    desenhar();
+    $('#ladoDialog').showModal();
+    inp.focus();
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1441,6 +3959,7 @@
   /* Um marco novo costuma repetir NCRs do marco anterior; isto evita
      redigitar tudo. As NCRs entram como cópias independentes. */
   function openCopyDialog() {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
     var key = Store.itemsKey(state.kind);
     var others = state.projects.filter(function (p) {
       return p.id !== state.project.id && p[key].length;
@@ -1504,7 +4023,7 @@
         cb.value = n.id;
         cb.className = 'copy-ncr';
         row.appendChild(cb);
-        var extra = isDev() ? n.func : n.systems;
+        var extra = isDev() ? (n.systems ? n.systems + ' | ' + n.func : n.func) : n.systems;
         row.appendChild(document.createTextNode((n.ncrId || '(sem número)') +
           (extra ? ' | ' + extra : '')));
         listBox.appendChild(row);
@@ -1642,14 +4161,14 @@
 
   function buildPrintRoot(picked) {
     var root = $('#printRoot');
-    Report.buildMany(picked, root);
+    Report.buildMany(picked, root, opcoesDoPdf());
     return root;
   }
 
   function openPreview() {
     if (!state.project) return;
     var stage = $('#previewStage');
-    Report.build(state.project, stage, state.kind);
+    Report.build(state.project, stage, state.kind, opcoesDoPdf());
     $('#previewKind').textContent = 'Relatório de ' + kindName();
     $('#preview').hidden = false;
     document.body.style.overflow = 'hidden';
@@ -1695,8 +4214,235 @@
     return out;
   }
 
+  /* Quais situações entram no PDF. Vazio = todas, que é como a janela abre:
+     o relatório completo continua sendo o caminho de um clique, e o recorte é
+     uma escolha explícita. Não fica guardado entre aberturas, pelo mesmo
+     motivo do filtro da Tabela — reabrir e exportar sem perceber que está
+     filtrado seria mandar meio relatório para o cliente. */
+  var pdfSituacoes = [];
+
+  /** O filtro que o report.js aplica, ou null quando é o relatório inteiro. */
+  function filtroDeSituacao() {
+    if (!pdfSituacoes.length) return null;
+    var alvo = pdfSituacoes.slice();
+    return function (item) {
+      return alvo.indexOf(Store.statusInfo(item.status).id) >= 0;
+    };
+  }
+
+  /** A frase que vai impressa na capa quando há recorte. */
+  function recorteDoPdf() {
+    if (!pdfSituacoes.length) return '';
+    var nomes = Store.STATUS.filter(function (o) { return pdfSituacoes.indexOf(o.id) >= 0; })
+      .map(function (o) { return o.en || o.nome; });
+    return 'Partial list — filtered by status: ' + nomes.join(', ') + '.';
+  }
+
+  function opcoesDoPdf() {
+    return { filtro: filtroDeSituacao(), recorte: recorteDoPdf() };
+  }
+
+  /* Quais itens de CADA relatório entram — a escolha "só estas NCRs/DEVs".
+     Chave `<id do relatório>|<ncr|dev>` → { <id do item>: true }. Ausente =
+     o relatório inteiro, que é como a janela abre e como sempre foi. Some
+     junto com o recorte de situação ao fechar a janela (ver exportPdf). */
+  var pdfItens = {};
+
+  function chaveDoRelatorio(project, kind) { return project.id + '|' + kind; }
+
+  /** O filtro de um relatório: situação E itens escolhidos; null = inteiro. */
+  function filtroDoRelatorio(project, kind) {
+    var sit = filtroDeSituacao();
+    var esc = pdfItens[chaveDoRelatorio(project, kind)];
+    if (!sit && !esc) return null;
+    return function (item) {
+      return (!sit || sit(item)) && (!esc || esc[item.id] === true);
+    };
+  }
+
+  /** Quantos itens de um relatório passam nos filtros (situação e escolha). */
+  function quantosNoRecorte(project, kind) {
+    var f = filtroDoRelatorio(project, kind);
+    var lista = project[Store.itemsKey(kind)] || [];
+    return f ? lista.filter(f).length : lista.length;
+  }
+
+  function renderSituacoesDoPdf() {
+    var host = $('#pdfSituacoes');
+    host.innerHTML = '';
+    Store.STATUS.forEach(function (op) {
+      var ligado = pdfSituacoes.indexOf(op.id) >= 0;
+      var n = 0;
+      state.projects.forEach(function (p) {
+        ['ncr', 'dev'].forEach(function (k) {
+          (p[Store.itemsKey(k)] || []).forEach(function (it) {
+            if (Store.statusInfo(it.status).id === op.id) n++;
+          });
+        });
+      });
+      var b = el('button', 'sit-chip' + (ligado ? ' is-on' : ''), op.nome);
+      b.type = 'button';
+      b.style.setProperty('--st', op.cor);
+      b.setAttribute('aria-pressed', ligado ? 'true' : 'false');
+      b.title = ligado
+        ? 'Tirar “' + op.nome + '” do PDF'
+        : 'Imprimir só os itens em “' + op.nome + '” (' + n + ' no total)';
+      b.appendChild(el('span', 'sit-chip-n', String(n)));
+      b.addEventListener('click', function () {
+        pdfSituacoes = ligado
+          ? pdfSituacoes.filter(function (x) { return x !== op.id; })
+          : pdfSituacoes.concat([op.id]);
+        renderSituacoesDoPdf();
+        redesenharEscolhaDoPdf();
+        updatePickSummary();
+      });
+      host.appendChild(b);
+    });
+
+    var acoes = $('#pdfSitAcoes');
+    acoes.innerHTML = '';
+    var todas = el('button', 'btn btn--sm' + (pdfSituacoes.length ? '' : ' btn--primary'),
+      'Todas as situações');
+    todas.type = 'button';
+    todas.title = 'O relatório inteiro, como sempre foi';
+    todas.addEventListener('click', function () {
+      pdfSituacoes = [];
+      renderSituacoesDoPdf();
+      redesenharEscolhaDoPdf();
+      updatePickSummary();
+    });
+    acoes.appendChild(todas);
+  }
+
+  /** Atualiza as contagens das linhas quando o filtro muda. */
+  function redesenharEscolhaDoPdf() {
+    $$('.pick-cb').forEach(function (cb) {
+      var p = state.projects.filter(function (x) { return x.id === cb.dataset.pid; })[0];
+      if (!p) return;
+      var n = quantosNoRecorte(p, cb.dataset.kind);
+      var linha = cb.parentNode;
+      var sub = $('.pick-row-sub', linha);
+      var total = (p[Store.itemsKey(cb.dataset.kind)] || []).length;
+      var esc = !!pdfItens[chaveDoRelatorio(p, cb.dataset.kind)];
+      if (sub) {
+        sub.textContent = !total ? 'sem itens'
+          : (pdfSituacoes.length || esc
+            ? n + ' de ' + total + ' item(ns)' + (esc ? ' escolhido(s)' : '') +
+              (pdfSituacoes.length ? ' neste recorte' : '')
+            : total + (total === 1 ? ' item' : ' itens') + ' · ' + (total + 1) + ' páginas ou mais');
+      }
+      /* relatório que ficou sem nenhum item no recorte não gera folha */
+      cb.disabled = !n;
+      linha.classList.toggle('is-empty', !n);
+      if (!n) cb.checked = false;
+
+      /* as caixas da lista de itens seguem sempre a escolha guardada, e o
+         item que a situação deixa de fora aparece apagado */
+      var escolha = pdfItens[chaveDoRelatorio(p, cb.dataset.kind)];
+      $$('.pick-item-cb', linha.parentNode).forEach(function (ic) {
+        ic.checked = !escolha || escolha[ic.value] === true;
+        ic.parentNode.classList.toggle('is-fora',
+          pdfSituacoes.length > 0 && pdfSituacoes.indexOf(ic.dataset.st) < 0);
+      });
+      var bt = $('.pick-itens-btn', linha);
+      if (bt) bt.textContent = esc ? 'Itens ▾ (' + n + ')' : 'Escolher itens ▾';
+    });
+  }
+
+  /** A lista de itens de um relatório, para marcar só os que entram. */
+  function listaDeItensDoPdf(project, kind, host) {
+    host.innerHTML = '';
+    var acoes = el('div', 'pick-itens-acoes');
+    var todos = el('button', 'btn btn--sm', 'Todos');
+    var nenhum = el('button', 'btn btn--sm', 'Nenhum');
+    todos.type = nenhum.type = 'button';
+    acoes.appendChild(todos);
+    acoes.appendChild(nenhum);
+    host.appendChild(acoes);
+
+    var aberto = state.project && project.id === state.project.id && kind === state.kind
+      ? selectedId() : null;
+    Store.ordenar(project, kind).forEach(function (n) {
+      var lab = el('label', 'pick-item');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'pick-item-cb';
+      cb.value = n.id;
+      cb.dataset.st = Store.statusInfo(n.status).id;
+      cb.checked = true;
+      lab.appendChild(cb);
+      var extra = kind === 'dev' ? (n.systems ? n.systems + ' | ' + n.func : n.func) : n.systems;
+      lab.appendChild(el('span', 'pick-item-nome',
+        (n.ncrId || '(sem número)') + (extra ? ' | ' + extra : '')));
+      lab.appendChild(el('span', 'pick-item-sit', Store.statusInfo(n.status).nome));
+      if (aberto && n.id === aberto) lab.appendChild(el('span', 'pick-here', 'aberto'));
+      host.appendChild(lab);
+    });
+
+    function guardar() {
+      var cbs = $$('.pick-item-cb', host);
+      var marcados = cbs.filter(function (c) { return c.checked; });
+      var k = chaveDoRelatorio(project, kind);
+      if (marcados.length === cbs.length) {
+        delete pdfItens[k];
+      } else {
+        var m = {};
+        marcados.forEach(function (c) { m[c.value] = true; });
+        pdfItens[k] = m;
+      }
+      redesenharEscolhaDoPdf();
+      /* escolher um item é querer imprimir aquele relatório */
+      var rcb = $$('.pick-cb').filter(function (c) {
+        return c.dataset.pid === project.id && c.dataset.kind === kind;
+      })[0];
+      if (rcb && !rcb.disabled) rcb.checked = true;
+      updatePickSummary();
+    }
+    host.addEventListener('change', function (e) {
+      if (e.target && e.target.className === 'pick-item-cb') guardar();
+    });
+    todos.addEventListener('click', function () {
+      $$('.pick-item-cb', host).forEach(function (c) { c.checked = true; });
+      guardar();
+    });
+    nenhum.addEventListener('click', function () {
+      $$('.pick-item-cb', host).forEach(function (c) { c.checked = false; });
+      guardar();
+    });
+  }
+
+  /** "Só o item aberto": o relatório da tela, e nele só o item em que estou. */
+  function soOItemAberto() {
+    var atual = currentNcr();
+    if (!atual) return;
+    pdfSituacoes = [];
+    pdfItens = {};
+    var m = {};
+    m[atual.id] = true;
+    pdfItens[chaveDoRelatorio(state.project, state.kind)] = m;
+    $$('.pick-cb').forEach(function (cb) {
+      cb.checked = cb.dataset.pid === state.project.id && cb.dataset.kind === state.kind;
+    });
+    renderSituacoesDoPdf();
+    redesenharEscolhaDoPdf();
+    updatePickSummary();
+  }
+
   function exportPdf() {
     if (!state.project) return;
+    /* O recorte NÃO sobrevive ao fechar a janela, de propósito, e pelo mesmo
+       motivo do filtro da aba Tabela: reabrir e exportar sem perceber que
+       ainda está filtrado é mandar meio Waiver Request para o cliente. Quem
+       quer o recorte escolhe de novo — são dois cliques. */
+    pdfSituacoes = [];
+    pdfItens = {};
+    var atual = currentNcr();
+    var soEste = $('#pdfSoEsteBtn');
+    soEste.disabled = !atual;
+    soEste.title = atual
+      ? 'Só o item que está aberto: ' + (atual.ncrId || '(sem número)') +
+        ' (' + (state.kind === 'dev' ? 'Waiver DEV' : 'Waiver NCR') + ')'
+      : 'Abra um item nas abas Waiver NCR ou Waiver DEV para usar esta opção';
     var list = availableReports();
     var body = $('#pdfPick');
     body.innerHTML = '';
@@ -1712,6 +4458,7 @@
       group.appendChild(el('div', 'pick-group-title', rows[0].project.marco || rows[0].project.name || 'Sem marco'));
 
       rows.forEach(function (r) {
+        var rel = el('div', 'pick-rel');
         var row = el('label', 'pick-row' + (r.count ? '' : ' is-empty'));
         var cb = document.createElement('input');
         cb.type = 'checkbox';
@@ -1734,11 +4481,36 @@
         row.appendChild(main);
 
         if (r.current) row.appendChild(el('span', 'pick-here', 'aba aberta'));
-        group.appendChild(row);
+
+        /* escolher quais itens do relatório entram (o padrão é todos) */
+        var detalhe = el('div', 'pick-itens');
+        detalhe.hidden = true;
+        if (r.count) {
+          var bt = el('button', 'btn btn--sm pick-itens-btn', 'Escolher itens ▾');
+          bt.type = 'button';
+          bt.setAttribute('aria-expanded', 'false');
+          bt.title = 'Marcar só algumas ' + (r.kind === 'dev' ? 'DEVs' : 'NCRs') +
+            ' deste relatório';
+          bt.addEventListener('click', function (e) {
+            e.preventDefault();
+            if (detalhe.hidden && !detalhe.firstChild) {
+              listaDeItensDoPdf(r.project, r.kind, detalhe);
+              redesenharEscolhaDoPdf();
+            }
+            detalhe.hidden = !detalhe.hidden;
+            bt.setAttribute('aria-expanded', detalhe.hidden ? 'false' : 'true');
+          });
+          row.appendChild(bt);
+        }
+        rel.appendChild(row);
+        rel.appendChild(detalhe);
+        group.appendChild(rel);
       });
       body.appendChild(group);
     });
 
+    renderSituacoesDoPdf();
+    redesenharEscolhaDoPdf();
     updatePickSummary();
     $$('.pick-cb', body).forEach(function (cb) {
       cb.addEventListener('change', updatePickSummary);
@@ -1756,25 +4528,106 @@
           kind: cb.dataset.kind
         };
       })
-      .filter(function (r) { return r.project; });
+      .filter(function (r) { return r.project; })
+      .map(function (r) {
+        var esc = pdfItens[chaveDoRelatorio(r.project, r.kind)];
+        if (esc) {
+          var lista = r.project[Store.itemsKey(r.kind)] || [];
+          var k = lista.filter(function (it) { return esc[it.id] === true; }).length;
+          r.filtro = function (it) { return esc[it.id] === true; };
+          /* a capa tem de dizer que não é o relatório inteiro (§10, "Recorte") */
+          r.recorte = 'Partial list — ' + k + ' of ' + lista.length + ' items selected.';
+        }
+        return r;
+      });
   }
 
   function updatePickSummary() {
     var picked = pickedReports();
     var n = picked.length;
-    $('#pdfGoBtn').disabled = n === 0;
-    $('#pdfSummary').textContent = n === 0
+    var itens = 0;
+    picked.forEach(function (r) { itens += quantosNoRecorte(r.project, r.kind); });
+    $('#pdfGoBtn').disabled = n === 0 || itens === 0;
+    var base = n === 0
       ? 'Marque pelo menos um relatório.'
       : (n === 1
-        ? 'Um arquivo com o relatório escolhido.'
-        : 'Um único arquivo com os ' + n + ' relatórios, em sequência.');
+        ? 'Um arquivo com o relatório escolhido'
+        : 'Um único arquivo com os ' + n + ' relatórios, em sequência');
+    var escolhidos = picked.some(function (r) { return !!r.filtro; });
+    if (n === 0) {
+      $('#pdfSummary').textContent = base;
+    } else if (!pdfSituacoes.length && !escolhidos) {
+      $('#pdfSummary').textContent = base + ' — ' + itens + ' item(ns), todos.';
+    } else {
+      $('#pdfSummary').textContent = base + ' — ' +
+        (pdfSituacoes.length
+          ? 'só os itens em ' + Store.STATUS.filter(function (o) { return pdfSituacoes.indexOf(o.id) >= 0; })
+            .map(function (o) { return '“' + o.nome + '”'; }).join(' e ') +
+            (escolhidos ? ', entre os itens que você escolheu' : '')
+          : 'só os itens que você escolheu') +
+        ': ' + itens + ' item(ns). A capa vai dizer que é uma lista parcial.';
+    }
     renderGaps(picked);
+    agendarContagemFolhas(picked);
+  }
+
+  /**
+   * Quantas folhas cada item vai ocupar.
+   *
+   * A conta só existe depois de montar as páginas de verdade, então a
+   * montagem é a mesma da exportação — feita no #printRoot escondido, com um
+   * atraso para não repetir a cada clique nas caixas de seleção.
+   */
+  var folhasTimer = null;
+  function agendarContagemFolhas(picked) {
+    clearTimeout(folhasTimer);
+    var host = $('#pdfFolhas');
+    if (!picked.length) { host.hidden = true; return; }
+    host.hidden = false;
+    host.textContent = 'Conferindo as folhas…';
+    folhasTimer = setTimeout(function () { contarFolhas(picked, host); }, 220);
+  }
+
+  function contarFolhas(picked, host) {
+    var longos;
+    try {
+      buildPrintRoot(picked);
+      longos = Report.itensLongos();
+    } catch (e) {
+      markError(e);
+      host.hidden = true;
+      return;
+    }
+    var total = $$('#printRoot .rep-page').length;
+    host.textContent = '';
+    host.appendChild(el('span', null, total + ' folha(s) no total. '));
+    if (!longos.length) {
+      host.appendChild(el('span', null, 'Cada item cabe numa folha.'));
+      return;
+    }
+    var nomes = longos.map(function (x) {
+      return (x.ncrId || 'sem número') + ' (' + x.folhas + ')';
+    }).join(', ');
+    host.appendChild(el('span', 'dlg-folhas-long',
+      longos.length + ' item(ns) passam de uma folha e seguem em folha de ' +
+      'continuação: ' + nomes + '.'));
   }
 
   function doPrint() {
     var picked = pickedReports();
     if (!picked.length) return;
+    var imp = Log.etapa('PDF', 'montando as folhas do relatório',
+      { relatorios: picked.length });
     buildPrintRoot(picked);
+    var folhas = $$('#printRoot .rep-page').length;
+    var longos = Report.itensLongos();
+    imp.fim('folhas prontas — a janela de impressão é do navegador',
+      { folhas: folhas, itensEmMaisDeUmaFolha: longos.length });
+    if (!folhas) {
+      Log.erro('PDF', 'nenhuma folha foi montada', null,
+        'isto não devia acontecer: confira se o relatório tem itens e mande ' +
+        'Derrogacao.copiar() para quem cuida do programa.');
+    }
     $('#pdfDialog').close();
 
     /* O nome do arquivo vem do título da página, que o Chrome usa como
@@ -1804,6 +4657,12 @@
     }
     var projects = all ? state.projects : [state.project];
     var data = Store.toBackup(projects);
+    /* o "backup de tudo" leva também o banco NCR — backup pela metade não é backup —
+       e os comunicados (poucos, sem imagem) */
+    if (all) {
+      data.ncrBase = Ncrs.paraBackup();
+      data.comunicados = comunicados;
+    }
     var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     var name = all
       ? 'WaiverRequest_TODOS_' + Report.timeStamp(true) + '.json'
@@ -1815,7 +4674,8 @@
     /* grava a autoria do backup nos projetos exportados */
     Promise.all(projects.map(function (p) { return Store.save(p); })).then(renderUser);
     lembrarPasta(name, all
-      ? 'Backup de tudo: ' + projects.length + ' relatório(s), NCR e DEV.'
+      ? 'Backup de tudo: ' + projects.length + ' relatório(s), NCR e DEV, e o banco NCR (' +
+        data.ncrBase.ncrs.length + ' NCRs).'
       : 'Backup apenas do relatório aberto.');
   }
 
@@ -2045,7 +4905,11 @@
         dels.forEach(function (e) {
           var lista = local[Store.itemsKey(e.kind)];
           var at = lista.findIndex(function (n) { return n.id === e.mine.id; });
-          if (at >= 0) lista.splice(at, 1);
+          if (at < 0) return;
+          /* a mesma lápide do botão Excluir: sem ela o item volta na
+             sincronização seguinte, vindo de quem ainda não soube */
+          Store.tombstone(local, e.kind, e.mine);
+          lista.splice(at, 1);
         });
 
         /* o que eu mantive vira a nova base comum */
@@ -2112,11 +4976,46 @@
   }
 
   function importBackupFile(file) {
+    if (Leitura.ativo()) return;   /* visualizador: nada grava */
     var reader = new FileReader();
     reader.onload = function () {
       var raw, incoming;
       try {
         raw = JSON.parse(String(reader.result));
+      } catch (e) {
+        alert('Não foi possível ler o backup: o arquivo não é um JSON válido.');
+        return;
+      }
+      /* arquivos do banco NCR que não são backup: cada um tem o seu botão */
+      if (raw && raw.format === 'derrogacao-correlacao') {
+        alert('Este arquivo é uma correlação de NCRs.\n\nAbra a aba "Banco NCR" e use "Importar correlação".');
+        return;
+      }
+      if (raw && (raw.tipo === 'ncr' || raw.tipo === 'historico')) {
+        alert('Este arquivo é do NCR Control.\n\nAbra a aba "Banco NCR" e use ' +
+          (raw.tipo === 'ncr' ? '"Importar / Atualizar Banco NCR".' : '"Importar histórico NCR".'));
+        return;
+      }
+      /* comunicados dentro do arquivo: união pelo id, como na pasta. Abrir um
+         backup nunca cria comunicado — só traz os que já existiam, com o
+         mesmo id, e o visualizador que já os leu não os vê de novo */
+      var comDoArquivo = Comunicados.deArquivo(raw);
+      if (comDoArquivo.length) {
+        comunicados = Comunicados.juntar(comunicados, comDoArquivo);
+        Comunicados.gravarLocais(comunicados);
+        sincronizarComunicados();
+      }
+      /* banco NCR dentro do arquivo: junta pelas regras da pasta (vale o mais
+         recente, nada é apagado) */
+      var nb = raw && (raw.ncrBase || (raw.format === 'derrogacao-ncr-base' ? raw : null));
+      var juntouNcr = nb ? juntarBancoNcrDoArquivo(nb) : Promise.resolve(null);
+      if (raw && raw.format === 'derrogacao-ncr-base') {
+        juntouNcr.then(function (r) {
+          toast('Banco NCR do arquivo: ' + r.entraram + ' NCR(s) nova(s), ' + r.atualizados + ' atualizada(s).');
+        }).catch(function (e) { markError(e); alert('Falha ao ler o banco NCR do arquivo.'); });
+        return;
+      }
+      try {
         incoming = Store.fromBackup(raw);
       } catch (e) {
         alert('Não foi possível ler o backup: ' + e.message);
@@ -2183,6 +5082,763 @@
   }
 
   /* ---------------------------------------------------------------------- */
+  /* banco NCR: aba, vínculo com os relatórios e importações                 */
+  /* ---------------------------------------------------------------------- */
+
+  /* O que a aba precisa do editor. A tela (ncrview.js) só desenha; gravar,
+     mexer nos relatórios e falar com a pasta passa por aqui. */
+  var ctxBanco = {
+    leitura: Leitura.ativo(),
+    projects: function () { return state.projects; },
+    editar: function (rec, campo, valor) {
+      var antes = rec.waiver[campo];
+      return Ncrs.editarWaiver(rec, campo, valor, Store.getUser())
+        .then(function () {
+          agendarGravacaoPasta();
+          if (campo === 'funcaoVital') alinharFuncoes();
+          /* Marco Atual passou a ser um marco dos comunicados: oferece — e
+             só oferece; quem decide é quem editou */
+          if (campo === 'marcoAtual' && valor !== antes && Comunicados.daNcr(rec)) {
+            toast('Marco Atual da ' + rec.numero + ': ' + valor + '.', 9000, ofertaDaNcr(rec));
+          }
+        })
+        .catch(function (e) { markError(e); });
+    },
+    comunicar: function (rec) { abrirComunicar(Comunicados.daNcr(rec), { rec: rec }); },
+    adicionar: function (rec, project) { return adicionarAoWaiver(rec, project); },
+    abrir: function (project, item) { abrirItemDoWaiver(project, item); },
+    importar: function (tipo) { importarNcr(tipo); },
+    backup: function () { exportBackup(true); },
+    desfazer: function () { desfazerImportacaoNcr(); },
+    infoDesfazer: function (cb) {
+      Store.ncrMetaGet('antes-importacao').then(function (reg) {
+        cb(reg && reg.snap ? reg.info + ' (' + shortDate(reg.at) + ')' : null);
+      });
+    },
+    listas: function () { abrirListas(); },
+    exportar: function (tipo, dados) { exportarBancoNcr(tipo, dados); },
+    substituir: function (de, para, copiar) { return substituirNcr(de, para, copiar, ''); },
+    desfazerSubstituicao: function (deKey) { return desfazerSubstituicaoNcr(deKey); },
+    admin: {
+      ativo: function () { return Admin.ativo(); },
+      corrigir: function (key) { Admin.corrigir(key); }
+    }
+  };
+
+  /* --- NCR temporária → definitiva, e as correções do administrador ------------ */
+
+  /**
+   * Grava as correções (correcoes.js) e as NCRs que mudaram junto, e manda
+   * para a pasta na próxima rodada. Redesenha o que mostra NCR.
+   */
+  function salvarCorrecoes(recsMudados) {
+    return Promise.all([Correcoes.salvarLocal(), recsMudados && recsMudados.length ? Ncrs.salvar(recsMudados) : null])
+      .then(function () {
+        agendarGravacaoPasta();
+        agendarPublicacao();
+        alinharFuncoes();
+      })
+      .catch(function (e) { markError(e); });
+  }
+
+  /** Redesenha o que lê NCR do banco, sem mexer no formulário em uso. */
+  function redesenharNcrs() {
+    renderNcrList();
+    if (isTabela()) renderTabela(true);
+    if (isFluxos()) renderFluxos(true);
+    if (isBanco()) renderBanco(true);
+    if (isKanban()) renderKanban();
+    NcrView.redesenharFicha();
+    Admin.redesenhar();
+    /* a linha "Banco NCR" do editor, trocada no lugar */
+    var velha = $('.nb-ligacao-wrap');
+    var it = !telaCheia() && !isDev() ? currentNcr() : null;
+    if (velha && it) velha.parentNode.replaceChild(renderLigacaoBanco(it), velha);
+  }
+
+  function substituirNcr(de, para, copiar, obs) {
+    if (Leitura.ativo()) return Promise.resolve(false);
+    if (!Store.getUser()) {
+      toast('Defina o seu nome antes (⋯ Mais → Definir meu nome): ele vai no registro da ligação.', 6000);
+      return Promise.resolve(false);
+    }
+    var r = Correcoes.substituir(de, para, Store.getUser(), obs);
+    if (!r.ok) { toast(r.erro, 6000); return Promise.resolve(false); }
+    var temp = Ncrs.get(de), def = Ncrs.get(Ncrs.definitiva(de));
+    var copiados = copiar ? Ncrs.herdarWaiver(temp, def, Store.getUser()) : [];
+    copiados.forEach(function (nome) {
+      Correcoes.registrar({ tipo: 'substituicao', key: def.key, ncr: def.numero, campo: nome + ' (vindo da temporária)',
+        de: '', para: def.waiver[Ncrs.CAMPOS_WAIVER.filter(function (c) { return c.nome === nome; })[0].id], por: Store.getUser() });
+    });
+    Log.ok('banco NCR', 'NCR temporária ligada à definitiva', { copiados: copiados.length });
+    return salvarCorrecoes(def && copiados.length ? [def] : []).then(function () {
+      redesenharNcrs();
+      toast(de + ' → ' + para + ': ligadas como o mesmo caso' +
+        (copiados.length ? '. Levados para a definitiva: ' + copiados.join(', ') + '.' : '.'), 6000);
+      return true;
+    });
+  }
+
+  function desfazerSubstituicaoNcr(deKey) {
+    if (Leitura.ativo()) return Promise.resolve(false);
+    var s = Correcoes.substituicaoDe(deKey);
+    if (!s) return Promise.resolve(false);
+    if (!confirm('Desligar a ' + s.deNumero + ' da ' + s.paraNumero + '?\n\nAs duas voltam a ser NCRs independentes. ' +
+      'A ligação desfeita fica registrada na auditoria.')) return Promise.resolve(false);
+    Correcoes.desfazerSubstituicao(deKey, Store.getUser(), '');
+    return salvarCorrecoes([]).then(function () {
+      redesenharNcrs();
+      toast('Ligação desfeita: ' + s.deNumero + ' e ' + s.paraNumero + ' voltam a ser independentes.');
+      return true;
+    });
+  }
+
+  /** A planilha da auditoria, com a aba "Recorte" (a regra das outras planilhas). */
+  function exportarAuditoria(tipo, d) {
+    var nome = 'Auditoria_NCR_' + new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    var recorte = [
+      ['Gerado em', new Date().toLocaleString('pt-BR')],
+      ['Gerado por', Store.getUser() || '(sem nome)'],
+      ['Registros nesta planilha', d.linhas.length],
+      ['Registros na auditoria', d.total],
+      ['Recorte', d.recorte || 'sem filtro — a auditoria inteira']
+    ];
+    if (tipo === 'csv') {
+      var linhas = [d.colunas.map(function (c) { return c.titulo; })].concat(d.linhas);
+      var csv = '\ufeff' + linhas.concat([[]]).concat(recorte).map(function (l) {
+        return l.map(SummaryView.csvCampo).join(';');
+      }).join('\r\n');
+      download(new Blob([csv], { type: 'text/csv;charset=utf-8' }), nome + '.csv');
+      return;
+    }
+    try {
+      download(Xlsx.blob([
+        { nome: 'Auditoria', colunas: d.colunas, linhas: d.linhas },
+        { nome: 'Recorte', colunas: [{ titulo: 'Campo', larg: 24 }, { titulo: 'Valor', larg: 80 }], linhas: recorte, filtros: false }
+      ]), nome + '.xlsx');
+    } catch (e) {
+      markError(e);
+      toast('Não foi possível gerar a planilha.');
+    }
+  }
+
+  /* o que a área administrativa (admin.js) precisa do editor */
+  var ctxAdmin = {
+    usuario: function () { return Store.getUser(); },
+    pastaLigada: function () { return Pasta.ligada(); },
+    salvar: function (recs) { return salvarCorrecoes(recs); },
+    redesenhar: function () { redesenharNcrs(); },
+    toast: function (m) { toast(m, 5000); },
+    substituir: function (de, para, copiar, obs) { return substituirNcr(de, para, copiar, obs); },
+    desfazerSubstituicao: function (deKey) { return desfazerSubstituicaoNcr(deKey); },
+    exportarAuditoria: function (tipo, d) { exportarAuditoria(tipo, d); }
+  };
+
+  function renderBanco(manterRolagem) {
+    var box = $('#bancoScroll');
+    var topo = box.scrollTop;
+    var buscando = document.activeElement && document.activeElement.id === 'nbBusca';
+    NcrView.render(box, ctxBanco);
+    box.scrollTop = manterRolagem ? topo : 0;
+    if (buscando) {
+      var b = $('#nbBusca');
+      if (b) { b.focus(); b.setSelectionRange(b.value.length, b.value.length); }
+    }
+  }
+
+  /**
+   * A planilha do Banco NCR: o que está à vista, com as colunas à vista, e a
+   * aba "Recorte" dizendo qual filtro produziu aquilo — a mesma regra da aba
+   * Tabela (planilha filtrada que não diz que é filtrada é lida como o total).
+   */
+  function exportarBancoNcr(tipo, d) {
+    var nome = 'BancoNCR_' + Ncrs.SBR_ALVO + '_' + new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    var recorte = [
+      ['Gerado em', new Date().toLocaleString('pt-BR')],
+      ['Gerado por', Store.getUser() || '(sem nome)'],
+      ['NCRs nesta planilha', d.linhas.length],
+      ['NCRs no banco', d.total],
+      ['Recorte', d.recorte || 'sem filtro — todas as NCRs do ' + Ncrs.SBR_ALVO],
+      ['Colunas', d.colunas.map(function (c) { return c.titulo; }).join(' · ')]
+    ];
+    if (tipo === 'csv') {
+      var linhas = [d.colunas.map(function (c) { return c.titulo; })].concat(d.linhas);
+      var csv = '\ufeff' + linhas.map(function (l) {
+        return l.map(SummaryView.csvCampo).join(';');
+      }).join('\r\n') + '\r\n\r\n' + recorte.map(function (l) {
+        return l.map(SummaryView.csvCampo).join(';');
+      }).join('\r\n');
+      download(new Blob([csv], { type: 'text/csv;charset=utf-8' }), nome + '.csv');
+      toast('CSV salvo em Downloads: ' + d.linhas.length + ' NCR(s).', 4000);
+      return;
+    }
+    try {
+      download(Xlsx.blob([
+        { nome: 'Banco NCR', colunas: d.colunas, linhas: d.linhas },
+        { nome: 'Recorte', colunas: [{ titulo: 'Campo', larg: 24 }, { titulo: 'Valor', larg: 80 }],
+          linhas: recorte, filtros: false }
+      ]), nome + '.xlsx');
+      toast('Planilha salva em Downloads: ' + d.linhas.length + ' NCR(s).', 4000);
+    } catch (e) {
+      markError(e);
+      toast('Não foi possível gerar a planilha.');
+    }
+  }
+
+  /**
+   * Leva a NCR para o relatório: cria um item novo com o número, a
+   * Description do banco NCR e a Observação como Observation. O item passa
+   * pelo mesmo registro de sessão e autoria de um item criado à mão — é
+   * isso que o faz chegar aos colegas pela pasta.
+   */
+  function adicionarAoWaiver(rec, project, situacao) {
+    if (Leitura.ativo()) return Promise.resolve(false);   /* visualizador: nada grava */
+    var nome = (project.marco || project.name || 'sem marco') + ' Waiver';
+    var sub = Ncrs.substituidaPor(rec);
+    if (sub) {
+      var def = Ncrs.get(sub);
+      toast('A ' + rec.numero + ' é uma NCR temporária já substituída pela ' + (def ? def.numero : sub) +
+        '. Adicione a definitiva.', 7000);
+      return Promise.resolve(false);
+    }
+    var ja = Ncrs.vinculos(rec, [project]);
+    if (ja.length) {
+      var como = ja[0].item.ncrId && Ncrs.chave(ja[0].item.ncrId) !== rec.key ? ' (como ' + ja[0].item.ncrId + ', a temporária)' : '';
+      toast('Esta NCR já está vinculada ao ' + nome + como + '.');
+      return Promise.resolve(false);
+    }
+    var item = Store.newNcr();
+    var dados = Ncrs.paraItemWaiver(rec);
+    Object.keys(dados).forEach(function (k) { item[k] = dados[k]; });
+    /* do Kanban, a NCR pode ser solta direto numa coluna */
+    if (situacao) Store.setStatus(item, situacao);
+    project.ncrs.push(item);
+    Store.logChange(project, SESSION_ID, 'ncr', item, 'criou');
+    return Store.save(project)
+      .then(function () { return Ncrs.registrarAdicao(rec, project, item, Store.getUser()); })
+      .then(function () {
+        refreshProjectSelect();
+        renderTabs();
+        renderSessionInfo();
+        agendarGravacaoPasta();
+        Log.ok('banco NCR', 'NCR levada ao relatório', { marco: project.marco || '' });
+        var oferta = ofertaDoItem(project, 'ncr', item, 'novo-waiver');
+        toast('NCR ' + rec.numero + ' adicionada ao ' + nome + '.', oferta ? 9000 : 0, oferta);
+        return true;
+      })
+      .catch(function (e) {
+        markError(e);
+        alert('Não foi possível adicionar a NCR ao relatório.');
+        return false;
+      });
+  }
+
+  /** Abre o relatório e o item — usado pelas etiquetas da coluna Waiver. */
+  function abrirItemDoWaiver(project, item, kind) {
+    var d = $('#ncrDialog');
+    if (d && d.open) d.close();
+    function ir() {
+      aberturaPendente = false;
+      state.kind = kind === 'dev' ? 'dev' : 'ncr';
+      if (!state.project || state.project.id !== project.id) loadProject(project);
+      renderTabs();
+      renderNcrList();
+      selectNcr(item.id);
+      var li = $('.ncr-item[aria-current="true"]');
+      if (li && li.scrollIntoView) li.scrollIntoView({ block: 'nearest' });
+    }
+    flushSave().then(ir, ir);
+  }
+
+  /* No editor, a linha que liga o item à NCR do banco: o status dela no
+     banco NCR à vista, e o aviso quando ela já foi fechada mas o waiver
+     deste item ainda não foi aceito (pedido do Bruno). O aviso é da tela:
+     o PDF do relatório não muda. */
+  function renderLigacaoBanco(item) {
+    var wrap = el('div', 'nb-ligacao-wrap');
+    /* com número temporário já substituído, a linha fala da definitiva */
+    var rec = Ncrs.recDoItem(item);
+    if (!rec) { wrap.hidden = true; return wrap; }
+    var fechada = Ncrs.fechada(rec);
+    var f = Ncrs.fonte(rec);
+    var box = el('div', 'nb-ligacao');
+    box.appendChild(el('span', 'nb-ligacao-rot', 'Banco NCR'));
+    var chaveItem = item.ncrKey || Ncrs.chave(item.ncrId);
+    if (chaveItem && chaveItem !== rec.key) {
+      /* o item continua com o número que tinha: é o registro do que foi feito */
+      var cont = el('span', 'nb-ligacao-cont', (item.ncrId || chaveItem) + ' (temporária) → ' + rec.numero);
+      cont.title = 'Esta NCR temporária foi substituída pela definitiva ' + rec.numero +
+        '. O item mantém o número temporário; o status e os alertas são os da definitiva.';
+      box.appendChild(cont);
+    } else if (window.Correcoes && Correcoes.anteriores(rec.key).length) {
+      var ants = el('span', 'nb-ligacao-cont', 'substitui ' + Correcoes.anteriores(rec.key).map(function (a) { return a.deNumero; }).join(', '));
+      ants.title = 'Esta NCR definitiva substitui a(s) temporária(s) indicada(s): os relatórios antigos com o número temporário contam para ela.';
+      box.appendChild(ants);
+    }
+    var stNcr = el('span', 'nb-ligacao-st ' + (fechada ? 'is-fechada' : 'is-aberta'),
+      (f.status || (fechada ? 'fechada' : 'sem status')) +
+      (fechada && f.status && !Ncrs.statusFechado(f.status) ? ' · fechada' : '') +
+      (f.ajustes && f.ajustes.status ? ' (corrigido)' : ''));
+    stNcr.title = 'Status da NCR no banco NCR' + (rec.fonte.importadoEm ? ' (importado em ' + Ncrs.data(rec.fonte.importadoEm) + ')' : '') +
+      (f.ajustes && f.ajustes.status ? '. Corrigido pelo administrador; no banco: "' + (rec.fonte.status || '—') + '".' : '');
+    box.appendChild(stNcr);
+    var partes = [
+      rec.waiver.marcoAtual ? 'Marco Atual ' + rec.waiver.marcoAtual : '',
+      rec.waiver.funcaoVital].filter(Boolean);
+    box.appendChild(el('span', 'nb-ligacao-txt', partes.join(' · ')));
+    var b = el('button', 'btn btn--sm', 'Ver a ficha');
+    b.type = 'button';
+    b.setAttribute('data-mostra', '');
+    b.addEventListener('click', function () {
+      flushSave().then(function () {
+        switchKind('banco');
+        NcrView.abrirFicha(rec.key);
+      });
+    });
+    box.appendChild(b);
+    wrap.appendChild(box);
+    if (fechada && item.status !== Store.STATUS_CONCLUIDO) {
+      var av = NcrView.avisoFechada(rec);
+      av.classList.add('nb-alerta--editor');
+      wrap.appendChild(av);
+    }
+    return wrap;
+  }
+
+  /* --- aba Kanban ------------------------------------------------------------ */
+
+  var ctxKanban = {
+    leitura: Leitura.ativo(),
+    projects: function () { return state.projects; },
+    marcoInicial: function () { return state.project ? state.project.marco : ''; },
+    abrir: function (project, item, kind) { abrirItemDoWaiver(project, item, kind); },
+    abrirFicha: function (key) {
+      flushSave().then(function () {
+        switchKind('banco');
+        NcrView.abrirFicha(key);
+      });
+    },
+    adicionar: function (rec, project, situacao) { return adicionarAoWaiver(rec, project, situacao); },
+    mudarSituacao: function (project, item, id, kind) { return mudarSituacaoDe(project, item, id, kind); },
+    usuario: function () { return Store.getUser(); },
+    exportarPlanilha: function (d) { exportarKanbanXlsx(d); },
+    medirImpressao: function (montar) { return montarKanbanImpresso(montar, true); },
+    imprimir: function (montar, nome) { imprimirKanban(montar, nome); }
+  };
+
+  function renderKanban() {
+    Kanban.render($('#kanbanScroll'), ctxKanban);
+  }
+
+  /**
+   * Monta as folhas do Kanban no #printRoot, com layout emprestado enquanto
+   * mede (Report.abrirMedida). `soMedir` é a prévia da janela de escolhas:
+   * conta as folhas e limpa o que montou.
+   */
+  function montarKanbanImpresso(montar, soMedir) {
+    var root = $('#printRoot');
+    root.innerHTML = '';
+    var medida = Report.abrirMedida(root);
+    var r = null;
+    try {
+      r = montar(root);
+    } catch (e) {
+      Log.erro('kanban', 'não consegui montar o Kanban para impressão', e,
+        'tente outro papel ou orientação; se continuar, mande Derrogacao.copiar().');
+    } finally {
+      Report.fecharMedida(medida);
+    }
+    if (soMedir) root.innerHTML = '';
+    return r;
+  }
+
+  /** O Kanban em PDF: as folhas montadas e a janela de impressão. */
+  function imprimirKanban(montar, nome) {
+    var r = montarKanbanImpresso(montar, false);
+    if (!r) { toast('Não foi possível montar o Kanban para impressão.'); return; }
+    Log.ok('kanban', 'Kanban montado para impressão', { folhas: r.folhas.length });
+    var doc = document.title;
+    document.title = nome + '_' + Report.timeStamp(true);
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.title = doc; }, 500);
+    }, 60);
+  }
+
+  /**
+   * A planilha do Kanban: uma linha por NCR à vista, e a aba "Recorte" — a
+   * mesma regra da Tabela e do Banco NCR (planilha filtrada que não diz que
+   * é filtrada é lida como o total).
+   */
+  function exportarKanbanXlsx(d) {
+    try {
+      download(Xlsx.blob([
+        { nome: 'Kanban', colunas: d.colunas, linhas: d.linhas },
+        { nome: 'Recorte', colunas: [{ titulo: 'Campo', larg: 28 }, { titulo: 'Valor', larg: 90 }],
+          linhas: d.recorte, filtros: false }
+      ]), d.nome + '_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.xlsx');
+      toast('Planilha salva em Downloads: ' + d.linhas.length + ' NCR(s).', 4000);
+    } catch (e) {
+      markError(e);
+      toast('Não foi possível gerar a planilha.');
+    }
+  }
+
+  /**
+   * Muda a situação de um item de qualquer relatório — o Kanban mostra itens
+   * que não são os do relatório aberto. Mesmo caminho do editor:
+   * Store.setStatus, a sessão (autoria), gravar e mandar para a pasta.
+   */
+  function mudarSituacaoDe(project, item, id, kind) {
+    if (Leitura.ativo()) return Promise.resolve(false);   /* visualizador: nada grava */
+    if (item.status === id) return Promise.resolve(false);
+    var antes = item.status;
+    Store.setStatus(item, id);
+    anotarTroca(item, antes);
+    Store.logChange(project, SESSION_ID, kind || 'ncr', item, 'editou');
+    return Store.save(project).then(function () {
+      if (state.project && state.project.id === project.id) renderNcrList();
+      renderTabs();
+      renderSessionInfo();
+      agendarGravacaoPasta();
+      var aceito = id === Store.STATUS_CONCLUIDO;
+      toast((item.ncrId || 'Item') + ': ' + Store.statusInfo(id).nome + '.', aceito ? 9000 : 0,
+        aceito && kind !== 'dev' ? ofertaDoItem(project, 'ncr', item, 'waiver-aceito', antes) : null);
+      return true;
+    }).catch(function (e) {
+      markError(e);
+      alert('Não foi possível gravar a situação.');
+      return false;
+    });
+  }
+
+  /* --- a Função do item segue a Função Vital do Banco NCR ------------------------ */
+
+  /* Pedido do Bruno: a função vital era escrita em dois lugares (no Banco NCR e
+     no Waiver NCR). O Banco NCR é a orientação correta; o que está lá é o que
+     vale no Waiver, sem digitar de novo.
+
+     O item continua guardando o texto (`func`) — é ele que o PDF, o Kanban, a
+     Tabela e a publicação leem —, e este passo o alinha com o Banco sempre
+     que o Banco muda (edição, importação, pasta, ligação temporária →
+     definitiva) e na abertura. Só troca quando o texto é DE FATO outro: "FV 01 -
+     Sea water…" e "FV01 - SEA WATER…" são a mesma função, e um item que já
+     estava certo não muda de aparência no PDF. Banco sem função vital para a
+     NCR: o campo do item continua à mão, como sempre foi. */
+  function alinharFuncoes() {
+    if (Leitura.ativo() || !state.projects.length) return Promise.resolve(0);
+    var mudados = [], n = 0, atualMudou = false;
+    state.projects.forEach(function (p) {
+      var alterou = false;
+      (p.ncrs || []).forEach(function (it) {
+        var rec = Ncrs.recDoItem(it);
+        var alvo = rec ? Ncrs.funcaoParaWaiver(rec.waiver.funcaoVital) : '';
+        if (!alvo || Ncrs.norm(alvo) === Ncrs.norm(it.func)) return;
+        it.func = alvo;
+        Store.logChange(p, SESSION_ID, 'ncr', it, 'editou');
+        alterou = true;
+        n++;
+        if (state.project && state.project.id === p.id && state.kind === 'ncr' && it.id === selectedId()) atualMudou = true;
+      });
+      if (alterou) mudados.push(p);
+    });
+    if (!n) return Promise.resolve(0);
+    Log.ok('banco NCR', 'a Função de itens do Waiver foi alinhada com a Função Vital do banco', { itens: n });
+    return Promise.all(mudados.map(function (p) { return Store.save(p); })).then(function () {
+      renderNcrList();
+      renderTabs();
+      renderSessionInfo();
+      if (atualMudou) renderEditor();
+      if (isKanban()) renderKanban();
+      if (isTabela()) renderTabela(true);
+      agendarGravacaoPasta();
+      agendarPublicacao();
+      return n;
+    }).catch(function (e) { markError(e); return 0; });
+  }
+
+  /* --- importações ----------------------------------------------------------- */
+
+  var ncrImport = { tipo: '', substituir: false };
+
+  var NOMES_IMPORTACAO = {
+    banco: 'importar o banco NCR',
+    correlacao: 'importar a correlação',
+    historico: 'importar o histórico',
+    restaurar: 'restaurar o banco NCR de um backup'
+  };
+
+  function importarNcr(tipo) {
+    if (tipo === 'correlacao') {
+      $('#ncrCorrSubst').checked = false;
+      $('#ncrCorrDialog').showModal();
+      return;
+    }
+    escolherArquivoNcr(tipo);
+  }
+
+  function escolherArquivoNcr(tipo) {
+    ncrImport.tipo = tipo;
+    var inp = $('#ncrFileInput');
+    inp.accept = {
+      banco: '.xlsx,.xlsm,.json', correlacao: '.json,.xlsx,.xlsm', historico: '.json', restaurar: '.json'
+    }[tipo] || '';
+    inp.value = '';
+    inp.click();
+  }
+
+  function lerArquivoNcr(file) {
+    if (/\.xls[xm]$/i.test(file.name)) return XlsxLer.ler(file);
+    if (/\.xls$/i.test(file.name)) return Promise.reject(new Error('o formato .xls antigo não é lido. Salve a planilha como .xlsx.'));
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onerror = function () { reject(fr.error || new Error('falha ao ler o arquivo.')); };
+      fr.onload = function () {
+        try { resolve(JSON.parse(String(fr.result))); }
+        catch (e) { reject(new Error('o arquivo não é um JSON válido.')); }
+      };
+      fr.readAsText(file);
+    });
+  }
+
+  /**
+   * Proteção antes de qualquer importação: guarda o banco NCR como estava
+   * (para "Desfazer") e, com a pasta ligada, deixa uma cópia em
+   * historico-ncr\. Os relatórios de Waiver não entram: nenhuma importação
+   * do banco NCR os altera.
+   */
+  function guardarAntesDaImportacao(snap, tipo, arquivo) {
+    var reg = {
+      id: 'antes-importacao', at: Store.nowIso(),
+      info: (NOMES_IMPORTACAO[tipo] || tipo) + (arquivo ? ' (' + arquivo + ')' : ''),
+      snap: snap
+    };
+    var pasta = (Pasta.ligada() && pastaEstado === 'on')
+      ? Pasta.guardarCopia(copiaDoBancoNcr(snap), (Store.getUser() || 'sem-nome') + '-antes-' + tipo, 20)
+      : Promise.resolve(false);
+    return Promise.all([Store.ncrMetaPut(reg), pasta]).then(function (r) { return r[1]; });
+  }
+
+  function copiaDoBancoNcr(snap) {
+    return {
+      format: 'derrogacao-ncr-base', schema: 1,
+      exportedAt: Store.nowIso(), exportedBy: Store.getUser(),
+      ncrs: snap.ncrs, meta: snap.meta
+    };
+  }
+
+  function processarArquivoNcr(file) {
+    var tipo = ncrImport.tipo;
+    var quem = Store.getUser();
+    toast('Lendo ' + file.name + '…');
+    lerArquivoNcr(file).then(function (dados) {
+      var nb = null;
+      if (tipo === 'restaurar') {
+        nb = dados && (dados.ncrBase || (dados.format === 'derrogacao-ncr-base' ? dados : null));
+        if (!nb || !Array.isArray(nb.ncrs)) {
+          throw new Error('este arquivo não traz o banco NCR. Use um "backup de tudo" feito a partir desta versão, ' +
+            'ou uma cópia da pasta historico-ncr.');
+        }
+        if (!confirm('Restaurar os dados de ' + nb.ncrs.length + ' NCR(s) a partir deste backup?\n\n' +
+          '• Os valores do backup voltam a valer (inclusive os campos do Waiver).\n' +
+          '• NCRs que não estão no backup ficam como estão — nada é apagado.\n' +
+          '• Os relatórios de Waiver não são afetados.\n' +
+          '• O estado atual é guardado antes, para poder desfazer.')) return null;
+      }
+      /* o retrato é tirado antes de tocar em qualquer coisa; só é gravado se
+         o arquivo for aceito, para um arquivo errado não apagar o "desfazer"
+         da importação anterior */
+      var snap = Ncrs.retrato();
+      var r;
+      if (tipo === 'banco') r = Ncrs.importarBase(dados, file.name, quem);
+      else if (tipo === 'correlacao') {
+        r = Ncrs.importarCorrelacao(Ncrs.lerCorrelacao(dados), file.name, quem, { substituir: ncrImport.substituir });
+      } else if (tipo === 'historico') r = Ncrs.importarHistorico(dados, file.name, quem);
+      else {
+        var x = Ncrs.restaurar(nb, quem);
+        r = {
+          alterados: x.alterados,
+          resumo: { titulo: 'Banco NCR restaurado', arquivo: file.name,
+            numeros: [['NCRs restauradas', x.voltaram, true]], grupos: [], erros: [], avisos: [] }
+        };
+      }
+      return guardarAntesDaImportacao(snap, tipo, file.name).then(function (copia) {
+        if (copia) r.resumo.avisos.push('Cópia de antes da importação guardada na pasta: ' + copia);
+        return Promise.all([Ncrs.salvar(r.alterados), Ncrs.salvarMeta()]);
+      }).then(function () { return r; });
+    }).then(function (r) {
+      if (!r) return;
+      Log.ok('banco NCR', r.resumo.titulo, { numeros: r.resumo.numeros.length, alteradas: r.alterados.length });
+      agendarGravacaoPasta();
+      renderTabs();
+      if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
+      alinharFuncoes();
+      mostrarResumoImportacao(r.resumo);
+    }).catch(function (e) {
+      /* arquivo recusado é situação normal: quem usa recebe o aviso abaixo */
+      console.warn('Importação do banco NCR recusada:', e);
+      /* se algo parou no meio, volta ao que está gravado */
+      Ncrs.carregar().then(function () { if (isBanco()) renderBanco(true); if (isKanban()) renderKanban(); });
+      alert('Não foi possível ' + (NOMES_IMPORTACAO[tipo] || 'importar') + ': ' + ((e && e.message) || e));
+    });
+  }
+
+  /** A tela de resumo, comum às três importações. */
+  function mostrarResumoImportacao(res) {
+    var dlg = $('#ncrResumoDialog');
+    var body = $('#ncrResumoBody');
+    body.innerHTML = '';
+    $('#ncrResumoTitulo').textContent = res.titulo;
+    $('#ncrResumoArquivo').textContent = res.arquivo ? 'Arquivo: ' + res.arquivo : '';
+
+    var nums = el('dl', 'nb-res-nums');
+    res.numeros.forEach(function (n) {
+      var dt = el('dt', null, n[0]);
+      var dd = el('dd', n[2] ? 'is-destaque' : '', String(n[1]));
+      if (/^Erros$/.test(n[0]) && n[1]) dd.className = 'is-erro';
+      nums.appendChild(dt);
+      nums.appendChild(dd);
+    });
+    body.appendChild(nums);
+
+    (res.avisos || []).forEach(function (a) { body.appendChild(el('p', 'nb-res-aviso', a)); });
+
+    var grupos = (res.erros && res.erros.length)
+      ? [{ titulo: 'Registros com erro', itens: res.erros, erro: true }].concat(res.grupos)
+      : res.grupos;
+    grupos.forEach(function (g) {
+      var det = document.createElement('details');
+      det.className = 'nb-res-grupo' + (g.erro ? ' is-erro' : '');
+      if (g.erro) det.open = true;
+      var sum = document.createElement('summary');
+      sum.textContent = g.titulo + ' (' + g.itens.length + ')';
+      det.appendChild(sum);
+      if (g.explica) det.appendChild(el('p', 'nb-mini', g.explica));
+      var ul = el('ul');
+      g.itens.slice(0, 400).forEach(function (t) { ul.appendChild(el('li', null, t)); });
+      if (g.itens.length > 400) ul.appendChild(el('li', 'nb-mini', '… e mais ' + (g.itens.length - 400) + ' (use "Copiar lista").'));
+      det.appendChild(ul);
+      var cp = el('button', 'btn btn--sm', 'Copiar lista');
+      cp.type = 'button';
+      cp.addEventListener('click', function () {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(g.itens.join('\n'))
+            .then(function () { toast('Lista copiada.'); })
+            .catch(function () { toast('Não foi possível copiar.'); });
+        }
+      });
+      det.appendChild(cp);
+      body.appendChild(det);
+    });
+    dlg.showModal();
+  }
+
+  function baixarCopiaDeAntes() {
+    Store.ncrMetaGet('antes-importacao').then(function (reg) {
+      if (!reg || !reg.snap) { toast('Não há cópia de antes da importação.'); return; }
+      var blob = new Blob([JSON.stringify(copiaDoBancoNcr(reg.snap))], { type: 'application/json' });
+      download(blob, 'BancoNCR_antes-da-importacao_' + Report.timeStamp(true) + '.json');
+    });
+  }
+
+  function desfazerImportacaoNcr() {
+    Store.ncrMetaGet('antes-importacao').then(function (reg) {
+      if (!reg || !reg.snap) { toast('Não há importação para desfazer.'); return; }
+      if (!confirm('Desfazer: ' + reg.info + ', de ' + shortDate(reg.at) + '?\n\n' +
+        'Os dados das NCRs voltam ao que eram antes. NCRs que entraram nessa importação ' +
+        'continuam no banco (nada é apagado). Os relatórios de Waiver não são afetados.')) return;
+      var x = Ncrs.restaurar(reg.snap, Store.getUser());
+      return Promise.all([
+        Ncrs.salvar(x.alterados), Ncrs.salvarMeta(),
+        Store.ncrMetaPut({ id: 'antes-importacao', at: '', info: '', snap: null })
+      ]).then(function () {
+        $('#ncrResumoDialog').close();
+        agendarGravacaoPasta();
+        if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
+        toast('Importação desfeita: ' + x.voltaram + ' NCR(s) de volta ao estado anterior.');
+      });
+    }).catch(function (e) { markError(e); alert('Não foi possível desfazer.'); });
+  }
+
+  /* --- listas dos dropdowns ---------------------------------------------------- */
+
+  function abrirListas() {
+    var l = Ncrs.listas();
+    $('#ncrListaMarcos').value = l.marcos.join('\n');
+    $('#ncrListaFuncoes').value = l.funcoes.join('\n');
+    $('#ncrListasDialog').showModal();
+  }
+
+  function salvarListas() {
+    var linhas = function (id) { return $(id).value.split('\n'); };
+    Ncrs.setListas(linhas('#ncrListaMarcos'), linhas('#ncrListaFuncoes'), Store.getUser()).then(function () {
+      $('#ncrListasDialog').close();
+      agendarGravacaoPasta();
+      if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
+      toast('Listas salvas.');
+    }).catch(markError);
+  }
+
+  /* --- banco NCR na pasta compartilhada ---------------------------------------- */
+
+  /**
+   * Mesma ideia dos relatórios — ler, juntar, gravar — com dois arquivos: o do
+   * banco (grande, muda nas importações) e o dos campos do Waiver (pequeno,
+   * muda a cada campo preenchido). Só grava o que este lado tem de novo.
+   */
+  function sincronizarNcrs() {
+    var quem = Store.getUser();
+    return Promise.all([
+      Pasta.lerArquivo(Pasta.ARQ_NCR_BANCO),
+      Pasta.lerArquivo(Pasta.ARQ_NCR_WAIVER),
+      Pasta.lerArquivo(Correcoes.ARQUIVO)
+    ]).then(function (r) {
+      var lista = Ncrs.lista();
+      var temBanco = lista.some(function (x) { return x.fonte.importadoEm || x.historico.length; });
+      var temWaiver = lista.some(function (x) { return x.waiver.editedAt; }) ||
+        !!Ncrs.listas().editedAt || Object.keys(Ncrs.meta().pendentes).length > 0;
+      /* alguém gravou os campos do Waiver depois de mim: guarda os meus antes */
+      var antes = (r[1].dados && r[1].externo && temWaiver)
+        ? Pasta.guardarCopia(Ncrs.arquivoWaiver(quem), (quem || 'sem-nome') + '-antes-de-juntar', 40)
+        : Promise.resolve();
+      return antes.then(function () {
+        var rb = r[0].dados ? Ncrs.juntarBanco(r[0].dados)
+          : { entraram: 0, atualizados: 0, alterados: [], localMaisNovo: temBanco };
+        var rw = r[1].dados ? Ncrs.juntarWaiver(r[1].dados)
+          : { entraram: 0, atualizados: 0, alterados: [], localMaisNovo: temWaiver };
+        /* as correções (temporária → definitiva, ajustes, auditoria, senha):
+           arquivo próprio, e só a pasta decide a senha */
+        var rc = r[2].dados ? Correcoes.juntar(r[2].dados, { senha: true })
+          : { mudou: false, localMaisNovo: Correcoes.listaSubstituicoes().length > 0 || Correcoes.auditoria().length > 0 || Correcoes.temSenha() };
+        var alterados = rb.alterados.concat(rw.alterados);
+        var passos = [];
+        if (alterados.length || rw.atualizados) passos.push(Ncrs.salvar(alterados), Ncrs.salvarMeta());
+        if (rc.mudou) passos.push(Correcoes.salvarLocal());
+        if (rb.localMaisNovo) passos.push(Pasta.gravarArquivo(Pasta.ARQ_NCR_BANCO, Ncrs.arquivoBanco(quem)));
+        if (rw.localMaisNovo) passos.push(Pasta.gravarArquivo(Pasta.ARQ_NCR_WAIVER, Ncrs.arquivoWaiver(quem)));
+        if (rc.localMaisNovo) {
+          passos.push(Pasta.gravarArquivo(Correcoes.ARQUIVO, Correcoes.arquivo(quem)).then(function () { Correcoes.gravado(); }));
+        }
+        return Promise.all(passos).then(function () {
+          return { entraram: rb.entraram + rw.entraram, atualizados: rb.atualizados + rw.atualizados, correcoes: rc.mudou };
+        });
+      });
+    });
+  }
+
+  /** Banco NCR que veio dentro de um arquivo aberto à mão: junta, sem apagar nada. */
+  function juntarBancoNcrDoArquivo(nb) {
+    var r = Ncrs.juntarBackup(nb);
+    if (!r.alterados.length && !r.correcoes) return Promise.resolve(r);
+    return Promise.all([Ncrs.salvar(r.alterados), Ncrs.salvarMeta(), r.correcoes ? Correcoes.salvarLocal() : null]).then(function () {
+      agendarGravacaoPasta();
+      renderTabs();
+      if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
+      return r;
+    });
+  }
+
+  /* ---------------------------------------------------------------------- */
   /* pasta compartilhada como banco de dados                                 */
   /* ---------------------------------------------------------------------- */
 
@@ -2194,20 +5850,290 @@
   var sincronizando = false;
   var gravarPendente = false;
   var ultimaTecla = 0;
+  /* A abertura caiu no "mais recente" porque o marco da vez ainda não estava
+     neste navegador (ver o boot). Fica armado até a primeira troca com a
+     pasta ou até a pessoa escolher ou escrever alguma coisa. */
+  var aberturaPendente = false;
   var ultimaVersao = 0;
+  var ultimaPoda = 0;
+  var ultimoSucesso = 0;        // última vez que a pasta respondeu
+  /* Dados gravados por uma versão mais nova da página: daqui para a frente
+     esta sessão só lê, para não apagar campos que ainda não conhece. */
+  var versaoDesatualizada = false;
+  /* As duas bases de comparação (ver Store.saveBase): `mesclaBase` é o que
+     já está na pasta, `baseDiario` é o que o histórico já registrou. */
+  var mesclaBase = null;   /* o que EU gravei na pasta na última rodada */
+  var baseLida = null;     /* o que a PASTA tinha quando eu li, na mesma rodada */
+  var baseDiario = null;   /* o meu estado na última captura do histórico */
+  var meuCarimbo = 0;      /* lastModified da minha última gravação */
+  var carimboLido = 0;     /* lastModified do arquivo de que esta junção partiu */
+  var revisoes = [];
+  var sincronizandoRevisoes = false;
+  var avisouRelogio = false;
   var gravaTimer = null;
   var pollTimer = null;
+  /* um pedido de permissão de cada vez, e o aviso do alto some quando a
+     pessoa diz que não quer resolver isso agora */
+  var pedidoEmVoo = null;
+  var pastaNoticeFechado = false;
   var POLL_MS = 20000;
 
+  /** Todas as imagens de todos os relatórios, com o item a que pertencem. */
+  function todasAsImagens(projects) {
+    var out = [];
+    (projects || []).forEach(function (p) {
+      ['ncrs', 'devs'].forEach(function (key) {
+        (p[key] || []).forEach(function (item) {
+          (item.evidence || []).forEach(function (ev) {
+            (ev.images || []).forEach(function (im) { out.push(im); });
+          });
+        });
+      });
+    });
+    return out;
+  }
+
+  /**
+   * Manda para a pasta as imagens que ainda não têm arquivo próprio.
+   *
+   * O `arquivo` é gravado também na cópia local: é o que faz cada foto ser
+   * escrita uma vez só, e não a cada sincronização.
+   */
+  function externalizarImagens() {
+    var pendentes = todasAsImagens(state.projects).filter(function (im) {
+      return im.src && !im.arquivo;
+    });
+    if (!pendentes.length) return Promise.resolve(0);
+    var feito = 0;
+    return pendentes.reduce(function (fila, im) {
+      return fila.then(function () {
+        return Pasta.gravarImagem(im.id, im.src).then(function (caminho) {
+          im.arquivo = caminho;
+          feito++;
+        }).catch(function (e) {
+          /* sem arquivo, a imagem continua viajando dentro do JSON: o
+             relatório do colega não pode ficar sem a foto por causa disto */
+          Log.erro('imagens', 'não consegui gravar uma imagem na pasta', e,
+            Pasta.explicar(e) + ' A imagem continua aqui no seu navegador; ela vai ' +
+            'para a pasta na próxima sincronização que der certo.');
+        });
+      });
+    }, Promise.resolve()).then(function () { return feito; });
+  }
+
+  /**
+   * Devolve às imagens do que veio da pasta o conteúdo que o JSON não traz
+   * mais. O que já existe aqui é reaproveitado — só o que falta é lido do
+   * disco, e uma vez só.
+   */
+  function hidratarImagens(payload) {
+    var conhecidas = {};
+    todasAsImagens(state.projects).forEach(function (im) {
+      if (im.arquivo && im.src) conhecidas[im.arquivo] = im.src;
+    });
+    var faltando = todasAsImagens(payload && payload.projects).filter(function (im) {
+      return !im.src && im.arquivo;
+    });
+    if (!faltando.length) return Promise.resolve(payload);
+    return faltando.reduce(function (fila, im) {
+      return fila.then(function () {
+        if (conhecidas[im.arquivo]) { im.src = conhecidas[im.arquivo]; return null; }
+        return Pasta.lerImagem(im.arquivo).then(function (dataUrl) {
+          im.src = dataUrl;
+          conhecidas[im.arquivo] = dataUrl;
+        }).catch(function (e) {
+          /* o arquivo pode ainda estar sendo gravado do outro lado: fica o
+             ponteiro, e a próxima sincronização tenta de novo */
+          Log.detalhe('imagens', 'imagem ainda não chegou da pasta',
+            { arquivo: im.arquivo, erro: e && e.name });
+        });
+      });
+    }, Promise.resolve()).then(function () { return payload; });
+  }
+
+  /**
+   * O retrato que vai para a pasta. As imagens que já têm arquivo próprio
+   * viajam só pelo nome — é o que mantém o JSON pequeno mesmo com centenas
+   * de fotos, e o histórico com ele.
+   */
   function montaPayload() {
+    var copia = JSON.parse(JSON.stringify(state.projects));
+    todasAsImagens(copia).forEach(function (im) {
+      if (im.arquivo && im.src) delete im.src;
+    });
     return {
       format: 'derrogacao-banco',
-      schema: 1,
+      schema: Store.SCHEMA,
       caminho: pastaCaminho,
       updatedAt: new Date().toISOString(),
       updatedBy: Store.getUser(),
-      projects: JSON.parse(JSON.stringify(state.projects))
+      /* De qual versão do arquivo esta gravação partiu (o lastModified que o
+         disco deu). É o que permite ao colega saber, na rodada dele, se a
+         minha cópia chegou a ver a gravação dele — ver `sincronizar`. Uma
+         versão antiga do programa não escreve este campo; nesse caso a regra
+         volta a ser a de antes, que é o que já existia. */
+      baseadoEm: carimboLido,
+      /* sem isto a exclusão de um relatório não alcançaria os outros */
+      relatoriosExcluidos: Store.lapidesProjeto(),
+      projects: copia
     };
+  }
+
+  function ehMaisNovoQueEu(dados) {
+    if (!dados) return false;
+    if ((Number(dados.schema) || 0) > Store.SCHEMA) return true;
+    return Store.maisNovoQueEu(dados.projects);
+  }
+
+  /** Caminhos de imagem em uso — no que está aqui e em cada versão guardada. */
+  function imagensEmUso() {
+    var usados = [];
+    todasAsImagens(state.projects).forEach(function (im) {
+      if (im.arquivo) usados.push(im.arquivo);
+    });
+    return Pasta.listarHistorico().then(function (versoes) {
+      return versoes.reduce(function (fila, v) {
+        return fila.then(function () {
+          return Pasta.lerHistorico(v.arquivo).then(function (dados) {
+            todasAsImagens(dados && dados.projects).forEach(function (im) {
+              if (im.arquivo) usados.push(im.arquivo);
+            });
+          }).catch(function () { /* versão ilegível não derruba a limpeza */ });
+        });
+      }, Promise.resolve()).then(function () { return usados; });
+    });
+  }
+
+  /**
+   * Apaga as fotos que nenhum item e nenhuma versão do histórico citam mais.
+   * De hora em hora, no máximo: ler todas as versões é barato agora que elas
+   * não carregam mais o base64, mas não é de graça.
+   */
+  function limparImagensOrfas() {
+    if (Date.now() - ultimaPoda < 60 * 60 * 1000) return Promise.resolve(0);
+    ultimaPoda = Date.now();
+    return imagensEmUso()
+      .then(function (usados) { return Pasta.podarImagens(usados); })
+      .catch(function () { return 0; });
+  }
+
+  /* --- o diário de alterações ---------------------------------------------
+     Quem escreveu o quê, campo a campo. Sai da comparação entre o que está
+     aqui e o retrato da última captura: não custa uma tecla sequer, e não
+     depende de ninguém lembrar de registrar nada. */
+
+  /** Anota no diário o que esta pessoa escreveu desde a última captura. */
+  function capturarRevisoes() {
+    if (!baseDiario) {
+      /* primeira vez neste navegador: não há com o que comparar, e inventar
+         uma linha "mudou de vazio para o que já estava" seria mentira */
+      baseDiario = Store.baseDe(state.projects);
+      return guardarBases();
+    }
+    var novas = Revisoes.calcular(baseDiario, state.projects, Store.getUser());
+    baseDiario = Store.baseDe(state.projects);
+    if (novas.length) {
+      revisoes = Revisoes.acrescentar(revisoes, novas);
+      Revisoes.gravarLocais(revisoes);
+      /* só os NOMES dos campos: o que foi escrito dentro deles não vai para o
+         console (ver o topo de log.js) */
+      var campos = {};
+      novas.forEach(function (r) { campos[r.rotulo] = (campos[r.rotulo] || 0) + 1; });
+      Log.detalhe('histórico', 'anotei o que você escreveu desde a última troca',
+        { linhas: novas.length, campos: Object.keys(campos).join(', ') });
+    }
+    return guardarBases();
+  }
+
+  /** As linhas do que foi escrito por cima numa junção — as que mais valem. */
+  /**
+   * O que a junção fez, em linguagem de gente. É a linha que responde "o que
+   * mudou agora?" sem abrir item por item — e a que mostra, na hora, quando
+   * alguém escreveu por cima de alguém.
+   *
+   * Nomes de campo e números; nunca o texto do campo (ver o topo de log.js).
+   */
+  function relatarMesclagem(resumo) {
+    if (!resumo) return;
+    var mexeu = resumo.entraram || resumo.atualizados || resumo.removidos ||
+      resumo.novosRelatorios;
+    if (!mexeu) { Log.detalhe('mesclagem', 'nada mudou do lado de lá'); return; }
+    Log.passo('mesclagem', 'trouxe o trabalho dos outros', {
+      itensNovos: resumo.entraram, itensAtualizados: resumo.atualizados,
+      excluidos: resumo.removidos, relatoriosNovos: resumo.novosRelatorios
+    });
+    (resumo.substituidos || []).forEach(function (sub) {
+      var campos = (sub.perdidos || []).map(function (x) { return x.rotulo; });
+      if (!campos.length) return;
+      Log.aviso('mesclagem', 'escreveram por cima do seu texto em ' +
+        (sub.ncrId || 'um item') + ': ' + campos.join(', '),
+        'os dois mexeram no mesmo campo. O texto que saiu NÃO se perdeu: abra o ' +
+        'item e use “Histórico do texto” para pôr de volta.');
+    });
+  }
+
+  function registrarConflitos(resumo) {
+    if (!resumo || !resumo.substituidos || !resumo.substituidos.length) return;
+    var novas = Revisoes.deConflito(resumo.substituidos, state.projects, Store.getUser());
+    if (!novas.length) return;
+    revisoes = Revisoes.acrescentar(revisoes, novas);
+    Revisoes.gravarLocais(revisoes);
+  }
+
+  function guardarBases() {
+    return Store.saveBase(mesclaBase || {}, baseDiario || {}, baseLida || {}, meuCarimbo);
+  }
+
+  /** Troca o diário com a pasta: união pelo id, como a conversa. */
+  function sincronizarRevisoes() {
+    if (!Pasta.ligada() || sincronizandoRevisoes) return Promise.resolve(null);
+    sincronizandoRevisoes = true;
+    return Pasta.lerRevisoes()
+      .then(function (dados) {
+        var remotas = (dados && Array.isArray(dados.revisoes)) ? dados.revisoes : [];
+        revisoes = Revisoes.juntar(revisoes, remotas);
+        Revisoes.gravarLocais(revisoes);
+        /* página velha diante de um diário mais novo: lê, não regrava */
+        if (versaoDesatualizada) return false;
+        if (dados && Number(dados.schema) > 1) return false;
+        if (!Revisoes.faltamLa(revisoes, remotas)) return false;
+        return Pasta.gravarRevisoes(Revisoes.envelope(revisoes));
+      })
+      .then(function (r) { sincronizandoRevisoes = false; return r; })
+      .catch(function (e) {
+        sincronizandoRevisoes = false;
+        /* O diário é desejável, não essencial: nunca derruba a gravação dos
+           dados. E nada se perde aqui — as linhas já foram guardadas neste
+           navegador antes desta tentativa (Revisoes.gravarLocais, acima), e
+           a sincronização seguinte leva de novo o que faltar lá.
+           `pasta.js` já tentou duas vezes; chegar aqui é a pasta ter
+           recusado as duas. */
+        Log.aviso('histórico', 'o histórico do texto não foi trocado com a pasta desta vez',
+          Pasta.explicar(e) + ' As linhas continuam salvas neste navegador e vão na ' +
+          'próxima sincronização — nada se perdeu.', { erro: e && e.name });
+        return null;
+      });
+  }
+
+  /**
+   * Avisa quando o relógio daqui está atrasado em relação ao de quem gravou.
+   *
+   * Só essa direção é conclusiva: um carimbo no futuro não tem como ser
+   * legítimo, enquanto um carimbo velho pode ser só alguém que não mexe no
+   * arquivo desde ontem. E importa porque o relógio ainda é o desempate
+   * quando duas pessoas escrevem no mesmo campo.
+   */
+  function conferirRelogio(dados) {
+    if (avisouRelogio || !dados || !dados.updatedAt) return;
+    var deles = Date.parse(dados.updatedAt);
+    if (isNaN(deles)) return;
+    var dif = deles - Date.now();
+    if (dif < 5 * 60 * 1000) return;
+    avisouRelogio = true;
+    toast('O relógio deste computador está cerca de ' + Math.round(dif / 60000) +
+      ' min atrasado em relação ao de quem gravou na pasta. ' +
+      'Quando duas pessoas escrevem no mesmo campo, quem tem o relógio adiantado ganha — ' +
+      'vale acertar a hora do Windows.', 10000);
   }
 
   /**
@@ -2221,11 +6147,19 @@
   function sincronizar(opts) {
     opts = opts || {};
     if (!Pasta.ligada() || sincronizando) {
-      if (sincronizando) gravarPendente = true;
+      if (sincronizando) {
+        gravarPendente = true;
+        Log.detalhe('pasta', 'já tem uma sincronização em curso — esta fica na fila');
+      }
       return Promise.resolve(null);
     }
     sincronizando = true;
     marcarPasta('sincronizando');
+    var ciclo = Log.etapa('pasta', 'sincronizando com a pasta da equipe');
+
+    /* Antes de qualquer coisa: o que foi escrito aqui desde a última vez vira
+       linha de histórico enquanto ainda dá para saber que foi esta pessoa. */
+    capturarRevisoes();
 
     /* Para saber se o item que está na tela mudou por fora — nesse caso a
        tela precisa ser redesenhada e a pessoa avisada, em vez de continuar
@@ -2234,23 +6168,95 @@
     var assinaturaAntes = abertoAntes ? Store.signature(abertoAntes) : null;
     var idAberto = abertoAntes ? abertoAntes.id : null;
 
+    /* O retrato do que a PASTA tinha nesta leitura. Vira `baseLida` só
+       quando a gravação der certo, junto com a outra base: as duas descrevem
+       a mesma rodada e não podem andar separadas. */
+    var lidaNestaRodada = null;
+
+    /* Preenchido assim que a junção é aplicada na memória. Se a gravação
+       falhar depois disso, o resultado ainda precisa ser salvo aqui e posto
+       na tela: abandoná-lo deixaria o formulário mostrando um texto que já
+       não é o do programa, e a tecla seguinte gravaria o velho por cima do
+       que o colega escreveu. */
+    var mesclado = null;
+
+    /** Salva a junção neste navegador e põe na tela. */
+    function adotar(resumo) {
+      return Promise.all(state.projects.map(function (p) { return Store.save(p); }))
+        .then(function () {
+          opts.aberto = { id: idAberto, assinatura: assinaturaAntes };
+          aplicarMudancasNaTela(resumo, opts);
+        });
+    }
+
     /* grava o resultado da junção, não só o que era meu */
     function gravarJuncao(resumo) {
-      return Pasta.gravar(montaPayload()).then(function () {
-        /* além do retrato feito antes de cada junção, uma linha do tempo a
-           cada dez minutos — sem transformar a pasta num depósito */
-        if (Date.now() - ultimaVersao < 10 * 60 * 1000) return null;
-        ultimaVersao = Date.now();
-        return Pasta.versionar(montaPayload(), Store.getUser());
-      }).then(function () { return resumo; });
+      /* Página velha diante de dados novos: junta para ver o trabalho dos
+         outros, mas não regrava — o que ela não entende seria apagado. */
+      if (versaoDesatualizada) {
+        Log.aviso('pasta', 'não vou gravar: esta página é mais antiga que os dados',
+          'outra pessoa já está com uma versão mais nova do programa. Recarregue ' +
+          'com Ctrl+F5. Até lá dá para ler e escrever aqui, mas nada vai para a pasta.');
+        return Promise.resolve(resumo);
+      }
+      return externalizarImagens()
+        .then(function () {
+          Log.detalhe('pasta', 'gravando o arquivo de dados');
+          return Pasta.gravar(montaPayload());
+        })
+        .then(function (carimbo) { meuCarimbo = Number(carimbo) || Pasta.carimbo(); })
+        .then(function () {
+          /* Gravou: o que está aqui é o que a pasta passa a ter, e é a base
+             da junção seguinte. Isto NÃO é o erro do §6 — lá o problema era
+             avançar a base ANTES da gravação. Aqui a gravação já deu certo.
+
+             O que a gravação não garante é ter SOBREVIVIDO: sem trava de
+             arquivo, o colega pode gravar por cima um instante depois. É para
+             esse caso que existe a segunda base, `baseLida` — ver `baseUtil`
+             no store.js. */
+          mesclaBase = Store.baseDe(state.projects);
+          baseDiario = mesclaBase;
+          if (lidaNestaRodada) baseLida = lidaNestaRodada;
+          return guardarBases();
+        })
+        .then(function () { return sincronizarRevisoes(); })
+        .then(function () { return sincronizarComunicados(); })
+        .then(function () {
+          /* além do retrato feito antes de cada junção, uma linha do tempo a
+             cada dez minutos — sem transformar a pasta num depósito */
+          if (Date.now() - ultimaVersao < 10 * 60 * 1000) return null;
+          ultimaVersao = Date.now();
+          return Pasta.versionar(montaPayload(), Store.getUser());
+        })
+        .then(function () { return limparImagensOrfas(); })
+        .then(function () { return resumo; });
     }
 
     return Pasta.ler()
       .then(function (r) {
         var resumo = { entraram: 0, atualizados: 0, removidos: 0, novosRelatorios: 0 };
-        if (!r.dados) return Promise.resolve(resumo).then(gravarJuncao);
+        if (!r.dados) {
+          Log.passo('pasta', 'a pasta está vazia — vou gravar o que está aqui');
+          mesclado = resumo;
+          return gravarJuncao(resumo);
+        }
+        Log.detalhe('pasta', 'arquivo lido', {
+          relatorios: (r.dados.projects || []).length,
+          mexidoPorOutraPessoa: r.externo
+        });
+        if (r.externo) {
+          Log.passo('pasta', 'alguém gravou depois de mim — guardando o meu estado antes de juntar');
+        }
 
-        if (typeof r.dados.caminho === 'string' && r.dados.caminho) pastaCaminho = r.dados.caminho;
+        conferirRelogio(r.dados);
+
+        if (typeof r.dados.caminho === 'string' && r.dados.caminho && r.dados.caminho !== pastaCaminho) {
+          /* a pasta diz onde ela é; guardar isso é o que faz a próxima
+             abertura já vir com o caminho certo, sem ninguém digitar */
+          pastaCaminho = r.dados.caminho;
+          Store.setDbFolder(pastaCaminho);
+          renderPastaNotice();
+        }
 
         /* Alguém gravou depois de mim: guarda o MEU estado antes de juntar.
            É o que garante poder recuperar um texto que a regra "vale quem
@@ -2259,34 +6265,135 @@
           ? Pasta.versionar(montaPayload(), (Store.getUser() || 'sem-nome') + '-antes')
           : Promise.resolve();
 
-        return antes.then(function () {
-          resumo = Store.mergeListas(state.projects, r.dados.projects || []);
-          return gravarJuncao(resumo);
+        /* Guarda de versão: se o arquivo veio de uma página mais nova do que
+           esta, tudo o que ela não conhece sumiria na regravação. */
+        if (!versaoDesatualizada && ehMaisNovoQueEu(r.dados)) {
+          versaoDesatualizada = true;
+          toast('Estes dados foram gravados por uma versão mais nova do programa. ' +
+            'Recarregue a página (Ctrl+F5) para voltar a gravar — por ora, só leitura.', 9000);
+        }
+
+        return antes
+          .then(function () { return hidratarImagens(r.dados); })
+          .then(function () {
+            lidaNestaRodada = Store.baseDe((r.dados.projects || []).map(Store.normalizeProject));
+
+            /* ----------------------------------------------------------------
+               QUAL DAS DUAS BASES VALE NESTA RODADA.
+
+               Este é o conserto do que o Bruno relatou: duas pessoas mexendo
+               ao mesmo tempo, e alguém perdendo texto ou situação.
+
+               A terceira ponta da mesclagem é "o que os dois tinham em comum".
+               Até aqui ela era sempre `mesclaBase` — o que EU gravei na rodada
+               passada. Está certo quando a minha gravação sobreviveu. Mas não
+               há trava de arquivo: entre a minha leitura e a minha gravação, o
+               colega pode gravar uma cópia que nunca viu o meu campo, e o
+               arquivo dele passa por cima do meu. Aí a base mente:
+
+                   base = "meu texto"   (mentira: a pasta não tem isso)
+                   aqui = "meu texto"
+                   lá   = ""            (a cópia dele, que nunca viu o meu)
+                   → "só ele mexeu; ele apagou" → o meu texto sumia de vez,
+                     sem conflito, sem aviso e sem linha de histórico.
+
+               Saber QUAL base vale exige saber se a cópia que chegou viu a
+               minha gravação. Carimbo de hora do item não responde isso: ser
+               mais novo não é ter visto. Quem responde é o arquivo: cada
+               gravação anota de que versão do arquivo ela partiu
+               (`baseadoEm`, o lastModified que o disco deu), e o disco é o
+               mesmo relógio para todo mundo.
+
+                   o arquivo ainda é o meu          → vale o que eu gravei
+                   ele partiu da minha gravação     → vale o que eu gravei
+                   ele partiu de antes dela         → a cópia dele é atrasada:
+                                                      vale o que eu LI
+
+               No terceiro caso o meu campo volta a contar como "só eu mexi" —
+               é regravado na rodada seguinte em vez de apagado —, e as duas
+               máquinas convergem em vez de ficar cada uma com a sua versão.
+
+               Arquivo gravado por uma versão antiga do programa não traz
+               `baseadoEm`: aí vale a regra de antes, que é o que já existia. */
+            var baseAgora = mesclaBase;
+            if (meuCarimbo && baseLida && r.lastModified !== meuCarimbo) {
+              var partiuDe = Number(r.dados.baseadoEm || 0);
+              if (partiuDe && partiuDe < meuCarimbo) {
+                baseAgora = baseLida;
+                Log.aviso('pasta', 'a cópia que chegou não viu a minha última gravação',
+                  'o colega gravou no mesmo instante que eu e o arquivo dele passou ' +
+                  'por cima. Nada se perdeu: o que eu escrevi continua aqui e é ' +
+                  'regravado agora.');
+                gravarPendente = true;
+              }
+            }
+            resumo = Store.mergeListas(state.projects, r.dados.projects || [],
+                                       r.dados.relatoriosExcluidos, baseAgora);
+            carimboLido = r.lastModified || 0;
+            registrarConflitos(resumo);
+            relatarMesclagem(resumo);
+
+            /* o que chegou dos outros já está aqui: não é edição minha, e o
+               diário não deve contá-la como se fosse */
+            baseDiario = Store.baseDe(state.projects);
+            mesclado = resumo;
+            return gravarJuncao(resumo);
+          });
+      })
+      .then(function (resumo) {
+        /* o banco NCR vem em arquivos próprios; uma falha nele não pode
+           impedir a sincronização dos relatórios */
+        return sincronizarNcrs().then(function (rn) {
+          if (resumo) resumo.ncr = rn;
+          return resumo;
+        }, function (e) {
+          Log.aviso('banco NCR', 'não consegui sincronizar o banco NCR com a pasta',
+            Pasta.explicar(e) + ' Os relatórios sincronizaram normalmente; o banco NCR tenta de novo na próxima rodada.',
+            { erro: e && e.name });
+          return resumo;
         });
       })
       .then(function (resumo) {
-        sincronizando = false;
         pastaEstado = 'on';
+        ultimoSucesso = Date.now();
         /* salva localmente o que veio, para funcionar mesmo sem a pasta */
-        return Promise.all(state.projects.map(function (p) { return Store.save(p); }))
-          .then(function () {
-            opts.aberto = { id: idAberto, assinatura: assinaturaAntes };
-            aplicarMudancasNaTela(resumo, opts);
-            marcarPasta('on');
-            return resumo;
-          });
+        return adotar(resumo).then(function () {
+          sincronizando = false;
+          marcarPasta('on');
+          /* o que se publica é a junção: o trabalho de todos */
+          agendarPublicacao();
+          ciclo.fim('sincronizado', resumo ? {
+            recebidos: resumo.entraram, atualizados: resumo.atualizados,
+            removidos: resumo.removidos, relatoriosNovos: resumo.novosRelatorios
+          } : null);
+          return resumo;
+        });
       })
       .catch(function (e) {
-        sincronizando = false;
         pastaEstado = (e && e.name === 'NotAllowedError') ? 'permissao' : 'erro';
-        marcarPasta(pastaEstado);
-        console.warn('Sincronização com a pasta falhou:', e);
-        if (!opts.silencioso) {
-          toast(pastaEstado === 'permissao'
-            ? 'A pasta precisa da sua permissão — clique em “Pasta” na barra de cima.'
-            : 'Não foi possível ler a pasta de dados. O trabalho segue salvo neste navegador.');
-        }
-        return null;
+        ciclo.falhou('a sincronização com a pasta não completou', e,
+          Pasta.explicar(e) + ' O seu trabalho continua salvo neste navegador e a ' +
+          'próxima tentativa leva tudo junto — nada se perdeu aqui. Se isto se ' +
+          'repetir, confira se o G: está acessível e mande Derrogacao.copiar().');
+        /* A junção já está na memória: deixá-la sem salvar e sem redesenhar
+           seria pior do que a falha em si — ver o comentário de `mesclado`. */
+        var fim = mesclado
+          ? adotar(mesclado).catch(function (e2) {
+              Log.erro('pasta', 'a junção não pôde nem ser salva aqui', e2,
+                'isto é sério: recarregue a página (Ctrl+F5) antes de continuar ' +
+                'escrevendo, para a tela voltar a mostrar o que está gravado.');
+            })
+          : Promise.resolve();
+        return fim.then(function () {
+          sincronizando = false;
+          marcarPasta(pastaEstado);
+          if (!opts.silencioso) {
+            toast(pastaEstado === 'permissao'
+              ? 'A pasta precisa da sua permissão — clique em “Pasta” na barra de cima.'
+              : 'Não foi possível gravar na pasta de dados. O trabalho segue salvo neste navegador.');
+          }
+          return null;
+        });
       })
       .then(function (r) {
         if (gravarPendente) { gravarPendente = false; setTimeout(sincronizar, 50); }
@@ -2296,12 +6403,46 @@
 
   /** Redesenha só o necessário, para não estragar o que está sendo digitado. */
   function aplicarMudancasNaTela(resumo, opts) {
-    var mudou = resumo && (resumo.entraram || resumo.atualizados || resumo.removidos || resumo.novosRelatorios);
-    /* o relatório aberto pode ter sido substituído pela cópia mesclada */
+    guardarMudancas(resumo);
+    var mudou = resumo && (resumo.entraram || resumo.atualizados || resumo.removidos ||
+                           resumo.novosRelatorios || resumo.relatoriosRemovidos);
+    var rn = resumo && resumo.ncr;
+    if (rn && (rn.correcoes || rn.entraram || rn.atualizados)) alinharFuncoes();
+    if (rn && rn.correcoes && !(rn.entraram || rn.atualizados)) {
+      /* só as correções mudaram (uma ligação temporária → definitiva, um
+         ajuste do administrador): redesenha quem lê NCR, sem aviso */
+      redesenharNcrs();
+    }
+    if (rn && (rn.entraram || rn.atualizados)) {
+      if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
+      var ficha = NcrView.aposMudancaExterna();
+      if (ficha) {
+        toast('A NCR ' + ficha.numero + ' foi atualizada por ' + (ficha.waiver.editedBy || 'outra pessoa') +
+          '. A ficha já mostra a versão nova.');
+      } else if (!mudou && !opts.silencioso) {
+        toast('Da pasta: banco NCR — ' + (rn.entraram ? rn.entraram + ' NCR(s) nova(s)' : '') +
+          (rn.entraram && rn.atualizados ? ', ' : '') + (rn.atualizados ? rn.atualizados + ' atualizada(s)' : '') + '.');
+      }
+    }
+    /* alguém excluiu o último relatório: o programa nunca fica sem nenhum */
+    if (!state.projects.length) {
+      var vazio = Store.newProject('');
+      state.projects.push(vazio);
+      Store.save(vazio).then(function () { loadProject(vazio); });
+      return;
+    }
+    /* o relatório aberto pode ter sido substituído pela cópia mesclada — ou
+       excluído por outra pessoa */
+    var sumiu = false;
     if (state.project) {
       var atual = state.projects.filter(function (p) { return p.id === state.project.id; })[0];
-      if (!atual) atual = state.projects[0];
+      if (!atual) { atual = state.projects[0]; sumiu = true; }
       state.project = atual;
+    }
+    if (sumiu) {
+      loadProject(state.project);
+      if (!opts.silencioso) toast('O relatório que estava aberto foi excluído por outra pessoa.');
+      return;
     }
     if (!mudou) return;
     var avisoDoItem = '';
@@ -2312,8 +6453,11 @@
     renderNcrList();
     renderUser();
     if (isResumo()) renderSummary();
+    if (isFluxos()) renderFluxos(true);
+    if (isTabela()) renderTabela(true);
+    if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
 
-    if (!isResumo()) {
+    if (!telaCheia()) {
       var agora = currentNcr();
       if (!agora) {
         /* o item aberto foi excluído por outra pessoa */
@@ -2348,14 +6492,64 @@
     }
   }
 
-  /** Verificação barata, de tempos em tempos: alguém gravou lá fora? */
+  /**
+   * Quem liga a pasta pela primeira vez abre o programa sem o relatório do
+   * marco da vez: ele chega na primeira troca com a pasta. Se ninguém mexeu
+   * em nada até lá, é ele que passa a estar aberto — é a mesma regra da
+   * abertura, só que com os dados da equipe. Uma vez só, e nunca por cima
+   * de uma escolha da pessoa.
+   */
+  function abrirMarcoInicial() {
+    if (!aberturaPendente) return;
+    aberturaPendente = false;
+    var p = Config.relatorioInicial(state.projects);
+    if (!p || (state.project && state.project.id === p.id)) return;
+    flushSave().then(function () {
+      loadProject(p);
+      Log.passo('abertura', 'o relatório do marco inicial chegou pela pasta e foi aberto', { marco: p.marco });
+    });
+  }
+
+  /* depois de uma falha, a conferência tenta religar — no máximo a cada
+     minuto, para uma pasta de rede fora do ar não virar uma tentativa a
+     cada 20 s */
+  var RELIGAR_MS = 60000;
+  var ultimaReligada = 0;
+
+  /**
+   * Verificação barata, a cada 20 s: alguém gravou lá fora? É ela que traz
+   * o trabalho do colega — o editor não tem o relógio de 5 minutos do
+   * visualizador (seria a mesma conferência, mais devagar). Também é ela
+   * que religa a pasta depois de uma falha, e ela roda na hora quando a
+   * pessoa volta para a janela (`aoVoltarParaJanela`).
+   */
   function pollPasta() {
-    if (!Pasta.ligada() || pastaEstado !== 'on' || sincronizando) return;
+    if (!Pasta.ligada() || sincronizando) return;
+    /* em segundo plano não confere: ao voltar para a janela, confere na hora */
+    if (document.hidden) return;
     if (Date.now() - ultimaTecla < 4000) return;   /* não mexe enquanto digita */
-    if (document.querySelector('dialog[open]')) return;
+    /* com um diálogo de decisão aberto, espera; a ficha da NCR não conta —
+       ela sabe se redesenhar quando o que mostra muda por fora */
+    if (document.querySelector('dialog[open]:not(.nb-dlg)')) return;
     if (!$('#preview').hidden) return;
-    Pasta.mudouLaFora().then(function (mudou) {
-      if (mudou) sincronizar({ semRedesenhar: true });
+    if (pastaEstado === 'erro') {
+      if (Date.now() - ultimaReligada < RELIGAR_MS) return;
+      ultimaReligada = Date.now();
+      Log.detalhe('pasta', 'tentando religar a pasta depois da falha');
+      sincronizar({ silencioso: true });
+      return;
+    }
+    if (pastaEstado !== 'on') return;
+    Promise.all([
+      Pasta.mudouLaFora(),
+      Pasta.mudouArquivo(Pasta.ARQ_NCR_BANCO),
+      Pasta.mudouArquivo(Pasta.ARQ_NCR_WAIVER),
+      Pasta.mudouArquivo(Comunicados.ARQUIVO),
+      Pasta.mudouArquivo(Correcoes.ARQUIVO)
+    ]).then(function (r) {
+      if (r[0] || r[1] || r[2] || r[4]) sincronizar({ semRedesenhar: true });
+      /* só os comunicados mudaram: troca só eles, sem regravar os dados */
+      else if (r[3]) sincronizarComunicados();
     });
   }
 
@@ -2364,12 +6558,146 @@
     if (Pasta.ligada()) pollTimer = setInterval(pollPasta, POLL_MS);
   }
 
+  /* Voltou para a janela: confere agora, em vez de esperar até 20 s — em
+     segundo plano a conferência não rodou. Depois de uma falha, tenta
+     religar já (o limite de um minuto é para as tentativas sozinhas). */
+  function aoVoltarParaJanela() {
+    if (document.hidden || Leitura.ativo()) return;
+    conferirPublicacao();
+    if (!Pasta.ligada()) return;
+    ultimaReligada = 0;
+    setTimeout(pollPasta, 300);
+  }
+
+  /* --- "⟳ Atualizar", no editor -------------------------------------------
+     O editor não tem o relógio de 5 minutos do visualizador: com a pasta, a
+     conferência de 20 s (pollPasta) já traz o trabalho do colega, religa
+     depois de uma falha e confere ao voltar para a janela — um relógio de 5
+     minutos seria a mesma conferência, mais devagar, e o contador dele
+     zerava a cada gravação. Fica o botão, para forçar a leitura. */
+
+  var atualizandoAgora = false;
+
+  /**
+   * O clique em "⟳ Atualizar": grava aqui o que estava esperando os 500 ms,
+   * lê a pasta e junta. Nada do que foi escrito se perde — a junção é campo
+   * a campo.
+   */
+  function atualizarDaPasta() {
+    if (atualizandoAgora) return Promise.resolve(null);
+    var btn = $('#atualizarBtn');
+    atualizandoAgora = true;
+    btn.disabled = true;
+    btn.textContent = '⟳ Atualizando…';
+    var feito = function (r) {
+      atualizandoAgora = false;
+      btn.disabled = false;
+      btn.textContent = '⟳ Atualizar';
+      return r;
+    };
+    /* o clique é o gesto que o navegador exige para pedir a permissão */
+    var rodada = pastaEstado === 'permissao'
+      ? conectarPasta()
+      : flushSave().then(function () {
+          /* a gravação que o flushSave agendou para daqui a 2,5 s é esta mesma
+             rodada: ler-juntar-gravar leva tudo o que está aqui */
+          clearTimeout(gravaTimer);
+          return sincronizar({});
+        }).then(function (r) {
+          var nada = pastaEstado === 'on' && r && !(r.entraram || r.atualizados || r.removidos ||
+            r.novosRelatorios || (r.ncr && (r.ncr.entraram || r.ncr.atualizados)));
+          if (nada) toast('Tudo em dia com a pasta da equipe.');
+          return r;
+        });
+    return rodada.then(feito, function (e) { feito(null); throw e; });
+  }
+
+  /** No editor, o botão só existe com a pasta: sem ela não há o que ler. */
+  function ajustarAtualizacao() {
+    if (Leitura.ativo()) return;
+    var ligada = Pasta.suportado() && Pasta.ligada();
+    $('#atualizaBox').hidden = !ligada;
+    var btn = $('#atualizarBtn');
+    btn.classList.toggle('is-aviso', ligada && pastaEstado !== 'on' && pastaEstado !== 'sincronizando');
+    btn.title = pastaEstado === 'permissao'
+      ? 'A pasta da equipe precisa da sua permissão nesta sessão: clique para permitir e atualizar.'
+      : 'Ler a pasta da equipe agora e juntar o que os colegas gravaram. ' +
+        'Sozinho, o programa já confere a cada 20 segundos (com a janela à vista).';
+  }
+
+  /**
+   * O contador da atualização automática — só no visualizador. Fica no
+   * ⋯ Mais ("próxima em 04:32"): na barra de cima ele mudava a cada segundo
+   * e chamava a atenção à toa. A dica do botão tem a frase inteira, e a
+   * falha pinta o botão.
+   */
+  function renderContador(e) {
+    var n = $('#atualizarConta');
+    if (!n) return;
+    var curto = '', longo = '', aviso = false;
+    var falta = Atualizacao.mmss(e.falta);
+    if (!e.ligado) {
+      curto = '';
+    } else if (e.rodando) {
+      curto = 'atualizando…';
+      longo = 'Atualizando os dados agora.';
+    } else if (Leitura.ativo() && leitura.fonte && leitura.fonte.tipo === 'arquivo' && state.projects.length) {
+      curto = 'sem atualização automática';
+      longo = 'Os dados vieram de um arquivo aberto à mão: não há de onde reler sozinho. ' +
+        'O botão procura a publicação de novo.';
+    } else if (e.adiado) {
+      curto = 'em espera';
+      longo = 'A atualização venceu, mas espera: ' + e.adiado + '. Tenta de novo em alguns segundos.';
+    } else if (!e.ultima.ok) {
+      curto = 'falhou · de novo em ' + falta;
+      longo = 'A última atualização falhou; os dados à vista são os de antes, nada se perdeu. ' +
+        'Nova tentativa em ' + falta + '.';
+      aviso = true;
+    } else {
+      curto = 'próxima em ' + falta;
+      longo = 'Próxima atualização em ' + falta + '.';
+    }
+    if (n.textContent !== curto) n.textContent = curto;
+    n.classList.toggle('is-aviso', aviso);
+    $('#atualizarBtn').classList.toggle('is-aviso', aviso);
+    var quando = e.ultima.quando ? new Date(e.ultima.quando).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+    $('#atualizarBtn').title = longo + (quando ? ' Última atualização às ' + quando + '.' : '') +
+      ' A cada ' + Math.round(Config.INTERVALO_ATUALIZACAO_MS / 60000) + ' minutos os dados são conferidos sozinhos ' +
+      '(com a janela à vista; a contagem está em ⋯ Mais). Clique para conferir agora — a contagem recomeça.';
+  }
+
   /* --- interface ---------------------------------------------------------- */
 
+  /* Só para o diário: a última situação anunciada, para anunciar a troca e
+     não a repetição — "sincronizando" passa por aqui a cada 20 segundos. */
+  var pastaDita = '';
+
   function marcarPasta(estado) {
+    /* Trocar de situação é a notícia. Em especial a volta ao normal: sem uma
+       linha dizendo isso, quem viu o vermelho fica sem saber se voltou. */
+    /* "sincronizando" passa por aqui a cada 20 segundos e "off" é só "ainda
+       não escolheram pasta" — nenhum dos dois é notícia. */
+    if (estado !== 'sincronizando' && estado !== 'off') {
+      if (estado !== pastaDita) {
+        if (estado === 'on') {
+          Log.ok('pasta', pastaDita === 'permissao' || pastaDita === 'erro'
+            ? 'a pasta voltou a responder — o que ficou para trás vai agora'
+            : 'pasta funcionando normalmente');
+        } else {
+          Log.aviso('pasta', estado === 'permissao'
+            ? 'a pasta está pedindo permissão — clique em “Pasta” na barra de cima'
+            : 'a pasta parou de responder',
+            'enquanto isso durar, o que você escrever fica só neste navegador — e vai ' +
+            'inteiro para a equipe assim que a pasta voltar. Nada se perde.');
+        }
+      }
+      pastaDita = estado;
+    }
     var chip = $('#pastaChip');
     var item = $('#pastaBtn');
     if (item) item.hidden = !Pasta.suportado();
+    renderPastaNotice();
+    ajustarAtualizacao();
     if (!chip) return;
     /* a etiqueta só existe quando há pasta: sem ela não há nada a mostrar */
     chip.hidden = !Pasta.suportado() || !Pasta.ligada();
@@ -2395,17 +6723,131 @@
 
   /** Liga (ou reata) a pasta e faz a primeira rodada. Vem sempre de um clique. */
   function conectarPasta(handleNovo) {
+    /* dois pedidos ao mesmo tempo abrem duas janelas de permissão: o clique
+       no aviso e o clique solto que arma o pedido chegam quase juntos */
+    if (pedidoEmVoo) return pedidoEmVoo;
     var passo = handleNovo ? Promise.resolve('granted') : Pasta.pedirPermissao();
-    return passo.then(function (perm) {
+    pedidoEmVoo = passo.then(function (perm) {
       if (perm !== 'granted') {
         pastaEstado = 'permissao';
         marcarPasta('permissao');
+        Log.aviso('pasta', 'a permissão da pasta não foi concedida',
+          'sem ela o programa trabalha só neste navegador: nada vai para a equipe e ' +
+          'nada vem dela. Clique em “Pasta” na barra de cima e confirme na janela ' +
+          'do Windows.');
         toast('Sem permissão para abrir a pasta.');
         return null;
       }
+      Log.ok('pasta', 'pasta ligada', { nome: Pasta.nome() });
       pastaEstado = 'on';
       agendarPoll();
+      sincronizarConversas({});
+      return sincronizar({}).then(function (r) {
+        abrirMarcoInicial();
+        /* a janela costuma continuar aberta depois de escolher a pasta:
+           o histórico e o tamanho só aparecem se forem redesenhados aqui */
+        if ($('#pastaDialog').open) {
+          renderTamanhosPasta();
+          renderHistoricoPasta();
+        }
+        return r;
+      });
+    });
+    var solta = function () { pedidoEmVoo = null; };
+    pedidoEmVoo.then(solta, solta);
+    return pedidoEmVoo;
+  }
+
+  /**
+   * O aviso de cima: onde fica o banco de dados e o que falta para ligá-lo.
+   *
+   * Existe porque a permissão da pasta é a única coisa que o navegador não
+   * deixa o programa resolver sozinho — e um aviso escondido no menu vira
+   * "o programa está vazio hoje".
+   */
+  /** Há quanto tempo a pasta não responde, em palavras. */
+  function desdeUltimaTroca() {
+    if (!ultimoSucesso) return '';
+    var min = Math.floor((Date.now() - ultimoSucesso) / 60000);
+    if (min < 2) return '';
+    if (min < 60) return 'há ' + min + ' minutos';
+    var h = Math.floor(min / 60);
+    return 'há ' + h + (h === 1 ? ' hora' : ' horas');
+  }
+
+  function renderPastaNotice() {
+    var box = $('#pastaNotice');
+    if (!box) return;
+    var ligada = Pasta.ligada();
+    var desligada = ligada && (pastaEstado === 'erro' || pastaEstado === 'permissao');
+    /* "Agora não" cala o convite para escolher a pasta — nunca o alarme de
+       que ela parou de responder. Trabalhar horas sem saber que ninguém está
+       vendo o que você escreve é exatamente o que dá errado depois. */
+    if (!Pasta.suportado() || (ligada && pastaEstado === 'on') ||
+        (pastaNoticeFechado && !desligada)) {
+      box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+    box.classList.toggle('notice--parada', !!desligada);
+    var tempo = desdeUltimaTroca();
+    $('#pastaNoticeText').textContent = desligada
+      ? 'O programa não está trocando dados com a pasta da equipe' +
+        (tempo ? ' ' + tempo : '') + '. O seu trabalho continua salvo neste ' +
+        'computador, mas ninguém mais o está vendo — e quanto mais tempo assim, ' +
+        'maior a chance de alguém escrever no mesmo campo que você.'
+      : 'O banco de dados da equipe fica nesta pasta. Escolha-a uma vez: ' +
+        'daí em diante o programa reabre sozinho, sem perguntar o caminho de novo.';
+    $('#pastaNoticePath').textContent = desligada ? '' : (pastaCaminho || Store.CAMINHO_PADRAO);
+    $('#pastaNoticePath').hidden = desligada;
+    $('#pastaNoticeCopy').hidden = desligada;
+    $('#pastaNoticeDismiss').hidden = desligada;
+    $('#pastaNoticeBtn').textContent = desligada ? 'Religar a pasta agora' : 'Escolher a pasta…';
+  }
+
+  /**
+   * A permissão só pode ser pedida dentro de um gesto do usuário. Em vez de
+   * deixar o aviso esperando um clique no lugar certo, o primeiro clique em
+   * qualquer lugar serve — é o que faz a pasta voltar sozinha ao abrir.
+   *
+   * Vale por pouco tempo e uma vez só: passar do tempo é sinal de que a
+   * pessoa já está trabalhando, e aí a janela do navegador roubando o foco
+   * atrapalharia mais do que ajudaria. O aviso continua no alto.
+   */
+  var JANELA_PEDIDO = 120000;
+  function pedirPermissaoNoPrimeiroGesto() {
+    var ate = Date.now() + JANELA_PEDIDO;
+    function tentar() {
+      document.removeEventListener('click', tentar, true);
+      if (pastaEstado === 'on' || !Pasta.ligada()) return;
+      if (Date.now() > ate) return;
+      conectarPasta().then(function () {
+        if (pastaEstado === 'on') toast('Pasta de dados aberta. Sincronizando…', 3000);
+      });
+    }
+    document.addEventListener('click', tentar, true);
+  }
+
+  /**
+   * A janela do Windows. É o único caminho: nenhum navegador abre uma pasta
+   * por texto, nem com o caminho na mão — a escolha tem de ser da pessoa.
+   * O caminho combinado fica à vista (e copiável) para ela colar lá.
+   */
+  function escolherPasta() {
+    return Pasta.escolher().then(function () {
+      pastaEstado = 'on';
+      marcarPasta('on');
+      agendarPoll();
       return sincronizar({});
+    }).then(function (r) {
+      if (r === null) return;
+      abrirMarcoInicial();
+      if ($('#pastaDialog').open) $('#pastaDialog').close();
+      toast('Pasta ligada: "' + Pasta.nome() + '". A partir de agora tudo vai e vem de lá.');
+    }).catch(function (e) {
+      if (e && e.name === 'AbortError') return;      /* desistiu na janela */
+      markError(e);
+      toast(e.message || 'Não foi possível abrir a pasta.');
     });
   }
 
@@ -2425,8 +6867,34 @@
     $('#pastaEstadoLinha').dataset.estado = Pasta.ligada() ? pastaEstado : 'off';
     $('#pastaEscolherBtn').textContent = Pasta.ligada() ? 'Trocar de pasta…' : 'Escolher a pasta…';
     $('#pastaEscolherBtn').disabled = !Pasta.suportado();
+    renderTamanhosPasta();
     renderHistoricoPasta();
     dlg.showModal();
+  }
+
+  function mb(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  /* Quanto a pasta está ocupando. Saber disso antes é melhor do que
+     descobrir quando a rede começar a arrastar. */
+  function renderTamanhosPasta() {
+    var linha = $('#pastaTamanhos');
+    if (!Pasta.ligada() || pastaEstado !== 'on') { linha.hidden = true; return; }
+    linha.hidden = false;
+    linha.textContent = 'Somando os arquivos…';
+    Pasta.tamanhos().then(function (t) {
+      if (!t) { linha.hidden = true; return; }
+      linha.textContent = 'Ocupando ' + mb(t.total) + ' na pasta: ' +
+        mb(t.dados) + ' de dados, ' +
+        mb(t.imagens) + ' em ' + t.fotos + ' imagem(ns), ' +
+        mb(t.historico) + ' em ' + t.versoes + ' versão(ões) do histórico.' +
+        (versaoDesatualizada
+          ? ' Só leitura: os dados foram gravados por uma versão mais nova do programa.'
+          : '');
+    }).catch(function () { linha.hidden = true; });
   }
 
   function renderHistoricoPasta() {
@@ -2463,6 +6931,9 @@
       'Só volta o que não existe mais aqui. Nada do que está em uso agora é ' +
       'apagado nem substituído.')) return;
     Pasta.lerHistorico(v.arquivo).then(function (dados) {
+      /* a versão guarda só o nome das imagens: o conteúdo vem dos arquivos */
+      return hidratarImagens(dados);
+    }).then(function (dados) {
       return Store.saveSnapshot(state.projects, 'antes de restaurar ' + v.quando)
         .then(function () {
           var resumo = Store.reviver(state.projects, dados.projects || []);
@@ -2488,18 +6959,1153 @@
   /* inicialização                                                          */
   /* ---------------------------------------------------------------------- */
 
+  /* ---------------------------------------------------------------------- */
+  /* publicação para os visualizadores (editor)                              */
+  /* ---------------------------------------------------------------------- */
+
+  /* O visualizador é este programa em modo leitura, num arquivo à parte, que
+     lê o `visualizador-dados.js` publicado aqui (publicacao.js). A pasta onde
+     ele fica é outra, com crachá próprio (`Pasta.publicacao`): em geral quem
+     só visualiza nem enxerga a pasta do banco. */
+  var PUB_AUTO_KEY = 'derrogacao:publicarAuto';
+  var pubEstado = 'off';          // 'off' | 'permissao' | 'on' | 'erro'
+  var pubUltimoConteudo = '';     // o que foi publicado por último, para não regravar igual
+  var pubUltimaVez = 0;
+  var pubTimer = null;
+  var publicando = false;
+
+  function pubAuto() {
+    try { return localStorage.getItem(PUB_AUTO_KEY) === '1'; } catch (e) { return false; }
+  }
+  function setPubAuto(on) {
+    try { localStorage.setItem(PUB_AUTO_KEY, on ? '1' : '0'); } catch (e) { /* ignora */ }
+  }
+
+  function contagemPublicada(projects) {
+    var itens = projects.reduce(function (a, p) { return a + p.ncrs.length + p.devs.length; }, 0);
+    return projects.length + ' marco(s), ' + itens + ' item(ns)';
+  }
+
+  /**
+   * O conteúdo a publicar, com as imagens embutidas. Na pasta do banco cada
+   * foto mora num arquivo próprio e pode ainda não ter sido lida para a
+   * memória; o visualizador não enxerga aquela pasta, então as que faltam
+   * são lidas agora (`hidratarImagens`, numa cópia — o estado não muda).
+   */
+  function montarPublicacao() {
+    var copia = { projects: JSON.parse(JSON.stringify(state.projects)) };
+    var pronto = Pasta.ligada() && pastaEstado === 'on'
+      ? hidratarImagens(copia).catch(function () { return copia; })
+      : Promise.resolve(copia);
+    return pronto.then(function () {
+      var payload = Publicacao.montar(copia.projects, Store.getUser(), Ncrs.paraBackup(), comunicados);
+      var faltam = Publicacao.imagensSemConteudo(payload);
+      if (faltam) {
+        Log.aviso('publicação', faltam + ' imagem(ns) sem o conteúdo na publicação',
+          'o arquivo da imagem ainda não chegou da pasta. A página de evidência sai sem ela ' +
+          'no visualizador até a próxima publicação.', { imagens: faltam });
+      }
+      return payload;
+    });
+  }
+
+  /**
+   * Grava o arquivo do visualizador na pasta dos visualizadores.
+   * Com a pasta do banco ligada, sincroniza antes: o que se publica é o
+   * trabalho de todos, não só o deste navegador.
+   *
+   * @param opts.auto  chamada automática: silenciosa, e não regrava se nada mudou
+   * @param opts.silencioso  sem o aviso de "publicado" (quem chamou dá o seu)
+   */
+  function publicar(opts) {
+    opts = opts || {};
+    if (Leitura.ativo()) return Promise.resolve(false);
+    if (!Pasta.publicacao.ligada() || pubEstado !== 'on') return Promise.resolve(false);
+    if (publicando) return Promise.resolve(false);
+    publicando = true;
+    var antes = (Pasta.ligada() && pastaEstado === 'on' && !opts.auto)
+      ? sincronizar({ silencioso: true })
+      : Promise.resolve();
+    return antes.then(function () {
+      var conteudo = Publicacao.conteudo(state.projects, Ncrs.paraBackup(), comunicados);
+      if (opts.auto && conteudo === pubUltimoConteudo) return false;
+      return montarPublicacao().then(function (payload) {
+        return Pasta.publicacao.gravarTexto(Publicacao.ARQUIVO, Publicacao.texto(payload)).then(function () {
+          pubUltimoConteudo = conteudo;
+          pubUltimaVez = Date.now();
+          Log.ok('publicação', 'publicado para os visualizadores', {
+            relatorios: payload.projects.length, automatico: !!opts.auto
+          });
+          renderPublicar();
+          if (!opts.auto && !opts.silencioso) toast('Publicado para os visualizadores: ' + contagemPublicada(payload.projects) + '.');
+          return true;
+        });
+      });
+    }).catch(function (e) {
+      pubEstado = (e && e.name === 'NotAllowedError') ? 'permissao' : 'erro';
+      renderPublicar();
+      Log.erro('publicação', 'não consegui gravar na pasta dos visualizadores', e,
+        Pasta.explicar(e) + ' Os visualizadores continuam vendo a publicação anterior.');
+      if (!opts.auto && !opts.silencioso) toast('Não foi possível gravar na pasta dos visualizadores.');
+      return false;
+    }).then(function (r) { publicando = false; return r; });
+  }
+
+  /* Publicação automática: depois de cada gravação, no máximo uma vez por
+     intervalo. O temporizador garante que a última mudança não fique para
+     trás quando ela cai dentro do intervalo. */
+  function agendarPublicacao() {
+    if (Leitura.ativo()) return;
+    if (!pubAuto() || !Pasta.publicacao.ligada() || pubEstado !== 'on') return;
+    if (pubTimer) return;
+    var espera = Math.max(0, Publicacao.INTERVALO_MS - (Date.now() - pubUltimaVez));
+    pubTimer = setTimeout(function () {
+      pubTimer = null;
+      publicar({ auto: true });
+    }, Math.max(espera, 1500));
+  }
+
+  /** Baixa o arquivo, para copiar à mão (navegador sem a API, ou sem pasta). */
+  function baixarPublicacao() {
+    montarPublicacao().then(function (payload) {
+      download(new Blob([Publicacao.texto(payload)], { type: 'text/javascript;charset=utf-8' }),
+        Publicacao.ARQUIVO);
+      toast('Arquivo baixado. Copie-o para a pasta dos dados do visualizador, substituindo o anterior.', 6000);
+    });
+  }
+
+  /* O aviso de "pasta do visualizador desligada". Pedido do Bruno: o editor
+     fica sempre ligado a ela e, quando não está (nunca escolhida, sem
+     permissão nesta sessão, ou parou de responder), pede confirmação para
+     conectar. "Agora não" cala só esta queda: a próxima pergunta de novo. */
+  var pubAvisoCalado = '';
+
+  function renderPubNotice() {
+    var box = $('#pubNotice');
+    if (!box || Leitura.ativo()) return;
+    if (pubEstado === 'on') pubAvisoCalado = '';
+    if (!Pasta.suportado() || pubEstado === 'on' || pubAvisoCalado === pubEstado) {
+      box.hidden = true;
+      return;
+    }
+    var caminho = String(Config.PASTA_VISUALIZADOR || '').trim();
+    var ligada = Pasta.publicacao.ligada();
+    box.hidden = false;
+    box.classList.toggle('notice--parada', ligada);
+    $('#pubNoticeText').textContent = !ligada
+      ? 'O editor não está ligado à pasta do visualizador: o que você faz aqui não chega a quem usa o ' +
+        'visualizador. Escolha a pasta uma vez' + (caminho ? ':' : '.')
+      : pubEstado === 'permissao'
+        ? 'A pasta do visualizador precisa da sua confirmação para receber as publicações nesta sessão.'
+        : 'A pasta do visualizador parou de responder. Os visualizadores continuam vendo a última publicação.';
+    $('#pubNoticePath').textContent = caminho;
+    $('#pubNoticePath').hidden = ligada || !caminho;
+    $('#pubNoticeCopy').hidden = ligada || !caminho;
+    $('#pubNoticeBtn').textContent = !ligada ? 'Escolher a pasta…' : 'Conectar agora';
+  }
+
+  /** O botão do aviso: escolher a pasta (primeira vez) ou reconectar. Vem de um clique. */
+  function conectarPelaNotice() {
+    if (!Pasta.publicacao.ligada()) {
+      Pasta.publicacao.escolher().then(function () {
+        pubEstado = 'on';
+        renderPublicar();
+        return publicar({});
+      }).catch(function (e) {
+        if (e && e.name === 'AbortError') return;
+        markError(e);
+        toast(e.message || 'Não foi possível abrir a pasta.');
+      });
+      return;
+    }
+    conectarPublicacao().then(function (ok) {
+      if (ok) {
+        toast('Pasta do visualizador conectada.');
+        publicar({ auto: true });
+      }
+    });
+  }
+
+  /* A pasta do visualizador caiu enquanto a janela estava fora? Ao voltar,
+     confere a permissão — é o que faz o aviso aparecer na hora. */
+  function conferirPublicacao() {
+    if (Leitura.ativo() || !Pasta.suportado() || !Pasta.publicacao.ligada()) return;
+    Pasta.publicacao.estadoPermissao().then(function (perm) {
+      var novo = perm === 'granted' ? (pubEstado === 'erro' ? 'erro' : 'on') : 'permissao';
+      if (novo !== pubEstado) { pubEstado = novo; renderPublicar(); }
+    }).catch(function () {});
+  }
+
+  function renderPublicar() {
+    renderPubNotice();
+    var sub = $('#publicarBtnSub');
+    var chip = $('#pubChip');
+    var ligada = Pasta.publicacao.ligada();
+    chip.hidden = !(pubAuto() && ligada && pubEstado === 'permissao');
+    sub.textContent = !ligada
+      ? 'o arquivo que o visualizador (só leitura) lê'
+      : pubEstado === 'on'
+        ? 'pasta "' + Pasta.publicacao.nome() + '"' + (pubAuto() ? ' · automático' : '')
+        : 'precisa de permissão — clique';
+    var dlg = $('#publicarDialog');
+    if (!dlg.open) return;
+
+    var suporta = Pasta.suportado();
+    $('#publicarPastaNome').textContent = ligada ? Pasta.publicacao.nome() : '—';
+    $('#publicarEscolherBtn').textContent = ligada ? 'Trocar de pasta…' : 'Escolher a pasta…';
+    $('#publicarEscolherBtn').disabled = !suporta;
+    $('#publicarDesligarBtn').hidden = !ligada;
+    $('#publicarPermitirBtn').hidden = !(ligada && pubEstado !== 'on');
+    $('#publicarAgoraBtn').disabled = !(ligada && pubEstado === 'on');
+    $('#publicarAuto').checked = pubAuto();
+    $('#publicarAuto').disabled = !ligada;
+    var linha = $('#publicarEstado');
+    linha.dataset.estado = ligada ? pubEstado : 'off';
+    linha.textContent = !suporta
+      ? 'Este navegador não grava em pastas. Use “Baixar o arquivo” e copie-o à mão — ou use o Edge ou o Chrome.'
+      : !ligada
+        ? 'Nenhuma pasta escolhida. Escolha a pasta dos dados do visualizador, ou baixe o arquivo e copie à mão.'
+        : pubEstado === 'on'
+          ? 'Ligado à pasta "' + Pasta.publicacao.nome() + '".'
+          : 'A pasta está escolhida, mas o navegador ainda não liberou a gravação nesta sessão.';
+
+    /* o que os visualizadores estão vendo agora: lido do próprio arquivo */
+    var visto = $('#publicarVisto');
+    visto.textContent = '';
+    if (ligada && pubEstado === 'on') {
+      Pasta.publicacao.inicio(Publicacao.ARQUIVO, 2048).then(function (ini) {
+        var cab = ini ? Publicacao.cabecalho(ini) : null;
+        visto.textContent = cab
+          ? 'Os visualizadores estão vendo a publicação de ' + shortDate(cab.quando) +
+            (cab.quem ? ', por ' + cab.quem : '') + '.'
+          : 'Ainda não há publicação nesta pasta.';
+      });
+    }
+  }
+
+  function abrirPublicarDialog() {
+    $('#publicarDialog').showModal();
+    renderPublicar();
+  }
+
+  /** Reata a pasta dos visualizadores. Vem sempre de um clique. */
+  function conectarPublicacao() {
+    return Pasta.publicacao.pedirPermissao().then(function (perm) {
+      pubEstado = perm === 'granted' ? 'on' : 'permissao';
+      renderPublicar();
+      if (pubEstado === 'on') agendarPublicacao();
+      else toast('Sem permissão para gravar na pasta dos visualizadores.');
+      return pubEstado === 'on';
+    });
+  }
+
+  function iniciarPublicacao() {
+    renderPublicar();
+    if (!Pasta.suportado()) return Promise.resolve();
+    return Pasta.publicacao.retomar().then(function (h) {
+      if (!h) { pubEstado = 'off'; renderPublicar(); return; }
+      return Pasta.publicacao.estadoPermissao().then(function (perm) {
+        pubEstado = perm === 'granted' ? 'on' : 'permissao';
+        renderPublicar();
+        if (pubEstado === 'on') agendarPublicacao();
+      });
+    }).catch(function (e) {
+      Log.aviso('publicação', 'a pasta dos visualizadores não pôde ser retomada',
+        'escolha a pasta de novo em ⋯ Mais → Publicar para visualizadores.', { erro: e && e.name });
+      pubEstado = 'erro';
+      renderPublicar();
+    });
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* comunicados — avisos do editor para o visualizador (comunicados.js)     */
+  /* ---------------------------------------------------------------------- */
+
+  /* Nem toda edição vira aviso: salvar continua automático, e o comunicado
+     é uma ação a mais, explícita — o botão 📣, a prévia, "Publicar
+     comunicado". No editor a lista é a desta máquina junto com a da pasta
+     (comunicados.json); no visualizador, a que veio na publicação. */
+
+  var comunicados = [];
+  var sincronizandoComunicados = false;
+  var comunicadosPendente = false;   /* pediram uma troca enquanto outra corria */
+  var comunicarAlvo = null;          /* a janela de prévia aberta: { proposta, origem, tipos, statusAntes } */
+  var comAdiados = {};               /* visualizador: "Depois" — voltam na próxima abertura */
+  var situacaoAnterior = {};         /* id do item → { antes, depois }: a última troca desta sessão */
+
+  /** Anota a troca de situação, para a prévia dizer "antes: …" mesmo pelo botão da barra. */
+  function anotarTroca(item, antes) {
+    situacaoAnterior[item.id] = { antes: antes, depois: item.status };
+  }
+
+  /** A situação de antes da última troca, se o item ainda está onde a troca o deixou. */
+  function situacaoDeAntes(item) {
+    var t = situacaoAnterior[item.id];
+    return t && t.depois === item.status ? t.antes : '';
+  }
+
+  /** A proposta para o item aberto, pelo botão: o aceito primeiro, se houver. */
+  function propostaDoItem(project, kind, item) {
+    var t = Comunicados.tiposDoItem(project, kind, item);
+    if (!t.length) return null;
+    return Comunicados.doItem(project, kind, item,
+      t.indexOf('waiver-aceito') >= 0 ? 'waiver-aceito' : t[0], situacaoDeAntes(item));
+  }
+
+  /** O último comunicado de qualquer acontecimento deste item, ou null. */
+  function ultimoComunicadoDoItem(project, kind, item) {
+    var achado = null;
+    Comunicados.tiposDoItem(project, kind, item).forEach(function (t) {
+      var c = Comunicados.jaComunicado(comunicados, Comunicados.doItem(project, kind, item, t));
+      if (c && (!achado || c.em > achado.em)) achado = c;
+    });
+    return achado;
+  }
+
+  /**
+   * O botão "📣 Comunicar" que vai no aviso logo depois de uma mudança que
+   * pode ser comunicada — ou null. A proposta é refeita no clique: o que se
+   * comunica é o item como está naquele instante.
+   */
+  function ofertaDoItem(project, kind, item, tipo, statusAntes) {
+    if (Leitura.ativo() || !Comunicados.doItem(project, kind, item, tipo, statusAntes)) return null;
+    return {
+      rotulo: '📣 Comunicar',
+      fn: function () {
+        abrirComunicar(Comunicados.doItem(project, kind, item, tipo, statusAntes),
+          { project: project, kind: kind, item: item });
+      }
+    };
+  }
+
+  function ofertaDaNcr(rec) {
+    if (Leitura.ativo() || !Comunicados.daNcr(rec)) return null;
+    return {
+      rotulo: '📣 Comunicar',
+      fn: function () { abrirComunicar(Comunicados.daNcr(rec), { rec: rec }); }
+    };
+  }
+
+  /* --- a janela de prévia (editor) --------------------------------------- */
+
+  function abrirComunicar(proposta, origem) {
+    if (Leitura.ativo()) return;   /* visualizador: não cria comunicado */
+    if (!proposta) {
+      toast('Isto não pode mais ser comunicado: confira o marco, o número e a situação.', 6000);
+      return;
+    }
+    if (!Store.getUser()) {
+      openUserDialog(function () { abrirComunicar(proposta, origem); });
+      toast('Informe o seu nome — é ele que assina o comunicado.');
+      return;
+    }
+    comunicarAlvo = {
+      proposta: proposta,
+      origem: origem || {},
+      statusAntes: proposta.statusAntes,
+      tipos: origem && origem.rec ? ['nova-ncr']
+        : Comunicados.tiposDoItem(origem.project, origem.kind, origem.item)
+    };
+    $('#comunicarMsg').value = '';
+    renderComunicar();
+    $('#comunicarDialog').showModal();
+    $('#comunicarMsg').focus();
+  }
+
+  function trocarTipoComunicar(tipo) {
+    var a = comunicarAlvo;
+    if (!a || !a.origem.item) return;
+    var p = Comunicados.doItem(a.origem.project, a.origem.kind, a.origem.item, tipo, a.statusAntes);
+    if (p) a.proposta = p;
+    renderComunicar();
+  }
+
+  function onde(c) {
+    return c.tipo === 'nova-ncr' ? 'Banco NCR' : (c.kind === 'dev' ? 'Waiver DEV' : 'Waiver NCR');
+  }
+
+  function renderComunicar() {
+    var a = comunicarAlvo;
+    if (!a) return;
+    var p = a.proposta;
+
+    var tipos = $('#comunicarTipos');
+    tipos.innerHTML = '';
+    tipos.hidden = a.tipos.length < 2;
+    if (a.tipos.length > 1) {
+      tipos.appendChild(el('legend', null, 'O que comunicar'));
+      a.tipos.forEach(function (t) {
+        var lab = el('label', 'com-tipo');
+        var r = document.createElement('input');
+        r.type = 'radio';
+        r.name = 'comunicarTipo';
+        r.value = t;
+        r.checked = t === p.tipo;
+        r.addEventListener('change', function () { if (r.checked) trocarTipoComunicar(t); });
+        lab.appendChild(r);
+        lab.appendChild(document.createTextNode(' ' + Comunicados.rotulo(t)));
+        tipos.appendChild(lab);
+      });
+    }
+
+    var msg = $('#comunicarMsg').value;
+    var previa = Comunicados.criar(p, msg, Store.getUser());
+    var box = $('#comunicarPrevia');
+    box.innerHTML = '';
+    box.appendChild(cartaoComunicado(previa, {}));
+
+    var dl = $('#comunicarCampos');
+    dl.innerHTML = '';
+    var situacao = p.tipo === 'nova-ncr' ? '—'
+      : Store.statusInfo(p.statusNovo).nome +
+        (p.statusAntes && p.statusAntes !== p.statusNovo
+          ? ' (antes: ' + Store.statusInfo(p.statusAntes).nome + ')' : '');
+    [['Tipo', Comunicados.rotulo(p.tipo)],
+     ['Marco', p.marco],
+     ['Número', p.numero + ' · ' + onde(p)],
+     ['Situação nova', situacao],
+     ['Título', p.resumo || '—'],
+     ['Autor', Store.getUser()],
+     ['Data e hora', 'ao publicar — agora são ' + shortDate(previa.em)]
+    ].forEach(function (l) {
+      dl.appendChild(el('dt', null, l[0]));
+      dl.appendChild(el('dd', null, l[1]));
+    });
+
+    $('#comunicarConta').textContent = msg.length + ' / ' + Comunicados.MAX_MENSAGEM;
+
+    var ja = Comunicados.jaComunicado(comunicados, p);
+    var aviso = $('#comunicarJa');
+    aviso.hidden = !ja;
+    aviso.textContent = ja
+      ? 'Este acontecimento já foi comunicado em ' + shortDate(ja.em) + (ja.autor ? ' por ' + ja.autor : '') +
+        '. Publicar de novo faz o pop-up aparecer outra vez para todos os visualizadores.'
+      : '';
+    $('#comunicarOk').textContent = ja ? '📣 Comunicar de novo' : '📣 Publicar comunicado';
+
+    var pasta = Pasta.ligada() && pastaEstado === 'on';
+    var pub = Pasta.publicacao.ligada() && pubEstado === 'on';
+    $('#comunicarDestino').textContent =
+      (pasta ? 'Vai para a pasta da equipe (' + Comunicados.ARQUIVO + '), junto com os dos colegas. '
+             : 'Sem a pasta da equipe, fica neste navegador até ela ser ligada. ') +
+      (pub ? 'E é publicado agora para os visualizadores: eles veem na próxima leitura (até 5 minutos).'
+           : 'Os visualizadores recebem na próxima publicação (⋯ Mais → Publicar para visualizadores).');
+  }
+
+  /** O clique em "Publicar comunicado": é aqui, e só aqui, que um comunicado nasce. */
+  function publicarComunicado() {
+    var a = comunicarAlvo;
+    if (!a || Leitura.ativo()) return;
+    var c = Comunicados.criar(a.proposta, $('#comunicarMsg').value, Store.getUser());
+    comunicados = Comunicados.juntar([c], comunicados);
+    Comunicados.gravarLocais(comunicados);
+    comunicarAlvo = null;
+    $('#comunicarDialog').close();
+    /* só o tipo, o marco e o id: o número e a mensagem ficam fora do diário */
+    Log.ok('comunicados', 'comunicado criado', { tipo: c.tipo, marco: c.marco, id: c.id });
+    var btn = $('#comunicarItemBtn');
+    if (btn) btn.title = 'Publicar um comunicado sobre este item para quem usa o visualizador\n' +
+      'Último: ' + Comunicados.rotulo(c.tipo) + ', em ' + shortDate(c.em) + ' por ' + c.autor;
+    renderComunicadosDialog();
+
+    sincronizarComunicados({}).then(function (r) {
+      var pub = Pasta.publicacao.ligada() && pubEstado === 'on';
+      if (pub) {
+        return publicar({ silencioso: true }).then(function (ok) {
+          toast(ok ? '📣 Comunicado publicado. Os visualizadores veem na próxima leitura (até 5 minutos).'
+                   : '📣 Comunicado guardado, mas a publicação falhou — veja ⋯ Mais → Publicar para visualizadores.',
+            7000);
+        });
+      }
+      toast('📣 Comunicado guardado' + (r === 'ok' ? ' na pasta da equipe' : ' neste navegador') +
+        '. Ele chega aos visualizadores na próxima publicação.', 9000,
+        { rotulo: 'Publicar…', fn: abrirPublicarDialog });
+    });
+  }
+
+  /**
+   * Troca os comunicados com a pasta: lê, junta pelo id, grava se aqui há
+   * algum que lá não há. Resolve 'ok', 'sem-pasta', 'erro' ou 'na-fila'.
+   * Nunca derruba a gravação dos dados: o comunicado já está guardado neste
+   * navegador antes desta tentativa, e vai na próxima.
+   */
+  function sincronizarComunicados() {
+    if (Leitura.ativo()) return Promise.resolve('leitura');
+    if (!Pasta.ligada() || pastaEstado !== 'on') return Promise.resolve('sem-pasta');
+    if (sincronizandoComunicados) { comunicadosPendente = true; return Promise.resolve('na-fila'); }
+    sincronizandoComunicados = true;
+    var ids = {};
+    comunicados.forEach(function (c) { ids[c.id] = true; });
+    var chegaram = false;
+    return Pasta.lerArquivo(Comunicados.ARQUIVO)
+      .then(function (r) {
+        var remotos = Comunicados.deArquivo(r.dados);
+        comunicados = Comunicados.juntar(comunicados, remotos);
+        chegaram = comunicados.some(function (c) { return !ids[c.id]; });
+        Comunicados.gravarLocais(comunicados);
+        /* página velha diante de dados novos, ou arquivo de uma versão mais
+           nova: lê, não regrava */
+        if (versaoDesatualizada) return false;
+        if (r.dados && Number(r.dados.schema) > Comunicados.SCHEMA) return false;
+        if (!Comunicados.faltamLa(comunicados, remotos)) return false;
+        return Pasta.gravarArquivo(Comunicados.ARQUIVO, Comunicados.envelope(comunicados));
+      })
+      .then(function () {
+        if (chegaram) {
+          renderComunicadosDialog();
+          /* o que se publica leva os comunicados de todos */
+          agendarPublicacao();
+        }
+        return 'ok';
+      }, function (e) {
+        Log.aviso('comunicados', 'os comunicados não foram trocados com a pasta desta vez',
+          Pasta.explicar(e) + ' Os daqui continuam guardados neste navegador e vão na ' +
+          'próxima sincronização.', { erro: e && e.name });
+        return 'erro';
+      })
+      .then(function (r) {
+        sincronizandoComunicados = false;
+        if (comunicadosPendente) {
+          comunicadosPendente = false;
+          setTimeout(sincronizarComunicados, 0);
+        }
+        return r;
+      });
+  }
+
+  /* --- o cartão, o pop-up e o histórico ----------------------------------- */
+
+  /**
+   * Um comunicado como se lê: a frase, o título curto, a mensagem, quem e
+   * quando. `opts.abrir` acrescenta "Abrir waiver"/"Ver NCR"; `opts.novo`
+   * marca o não lido.
+   */
+  function cartaoComunicado(c, opts) {
+    opts = opts || {};
+    var box = el('div', 'com-cartao');
+    var topo = el('div', 'com-topo');
+    topo.appendChild(el('span', 'com-tipo-tag com-tipo-tag--' + c.tipo, Comunicados.rotulo(c.tipo)));
+    if (opts.novo) topo.appendChild(el('span', 'com-novo', 'novo'));
+    box.appendChild(topo);
+    box.appendChild(el('p', 'com-frase', Comunicados.frase(c)));
+    if (c.resumo) box.appendChild(el('p', 'com-resumo', c.resumo));
+    if (c.mensagem) {
+      /* o recado de quem comunicou é o que a frase padrão não diz: vai em
+         bloco próprio, em negrito e com o nome, para não passar batido */
+      var msg = el('div', 'com-msg');
+      msg.appendChild(el('span', 'com-msg-rot', 'Mensagem' + (c.autor ? ' de ' + c.autor : '')));
+      msg.appendChild(el('p', 'com-msg-texto', c.mensagem));
+      box.appendChild(msg);
+    }
+    var pe = el('div', 'com-pe');
+    pe.appendChild(el('span', 'com-meta', (c.autor || 'sem nome') + ' · ' + shortDate(c.em)));
+    if (opts.abrir) {
+      var b = el('button', 'btn btn--sm com-abrir', c.tipo === 'nova-ncr' ? 'Ver NCR' : 'Abrir waiver');
+      b.type = 'button';
+      b.setAttribute('data-mostra', '');
+      b.addEventListener('click', function () { opts.abrir(c); });
+      pe.appendChild(b);
+    }
+    box.appendChild(pe);
+    return box;
+  }
+
+  /** Leva ao item do comunicado. Resolve false (com aviso) se ele não está aqui. */
+  function abrirDoComunicado(c) {
+    if (c.tipo === 'nova-ncr') {
+      var rec = Ncrs.get(c.ncrKey) || Ncrs.get(c.numero);
+      if (!rec) { toast('A NCR ' + c.numero + ' não está no banco NCR ' + (Leitura.ativo() ? 'publicado.' : 'deste navegador.')); return false; }
+      if ($('#comunicadosDialog').open) $('#comunicadosDialog').close();
+      switchKind('banco');
+      NcrView.abrirFicha(rec.key);
+      return true;
+    }
+    var chaveMarco = Config.chaveMarco(c.marco);
+    var p = state.projects.filter(function (x) { return x.id === c.projetoId; })[0] ||
+      state.projects.filter(function (x) {
+        return Config.chaveMarco(Report.marcoOf(x, c.kind)) === chaveMarco;
+      })[0];
+    var num = Store.numeroChave({ ncrId: c.numero });
+    var lista = p ? p[Store.itemsKey(c.kind)] : [];
+    var it = lista.filter(function (n) { return n.id === c.itemId; })[0] ||
+      lista.filter(function (n) { return Store.numeroChave(n) === num; })[0];
+    if (!it) {
+      toast('A ' + c.numero + ' não está no relatório do ' + c.marco +
+        (Leitura.ativo() ? ' desta publicação.' : ' neste navegador.'), 6000);
+      return false;
+    }
+    if ($('#comunicadosDialog').open) $('#comunicadosDialog').close();
+    abrirDaTabela({ projetoId: p.id, kind: c.kind, item: it, marco: Report.marcoOf(p, c.kind) || p.name });
+    return true;
+  }
+
+  /* Visualizador: os que ainda não foram lidos neste navegador. */
+  function comunicadosNaoLidos() {
+    return Leitura.ativo() ? Comunicados.naoLidos(comunicados) : [];
+  }
+
+  /** Chegou a publicação (abertura, ciclo de 5 min, botão Atualizar, arquivo à mão). */
+  function receberComunicados(lista) {
+    comunicados = Comunicados.juntar(lista || [], []);
+    renderComChip();
+    renderComunicadosDialog();
+    renderComPop();
+  }
+
+  function marcarComunicadosLidos(ids) {
+    Comunicados.marcarLidos(ids);
+    renderComChip();
+    renderComunicadosDialog();
+    renderComPop();
+  }
+
+  function renderComChip() {
+    var chip = $('#comChip');
+    if (!Leitura.ativo()) { chip.hidden = true; return; }
+    var n = comunicadosNaoLidos().length;
+    chip.hidden = !comunicados.length;
+    chip.classList.toggle('com-chip--novo', n > 0);
+    $('#comChipConta').textContent = n ? String(n) : '';
+    chip.title = n
+      ? n + ' comunicado(s) ainda não lido(s). Clique para ver.'
+      : 'Comunicados da equipe — nenhum novo. Clique para ver o histórico.';
+    chip.setAttribute('aria-label', n ? 'Comunicados: ' + n + ' não lido(s)' : 'Comunicados');
+  }
+
+  /**
+   * O pop-up do visualizador: discreto, no canto, sem tomar o foco. Vários de
+   * uma vez viram uma lista só, nunca pop-ups empilhados. Some com "Depois"
+   * (volta na próxima abertura) ou quando tudo foi lido.
+   */
+  function renderComPop() {
+    var pop = $('#comPop');
+    var novos = comunicadosNaoLidos().filter(function (c) { return !comAdiados[c.id]; });
+    pop.innerHTML = '';
+    if (!novos.length) { pop.hidden = true; return; }
+
+    function depois() {
+      novos.forEach(function (c) { comAdiados[c.id] = true; });
+      renderComPop();
+    }
+    function abrir(c) {
+      if (abrirDoComunicado(c)) marcarComunicadosLidos([c.id]);
+    }
+
+    var cab = el('div', 'com-pop-cab');
+    cab.appendChild(el('strong', 'com-pop-tit', novos.length === 1
+      ? '📣 Comunicado · ' + novos[0].marco
+      : '📣 ' + novos.length + ' comunicados novos'));
+    var x = el('button', 'com-pop-x', '✕');
+    x.type = 'button';
+    x.title = 'Depois: fecha agora e volta na próxima abertura';
+    x.setAttribute('aria-label', 'Fechar — ver depois');
+    x.addEventListener('click', depois);
+    cab.appendChild(x);
+    pop.appendChild(cab);
+
+    var lista = el('div', 'com-pop-lista');
+    novos.forEach(function (c) {
+      lista.appendChild(cartaoComunicado(c, { abrir: abrir }));
+    });
+    pop.appendChild(lista);
+
+    var acoes = el('div', 'com-pop-acoes');
+    var lido = el('button', 'btn btn--sm btn--accent',
+      novos.length === 1 ? 'Marcar como lido' : 'Marcar todos como lidos');
+    lido.type = 'button';
+    lido.addEventListener('click', function () {
+      marcarComunicadosLidos(novos.map(function (c) { return c.id; }));
+    });
+    acoes.appendChild(lido);
+    if (novos.length > 1) {
+      var hist = el('button', 'btn btn--sm', 'Ver histórico');
+      hist.type = 'button';
+      hist.addEventListener('click', abrirComunicadosDialog);
+      acoes.appendChild(hist);
+    }
+    var dep = el('button', 'btn btn--sm btn--quiet', 'Depois');
+    dep.type = 'button';
+    dep.title = 'Fecha agora e volta na próxima abertura';
+    dep.addEventListener('click', depois);
+    acoes.appendChild(dep);
+    pop.appendChild(acoes);
+    pop.hidden = false;
+  }
+
+  function abrirComunicadosDialog() {
+    $('#comunicadosDialog').showModal();
+    renderComunicadosDialog();
+  }
+
+  function renderComunicadosDialog() {
+    var dlg = $('#comunicadosDialog');
+    if (!dlg.open) return;
+    var leitura = Leitura.ativo();
+    var marcos = Comunicados.marcosMonitorados().join(', ') || '(nenhum)';
+    $('#comunicadosIntro').textContent = leitura
+      ? 'Os avisos publicados pela equipe. Os marcados como “novo” ainda não foram lidos neste navegador.'
+      : 'Os comunicados publicados para quem usa o visualizador — os últimos ' + Comunicados.MAX +
+        '. Salvar continua automático; o comunicado é um aviso a mais, e só nasce do botão ' +
+        '📣 Comunicar: na barra de situação de um item, na ficha de uma NCR do banco ou no ' +
+        'aviso logo depois de uma mudança que pode ser comunicada. Marcos que geram comunicados: ' +
+        marcos + '.';
+
+    var naoLidos = {};
+    comunicadosNaoLidos().forEach(function (c) { naoLidos[c.id] = true; });
+    var lidosBtn = $('#comunicadosLidosBtn');
+    lidosBtn.hidden = !leitura;
+    lidosBtn.disabled = !Object.keys(naoLidos).length;
+
+    var novoBtn = $('#comunicadosNovoBtn');
+    var n = !leitura && !telaCheia() ? currentNcr() : null;
+    var podeItem = n && Comunicados.tiposDoItem(state.project, state.kind, n).length;
+    novoBtn.hidden = !podeItem;
+    if (podeItem) novoBtn.textContent = '📣 Comunicar o item aberto (' + n.ncrId + ')';
+
+    var ul = $('#comunicadosLista');
+    ul.innerHTML = '';
+    /* o visualizador vê um por acontecimento; o editor vê o registro inteiro */
+    var lista = leitura ? Comunicados.paraVer(comunicados) : comunicados;
+    if (!lista.length) {
+      ul.appendChild(el('li', 'com-vazio', leitura
+        ? 'Nenhum comunicado publicado ainda.'
+        : 'Nenhum comunicado ainda.'));
+      return;
+    }
+    lista.forEach(function (c) {
+      var li = el('li', 'com-hist-item' + (naoLidos[c.id] ? ' is-novo' : ''));
+      li.appendChild(cartaoComunicado(c, {
+        novo: !!naoLidos[c.id],
+        abrir: function (x) {
+          if (abrirDoComunicado(x) && leitura) marcarComunicadosLidos([x.id]);
+        }
+      }));
+      ul.appendChild(li);
+    });
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* modo leitura — o visualizador (leitura.js)                              */
+  /* ---------------------------------------------------------------------- */
+
+  /* De onde vêm os dados, nesta ordem, sem pedir clique a ninguém:
+       1. a pasta dos dados, pelo caminho (a informada neste navegador, ou a
+          gravada no próprio arquivo do visualizador);
+       2. o arquivo publicado ao lado do visualizador;
+     e, se a pessoa quiser, 3. um arquivo aberto à mão (só até fechar).
+     Se nada der certo, a tela pede um clique só: "Tentar de novo". */
+
+  /* A releitura periódica é a do ciclo único (atualizacao.js), a cada
+     Config.INTERVALO_ATUALIZACAO_MS, com o contador na barra de cima. */
+
+  var leitura = {
+    ordens: {},        // a ordem escolhida aqui, por relatório: não é gravada
+    fonte: null,       // { tipo: 'caminho'|'ao-lado'|'arquivo', nome, quando, quem, lidoEm }
+    assinatura: '',    // o conteúdo bruto da última publicação, para saber se mudou
+    falhou: false,     // a última releitura não achou os dados (os velhos continuam à vista)
+    carregando: false
+  };
+
+  var ROTULO_FONTE = {
+    'caminho': 'pasta dos dados',
+    'ao-lado': 'arquivo ao lado deste visualizador',
+    'arquivo': 'arquivo aberto à mão'
+  };
+
+  /**
+   * Uma rodada de leitura. Resolve com `true` se chegaram dados novos.
+   * @param opts.silencioso  sem aviso de "nada novo"
+   * @param opts.automatico  conferência periódica: erro não vira aviso
+   */
+  function carregarLeitura(opts) {
+    opts = opts || {};
+    if (leitura.carregando) return Promise.resolve(false);
+    leitura.carregando = true;
+    var pd = Leitura.pastaDados();
+    var url = Publicacao.caminhoParaUrl(pd.caminho);
+    /* numa página servida (http/https, como o site publicado) o navegador
+       sempre recusa carregar um file:// — nem tenta: sobra o "ao lado" */
+    if (/^file:/i.test(url) && !/^file:/i.test(location.protocol)) url = '';
+    var falhouCaminho = false;
+    if (!state.projects.length) mostrarSemDados(null);
+
+    var tentativa = url
+      ? Publicacao.carregarDe(url).then(function (res) {
+          if (res) return { res: res, fonte: { tipo: 'caminho', nome: pd.caminho } };
+          falhouCaminho = true;
+          return null;
+        })
+      : Promise.resolve(null);
+
+    return tentativa.then(function (x) {
+      if (x) return x;
+      return Publicacao.carregarAoLado().then(function (res) {
+        return res ? { res: res, fonte: { tipo: 'ao-lado', nome: Publicacao.ARQUIVO } } : null;
+      });
+    }).then(function (x) {
+      leitura.carregando = false;
+      if (x) {
+        leitura.falhou = false;
+        var novo = aplicarPublicacao(x.res, x.fonte, opts);
+        /* os comunicados vêm na mesma leitura, pelo mesmo ciclo: abertura,
+           os 5 minutos e o botão Atualizar — sem um relógio a mais */
+        receberComunicados(x.res.comunicados);
+        renderAvisoLeitura(falhouCaminho
+          ? 'Não consegui ler a pasta dos dados (' + pd.caminho + '). O que está à vista veio do ' +
+            ROTULO_FONTE[x.fonte.tipo] + '.'
+          : '');
+        return novo;
+      }
+      Log.aviso('leitura', 'não encontrei a publicação',
+        url ? 'procurei em ' + pd.caminho + ' e ao lado do visualizador.'
+            : 'procurei ao lado do visualizador; nenhuma pasta de dados foi informada.');
+      if (!state.projects.length) {
+        mostrarSemDados('Não foi possível ler os dados.', pd);
+      } else if (leitura.fonte && leitura.fonte.tipo === 'arquivo') {
+        if (!opts.silencioso && !opts.automatico) {
+          toast('Os dados vieram de um arquivo aberto à mão — abra o arquivo novo para atualizar.');
+        }
+      } else {
+        /* já havia dados: continuam à vista, com o aviso e o botão */
+        leitura.falhou = true;
+        renderAvisoLeitura('Não foi possível ler a publicação mais recente' +
+          (url ? ' em ' + pd.caminho : '') + '. Os dados à vista são de ' +
+          (shortDate(leitura.fonte && leitura.fonte.quando) || 'antes') + '.');
+      }
+      renderFonte();
+      return false;
+    }, function (e) {
+      leitura.carregando = false;
+      throw e;
+    });
+  }
+
+  /**
+   * Põe a publicação na tela, sem perder o que a pessoa estava vendo:
+   * mesmo relatório, mesma aba, mesmo item — quando ainda existem.
+   */
+  function aplicarPublicacao(res, fonte, opts) {
+    opts = opts || {};
+    var mesmo = res.assinatura === leitura.assinatura;
+    var novidade = !!leitura.assinatura && !mesmo;
+    leitura.fonte = fonte;
+    fonte.quando = res.quando;
+    fonte.quem = res.quem;
+    fonte.lidoEm = Date.now();
+    renderFonte();
+    if (mesmo) return false;
+    leitura.assinatura = res.assinatura;
+
+    /* publicação de uma versão mais nova do programa: mostra, mas avisa */
+    if (res.schema > Store.SCHEMA) {
+      Log.aviso('leitura', 'a publicação é de uma versão mais nova do programa',
+        'peça o derrogacao-visualizador.html atualizado; até lá, algum campo novo pode não aparecer.');
+      toast('Este visualizador é mais antigo que os dados publicados — peça a versão nova do arquivo.', 8000);
+    }
+
+    var abertoId = state.project ? state.project.id : null;
+    var abertoMarco = state.project ? Store.marcoChave(state.project) : '';
+    var ncrAntes = state.ncrId, devAntes = state.devId;
+
+    state.projects = res.projects;
+    state.projects.forEach(function (p) {
+      if (leitura.ordens[p.id]) p.ordem = leitura.ordens[p.id];
+    });
+    /* o banco NCR é o retrato publicado: troca inteiro, só na memória */
+    Ncrs.adotarBase(res.ncrBase || { ncrs: [] });
+
+    if (!state.projects.length) {
+      state.project = null;
+      mostrarSemDados('A publicação não tem nenhum relatório.');
+      return novidade;
+    }
+    /* na primeira leitura não há nada aberto: vale o marco da vez
+       (Config.MARCO_INICIAL), e sem ele o primeiro da publicação */
+    var alvo = state.projects.filter(function (p) { return p.id === abertoId; })[0] ||
+      (abertoMarco ? state.projects.filter(function (p) { return Store.marcoChave(p) === abertoMarco; })[0] : null) ||
+      Config.relatorioInicial(state.projects) ||
+      state.projects[0];
+
+    $('#semDados').hidden = true;
+    $('.layout').hidden = false;
+    $('#previewBtn').disabled = false;
+    $('#pdfBtn').disabled = false;
+    $('#projectSelect').disabled = false;
+
+    var mesmoRelatorio = alvo.id === abertoId;
+    loadProject(alvo);
+    /* loadProject abre o primeiro item; na releitura, volta ao que estava */
+    if (mesmoRelatorio) {
+      var tem = function (k, id) { return id && alvo[k].some(function (n) { return n.id === id; }); };
+      if (tem('ncrs', ncrAntes)) state.ncrId = ncrAntes;
+      if (tem('devs', devAntes)) state.devId = devAntes;
+      if (!telaCheia()) { renderNcrList(); renderEditor(); }
+    } else if (state.kind === 'ncr' && !alvo.ncrs.length && alvo.devs.length) {
+      /* relatório só de DEV abre direto na aba DEV */
+      switchKind('dev');
+    }
+    Log.ok('leitura', 'publicação carregada', {
+      relatorios: state.projects.length, origem: fonte.tipo, ncrsBanco: Ncrs.lista().length
+    });
+    if (novidade && !opts.silencioso) {
+      toast('Dados atualizados' + (res.quando ? ': publicação de ' + shortDate(res.quando) : '') +
+        (res.quem ? ', por ' + res.quem : '') + '.');
+    }
+    return novidade;
+  }
+
+  function mostrarSemDados(titulo, pd) {
+    $('.layout').hidden = true;
+    renderAvisoLeitura('');
+    $('#semDados').hidden = false;
+    $('#semDadosTitulo').textContent = titulo || 'Carregando os dados…';
+    $('#semDadosCorpo').hidden = !titulo;
+    $('#semDadosMais').open = false;   /* à vista, um botão só */
+    pd = pd || Leitura.pastaDados();
+    $('#semDadosTexto').textContent = pd.caminho
+      ? 'Não consegui ler o arquivo de dados em ' + pd.caminho + '. Pode ser a rede fora do ar, ' +
+        'a pasta sem permissão de leitura para você, ou os dados ainda não publicados.'
+      : 'Não há o arquivo ' + Publicacao.ARQUIVO + ' ao lado deste visualizador, e nenhuma ' +
+        'pasta de dados foi informada.';
+    $('#previewBtn').disabled = true;
+    $('#pdfBtn').disabled = true;
+    $('#projectSelect').disabled = true;
+  }
+
+  function renderAvisoLeitura(msg) {
+    $('#leituraAviso').hidden = !msg;
+    $('#leituraAvisoTexto').textContent = msg || '';
+  }
+
+  function renderFonte() {
+    var chip = $('#fonteChip');
+    var f = leitura.fonte;
+    if (!f) {
+      chip.dataset.estado = 'erro';
+      $('#fonteChipLabel').textContent = '📄 sem dados';
+      chip.title = 'Nenhum dado carregado. Clique para ver as opções.';
+    } else {
+      chip.dataset.estado = leitura.falhou ? 'erro' : (f.tipo === 'arquivo' ? 'sincronizando' : 'on');
+      $('#fonteChipLabel').textContent = '📄 ' + (f.quando ? shortDate(f.quando) : 'dados carregados') +
+        (f.quem ? ' · ' + f.quem : '');
+      chip.title = 'Publicação de ' + (f.quando ? shortDate(f.quando) : 'data desconhecida') +
+        (f.quem ? ', por ' + f.quem : '') + '\nOrigem: ' + ROTULO_FONTE[f.tipo] + ' (' + f.nome + ')';
+    }
+
+    var dlg = $('#fonteDialog');
+    if (!dlg.open) return;
+    var linha = $('#fonteEstado');
+    linha.dataset.estado = !f ? 'erro' : (f.tipo === 'arquivo' || leitura.falhou ? 'permissao' : 'on');
+    linha.textContent = !f
+      ? 'Nenhum dado carregado.'
+      : f.tipo === 'arquivo'
+        ? 'Os dados vieram de um arquivo aberto à mão: valem até fechar a página e não se atualizam sozinhos.'
+        : leitura.falhou
+          ? 'A última tentativa de reler a publicação falhou; o que está à vista é a leitura anterior.'
+          : 'Os dados se atualizam sozinhos quando chega uma publicação nova.';
+    var dl = $('#fonteDados');
+    dl.innerHTML = '';
+    if (f) {
+      [['Publicação', f.quando ? shortDate(f.quando) : '—'],
+       ['Publicado por', f.quem || '—'],
+       ['Origem', ROTULO_FONTE[f.tipo] + ' — ' + f.nome],
+       ['Lido em', shortDate(new Date(f.lidoEm).toISOString())],
+       ['Conteúdo', state.projects.length + ' relatório(s) · ' +
+         state.projects.reduce(function (a, p) { return a + p.ncrs.length; }, 0) + ' NCR · ' +
+         state.projects.reduce(function (a, p) { return a + p.devs.length; }, 0) + ' DEV · ' +
+         Ncrs.lista().length + ' NCR(s) no banco']
+      ].forEach(function (l) {
+        dl.appendChild(el('dt', null, l[0]));
+        dl.appendChild(el('dd', null, l[1]));
+      });
+    }
+    var pd = Leitura.pastaDados();
+    var doArquivo = Leitura.pastaDoArquivo();
+    $('#caminhoInput').value = pd.caminho;
+    $('#caminhoPadrao').textContent = (doArquivo
+      ? 'Padrão gravado neste arquivo: ' + doArquivo + '.'
+      : 'Este arquivo ainda não tem uma pasta padrão: sem informar, ele procura os dados ao lado dele.') +
+      (pd.doNavegador ? ' Neste navegador vale a pasta informada acima.' : '');
+    $('#caminhoLimparBtn').hidden = !pd.doNavegador;
+  }
+
+  /** Grava (ou apaga) a pasta dos dados deste navegador e lê de lá. */
+  function salvarCaminho(valor) {
+    valor = (valor || '').trim();
+    if (valor && !Publicacao.caminhoParaUrl(valor)) {
+      toast('Caminho não reconhecido. Use, por exemplo, \\\\servidor\\pasta ou G:\\pasta.');
+      return;
+    }
+    Leitura.setPastaDoNavegador(valor);
+    carregarLeitura({}).then(function () {
+      Atualizacao.marcarFeita(!leitura.falhou);
+      renderFonte();
+      var pd = Leitura.pastaDados();
+      if (leitura.fonte && leitura.fonte.tipo === 'caminho') {
+        if ($('#fonteDialog').open) $('#fonteDialog').close();
+        toast('Lendo os dados de ' + pd.caminho + '.');
+      } else if (pd.caminho) {
+        toast('Não encontrei o ' + Publicacao.ARQUIVO + ' em ' + pd.caminho + '.', 6000);
+      }
+    });
+  }
+
+  function abrirArquivoDeDados(file) {
+    if (!file) return;
+    file.text().then(function (txt) {
+      var res = Publicacao.interpretar(txt);
+      leitura.falhou = false;
+      aplicarPublicacao(res, { tipo: 'arquivo', nome: file.name }, { silencioso: true });
+      receberComunicados(res.comunicados);
+      renderAvisoLeitura('');
+      if ($('#fonteDialog').open) $('#fonteDialog').close();
+      toast('Aberto: ' + file.name + ' — ' + res.projects.length + ' relatório(s).');
+    }).catch(function (e) {
+      toast(e.message || 'Não foi possível ler o arquivo.');
+    });
+  }
+
+  /* Relê a cada ciclo da atualização automática e ao voltar para a janela:
+     quem deixa o visualizador aberto o dia inteiro vê a publicação nova sem
+     recarregar. Com uma janela aberta, espera; com os dados vindos de um
+     arquivo aberto à mão, não relê sozinho — não há de onde. */
+  function podeReler() {
+    if (document.querySelector('dialog[open]') || !$('#preview').hidden) return 'janela aberta';
+    if (leitura.fonte && leitura.fonte.tipo === 'arquivo' && state.projects.length) return 'arquivo aberto à mão';
+    return true;
+  }
+
+  /** Uma rodada do ciclo, no visualizador. Rejeita quando a leitura falha. */
+  function relerPublicacao(origem) {
+    return carregarLeitura({ automatico: origem !== 'manual' }).then(function (novo) {
+      if (leitura.falhou) throw new Error('não consegui ler a publicação');
+      if (origem === 'manual' && !novo && leitura.fonte && leitura.fonte.tipo !== 'arquivo' && state.projects.length) {
+        toast('Nenhuma publicação nova — os dados continuam os de ' +
+          (shortDate(leitura.fonte.quando) || 'antes') + '.');
+      }
+      return novo;
+    });
+  }
+
+  /**
+   * O editor em leitura: os campos ficam só leitura (dá para selecionar e
+   * copiar), a situação fica à vista mas não muda, e os botões que escrevem
+   * somem. Ficam os que só mostram (`data-mostra`), os do fluxo e o da ficha.
+   */
+  function travarParaLeitura(host) {
+    $$('input, textarea, select', host).forEach(function (n) {
+      if (n.tagName === 'SELECT' || n.type === 'checkbox' || n.type === 'radio' || n.type === 'file') {
+        n.disabled = true;
+      } else {
+        n.readOnly = true;
+        n.removeAttribute('placeholder');
+      }
+    });
+    $$('button', host).forEach(function (b) {
+      if (b.hasAttribute('data-mostra')) return;
+      if (b.closest('.fx-bloco, .nb-ligacao-wrap')) return;
+      if (b.classList.contains('status-op')) { b.disabled = true; return; }
+      b.classList.add('leitura-esconde');
+    });
+    $$('.evid-drop, input[type="file"]', host).forEach(function (d) { d.classList.add('leitura-esconde'); });
+  }
+
+  function iniciarLeitura() {
+    Leitura.blindar();
+    document.body.classList.add('modo-leitura');
+    document.title = 'Waiver Request — Visualizador (somente leitura)';
+    $('#brandSub').textContent = 'visualizador de derrogações';
+    $('#comunicadosBtnSub').textContent = 'os avisos da equipe, e quais você já leu';
+    $('#leituraSelo').hidden = false;
+    $('#fonteChip').hidden = false;
+    $('#atualizaBox').hidden = false;
+    $('#atualizaMenu').hidden = false;
+    $('#menuBtn').title = 'Diagnóstico e versão';
+    renderFonte();
+    Log.passo('leitura', 'modo leitura: este é o visualizador — nada aqui é gravado');
+
+    /* o botão "⟳ Atualizar" é ligado no wire(): roda o ciclo na hora */
+    $('#leituraAvisoBtn').addEventListener('click', function () { $('#atualizarBtn').click(); });
+    $('#fonteChip').addEventListener('click', function () {
+      $('#fonteDialog').showModal();
+      renderFonte();
+    });
+    $('#fonteFecharBtn').addEventListener('click', function () { $('#fonteDialog').close(); });
+    $('#fonteAtualizarBtn').addEventListener('click', function () {
+      $('#fonteDialog').close();
+      $('#atualizarBtn').click();
+    });
+    $('#fonteAbrirBtn').addEventListener('click', function () { $('#abrirDadosInput').click(); });
+    $('#semDadosAbrirBtn').addEventListener('click', function () { $('#abrirDadosInput').click(); });
+    $('#abrirDadosInput').addEventListener('change', function () {
+      if (this.files && this.files[0]) abrirArquivoDeDados(this.files[0]);
+      this.value = '';
+    });
+    $('#semDadosTentarBtn').addEventListener('click', function () { $('#atualizarBtn').click(); });
+    $('#semDadosConfigBtn').addEventListener('click', function () {
+      $('#fonteDialog').showModal();
+      renderFonte();
+      $('#caminhoInput').focus();
+    });
+    $('#caminhoSalvarBtn').addEventListener('click', function () { salvarCaminho($('#caminhoInput').value); });
+    $('#caminhoInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); salvarCaminho(this.value); }
+    });
+    $('#caminhoLimparBtn').addEventListener('click', function () { salvarCaminho(''); });
+
+    mostrarSemDados(null);
+    return carregarLeitura({ silencioso: true }).then(function (r) {
+      /* o relógio começa depois da primeira leitura: dali a 5 minutos, a próxima */
+      Atualizacao.iniciar({
+        intervalo: Config.INTERVALO_ATUALIZACAO_MS,
+        podeAgora: podeReler,
+        executar: relerPublicacao,
+        aoMudar: renderContador
+      });
+      if (leitura.falhou) Atualizacao.marcarFeita(false);
+      return r;
+    });
+  }
+
   function wire() {
+    /* "⟳ Atualizar": no visualizador, a rodada do ciclo agora (a contagem
+       recomeça); no editor, a leitura da pasta */
+    $('#atualizarBtn').addEventListener('click', function () {
+      if (Leitura.ativo()) Atualizacao.agora();
+      else atualizarDaPasta();
+    });
+    document.addEventListener('visibilitychange', aoVoltarParaJanela);
+
     $('#marcoInput').addEventListener('input', function () {
       state.project.marco = this.value;
       state.project.name = this.value || 'Relatório sem nome';
       scheduleSave();
     });
 
+    /* Faixa de abas (WAI-ARIA "tabs"): as setas andam entre as abas, na
+       ordem da tela — no trilho estreito elas ficam empilhadas, então as
+       setas de cima e de baixo valem também —, Home e End vão às pontas. A
+       aba escondida (a Conversa desligada) não entra na roda: antes a seta
+       caía nela e abria uma aba que não aparecia. */
+    var TECLAS_ABA = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
     $$('.tab').forEach(function (t) {
       t.addEventListener('click', function () { switchKind(t.dataset.kind); });
+      t.addEventListener('keydown', function (e) {
+        var abas = $$('.tab').filter(function (a) { return !a.hidden; });
+        var i = abas.indexOf(t);
+        var prox = null;
+        if (TECLAS_ABA[e.key]) prox = abas[(i + TECLAS_ABA[e.key] + abas.length) % abas.length];
+        else if (e.key === 'Home') prox = abas[0];
+        else if (e.key === 'End') prox = abas[abas.length - 1];
+        if (!prox) return;
+        e.preventDefault();
+        switchKind(prox.dataset.kind);
+        prox.focus();
+      });
     });
     $('#projectSelect').addEventListener('change', function () {
       var sel = this.value;
+      aberturaPendente = false;
       flushSave().then(function () {
         var p = state.projects.filter(function (x) { return x.id === sel; })[0];
         if (p) loadProject(p);
@@ -2509,6 +8115,7 @@
     $('#newProjectTopBtn').addEventListener('click', function () {
       var marco = prompt('Marco do novo relatório (ex.: RANAE J06):', '');
       if (marco === null) return;
+      aberturaPendente = false;
       var p = Store.newProject(marco.trim());
       flushSave().then(function () { return Store.save(p); }).then(function () {
         state.projects.unshift(p);
@@ -2522,6 +8129,9 @@
       if (!state.project) return;
       if (!confirm('Excluir o relatório "' + (state.project.marco || state.project.name) + '" deste navegador?\n\nFaça um backup antes se quiser conservá-lo.')) return;
       var id = state.project.id;
+      /* sem a lápide o relatório voltaria na sincronização seguinte, vindo do
+         computador de quem ainda não soube */
+      Store.tombstoneProjeto(state.project);
       Store.remove(id).then(function () {
         state.projects = state.projects.filter(function (p) { return p.id !== id; });
         if (!state.projects.length) {
@@ -2529,7 +8139,10 @@
           return Store.save(p).then(function () { state.projects = [p]; loadProject(p); });
         }
         loadProject(state.projects[0]);
-      }).then(function () { toast('Relatório excluído.'); }).catch(markError);
+      }).then(function () {
+        toast('Relatório excluído.');
+        agendarGravacaoPasta();
+      }).catch(markError);
     });
 
     $('#addNcrBtn').addEventListener('click', addNcr);
@@ -2565,6 +8178,9 @@
       renderUser();
       flushSave();
       toast(Store.getUser() ? 'Nome registrado: ' + Store.getUser() : 'Nome removido.');
+      /* o canal direto é a dupla de nomes: trocar o meu troca as chaves */
+      renderConversaBadge();
+      if (isConversa()) abrirCanal(Chat.GERAL);
       /* segue de onde parou — o clique original já vale como gesto do usuário,
          então o download não é bloqueado pelo navegador */
       if (seguir && Store.getUser()) seguir();
@@ -2586,6 +8202,13 @@
       state.project.ordem = Store.ordemInfo(this.value).id;
       renderOrdem();
       renderNcrList();
+      if (Leitura.ativo()) {
+        /* no visualizador a ordem é de quem está olhando: não grava, mas
+           sobrevive à releitura da publicação */
+        leitura.ordens[state.project.id] = state.project.ordem;
+        toast('Ordem: ' + Store.ordemInfo(this.value).nome + ' — só nesta tela, e no PDF que você gerar daqui.');
+        return;
+      }
       scheduleSave();
       toast('Ordem: ' + Store.ordemInfo(this.value).nome + '. Vale também no PDF.');
     });
@@ -2614,19 +8237,24 @@
         'Outro relatório de "' + (dup.marco || dup.name) + '" que já está neste navegador.');
     });
 
+    /* a coluna do item ao lado */
+    $('#ladoTrocarBtn').addEventListener('click', abrirEscolhaDoLado);
+    $('#ladoAbrirBtn').addEventListener('click', abrirODoLado);
+    $('#ladoFecharBtn').addEventListener('click', function () {
+      soltarAoLado();
+      toast('Coluna fechada. O item continua onde estava.');
+    });
+    $('#ladoEscolhaCancelBtn').addEventListener('click', function () { $('#ladoDialog').close(); });
+
     $('#sessionsBtn').addEventListener('click', openSessions);
     $('#sessionInfoBtn').addEventListener('click', openSessions);
     $('#sessionsCloseBtn').addEventListener('click', function () { $('#sessionsDialog').close(); });
     $('#sessionsCopyBtn').addEventListener('click', function () {
       var txt = sessionSummaryText();
       if (!txt) { toast('Nada alterado nesta sessão.'); return; }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(txt)
-          .then(function () { toast('Resumo da sessão copiado.'); })
-          .catch(function () { toast('Não foi possível copiar.'); });
-      } else {
-        toast('Cópia indisponível neste navegador.');
-      }
+      copiarTexto(txt,
+        function () { toast('Resumo da sessão copiado.'); },
+        function () { toast('Não foi possível copiar.'); });
     });
 
     /* lembrete da pasta de backup */
@@ -2637,19 +8265,33 @@
     $('#backupCopyPathBtn').addEventListener('click', function () {
       var caminho = Store.getFolder();
       if (!caminho) return;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(caminho)
-          .then(function () { toast('Caminho copiado — cole na barra do explorador de arquivos.'); })
-          .catch(function () { toast('Não foi possível copiar.'); });
-      } else {
-        toast('Cópia indisponível neste navegador.');
-      }
+      copiarTexto(caminho,
+        function () { toast('Caminho copiado — cole na barra do explorador de arquivos.'); },
+        function () { toast('Não foi possível copiar.'); });
     });
     $('#backupDoneBtn').addEventListener('click', function () { $('#backupDoneDialog').close(); });
 
     /* pasta compartilhada */
-    document.addEventListener('input', function () { ultimaTecla = Date.now(); }, true);
+    document.addEventListener('input', function () {
+      ultimaTecla = Date.now();
+      aberturaPendente = false;   /* a pessoa já está trabalhando: nada troca sozinho */
+    }, true);
     document.addEventListener('keydown', function () { ultimaTecla = Date.now(); }, true);
+
+    $('#pastaNoticeBtn').addEventListener('click', function () {
+      if (Pasta.ligada() && pastaEstado !== 'on') { conectarPasta(); return; }
+      escolherPasta();
+    });
+    $('#pastaNoticeCopy').addEventListener('click', function () {
+      copiarTexto(pastaCaminho || Store.CAMINHO_PADRAO,
+        function () { toast('Caminho copiado. Cole na barra de endereço da janela do Windows.', 5000); },
+        function () { toast('Não foi possível copiar aqui. Selecione o texto e use Ctrl+C.'); });
+    });
+    $('#pastaNoticeDismiss').addEventListener('click', function () {
+      pastaNoticeFechado = true;
+      renderPastaNotice();
+      toast('Some por enquanto. A pasta continua em “⋯ Mais → Pasta da rede”.', 4500);
+    });
 
     $('#pastaBtn').addEventListener('click', abrirPastaDialog);
     $('#pastaChip').addEventListener('click', function () {
@@ -2664,40 +8306,115 @@
     });
     $('#pastaCaminhoInput').addEventListener('input', function () {
       pastaCaminho = this.value.trim();
-      Store.setFolder(pastaCaminho);
+      Store.setDbFolder(pastaCaminho);
+      renderPastaNotice();     /* o aviso do alto mostra este mesmo caminho */
       agendarGravacaoPasta();
     });
-    $('#pastaEscolherBtn').addEventListener('click', function () {
-      Pasta.escolher().then(function () {
-        pastaEstado = 'on';
-        marcarPasta('on');
-        agendarPoll();
-        return sincronizar({});
-      }).then(function (r) {
-        if (r === null) return;
-        $('#pastaDialog').close();
-        toast('Pasta ligada: "' + Pasta.nome() + '". A partir de agora tudo vai e vem de lá.');
-      }).catch(function (e) {
-        if (e && e.name === 'AbortError') return;      /* desistiu na janela */
-        markError(e);
-        toast(e.message || 'Não foi possível abrir a pasta.');
-      });
+    $('#pastaPadraoBtn').addEventListener('click', function () {
+      pastaCaminho = Store.CAMINHO_PADRAO;
+      Store.setDbFolder(pastaCaminho);
+      $('#pastaCaminhoInput').value = pastaCaminho;
+      renderPastaNotice();
+      agendarGravacaoPasta();
+      toast('Caminho de volta ao combinado pela equipe.');
     });
+    $('#pastaCaminhoCopiarBtn').addEventListener('click', function () {
+      copiarTexto(pastaCaminho || Store.CAMINHO_PADRAO,
+        function () { toast('Caminho copiado. Cole na barra de endereço da janela do Windows.', 5000); },
+        function () { toast('Não foi possível copiar aqui. Selecione o texto e use Ctrl+C.'); });
+    });
+    $('#pastaEscolherBtn').addEventListener('click', escolherPasta);
     $('#pastaDesligarBtn').addEventListener('click', function () {
       if (!confirm('Parar de usar a pasta como banco de dados?\n\n' +
         'Os relatórios continuam neste navegador. A pasta não é apagada.')) return;
       Pasta.esquecer().then(function () {
         pastaEstado = 'off';
         clearInterval(pollTimer);
+        clearInterval(conversaTimer);
         marcarPasta('off');
         $('#pastaDialog').close();
         toast('Pasta desligada. O trabalho segue salvo neste navegador.');
       });
     });
 
+    /* banco NCR */
+    $('#ncrFileInput').addEventListener('change', function () {
+      if (this.files && this.files[0]) processarArquivoNcr(this.files[0]);
+      this.value = '';
+    });
+    $('#ncrCorrCancelBtn').addEventListener('click', function () { $('#ncrCorrDialog').close(); });
+    $('#ncrCorrGoBtn').addEventListener('click', function () {
+      ncrImport.substituir = $('#ncrCorrSubst').checked;
+      $('#ncrCorrDialog').close();
+      escolherArquivoNcr('correlacao');
+    });
+    $('#ncrResumoCloseBtn').addEventListener('click', function () { $('#ncrResumoDialog').close(); });
+    $('#ncrResumoUndoBtn').addEventListener('click', desfazerImportacaoNcr);
+    $('#ncrResumoCopyBtn').addEventListener('click', baixarCopiaDeAntes);
+    $('#ncrListasCancelBtn').addEventListener('click', function () { $('#ncrListasDialog').close(); });
+    $('#ncrListasSaveBtn').addEventListener('click', salvarListas);
+    $('#ncrListasPadraoBtn').addEventListener('click', function () {
+      $('#ncrListaMarcos').value = Ncrs.LISTAS_PADRAO.marcos.join('\n');
+      $('#ncrListaFuncoes').value = Ncrs.LISTAS_PADRAO.funcoes.join('\n');
+    });
+
+    /* publicação para os visualizadores */
+    $('#publicarBtn').addEventListener('click', abrirPublicarDialog);
+    $('#pubChip').addEventListener('click', conectarPublicacao);
+    $('#pubNoticeBtn').addEventListener('click', conectarPelaNotice);
+    $('#pubNoticeDismiss').addEventListener('click', function () {
+      pubAvisoCalado = pubEstado;
+      renderPubNotice();
+    });
+    $('#pubNoticeCopy').addEventListener('click', function () {
+      copiarTexto(String(Config.PASTA_VISUALIZADOR || ''),
+        function () { toast('Caminho copiado. Cole na barra de endereço da janela do Windows.', 5000); },
+        function () { toast('Não foi possível copiar aqui. Selecione o texto e use Ctrl+C.'); });
+    });
+    $('#publicarFecharBtn').addEventListener('click', function () { $('#publicarDialog').close(); });
+    $('#publicarAgoraBtn').addEventListener('click', function () { publicar({}); });
+    $('#publicarBaixarBtn').addEventListener('click', baixarPublicacao);
+    $('#publicarPermitirBtn').addEventListener('click', conectarPublicacao);
+    $('#publicarAuto').addEventListener('change', function () {
+      setPubAuto(this.checked);
+      renderPublicar();
+      if (this.checked) {
+        toast('Publicação automática ligada: os visualizadores recebem as mudanças em até 2 minutos.', 5000);
+        agendarPublicacao();
+      }
+    });
+    $('#publicarEscolherBtn').addEventListener('click', function () {
+      Pasta.publicacao.escolher().then(function () {
+        pubEstado = 'on';
+        renderPublicar();
+        return publicar({});
+      }).catch(function (e) {
+        if (e && e.name === 'AbortError') return;
+        markError(e);
+        toast(e.message || 'Não foi possível abrir a pasta.');
+      });
+    });
+    $('#publicarDesligarBtn').addEventListener('click', function () {
+      if (!confirm('Parar de publicar nesta pasta?\n\nO arquivo que já está lá continua; ' +
+        'os visualizadores seguem vendo a última publicação.')) return;
+      Pasta.publicacao.esquecer().then(function () {
+        pubEstado = 'off';
+        clearTimeout(pubTimer); pubTimer = null;
+        renderPublicar();
+      });
+    });
+
     $('#settingsBtn').addEventListener('click', openSettings);
     $('#settingsCloseBtn').addEventListener('click', function () { $('#settingsDialog').close(); });
     $('#copyNcrBtn').addEventListener('click', openCopyDialog);
+    $('#dupNcrBtn').addEventListener('click', duplicarNcr);
+    $('#difCloseBtn').addEventListener('click', function () { $('#difDialog').close(); });
+    $('#revCloseBtn').addEventListener('click', function () { $('#revDialog').close(); });
+    $('#revBusca').addEventListener('input', function () {
+      revEstado.busca = this.value;
+      renderHistorico();
+    });
+    $('#fluxoCloseBtn').addEventListener('click', function () { $('#fluxoDialog').close(); });
     $('#copyCancelBtn').addEventListener('click', function () { $('#copyDialog').close(); });
     $('#zoomRange').addEventListener('input', applyZoom);
 
@@ -2705,7 +8422,49 @@
     $('#closePreviewBtn').addEventListener('click', closePreview);
     $('#previewPrintBtn').addEventListener('click', function () { closePreview(); exportPdf(); });
     $('#pdfBtn').addEventListener('click', exportPdf);
+    $('#logBtn').addEventListener('click', function () {
+      $('#menuPop').hidden = true;
+      $('#menuBtn').setAttribute('aria-expanded', 'false');
+      abrirDiarioDialog();
+    });
+    $('#logCloseBtn').addEventListener('click', function () { $('#logDialog').close(); });
+
+    /* comunicados: o histórico (editor e visualizador), a prévia (editor) */
+    $('#comunicadosBtn').addEventListener('click', function () {
+      $('#menuPop').hidden = true;
+      $('#menuBtn').setAttribute('aria-expanded', 'false');
+      abrirComunicadosDialog();
+    });
+    $('#comChip').addEventListener('click', abrirComunicadosDialog);
+    $('#comunicadosFecharBtn').addEventListener('click', function () { $('#comunicadosDialog').close(); });
+    $('#comunicadosLidosBtn').addEventListener('click', function () {
+      marcarComunicadosLidos(comunicadosNaoLidos().map(function (c) { return c.id; }));
+    });
+    $('#comunicadosNovoBtn').addEventListener('click', function () {
+      var n = currentNcr();
+      var p = n ? propostaDoItem(state.project, state.kind, n) : null;
+      if (!p) return;
+      $('#comunicadosDialog').close();
+      abrirComunicar(p, { project: state.project, kind: state.kind, item: n });
+    });
+    $('#comunicarCancelarBtn').addEventListener('click', function () { $('#comunicarDialog').close(); });
+    $('#comunicarDialog').addEventListener('close', function () { comunicarAlvo = null; });
+    $('#comunicarOk').addEventListener('click', publicarComunicado);
+    $('#comunicarMsg').addEventListener('input', renderComunicar);
+    $('#logCopiarBtn').addEventListener('click', function () { mostrarNoDiario(copiarODiario()); });
+
     $('#pdfCancelBtn').addEventListener('click', function () { $('#pdfDialog').close(); });
+    /* "imprima todas de uma vez": um clique marca todos os relatórios que têm
+       item no recorte. Os vazios continuam de fora — eles não geram folha. */
+    $('#pdfTodosBtn').addEventListener('click', function () {
+      $$('.pick-cb').forEach(function (cb) { if (!cb.disabled) cb.checked = true; });
+      updatePickSummary();
+    });
+    $('#pdfNenhumBtn').addEventListener('click', function () {
+      $$('.pick-cb').forEach(function (cb) { cb.checked = false; });
+      updatePickSummary();
+    });
+    $('#pdfSoEsteBtn').addEventListener('click', soOItemAberto);
     $('#pdfGoBtn').addEventListener('click', doPrint);
 
     $('#backupBtn').addEventListener('click', function () { exportBackup(false); });
@@ -2722,6 +8481,11 @@
     });
     window.addEventListener('drop', function (e) {
       var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f && Leitura.ativo() && /\.(json|js)$/i.test(f.name)) {
+        e.preventDefault();
+        abrirArquivoDeDados(f);
+        return;
+      }
       if (f && /\.json$/i.test(f.name)) {
         e.preventDefault();
         importBackupFile(f);
@@ -2731,6 +8495,7 @@
     /* Ctrl+V em qualquer ponto do editor manda a imagem para o último anexo
        da NCR aberta (criando um anexo, se ainda não houver nenhum). */
     document.addEventListener('paste', function (e) {
+      if (Leitura.ativo()) return;   /* visualizador: nada grava */
       if (!$('#preview').hidden) return;
       var tag = (e.target && e.target.tagName) || '';
       if (tag === 'INPUT' || tag === 'TEXTAREA') {
@@ -2739,6 +8504,9 @@
       }
       var ncr = currentNcr();
       if (!ncr || !e.clipboardData) return;
+      /* item aceito está travado: a área de soltar imagens fica desligada,
+         e colar não pode ser a porta dos fundos */
+      if (travado(ncr)) { toast('Item aceito e travado — use “Editar mesmo assim” antes de colar.'); return; }
       var files = Array.prototype.slice.call(e.clipboardData.files)
         .filter(function (f) { return /^image\//.test(f.type); });
       if (!files.length) return;
@@ -2758,7 +8526,11 @@
 
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !$('#preview').hidden) closePreview();
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); flushSave(); toast('Salvo.'); }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (Leitura.ativo()) { toast('Este é o visualizador: aqui nada é gravado.'); return; }
+        flushSave(); toast('Salvo.');
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') { e.preventDefault(); exportPdf(); }
     });
 
@@ -2771,6 +8543,114 @@
      permite conferir, em segundos, se o navegador está com a versão certa —
      um index.html novo servido junto de um app.js velho do cache já causou
      erros difíceis de entender. */
+  /* ---------------------------------------------------------------------- */
+  /* a janela do diário do console                                           */
+  /* ---------------------------------------------------------------------- */
+
+  /* Os comandos existem e continuam valendo — mas decorar comando não é
+     trabalho de quem usa o programa. Aqui cada um vira um botão que faz a
+     coisa, com o comando escrito ao lado para quem preferir digitar. É o §9:
+     nada de opção escondida. */
+  var NIVEIS_DO_DIARIO = [
+    { id: 'silencio', nome: 'Só problemas',
+      ajuda: 'O console fica quieto e só fala quando algo dá errado.' },
+    { id: 'normal', nome: 'Normal',
+      ajuda: 'A abertura, cada conversa com a pasta, o que a mesclagem trouxe, ' +
+        'as exportações — e os problemas. É o padrão.' },
+    { id: 'tudo', nome: 'Tudo',
+      ajuda: 'Mais o miúdo: cada gravação neste navegador, cada imagem, os ' +
+        'tempos de cada etapa. Útil quando algo está estranho e não se sabe onde.' }
+  ];
+
+  var ACOES_DO_DIARIO = [
+    { rotulo: 'Ver o diagnóstico', comando: 'Derrogacao.diagnostico()',
+      ajuda: 'O retrato de agora: quantos relatórios e itens existem aqui, qual ' +
+        'está aberto, como está a pasta da equipe, quantos avisos e erros houve ' +
+        'nesta sessão, e quem você é para o programa.',
+      fn: function () { return Log.diagnostico(); } },
+    { rotulo: 'Ver as últimas linhas', comando: 'Derrogacao.diario()',
+      ajuda: 'O que o programa registrou desde que você abriu — as últimas 500 ' +
+        'linhas. É onde se vê a hora em que a pasta parou de responder, por exemplo.',
+      fn: function () { return Log.historico() || '(ainda não há linhas.)'; } },
+    { rotulo: 'Copiar para um e-mail', comando: 'Derrogacao.copiar()',
+      ajuda: 'Junta o diagnóstico com as últimas linhas e põe na área de ' +
+        'transferência. É exatamente o que eu pediria por escrito se algo ' +
+        'estivesse estranho — é só colar.',
+      fn: function () { return copiarODiario(); } }
+  ];
+
+  function copiarODiario() {
+    var texto = Log.diagnostico() + '\n\n--- diário do console ---\n' + Log.historico();
+    copiarTexto(texto,
+      function () { toast('Copiado. Cole num e-mail.'); },
+      function () { toast('Não consegui copiar — selecione o texto abaixo e copie à mão.', 9000); });
+    return texto;
+  }
+
+  function mostrarNoDiario(texto) {
+    var saida = $('#logSaida');
+    saida.textContent = texto || '';
+    saida.scrollTop = 0;
+  }
+
+  function renderDiarioDialog() {
+    var atual = Log.nivel();
+
+    var niveis = $('#logNiveis');
+    niveis.innerHTML = '';
+    NIVEIS_DO_DIARIO.forEach(function (n) {
+      var b = el('button', 'log-nivel' + (n.id === atual ? ' is-on' : ''));
+      b.type = 'button';
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', n.id === atual ? 'true' : 'false');
+      b.appendChild(el('span', 'log-nivel-nome', n.nome));
+      b.appendChild(el('span', 'log-nivel-ajuda', n.ajuda));
+      b.appendChild(el('code', 'log-cmd', 'Derrogacao.' +
+        (n.id === 'silencio' ? 'silencio' : n.id) + '()'));
+      b.addEventListener('click', function () {
+        Log.nivel(n.id);
+        renderDiarioDialog();
+        toast('Diário: ' + n.nome.toLowerCase() + '.');
+      });
+      niveis.appendChild(b);
+    });
+
+    var acoes = $('#logAcoes');
+    acoes.innerHTML = '';
+    ACOES_DO_DIARIO.forEach(function (a) {
+      var linha = el('div', 'log-acao');
+      var b = el('button', 'btn btn--sm btn--accent', a.rotulo);
+      b.type = 'button';
+      b.addEventListener('click', function () {
+        mostrarNoDiario(a.fn());
+        renderContasDoDiario();
+      });
+      linha.appendChild(b);
+      var txt = el('div', 'log-acao-txt');
+      txt.appendChild(el('span', null, a.ajuda));
+      txt.appendChild(el('code', 'log-cmd', a.comando));
+      linha.appendChild(txt);
+      acoes.appendChild(linha);
+    });
+
+    renderContasDoDiario();
+    mostrarNoDiario(Log.diagnostico());
+  }
+
+  function renderContasDoDiario() {
+    var c = Log.contas();
+    var n = $('#logContas');
+    n.textContent = c.erros || c.avisos
+      ? '· ' + c.erros + ' erro(s) e ' + c.avisos + ' aviso(s) desde que você abriu'
+      : '· nenhum problema desde que você abriu';
+    n.classList.toggle('is-ruim', !!c.erros);
+  }
+
+  function abrirDiarioDialog() {
+    renderDiarioDialog();
+    $('#logDialog').showModal();
+  }
+
   function renderVersion() {
     /* no site, a versão vem do carimbo no src; no arquivo único, da meta */
     var tag = document.querySelector('script[src*="app.js"]');
@@ -2784,14 +8664,90 @@
     /* o link para baixar o arquivo único só faz sentido servido pela web */
     var link = $('#standaloneLink');
     if (link) link.hidden = location.protocol === 'file:';
+    var vis = $('#publicarBaixarVis');
+    if (vis) vis.hidden = location.protocol === 'file:';
+  }
+
+  /**
+   * Registra o service worker. Serve a duas coisas: abrir sem rede e fazer o
+   * Edge oferecer a instalação como aplicativo — que é o que faz o navegador
+   * guardar a permissão da pasta entre sessões.
+   *
+   * Só no site publicado: de file:// não existe service worker, e a versão de
+   * arquivo único não precisa de nenhum.
+   */
+  function registrarServiceWorker() {
+    if (!navigator.serviceWorker) return;
+    var local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    if (location.protocol !== 'https:' && !local) return;
+    navigator.serviceWorker.register('sw.js').catch(function (e) {
+      Log.detalhe('instalação', 'service worker não registrado', { erro: e && e.name });
+    });
+  }
+
+  /* O que o diagnóstico conta quando a pessoa pede. Cada fonte responde uma
+     pergunta que eu faria por e-mail se algo estivesse estranho. */
+  function registrarFontes() {
+    Log.fonte('relatórios', function () {
+      var itens = 0, aceitos = 0;
+      state.projects.forEach(function (p) {
+        ['ncrs', 'devs'].forEach(function (k) {
+          (p[k] || []).forEach(function (n) { itens++; if (n.done) aceitos++; });
+        });
+      });
+      return { quantos: state.projects.length, itens: itens, aceitos: aceitos,
+               aberto: state.project ? (state.project.marco || state.project.name) : '(nenhum)',
+               aba: state.kind };
+    });
+    Log.fonte('pasta', function () {
+      return { ligada: Pasta.ligada(), estado: pastaEstado,
+               nome: Pasta.nome() || '(nenhuma)',
+               ultimoSucesso: ultimoSucesso ? desdeUltimaTroca() : 'nunca nesta sessão',
+               soLeitura: versaoDesatualizada };
+    });
+    Log.fonte('histórico do texto', function () {
+      return { linhas: (revisoes || []).length,
+               base: mesclaBase ? 'guardada' : 'ainda não',
+               diario: baseDiario ? 'guardado' : 'ainda não' };
+    });
+    Log.fonte('quem', function () { return { nome: Store.getUser() || '(sem nome)' }; });
   }
 
   function boot() {
+    Log.passo('abertura', 'Waiver Request — diário do console ligado. ' +
+      'Digite Derrogacao.ajuda() para ver o que dá para fazer aqui.');
+    Log.detalhe('abertura', 'onde estou', {
+      origem: location.protocol === 'file:' ? 'arquivo no disco (file://)' : location.protocol,
+      pastaSuportada: Pasta.suportado()
+    });
+    Log.vigiar();
+    registrarFontes();
     wire();
+    Admin.iniciar(ctxAdmin);
+    /* O visualizador: o mesmo programa, só lendo a publicação. Nada do que
+       vem abaixo (banco do navegador, pasta, conversa, diário) roda nele. */
+    if (Leitura.ativo()) {
+      renderVersion();
+      iniciarLeitura().catch(function (e) {
+        Log.erro('leitura', 'não consegui abrir a publicação', e,
+          'recarregue a página; se continuar, mande Derrogacao.copiar() para quem publica.');
+      });
+      return;
+    }
+    aoLado = lerAoLado();
+    registrarServiceWorker();
     requestPersistentStorage();
     refreshUndo();
     renderVersion();
-    Store.list().then(function (list) {
+    var abrindo = Log.etapa('abertura', 'lendo o que está guardado neste navegador');
+    /* o banco NCR primeiro, para a aba já nascer certa; se ele falhar, os
+       relatórios abrem do mesmo jeito */
+    Ncrs.carregar().then(function (n) {
+      if (n) Log.detalhe('abertura', 'banco NCR carregado', { ncrs: n });
+    }, function (e) {
+      Log.aviso('abertura', 'não consegui ler o banco NCR deste navegador',
+        'os relatórios abrem normalmente; a aba Banco NCR fica vazia até recarregar.', { erro: e && e.name });
+    }).then(function () { return Store.list(); }).then(function (list) {
       state.projects = list;
       if (!list.length) {
         var p = Store.newProject('');
@@ -2800,10 +8756,38 @@
           loadProject(p);
         });
       }
-      loadProject(list[0]);
+      /* O marco da vez (Config.MARCO_INICIAL) abre primeiro; sem ele, o mais
+         recente, como sempre foi. Se ele ainda não está neste navegador, a
+         primeira troca com a pasta pode trazê-lo — ver `abrirMarcoInicial`. */
+      var inicial = Config.relatorioInicial(list);
+      aberturaPendente = !inicial;
+      loadProject(inicial || list[0]);
     }).then(function () {
+      var itens = 0;
+      state.projects.forEach(function (p) {
+        itens += (p.ncrs || []).length + (p.devs || []).length;
+      });
+      abrindo.fim('relatórios abertos', { relatorios: state.projects.length, itens: itens });
+      revisoes = Revisoes.locais();
+      comunicados = Comunicados.locais();
+      return Store.getBase().then(function (b) {
+        mesclaBase = b ? b.base : null;
+        baseLida = b ? b.lida : null;
+        baseDiario = b ? b.diario : null;
+        meuCarimbo = b ? (b.carimbo || 0) : 0;
+        if (!baseDiario) return capturarRevisoes();   /* só semeia o retrato */
+      });
+    }).then(function () {
+      Log.detalhe('abertura', 'histórico do texto carregado', { linhas: (revisoes || []).length });
+      alinharFuncoes();
+      iniciarConversa();
       return iniciarPasta();
+    }).then(function () {
+      return iniciarPublicacao();
     }).catch(function (e) {
+      abrindo.falhou('não consegui ler o armazenamento deste navegador', e,
+        'o programa vai começar com um relatório em branco. NÃO grave nada por cima ' +
+        'até entender: se você já tinha relatórios aqui, abra um backup .json antes.');
       markError(e);
       var p = Store.newProject('');
       state.projects = [p];
@@ -2818,7 +8802,7 @@
    * deixamos o aviso na barra.
    */
   function iniciarPasta() {
-    pastaCaminho = Store.getFolder();
+    pastaCaminho = Store.getDbFolder();
     marcarPasta('off');
     if (!Pasta.suportado()) return Promise.resolve();
     return Pasta.retomar().then(function (h) {
@@ -2827,14 +8811,20 @@
         if (perm === 'granted') {
           pastaEstado = 'on';
           agendarPoll();
-          return sincronizar({}).then(function () { agendarPoll(); });
+          return sincronizar({}).then(function () {
+            abrirMarcoInicial();
+            agendarPoll();
+            return sincronizarConversas({});
+          });
         }
         pastaEstado = 'permissao';
         marcarPasta('permissao');
-        toast('Clique em “📁 permitir acesso”, na barra de cima, para abrir a pasta de dados.');
+        pedirPermissaoNoPrimeiroGesto();
       });
     }).catch(function (e) {
-      console.warn('Pasta não pôde ser retomada:', e);
+      Log.aviso('pasta', 'não consegui reabrir a pasta guardada deste navegador',
+        Pasta.explicar(e) + ' Clique em “Pasta” na barra de cima para escolher de novo.',
+        { erro: e && e.name });
       pastaEstado = 'erro';
       marcarPasta('erro');
     });

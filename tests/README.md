@@ -1,63 +1,47 @@
 # Testes
 
-Suítes de ponta a ponta em Playwright (Chromium). Cada arquivo abre a
-aplicação de verdade, faz o caminho de um usuário e confere o resultado —
-inclusive gerando PDFs e conferindo o que saiu neles.
+Suítes de ponta a ponta com o Playwright (Chromium), em Node. Cada uma abre o
+programa de verdade — servido por um servidor estático mínimo, ou de
+`file://` no caso dos arquivos únicos —, semeia dados de exemplo pela própria
+API do programa (`Store`, `Ncrs`) e faz o caminho de quem usa, conferindo o
+resultado: a tela, os arquivos baixados (planilha, CSV, backup) e os PDFs
+gerados (número de folhas e tamanho do papel, lidos do próprio arquivo).
+
+Nada aqui é o programa: ele continua sem build, sem servidor e sem
+dependência. Isto é ferramenta de quem edita (CLAUDE.md, §7).
 
 ## Rodar
 
 ```bash
-pip install playwright pypdf pypdfium2 pillow
-python3 -m playwright install chromium        # ou aponte DERROG_CHROME
-cd tests && for t in test*.py; do echo "== $t"; python3 "$t"; done
+npm i -g playwright            # ou: npm i playwright, na raiz
+node tests/rodar.js            # todas
+node tests/rodar.js kanban     # só as que têm "kanban" no nome
+node tests/kanban.test.js      # uma só
 ```
 
-Duas variáveis, ambas opcionais:
+O Chromium é o do Playwright (`PLAYWRIGHT_BROWSERS_PATH`); para outro, aponte
+`DERROG_CHROME`. Os arquivos gerados (downloads, PDFs) vão para
+`DERROG_TMP` (padrão: a pasta temporária do sistema, `derrogacao-testes`).
+Nenhuma suíte escreve dentro do repositório.
 
-| Variável | Para que serve | Padrão |
-| --- | --- | --- |
-| `DERROG_TMP` | onde os testes gravam downloads, capturas e PDFs | `/tmp/derrogacao-testes` |
-| `DERROG_CHROME` | caminho do Chromium | o do Playwright nesta máquina |
+> **"0 erros no console" não quer dizer que passou.** O que vale são as
+> conferências (`✓`/`✗`) de cada suíte.
 
-Cada suíte é autossuficiente: as imagens de apoio, o backup em formato antigo
-e a versão de arquivo único são gerados na hora, se faltarem. Dá para rodar
-qualquer uma sozinha, em qualquer ordem, num diretório vazio.
-
-> **`ERRORS: none` no fim não quer dizer que passou.** Essa linha só reporta o
-> console do navegador. O que vale são as asserções e os valores impressos —
-> já aconteceu de um teste imprimir `ERRORS: none` enquanto capturava páginas
-> em branco.
-
-## O que cada um cobre
+## O que cada uma cobre
 
 | Arquivo | Cobre |
 | --- | --- |
-| `test.py` | fidelidade do PDF ao relatório original: capa, faixas coloridas, status, certificados |
-| `test2.py` | backup e restauração entre dois navegadores, com imagens |
-| `test3.py` | evidências, reordenar anexos, **Copiar de…**, aviso de campos vazios, zoom |
-| `test4.py` | aba DEV: capa própria, título sem sistema, sem *Waiver Historic* |
-| `test5.py` | backup antigo (anterior à aba DEV) continua abrindo |
-| `test6.py` | situação do item, ajustes de capa/rodapé, seleção na exportação |
-| `test7.py` | menu, lembrete de backup, sugestões, seções recolhíveis, autoria |
-| `test8.py` | histórico de sessões: quem mexeu em quê |
-| `test9.py` | mesclagem entre duas pessoas pelo arquivo (base comum, conflito, desfazer) |
-| `test10.py` | aba Resumo: números, gráficos, tabelas, CSV, resumo em PDF |
-| `test11.py` | versão de arquivo único rodando de `file://`, sem recurso externo |
-| `test12.py` | data de emissão da capa, opcional |
-| `test13.py` | sugestões separadas por categoria (NCR não oferece valores de DEV) |
-| `test14.py` | situação de acompanhamento: só *Waiver accepted* conclui; não sai no PDF |
-| `test15.py` | primeiro backup num clique só e lembrete da pasta |
-| `test16.py` | marco igual criado por duas pessoas mescla em vez de duplicar |
-| `test17.py` | comparação dentro do marco; fila de marcos; marco em branco não casa |
-| `test18.py` | regras da mesclagem do banco compartilhado (unitário, na página) |
-| `test19.py` | pasta da rede como banco: escolher, gravar, reabrir, lápide, histórico |
-| `test20.py` | duas pessoas ao mesmo tempo e restauração de uma versão do histórico |
-| `test21.py` | edição simultânea: itens diferentes, mesmo item, retrato antes de juntar |
-| `test22.py` | ordenação da lista refletida no PDF; arrastar volta ao manual |
-| `test23.py` | filtros do Resumo, refletidos nos números, no CSV e no resumo em PDF |
-| `test24.py` | índice da capa fechando com o *Arch Status* |
+| `navegacao.test.js` | ordem e nomes das áreas (Banco NCR, Kanban, Tabela, Waiver NCR, Waiver DEV), chaves internas `ncr`/`dev`, cores, teclado (setas, Home, End, a aba escondida fora da roda), o seletor de relatório só onde ele manda |
+| `abertura.test.js` | o marco da vez (`Config.MARCO_INICIAL`): comparação tolerante (`j 9` sim, `J09 Ind` não), preferência sobre o mais recente, a regra de antes sem ele (sem criar relatório), Kanban, Resumo e visualizador |
+| `kanban.test.js` | cartões compactos (descrição longa não estica; abrir e fechar não grava), as ações de sempre, a área das encerradas em CEDOC Closure, filtros, a planilha `.xlsx` e a exportação visual em A4/A3, retrato/paisagem, "caber numa folha" |
+| `resumo.test.js` | mini cards de marco no lugar do dropdown: "Todos os marcos", troca geral × marco (clique e teclado), filtros juntos, CSV e PDF do escopo, backup do marco sempre inteiro |
+| `atualizacao.test.js` | editor sem relógio de 5 min (botão "⟳ Atualizar", conferência de 20 s, conferir ao voltar para a janela, o que se escreve aqui preservado); visualizador com o contador no ⋯ Mais, um temporizador só, a contagem que não recomeça ao trocar de aba, o prazo vencido lá fora que roda ao voltar, a falha que não apaga os dados à vista |
+| `banco.test.js` | Banco NCR: zebra e separadores, certos depois de filtrar/ordenar/editar; estados por cima (mouse, foco, fechada, linha presa); cabeçalho alinhado |
+| `compat.test.js` | backup antigo abrindo, formato do backup e chaves internas inalterados (a única chave nova é `comunicados`), o PDF do relatório com as folhas de sempre |
+| `comunicados.test.js` | comunicados: quais marcos (J09 sim; J08 e J09 Ind não), nada criado sem o clique, a prévia com todos os campos, `comunicados.json` na pasta, "já comunicado", comunicado do colega pela pasta, retenção de 100, backup (com e sem a coleção), diário sem o texto, publicação; no visualizador, o pop-up consolidado, "Abrir waiver", lido que sobrevive ao recarregar, "Depois", histórico, a regra dos 7 dias e a publicação antiga |
+| `correcoes.test.js` | os status que fecham a NCR (a lista do Bruno) e o que deixa de pedir waiver; a ficha com os produtos e as deliberações (linhas repetidas, outra aba, listas no JSON); NCR temporária → definitiva ligada pela ficha (vínculo, fluxo, levar adiante, Kanban, editor); a área administrativa (senha, correção com auditoria, a correção que o banco supera, senha errada), o arquivo `derrogacao-ncr-correcoes.json` sem a senha em texto e o visualizador |
+| `shipmanager.test.js` | a coluna Obs Ship Manager: à vista (também na escolha de colunas já gravada, uma vez só), escrita na ficha, busca, levada ao item (cartão no editor, travado continua editável), fora do PDF, correlação, arquivo do Waiver regravado sem o campo, campo desconhecido preservado, visualizador |
+| `arquivo-unico.test.js` | `derrogacao.html` e `derrogacao-visualizador.html` gerados na hora e abertos de `file://` sem flag |
 
-Nos testes da pasta compartilhada (19, 20, 21) o seletor de pastas do Windows
-é substituído por um diretório OPFS — mesma interface
-`FileSystemDirectoryHandle` que a pasta de rede entrega, então o caminho
-exercitado é o de verdade.
+A pasta da rede, nos testes, é um diretório OPFS no lugar do seletor do
+Windows — a mesma interface `FileSystemDirectoryHandle` que a pasta entrega.

@@ -14,8 +14,32 @@ RANAE, Naval Group). O usuário é o **Bruno** e mais duas ou três pessoas da
 mesma equipe.
 
 Duas categorias, mesmo layout, exportadas como relatórios **independentes**:
-**NCR** e **DEV**. Cada item vira uma página A4 retrato; os anexos viram
-páginas A4 paisagem no fim.
+**NCR** e **DEV** — na tela, as abas **Waiver NCR** e **Waiver DEV** (os
+rótulos mudaram a pedido do Bruno; as chaves internas continuam `ncr` e
+`dev`, e o backup, `ncrs`/`devs`). Cada item vira uma página A4 retrato; os
+anexos viram páginas A4 paisagem no fim.
+
+A navegação, na ordem pedida: **Banco NCR · Kanban · Tabela · Waiver NCR ·
+Waiver DEV**, e depois Resumo, Fluxos e (opcional) Conversa (§5, "A
+navegação").
+
+Desde a integração com o NCR Control há também a aba **Banco NCR**: as NCRs
+do SBR4 importadas do banco NCR, com campos próprios do Waiver (marcos, função
+vital, observação), o fluxo de cada NCR desenhado como no NCR Control e o
+botão que leva a NCR ao relatório do marco (§5, "Banco NCR").
+
+O Banco NCR sabe também que uma **NCR temporária** (aberta com número
+provisório quando o sistema interno estava fora do ar) foi **substituída** por
+uma definitiva, e tem uma **área administrativa** com senha para corrigir à mão
+um dado do banco, com auditoria (§5, "Correções: temporária → definitiva,
+ajustes e auditoria").
+
+O mesmo código gera **dois programas**: o **editor** (`derrogacao.html`) e o
+**visualizador** somente leitura (`derrogacao-visualizador.html`), para quem só
+acompanha — é o editor em modo leitura, alimentado pela publicação do editor
+(§5, "O visualizador"). O editor pode mandar a ele **comunicados** — um waiver
+novo, uma NCR nova, um waiver aceito no J09 —, só com um clique de quem edita
+(§5, "Comunicados para o visualizador").
 
 Publicado em **https://brunoalmeida87.github.io/Derrogacao/**, a partir da
 branch `main` (veja §8).
@@ -42,21 +66,72 @@ Não são preferências — são o que faz o sistema servir ao ambiente dele:
 
 ```
 index.html                 interface inteira (nenhum template em JS)
+manifest.webmanifest       instalação como aplicativo (só no site publicado)
+sw.js                      service worker: rede primeiro, cache como reserva
+assets/icons/              ícones do aplicativo instalado
 assets/css/app.css         estilos do editor
 assets/css/report.css      layout do relatório — tela e impressão A4
+assets/js/log.js           o diário do console: o que está acontecendo, e o
+                           que fazer quando dá errado (carrega primeiro)
+assets/js/config.js        o que muda com o tempo: o marco que abre primeiro
+                           (MARCO_INICIAL), o ritmo da atualização e os
+                           marcos que geram comunicados (MARCOS_COMUNICADOS)
+assets/js/atualizacao.js   o ciclo único da atualização automática e o contador
+assets/js/leitura.js       o modo leitura (o visualizador): liga e blinda
 assets/js/store.js         modelo, persistência, mesclagem, ordenação
-assets/js/pasta.js         a pasta da rede como banco de dados
-assets/js/report.js        monta as páginas no padrão do PDF
+assets/js/revisoes.js      o diário: quem escreveu o quê, campo a campo
+assets/js/pasta.js         a pasta da rede como banco de dados (e as imagens),
+                           e a pasta da publicação (`Pasta.publicacao`)
+assets/js/publicacao.js    o arquivo publicado para o visualizador
+assets/js/report.js        monta as páginas no padrão do PDF, e as pagina
+assets/js/fluxo.js         lê o Waiver Historic, desenha o caminho do waiver e
+                           acha o mesmo item no relatório do marco anterior
+assets/js/herdar.js        leva o item aceito para o marco em que o waiver
+                           foi aprovado, já preenchido
 assets/js/summary.js       apuração, filtros, gráficos SVG, aba Resumo
-assets/js/app.js           o editor (o maior; ~2600 linhas)
-tools/build-standalone.py  gera derrogacao.html (arquivo único)
-tests/                     24 suítes Playwright — leia tests/README.md
+assets/js/painel.js        o painel de um marco: tudo o que está indo para ele
+assets/js/xlsx.js          escreve a planilha .xlsx (ZIP + XML à mão)
+assets/js/tabela.js        aba Tabela: todos os itens de todos os marcos
+assets/js/chat.js          a conversa da equipe (aba opcional), pela pasta
+assets/js/comunicados.js   os comunicados para o visualizador: formato, chave
+                           contra duplicado, junção, retenção, lidos
+assets/js/lado.js          o item preso ao lado do editor, em só leitura
+assets/js/xlsxler.js       LÊ .xlsx — cópia literal do motor do NCR Control
+assets/js/ncrs.js          banco NCR: modelo, importações, junção da pasta
+assets/js/correcoes.js     NCR temporária → definitiva, ajustes do administrador,
+                           auditoria e a senha (dados; a tela é o admin.js)
+assets/js/ncrfluxo.js      o fluxo da NCR (trajetória e mapa) do NCR Control
+assets/js/ncrview.js       aba Banco NCR: tabela, filtros, ficha
+assets/js/kanban.js        aba Kanban: as NCRs de um marco, por situação
+assets/js/admin.js         a área administrativa (a tela das correções)
+assets/js/app.js           o editor (o maior; ~3000 linhas)
+derrogacao.html            o programa inteiro num arquivo só — gerado, e versionado
+derrogacao-visualizador.html  o mesmo, em modo leitura — gerado, e versionado
+tools/build-standalone.py  gera (e confere) os dois arquivos únicos
+tools/guia-png.js          gera o docs/visualizador-guia.png (Playwright global)
+docs/visualizador-guia.*   guia rápido do visualizador, em imagem (o .html é a fonte)
+tests/                     suítes de ponta a ponta (Playwright, Node) — §7
 exemplos/                  .json prontos para importar
 .github/workflows/pages.yml  publicação
 ```
 
 Ordem de carga dos scripts (importa: cada um usa o anterior):
-`store.js → pasta.js → report.js → summary.js → app.js`.
+`log.js → config.js → atualizacao.js → leitura.js → store.js → revisoes.js → pasta.js → publicacao.js → xlsxler.js → ncrs.js →
+correcoes.js → ncrfluxo.js → report.js → fluxo.js → herdar.js → summary.js → painel.js →
+xlsx.js → tabela.js → chat.js → comunicados.js → lado.js → ncrview.js → kanban.js → admin.js → app.js`.
+(`ncrs.js` e `correcoes.js` se usam um ao outro só na hora da chamada;
+`fluxo.js`, `herdar.js`, `painel.js` e `kanban.js` usam `Ncrs.chaveCaso` /
+`Ncrs.recDoItem`, que olham as substituições.)
+(`log.js` vem primeiro porque todo mundo o usa — e **por isso mesmo não usa
+ninguém**: ele não conhece `Store`, `Pasta` nem `app`. `config.js` e
+`atualizacao.js` também não usam ninguém: guardam valores e recebem funções.)
+(`tabela.js` usa `Summary`, `Fluxo`, `Report` e `SummaryView.csvCampo`;
+`revisoes.js` usa `Store.CAMPOS_MESCLA`, `valorCampo` e `rotuloCampo`;
+`herdar.js` usa `Store`, `Fluxo` e `Report`; `painel.js` usa esses três mais
+`Summary` e `SummaryView.blocoLista`; `xlsx.js` não usa ninguém;
+`comunicados.js` usa `Config`, `Store` e `Report.marcoOf` só na hora da
+chamada — e `publicacao.js`, que carrega antes, usa `Comunicados.deArquivo`
+também só na hora.)
 
 ## 4. Modelo de dados
 
@@ -78,8 +153,15 @@ Ordem de carga dos scripts (importa: cada um usa o anterior):
 { id, ncrId, systems, func,
   description, currentSituation, whyNotPossible, arguments, archAnswer,
   requestExpiry, archStatus, approvedExpiry, historic,
-  certificates: [], evidence: [{id, ref, note, orientation, images:[{id,src,caption}]}],
-  status,                      // acompanhamento interno; NÃO sai no PDF
+  certificates: [],
+  evidence: [{id, ref, note, orientation,
+              images:[{id, src, caption, arquivo}]}],   // arquivo: nome na pasta (§5)
+  nota,                        // anotação interna livre; NÃO sai no PDF
+  observation,                 // a Observação da NCR, vinda do Banco NCR; NÃO sai no PDF
+  obsShipManager,              // a Obs Ship Manager da NCR, idem (mesmas regras da observation)
+  ncrKey,                      // chave da NCR do banco, quando o item veio de lá
+  herdadoDe, herdadoEm,        // veio do marco tal, quando (§5, herdar.js)
+  status,                      // acompanhamento; fecha a linha da capa (§4)
   done,                        // espelho de status === 'aceito'
   editedBy, editedAt,          // editedAt é a chave da mesclagem
   syncBase }                   // editedAt na última troca de arquivo
@@ -88,15 +170,136 @@ Ordem de carga dos scripts (importa: cada um usa o anterior):
 Persistência: **IndexedDB** (`derrogacao`, v3, stores `projects`, `snapshots`,
 `handles`), com `localStorage` de reserva. `Store.save/list/remove`.
 
+**O banco NCR mora no `snapshots`**, com prefixo na chave — `ncr:<chave>` (uma
+linha por NCR) e `ncrmeta:<nome>` (listas, registro das importações, o retrato
+para desfazer). Pelo mesmo motivo da base da mesclagem: prateleira nova
+obrigaria a subir a versão do IndexedDB, e a versão anterior do programa não
+abriria mais o navegador (§10). Uma linha por NCR para editar um campo não
+regravar o banco inteiro. `Store.ncrAll/ncrPutMany/ncrMetaGet/ncrMetaPut`.
+Nenhuma importação do banco NCR passa perto de `projects`.
+
+**NCR do banco** (em memória, `ncrs.js`):
+
+```js
+{ key, numero,                  // key: número normalizado (maiúsculas, sem espaços, "/"->"-")
+  fonte:  { campos:{coluna:valor}, titulo, descricao, status, sistema, sbr, sbrPor,
+            criadoEm, responsavel, fechamento, arquivo, importadoEm, presente, alterados:[],
+            detalhes:[{titulo, origem, colunas:[], linhas:[[…]]}] },   // produtos, deliberações…
+  waiver: { marcoOriginal, marcoAtual, funcaoVital, waiverHistoric, observacao, obsShipManager,
+            editedBy, editedAt, adicoes:[{projectId, marco, itemId, em, por}] },
+  historico: [{id, data, tipo, campo, de, para, obs, responsavel, cls, estimado}] }
+```
+
+`fonte` é cópia do banco NCR e é **trocada inteira** a cada importação;
+`waiver` só é escrito pela tela e pela correlação; `historico` só cresce.
+
+**Correções** (`correcoes.js`, fora do registro da NCR — em
+`ncrmeta:correcoes` no IndexedDB e em `derrogacao-ncr-correcoes.json` na pasta):
+
+```js
+{ substituicoes: { <chave temporária>: {de, deNumero, para, paraNumero, por, em, obs, removida} },
+  ajustes: { <chave>: { <campo>: {campo, rotulo, valor, banco, por, em, obs, removido} } },
+  auditoria: [{id, em, por, tipo, key, ncr, campo, de, para, obs}],
+  senha: {hash, sal, iter, criadaEm, em, por} }
+```
+
+**Quem lê a `fonte` lê `Ncrs.fonte(rec)`**, não `rec.fonte`: é a fonte com os
+ajustes do administrador por cima (uma cópia rasa; sem ajuste, a própria
+`rec.fonte`). `rec.fonte` continua sendo o que o banco importou — é o que vai
+para a pasta e o que decide se um ajuste foi superado.
+
+### A Observation do item (`observation`)
+A Observação da NCR, copiada para o item quando a NCR é levada ao relatório.
+**Campo próprio, separado da `nota`** (decisão do Bruno): a nota é o recado
+de pendência; a observation é o texto que veio da NCR. Segue as regras da
+nota: fora do PDF, `data-livre` (editável com o item travado), em
+`CAMPOS_VISIVEIS` e `CAMPOS_MESCLA`, **fora da `signature()`**, sem subir o
+`SCHEMA` (`extrasDe` a preserva nas versões antigas). O mesmo vale para
+`ncrKey`.
+
+**Campos desconhecidos sobrevivem.** `normalizeNcr`/`normalizeProject` remontam
+o registro campo a campo — o que não estivesse na lista sumia, e era assim que
+uma página velha lendo dados de uma versão nova apagava, em silêncio, o que não
+entendia, e regravava a perda na pasta. Agora o que não é conhecido é copiado
+de volta intacto (`extrasDe`), e `schema` guarda o maior número já visto. A
+segunda linha de defesa está em `app.js`: vendo dados de `schema` maior que o
+seu, a sessão passa a **só ler** (`versaoDesatualizada`) até recarregar.
+
+### A Obs Ship Manager (`waiver.obsShipManager` e `item.obsShipManager`)
+Observações que o Ship Manager manda para a equipe, digitadas à mão (pedido do
+Bruno: "igual à Observação"). É a Observação repetida, nos dois lugares:
+
+- **na NCR** (`waiver.obsShipManager`, em `Ncrs.CAMPOS_WAIVER`): coluna do
+  Banco NCR, área de texto na ficha, busca, correlação (alias
+  `obs ship manager`), `herdarWaiver`. Entrou no padrão de colunas e, **uma
+  vez**, na escolha que cada um já tinha gravada (`incluirColunaNova`, com a
+  marca `derrogacao:ncrColunaShipManager`) — trocar a chave `ncrColunas2`
+  teria desfeito a escolha de todo mundo;
+- **no item** (`obsShipManager`): copiada por `paraItemWaiver`, em
+  `CAMPOS_VISIVEIS` e `CAMPOS_MESCLA`, **fora da `signature()` e do PDF**, sem
+  subir o `SCHEMA` (`extrasDe`) — as regras da `observation`; coluna opcional
+  na Tabela. **O editor já não mostra o campo do item** (ver abaixo).
+
+**Cartões opcionais no editor** (pedido do Bruno: "não os quero ali"): a
+Observação e a Obs Ship Manager deixaram de ser cartões fixos do editor do
+Waiver. Em Ajustes → "Observações do Banco NCR" (`derrogacao:obsBanco`, por
+navegador, desligado de saída) `cardDeObsBanco` desenha dois cartões que
+**mostram e gravam a NCR do banco** (`Ncrs.recDoItem` + `ctxBanco.editar`, a
+mesma coluna da tabela e da ficha), não o campo do item — "buscaria as
+informações que estão lá no banco". `data-livre`, fora do PDF, só NCR (não
+DEV) ligada a uma NCR do banco. Os campos `observation`/`obsShipManager` do
+item continuam nos dados (compatibilidade; `CAMPOS_MESCLA`), só não têm tela.
+No visualizador os cartões não aparecem (os Ajustes não abrem lá).
+
+**O `waiver` da NCR não tinha `extrasDe`**: `normalizarWaiver` remontava campo a
+campo, e a versão anterior do programa, ao regravar
+`derrogacao-ncr-waiver.json`, apaga a Obs Ship Manager. Duas defesas: daqui
+para a frente `normalizarWaiver` deixa passar campo de texto desconhecido
+(a próxima novidade não sofre disso), e o `juntarWaiver` que vê a mesma edição
+(`editedAt` igual) sem um campo que este lado tem marca `localMaisNovo` e o
+devolve à pasta. O que a versão antiga regravar **depois de editar a mesma
+NCR** perde o campo — por isso a equipe toda precisa estar na versão nova.
+
+### A anotação do item (`nota`)
+Texto livre por item, para o motivo de uma pendência ficar escrito onde o item
+está — e não na cabeça de quem parou. O campo `status` já diz *que* está
+pendente; a `nota` diz *por quê*.
+
+- **Não sai no PDF do relatório**, como o `status`. Quem monta a folha é o
+  `SECTIONS` do `report.js`: campo novo só aparece no papel se for posto lá.
+- **Vale com o item travado.** O `textarea` leva `data-livre`, que é o que
+  `aplicarTrava()` respeita. Anotar não é editar o documento, e o item aceito é
+  justamente onde se escreve "conferir na próxima revisão".
+- **Entra em `CAMPOS_VISIVEIS`**, e por isso a busca da lista e a da Tabela a
+  alcançam, e a faixa "o que mudou" da mesclagem a mostra.
+- **Fica fora de `signature()`, de propósito.** A assinatura desempata duas
+  edições com o mesmo `editedAt`, e precisa dar o mesmo resultado nesta versão
+  e nas anteriores — se cada uma desempatasse por um critério, as duas bases
+  divergiriam para sempre (§10).
+- **Não exigiu subir o `SCHEMA`.** `extrasDe` já preserva campo desconhecido,
+  então a versão antiga carrega a anotação intacta ao regravar — conferido no
+  navegador com o `derrogacao.html` anterior, e não só de memória. Subir o
+  número poria toda sessão antiga em só leitura, o que seria um preço alto por
+  um campo que ninguém perde.
+
 ### Dois campos que parecem o mesmo e não são
 
-- **`archStatus`** é texto livre e **vai impresso** no relatório
-  (*Arch Status Waiver*).
-- **`status`** é controle interno, **nunca** aparece no PDF do relatório. Quatro
-  valores, nesta ordem: `preenchendo`, `solicitado`, `justificar`, `aceito`
-  (Em preenchimento → Waiver requested → Improve justification → Waiver
-  accepted). **Só `aceito` conta como concluído.** Quem mexe nisso é
-  `Store.setStatus`, e só ele — `done` nunca se descola.
+- **`archStatus`** é texto livre e **vai impresso na página do item**, no
+  bloco de status (*Arch Status Waiver*). Continua ali, intocado.
+- **`status`** é o acompanhamento do editor. Quatro valores, nesta ordem:
+  `preenchendo`, `solicitado`, `justificar`, `aceito` (Em preenchimento →
+  Waiver requested → Improve justification → Waiver accepted). **Só `aceito`
+  conta como concluído.** Quem mexe nisso é `Store.setStatus`, e só ele —
+  `done` nunca se descola.
+
+**Onde o `status` aparece no PDF, e só onde:** desde o pedido do Bruno, é ele
+que **fecha a linha de cada item no índice da capa** — o lugar onde antes ia o
+`archStatus` (§10). O motivo: o Arch Status é texto livre e muitas vezes está
+em branco, enquanto a situação é sempre uma das quatro e diz de relance em que
+pé o waiver está. Vai em inglês, pelo campo `en` de `Store.STATUS`, porque a
+folha é um documento em inglês; "Em preenchimento" sai como *Under
+preparation*. Em nenhum outro lugar do PDF ele aparece — a página do item
+continua sendo o `SECTIONS` do `report.js`, e a `nota` continua fora de tudo.
 
 ## 5. Mecanismos, e por que são assim
 
@@ -107,12 +310,179 @@ resto. Páginas de evidência usam uma página nomeada
 (`@page rep-landscape`). Foi decisão consciente: fidelidade total ao original,
 zero dependências, e o usuário escolhe onde salvar.
 
+### Paginação: as margens são padding, e padding não se repete
+As margens da folha são `padding` da `.rep-page`, e a impressão sai com
+`@page { margin: 0 }` — é isso que permite mandar **Margens: Nenhuma** na
+janela de impressão e ainda assim sair no lugar certo. O preço: um texto que
+passe do fim da folha continuaria na seguinte **colado na borda do papel**
+(medido: 0,0 mm). Por isso `report.js` pagina antes de imprimir:
+
+- `paginar()` mede a folha montada e, enquanto ela transborda, tira do fim os
+  blocos marcados `data-fluido` e os leva para uma folha de continuação de
+  verdade — com as mesmas margens, o rodapé repetido e o título com `(cont.)`.
+  Uma seção sozinha maior que a folha é partida no texto (`partirSecao`, busca
+  binária pelo ponto de corte, sem partir palavra).
+- O índice da capa é `data-lista`: ali a unidade é cada linha.
+- A conta só existe com layout; como o `#printRoot` fica `display:none`,
+  `abrirMedida()` dá layout a ele fora da vista enquanto mede.
+- A margem de segurança contra o arredondamento da impressão é a classe
+  `.rep-medindo`, que encurta a área útil em 1,5 mm **durante a medição** — não
+  se mexe no `limite`, que é a folha inteira: `min-height: 297mm` faz toda
+  folha medir exatamente isso, e descontar dali marcaria tudo como transbordo.
+- Quem cabe numa folha continua saindo exatamente como antes.
+- **Listas partidas linha a linha**: um bloco `data-lista` entrega os próprios
+  filhos como unidades, e os filhos marcados `data-cabecalho` não migram — são
+  repetidos no alto de cada continuação. É assim que a lista de itens do
+  resumo atravessa quatro folhas sem perder o título nem os rótulos das
+  colunas. Uma lista que ficasse só com o cabeçalho é removida.
+- A mesma máquina serve ao **relatório**, ao **resumo** e aos **fluxos**: os
+  três chamam `Report.paginar`. O resumo foi o último a entrar (era uma folha
+  só, que transbordava com poucos itens); a lista dele não é um `<table>`
+  justamente por isso — linha de tabela mora dentro do `<tbody>`, e mudar de
+  folha exigiria partir a tabela.
+
 ### Ordem da lista = ordem do PDF
 `project.ordem` escolhe; `Store.ordenar(project, kind)` devolve um vetor
 **novo**. O vetor real nunca é reescrito, então dá para voltar ao manual sem
 perder nada. Arrastar um item fixa a ordem à vista como manual. `report.js`
 usa `Store.ordenar`, e por isso a capa, as páginas e as evidências saem na
 mesma sequência.
+
+### A mesclagem é campo a campo (e por que ela não era)
+
+Era o item inteiro, e o item inteiro é grande demais para ser a unidade. Duas
+pessoas mexendo em campos diferentes da mesma NCR não estão em conflito
+nenhum — mas uma delas perdia tudo, em silêncio. Foi o que o Bruno relatou:
+alguém fica horas sem sincronizar, volta, e o texto que já estava escrito
+some. Não precisa nem de relógio errado para acontecer: basta a pessoa ter
+mexido no item depois de o colega ter gravado.
+
+O que faltava era a **terceira ponta**: o texto que os dois tinham antes de
+se separarem. `Store.baseDe(projects)` guarda esse retrato — só texto, campo
+a campo, sem imagem nem carimbo — e `mergeLWW` o recebe. Com ele:
+
+- campo que só eu mudei → fica o meu;
+- campo que só o outro mudou → entra o dele;
+- campo que os dois mudaram → **aí sim** alguém ganha, pelo `editedAt` (com
+  a assinatura no empate), e o texto que perdeu vai inteiro para o diário,
+  com um botão que o traz de volta;
+- campo que ninguém mudou → não se mexe.
+
+Sem base — item recém-criado, navegador que nunca sincronizou — vale o item
+inteiro, como antes. É degradação segura, não caso especial.
+
+**As evidências não se mesclam campo a campo**, porque são listas com
+imagens e meia lista de anexos seria um item que ninguém montou. Mas o
+retrato guarda uma chave delas (`evidChave`, a mesma do `signature`), então
+elas vão para o lado de quem mexeu nelas, em vez de acompanharem o vencedor
+do desempate.
+
+### Duas pessoas ao mesmo tempo: qual base vale (o conserto do atropelo)
+
+A mesclagem campo a campo precisa de uma terceira ponta honesta. Até aqui ela
+era sempre `mesclaBase` — **o que eu gravei** na rodada passada. Está certo
+quando a minha gravação sobreviveu. Só que **não há trava de arquivo**: entre
+a minha leitura e a minha gravação o colega pode gravar uma cópia que nunca
+viu o meu campo, e o arquivo dele passa por cima do meu.
+
+Aí a base mentia, e o estrago era silencioso:
+
+```
+base = "meu texto"    (mentira: a pasta não tem isso)
+aqui = "meu texto"
+lá   = ""             (a cópia dele, que nunca viu o meu)
+→ "só ele mexeu; ele apagou" → o meu texto sumia de vez,
+  sem conflito, sem aviso e sem linha de histórico.
+```
+
+Era exatamente o que o Bruno relatou: *"as vezes perdemos dados ou status que
+havíamos modificado"*. Reproduzido no navegador com duas abas numa pasta
+compartilhada de verdade (`juntos.py`), e as duas máquinas chegavam a ficar
+com **situações diferentes** para o mesmo item, sem convergir nunca.
+
+**A resposta não é escolher outra base fixa.** Duas tentativas falharam antes
+da certa, e vale registrar as duas para ninguém repetir:
+
+1. *Base = o que eu reli logo depois de gravar.* Fecha nada: o atropelo
+   acontece depois da releitura.
+2. *Base = o que a pasta tinha quando eu li.* Conserta o atropelo e **quebra o
+   "pôr de volta"**: o colega que restaura um texto exatamente no valor que eu
+   tinha lido passa a parecer "não mexeu", e a restauração nunca me alcança
+   (o `duas_maquinas.py` pegou isso).
+
+O que decide é saber **se a cópia que chegou viu a minha gravação** — e isso é
+causalidade, não relógio: uma cópia mais nova não é uma cópia que viu. Quem
+responde é o próprio arquivo. Cada gravação anota de que versão do arquivo ela
+partiu (`baseadoEm`, o `lastModified` que o disco deu), e o disco é o mesmo
+relógio para todo mundo:
+
+| o arquivo que chegou | base que vale |
+| --- | --- |
+| ainda é o meu (`lastModified` igual ao da minha gravação) | o que eu **gravei** |
+| partiu da minha gravação (`baseadoEm >= meuCarimbo`) | o que eu **gravei** |
+| partiu de antes dela | o que eu **li** |
+
+No terceiro caso o meu campo volta a contar como "só eu mexi" — é regravado na
+rodada seguinte em vez de apagado — e as duas máquinas convergem. O console
+diz isso na hora ("a cópia que chegou não viu a minha última gravação") e a
+gravação é repetida (`gravarPendente`).
+
+Arquivo gravado por uma versão antiga do programa não traz `baseadoEm`: aí
+vale a regra de antes, que é o que já existia. Não foi preciso subir o
+`SCHEMA` — o campo vive no envelope do arquivo da pasta, não no item.
+
+**Três bases, então** (`Store.saveBase(base, diario, lida, carimbo)`, na prateleira
+`snapshots` do IndexedDB, com a chave `mesclaBase`):
+
+- `base` só avança **depois de a gravação na pasta dar certo**. Avançá-la
+  antes faria a junção seguinte ler o meu trabalho ainda não gravado como
+  "coisa que o outro escreveu" — e a regra que existe para salvar o texto
+  seria a que o apagaria.
+- `lida` é o retrato da pasta **na leitura daquela mesma rodada**, e avança
+  junto com `base`: as duas descrevem a mesma rodada e não podem andar
+  separadas.
+- `carimbo` é o `lastModified` da minha última gravação, que é o que faz a
+  tabela acima funcionar.
+- `diario` avança a cada captura do histórico, com ou sem pasta.
+
+E elas moram na prateleira que já existia, de propósito: criar outra
+obrigaria a subir a versão do IndexedDB, e a página da versão anterior
+abrindo o mesmo navegador depois disso não conseguiria mais abrir o banco.
+
+O relógio ainda decide **um** caso — os dois no mesmo campo. Por isso a
+sessão avisa quando o `updatedAt` do arquivo está no futuro em relação ao
+relógio daqui (`conferirRelogio`): só essa direção é conclusiva, porque um
+carimbo velho pode ser só alguém que não mexe no arquivo desde ontem.
+
+### O diário de alterações (`revisoes.js`)
+
+A pasta já guardava versões inteiras (`historico/`), que servem para o
+estrago grande: voltar tudo a como estava às 14h. Elas respondem mal a
+pergunta miúda, que é a que aparece no dia a dia — *"quem apagou o meu texto
+do Arch Answer, e o que estava escrito lá?"*. Aqui cada alteração de campo é
+uma linha: quem, quando, qual campo, o que estava, o que passou a estar.
+
+- **Sai da mesma base da mesclagem.** O que está aqui, comparado com o
+  retrato da última captura, é exatamente o que esta pessoa escreveu — sem
+  gravar nada a cada tecla.
+- **Cada um anota só o que escreveu.** Anotar também o que chegou dos outros
+  duplicaria a linha em cada computador, com ids diferentes.
+- **Arquivo próprio na pasta** (`revisoes.json`), pelo motivo da conversa: o
+  arquivo de dados é reescrito e copiado inteiro a cada gravação. Não entra
+  no backup nem no PDF.
+- **União pelo id**, nunca "vale o mais recente": uma alteração que
+  aconteceu não deixa de ter acontecido. O que pode mudar é o texto final de
+  uma linha ainda aberta — teclas seguidas da mesma pessoa no mesmo campo,
+  dentro de dez minutos, esticam a linha em vez de criar outra, e aí vale o
+  carimbo maior.
+- **Pôr um texto de volta é uma edição como outra qualquer**, com hora nova:
+  é isso que faz o texto restaurado valer também no computador dos outros,
+  em vez de ser apagado de volta na sincronização seguinte.
+- **Os tetos** (1500 linhas, um ano, 4 000 caracteres por campo) existem por
+  causa dos ~5 MB de `localStorage` que o programa inteiro divide — a
+  conversa já ocupa parte deles.
+- **O histórico começa quando esta versão começa.** O que foi escrito antes
+  dela não tem linha, e a tela diz isso em vez de fingir um passado.
 
 ### Duas mesclagens diferentes, de propósito
 1. **Arquivo aberto à mão** (`Store.diffProject`) → mesclagem a três pontas
@@ -130,7 +500,8 @@ distintos.
 
 ### A pasta da rede como banco (`pasta.js`)
 File System Access API (`showDirectoryPicker`), Chrome/Edge, **funciona também
-em `file://`**. A pasta guarda `derrogacao-dados.json` e `historico/`.
+em `file://`**. A pasta guarda `derrogacao-dados.json`, `imagens/` e
+`historico/`.
 
 - Ao abrir: lê e junta. Ao salvar: **relê, junta, grava** (é o que evita apagar
   o trabalho de quem salvou no meio). A cada 20 s confere se mudou lá fora.
@@ -141,6 +512,39 @@ em `file://`**. A pasta guarda `derrogacao-dados.json` e `historico/`.
   10 min, guardando as últimas 40. Restaurar **só ressuscita o que sumiu**
   (`Store.reviver`), registrado como edição de quem restaurou — é isso que faz
   o item sobreviver no computador dos outros.
+- **Imagens em arquivos próprios** (`imagens/<id do registro>.jpg`). No JSON da
+  pasta fica só `arquivo`; o `src` em base64 é removido na hora de montar o
+  retrato (`montaPayload`) e devolvido na leitura (`hidratarImagens`, que
+  reaproveita o que já está aqui e só lê do disco o que falta). Motivo: antes
+  cada gravação reescrevia os megabytes de todas as fotos, e cada uma das 40
+  versões do histórico era outra cópia inteira. **O backup `.json` continua
+  embutindo tudo** — esse precisa viajar sozinho por e-mail.
+  Ordem que importa: grava-se a imagem **antes** do JSON que a cita.
+  A poda (`Pasta.podarImagens`) só apaga o que nenhum item **e nenhuma versão
+  do histórico** citam, e nunca com menos de 7 dias — entre gravar a foto e
+  gravar o JSON existe um instante em que ela parece órfã para quem estiver
+  lendo. Roda no máximo de hora em hora (`limparImagensOrfas`).
+- **Toda escrita na pasta tem segunda chance** (`comSegundaChance`). O Chrome
+  não grava por cima: escreve num `.crswap` ao lado e renomeia no fim. Numa
+  pasta de rede esse vaivém esbarra no antivírus, no Windows e na outra pessoa
+  gravando o mesmo arquivo no mesmo segundo, e o navegador devolve
+  `InvalidStateError` ("state cached in an interface object … had changed
+  since it was read from disk"), `NoModificationAllowedError`, `AbortError` ou
+  `NotReadableError`. Nenhum quer dizer "não vai dar" — querem dizer "agora
+  não". A tarefa **pede o crachá do arquivo lá dentro**, porque o crachá
+  guarda o retrato (tamanho, data) de quando foi pedido, e é esse retrato
+  vencido que o navegador recusa; reaproveitar o de fora repetiria o erro.
+  Duas tentativas e o erro sobe — quem chamou é que sabe se era essencial.
+  Vale para os dados, as imagens, as versões do histórico, a conversa e o
+  diário. Antes disso, uma recusa dessas **perdia a rodada inteira**: nem os
+  dados, nem a versão do histórico, nem o diário chegavam na pasta (provado no
+  navegador contra a versão anterior).
+- **Guarda de versão**: lendo dados com `schema` maior que o desta página, a
+  sessão para de gravar (só lê) e avisa. Sem isso, a página velha regravaria a
+  pasta sem os campos que não conhece. Ver §4.
+- **O que foi substituído por fora** não passa mais em branco: `mergeLWW`
+  devolve `substituidos` (campo a campo, sem base64), o item ganha a marca `⇄`
+  na lista e uma faixa com *estava aqui* × *passou a ser*.
 - O "crachá" (handle) fica no IndexedDB, store `handles`. **Não é um caminho** e
   não viaja: cada pessoa escolhe a pasta uma vez, por navegador. O campo de
   caminho no diálogo é texto informativo que viaja nos dados, só para dizer ao
@@ -152,6 +556,639 @@ isso, o item apagado por uma pessoa voltaria pela sincronização de quem ainda
 não soube. O carimbo é sempre **posterior à versão excluída**
 (`Store.depoisDe`), para não ressuscitar por relógio adiantado.
 
+**Toda exclusão precisa passar por aqui** — são três portas: `deleteNcr()`, o
+grupo *Excluídos pelo colega* de `applyMerge()` e o *Excluir este relatório*.
+As duas últimas já esqueceram a lápide uma vez, e o item voltava minutos depois.
+
+Relatório inteiro tem lápide própria (`Store.tombstoneProjeto`), guardada no
+`localStorage` — o relatório já não existe para guardá-la — e enviada no campo
+`relatoriosExcluidos` do arquivo da pasta. Vale enquanto ninguém editou um item
+dele depois do carimbo, a mesma regra da lápide de item. `Store.reviver` apaga
+a lápide do que restaura.
+
+### O fluxo do waiver (`fluxo.js`)
+O campo `historic` é texto livre, uma entrada por linha (`J01 & J03 To: J06`).
+`Fluxo.analisar` lê cada linha como uma **seta** e devolve cards, setas e
+colunas; `Fluxo.svg` desenha. O texto nunca é alterado — o desenho é leitura.
+
+- A coluna de um card é **uma a mais que a de quem aponta para ele**. É isso
+  que faz `J06 To: J08` + `J04 To: J06` virarem J04 → J06 → J08 sem ninguém
+  dizer a ordem, e faz dois marcos que vão ao mesmo destino se juntarem.
+- Quando as setas não decidem, vale `Fluxo.ORDEM` (J01 & J03 · J02 & J04 · J05
+  · J06 · J07 · J08 · J09 · J10 · J11 · J12), com `<marco>Cer` meio ponto antes
+  do marco dele.
+- Setas em círculo não travam: há um teto de colunas, a seta que fecha o
+  círculo é ignorada e o pop-up avisa.
+- O que não tem marco nenhum no texto (`RANAE`) vira card tracejado no fim, em
+  vez de sumir.
+- A aba **Fluxos** (`renderFluxos` em `app.js`) é o compilado do relatório
+  aberto, e o PDF dela usa `Report.paginar` — a mesma paginação do relatório.
+
+### O marco depois do J12: RANAE e TRAP
+`Fluxo.ORDEM` termina em `… J11 · J12 · RANAE · TRAP`. Os dois últimos não têm
+número, e por isso cairiam como card solto no fim do desenho (posição 900) em
+vez de ficarem na fila. `SEM_NUMERO` os reconhece pelo texto, `naFilaSemNumero`
+dá a posição, e `marco()` canoniza a chave: "RANAE final", "Ranae" e "RANAE"
+viram **o mesmo card** — senão o mapa do marco contaria o mesmo caminho duas
+vezes só porque duas pessoas escreveram diferente.
+
+Cuidado com a armadilha que já existia: **"RANAE J06" continua sendo o J06.**
+Havendo número no texto, é o número que manda; o reconhecimento por nome só
+vale quando não há nenhum. É o que deixa o marco do RANAE conviver com os
+relatórios que a equipe já chama de "RANAE J06", "RANAE J08".
+
+### A Função do item segue a Função Vital do Banco (`alinharFuncoes`)
+Pedido do Bruno: a função vital era escrita em dois lugares; o Banco NCR é a
+orientação correta. O item continua guardando `func` (o PDF, o Kanban, a
+Tabela e a publicação o leem), e `alinharFuncoes()` (app.js) o alinha com
+`Ncrs.funcaoParaWaiver(rec.waiver.funcaoVital)` — na abertura, depois de
+editar a Função Vital, de uma importação, de uma junção da pasta e de uma
+ligação temporária → definitiva. **Só troca quando `Ncrs.norm` difere**: "FV 01 -
+Sea water…" e "FV01 - SEA WATER…" são a mesma função, e o item que já estava
+certo não muda no PDF (conferido: o PDF do J06 de exemplo, sem ligação, saiu
+idêntico). Sem Função Vital no banco o campo do item é livre; com ela é
+`fixo` (`field(…, {fixo: true})`: `readOnly`, `data-livre`). A troca é edição
+comum (`logChange`, autoria de quem abriu primeiro) e converge entre as
+máquinas porque todas chegam ao mesmo texto. Visualizador: não escreve.
+**Consequência para testes e sementes:** item de teste ligado ao banco tem de
+ter o `func` do banco, senão o programa o regrava na abertura (e o projeto
+vira o "mais recente").
+
+### Levar o item aceito para o marco seguinte (`herdar.js`)
+Waiver aceito não acaba: ele vale até um marco à frente, e o item terá de ser
+reescrito lá. Era trabalho manual — copiar item por item, lembrando de trocar
+o que muda. Agora é um botão, na barra de situação do editor.
+
+- **O destino sai do `Waiver Approved Expiry`**, lido por `Fluxo.marco`. Não há
+  campo novo para isso: o campo que já diz até quando o waiver vale é o que diz
+  para onde ele vai (§10).
+- **O relatório do destino tem de existir.** Criar um marco a partir de um
+  campo de texto encheria a lista de marcos escritos com typo — e cada um
+  viajaria para a pasta da equipe. Não existindo, o botão fica apagado e diz o
+  que falta, por escrito.
+- **A cópia chega em "Em preenchimento"**, nunca aceita: o waiver do marco
+  anterior foi aceito, o deste ainda nem foi pedido.
+- **Com o Waiver Historic já escrito** (`J08 To: J09`), por `Fluxo.comLinha` —
+  a mesma função que `analisar` sabe ler de volta. Não há um segundo formato
+  de linha no programa.
+- **O número é o mesmo, de propósito.** `Store.duplicar` marca a cópia com
+  "(cópia)" porque lá o destino é o mesmo relatório; aqui o destino é outro
+  marco, e o pareamento é sempre dentro do marco (§5): a NCR-001 do J08 e a do
+  J09 são itens distintos, e precisam do mesmo número para se acharem no fluxo.
+- **O ciclo anterior vem em branco** (`archAnswer`, `archStatus`, as duas
+  datas): eram a resposta do marco que terminou. O texto do pedido —
+  description, current situation, why not possible, arguments — vai inteiro,
+  porque é o que dá trabalho de escrever.
+- **`herdadoDe`** marca a cópia. É o `⤵` na lista e a faixa roxa no alto do
+  editor, que sai quando a pessoa clica em "Já conferi" — o lembrete que o
+  Bruno pediu ("algumas informações terão que ser alteradas").
+- **Levar duas vezes é recusado**, pelo número, dentro do marco: dois itens com
+  o mesmo número virariam um só na mesclagem do colega.
+- **O item de origem não é tocado.** Ele é o registro do marco dele, e é dele
+  que o ponto no card do fluxo lê o Arch Answer do marco anterior.
+
+`herdadoDe` não subiu o `SCHEMA`, pelo mesmo motivo da `nota`: `extrasDe`
+preserva campo desconhecido, e subir poria toda sessão antiga em só leitura.
+Ele está em `CAMPOS_MESCLA` (converge campo a campo) e **fora** de
+`signature()` — o desempate tem de dar o mesmo resultado nas versões
+anteriores, senão as bases divergem para sempre (§10).
+
+### De onde veio × para onde vai (e por que o texto não sabe o futuro)
+
+O Waiver Historic conta **de onde o item veio**: no relatório do J08 ele
+termina em J08, porque é assim que o relatório é escrito (`J06 To: J08`). Logo
+a última seta do texto é sempre a **chegada** neste marco — nunca a saída.
+
+Isso derrubou duas coisas de uma vez, e as duas foram consertadas juntas:
+
+- a coluna "Waiver de → para" da Tabela mostrava o passado com cara de futuro,
+  e a coluna "Indo para o marco" chegava a repetir o próprio marco do item;
+- o painel do J09 só enxergava as cópias **já levadas** para lá, e ficava vazio
+  justamente antes de o marco começar — que é quando ele serve para planejar.
+
+Quem sabe para onde o item vai é o documento, em dois campos, nesta ordem:
+
+```
+Waiver Approved Expiry  → até onde o arquiteto APROVOU   (vale mais)
+Waiver Request Expiry   → até onde a equipe PEDIU        (reserva)
+```
+
+`Herdar.paraOnde(item)` lê os dois e devolve `{no, aprovado}`. Ler o segundo é
+o que faz o item ainda em "Waiver requested" aparecer como indo para o J09 —
+que é o que interessa para planejar o marco antes de a resposta chegar.
+`Herdar.destinoDe` continua estrito (só o aprovado), porque **copiar** o item
+é ação e só pode se guiar pelo que foi aprovado; `paraOnde` é leitura.
+
+Um item cujo destino é o próprio marco não está indo a lugar nenhum: o waiver
+vale até ali e acabou (`estado: 'aqui'`).
+
+`Herdar.avanco(project, item, kind, projects)` junta tudo num quadro que a
+Tabela e o painel leem igual: `semDestino · aqui · levada · aLevar ·
+semRelatorio`.
+
+Na Tabela isso virou três colunas que, ao lado de "Marco", leem a linha
+inteira de um relance:
+
+```
+Veio de  |  Marco  |  Vai para  |  Já levada?
+  J06    |   J08   |    J09     |     não
+```
+
+"Já levada?" só diz "não" quando o waiver **já foi aceito**: antes disso não
+há o que levar, e um "não" ali seria cobrança de uma coisa que ainda não
+venceu.
+
+A coluna **"Caminho do waiver"** junta as duas pontas, e o parêntese separa o
+que aconteceu do que vai acontecer:
+
+```
+J04 → J06 → J08 → (J09)    o destino ainda não foi levado para lá
+J06 → J08 → J09            a cópia já está no J09
+```
+
+Sem o parêntese, quem lê a planilha entende que a NCR já está no J09.
+
+### O painel de um marco (`painel.js`)
+A aba Fluxos responde "por onde passou". O painel responde a pergunta do outro
+lado do balcão, que é a que se leva para a reunião: **o que está chegando no
+J09?** É a quarta vista da aba Fluxos, e sai em PDF pelo mesmo botão das
+outras.
+
+- **O recorte tem duas portas** (ver a seção anterior): **já chegou** (uma
+  seta escrita termina neste marco, `Fluxo.chegaEm`) ou **está a caminho** (o
+  documento diz que o waiver vale até aqui, `Herdar.paraOnde`, e o item mora
+  em outro marco). Passar pelo marco no meio do caminho continua não contando:
+  quem já saiu do J08 não está indo para o J08.
+- **O seletor de marcos também tem as duas portas.** Sem a segunda, o J09 nem
+  aparecia na lista enquanto ninguém tivesse escrito "… To: J09". Marco que
+  não tem nada chegando fica fora: seletor cheio de painel vazio é pior do que
+  seletor curto.
+- **A coluna "Caminho" da lista é `veio de → este marco`**, não o último salto
+  do texto — num item do J08 aquele salto é a chegada dele no J08, e no painel
+  do J09 seria confusão.
+- **Olha todos os relatórios deste navegador**, sempre: o que chega no J09 vem
+  do J08, do J06, do RANAE. Por isso a vista esconde os filtros da aba (busca,
+  tipo, escopo, "passa por"): eles são do fluxo por item, e oferecer botão que
+  não faz nada é pior do que não ter botão.
+- **Uma NCR que já foi levada adiante aparece uma vez só** (`semRepetir`): a
+  cópia que chegou ganha da original, porque é ela que ainda dá trabalho. Daí
+  os dois números que respondem ao dia a dia — *já no relatório de J09* e
+  *aceitos, falta trazer*.
+- **A contagem do seletor sai da mesma função que monta a lista.** Antes ela
+  contava setas, e o seletor dizia "J09 (7)" com seis itens na folha abaixo.
+  `Painel.base` lê o fluxo de cada item **uma vez** por desenho, e o seletor e
+  a lista comem do mesmo prato.
+- **Duas folhas, de propósito** (`opts.parte`). Numa folha só sobrava lugar
+  para duas linhas da lista, e o cabeçalho que ficava para trás empurrava o
+  gráfico inteiro para a folha seguinte: meia folha em branco e a lista
+  apertada logo depois. Separadas, cada uma enche a sua.
+- A rosca é SVG escrito à mão, com as cores de `Store.STATUS` (as mesmas do
+  trilho da lista e da pílula do resumo) e cada fatia com o número na legenda:
+  anel sem rótulo obriga a medir ângulo a olho, e isso não é leitura.
+
+### As três leituras do fluxo (`Fluxo.agregado`, `matriz`, `saltos`)
+A lista responde "por onde passou esta NCR". Com trinta itens na mão a pergunta
+vira outra — "por onde passa o trabalho deste marco" —, e trinta desenhos lado
+a lado não respondem isso.
+
+- `Fluxo.agregado(analises)` soma os fluxos: cada card e cada seta ganham
+  `peso` (quantos itens passam ali). O cálculo de colunas saiu de dentro do
+  `analisar` para `distribuirColunas`, usado pelos dois.
+- Os nós do agregado são **cópias**: o nó da análise de um item carrega o
+  `nivel` e a `ordem` daquele desenho, e somar por cima bagunçaria o desenho
+  de lá.
+- `Fluxo.svg` com `opts.pesos` engorda a seta, escreve o número em cima dela
+  (com contorno branco, senão some sobre a linha) e põe a contagem embaixo do
+  card — o que exige altura extra por card, senão o número encosta no de cima.
+- **Filtro por marco**: `Fluxo.marcosCitados` lista os marcos que os próprios
+  textos citam e `Fluxo.passaPor` recorta. Não há lista fixa de marcos aqui —
+  o texto continua sendo a verdade (§10).
+- **Escopo**: a aba passou a poder olhar todos os relatórios, não só o aberto.
+  Com isso, a linha do item tem de abrir o relatório certo antes de selecionar
+  (reaproveita `abrirDaTabela`), e o número sozinho deixa de identificar — a
+  linha mostra o marco junto.
+
+### A resposta do marco anterior (o ponto no card)
+Cada marco é um projeto à parte e o mesmo item atravessa vários: a `NCR-001` do
+J06 vira a `NCR-001` do J08. Então a resposta que o J06 deu **já está neste
+navegador** — é só procurar. `Fluxo.indice(projects, kind, atualId)` monta a
+procura (um registro por relatório, com o marco entendido por `Fluxo.marco` e
+os itens indexados por `Store.numeroChave`) e `Fluxo.anterior(idx, no, item)`
+responde por card. `Fluxo.svg` recebe isso em `opts.antes` e, achando, põe o
+ponto no canto, o balão no `mouseenter`/`focus` e o clique em `opts.abrir`.
+
+- **Só acha o que está aqui.** Marco sem relatório neste computador fica sem
+  ponto; inventar resposta seria pior do que não mostrar nada. Quem traz os
+  outros marcos para cá é a pasta da rede.
+- **O pareamento é o de sempre**: marco pelo texto (`RANAE J06` = `J06`;
+  `J06Cer` ≠ `J06`; `J01 & J03` alcança o `J03` por interseção de números) e
+  item por `Store.numeroChave`. Empate: o marco escrito igual vale mais; depois
+  o relatório mexido por último.
+- **O próprio item aberto nunca é resposta de marco nenhum** — seria ele
+  mesmo, e o card do marco atual já vem destacado.
+- **O índice é montado uma vez por desenho**, não por card: a aba Fluxos
+  pergunta por cada card de cada item.
+- **Ler não escreve.** O outro relatório não é tocado.
+- O balão vive fora do desenho (`div.fx-balao`, `position: fixed`,
+  `pointer-events: none`), porque SVG não quebra linha sozinho. Ele é
+  reparentado para o `<dialog>` quando o card está dentro de um: elemento da
+  camada de cima não deixa ver quem ficou no `body`. Nada disso vai para o
+  papel — a impressão não passa `opts.antes`.
+
+### O item preso ao lado (`lado.js`)
+Uma coluna à direita do editor com **outro item, em só leitura**, para escrever
+um olhando o outro. `Lado.montar(host, project, item, kind, opts)` desenha; o
+`app.js` guarda a escolha (`derrogacao:aoLado` no localStorage — é de quem está
+neste navegador, não do relatório), oferece o diálogo de escolha e o
+Shift+clique no card do fluxo.
+
+- **Por que não é editável, e o que mudaria isso.** `field()` liga cada campo
+  ao item **selecionado** (`currentNcr()` na hora da tecla), e os ids `f-<campo>`
+  são únicos na página. Dois formulários abertos escreveriam os dois no mesmo
+  item, e metade das buscas por id pegaria o painel errado. Para ter dois
+  editores de verdade é preciso amarrar cada campo ao seu item e dar escopo aos
+  ids — reforma da camada de formulário, com a trava do item aceito, o colar de
+  imagem e o autossalvamento junto. Enquanto isso não for feito, a coluna
+  mostra e não escreve: escrever aqui não pode encostar no item de lá.
+- **Terceira coluna do `.layout`**, fora do `<main>`: os quatro painéis de aba
+  do editor ficam intocados. Some nas abas de tela cheia (não há editor ao lado
+  de quê) e volta ao entrar na NCR/DEV.
+- Redesenha em `renderTabs` e `renderEditor`, então acompanha o que a pasta
+  trouxer e o que for salvo aqui — inclusive quando o item preso é o próprio
+  aberto (a coluna diz isso).
+- Item preso que sumiu (excluído aqui ou pela pasta) fecha a coluna com aviso,
+  em vez de mostrar o retrato de algo que não existe mais.
+- O botão **copiar** de cada bloco usa `copiarTexto()`, que tem reserva com
+  `execCommand`: `navigator.clipboard` não existe em `file://`, e era por isso
+  que o arquivo único respondia "cópia indisponível".
+
+### A conversa da equipe (`chat.js`)
+Aba opcional, desligada de saída, ligada em **Ajustes** (a escolha vive no
+`localStorage`, não no projeto: quem decide ver recado é cada pessoa).
+
+- **Arquivo próprio na pasta**: `conversas.json`, ao lado dos dados. Fora do
+  `derrogacao-dados.json` de propósito — aquele é reescrito a cada gravação e
+  copiado inteiro em cada uma das 40 versões do histórico, e o papo do dia não
+  tem por que engordar isso. Pela mesma razão não entra no backup nem no PDF.
+- **União por id, não "vale a mais recente"**: mensagem não se edita. O que
+  viaja é o apagar, como lápide — sem isso o recado apagado voltaria pela
+  sincronização de quem ainda não soube.
+- Ler-juntar-gravar, como os dados: duas pessoas escrevendo ao mesmo tempo não
+  apagam o recado uma da outra.
+- **Canal direto = a dupla de nomes em ordem** (`d:bruno|maria`), então os dois
+  lados escrevem no mesmo lugar sem combinar nada.
+- **Não é canal seguro, e a tela diz isso** — o arquivo é legível por quem
+  abre a pasta, e o nome é autodeclarado. O aviso fica sempre à vista, não
+  escondido num "saiba mais": tratar a conversa direta como reservada seria um
+  engano caro num programa de defesa.
+- "Lido" guarda o maior entre agora e o carimbo da mensagem mais nova do
+  canal: com o relógio de um colega adiantado, só "agora" nunca zeraria.
+- Poda em 90 dias / 1.000 mensagens, senão o arquivo vira o maior da pasta.
+
+### A aba Tabela (`tabela.js`) e a planilha (`xlsx.js`)
+Uma linha por item de **todos os relatórios**, não só do aberto — é a única
+tela que responde "onde está a NCR-018?" sem abrir marco por marco.
+
+- **Os filtros são os do Resumo** (`Summary.passa`), mais os marcos. Um filtro
+  com o mesmo nome recortando coisas diferentes nas duas abas seria pior do que
+  não ter o filtro.
+- **Os marcos são pastilhas, e dá para marcar vários** (`f.marcos`, lista de
+  ids). Era um `<select>` de escolha única, e comparar dois marcos obrigava a
+  trocar de filtro e voltar. As pastilhas são as mesmas do filtro de situação
+  do PDF e do "Passa por" da aba Fluxos: a mesma ideia tem de ter a mesma cara
+  no programa inteiro. `marcosDoFiltro(f)` entende também o `f.marco` antigo,
+  de escolha única, e o primeiro clique numa pastilha o zera — senão os dois
+  filtrariam ao mesmo tempo. Relatório vazio continua na fila, com o `0` à
+  vista: esconder um marco do filtro faria a pessoa procurar por ele.
+- **Colunas escolhidas e reordenadas** ficam no `localStorage`
+  (`derrogacao:tabela`), com a ordenação junto: é preferência de quem está
+  sentado ali, como a Conversa e o item ao lado. **O filtro não é guardado** —
+  reabrir o programa com uma busca velha aplicada esconde itens sem dizer por
+  quê.
+- **Ordenar aqui não toca em `project.ordem`.** A tabela é leitura; quem manda
+  no PDF continua sendo a ordem do relatório. `Tabela.ordenar` trabalha numa
+  cópia justamente por isso.
+- **`.xlsx` é um ZIP com XML dentro**, e o `xlsx.js` escreve os dois à mão:
+  entradas *armazenadas* (método 0, sem compressão) dispensam escrever um
+  compressor, e o Excel abre normalmente. Sai com filtro no cabeçalho, primeira
+  linha congelada e número como número.
+- **Texto vai como `inlineStr`**, que o Excel nunca lê como fórmula — é o que
+  protege o `= + - @` sem depender do apóstrofo. No CSV a regra continua sendo
+  a do `csvCampo`, agora exportado por `SummaryView` para não haver duas cópias
+  dela.
+- **A exportação leva o texto dos anexos, não só a contagem.** `Anexos` e
+  `Imagens` eram números; o que estava escrito dentro deles — a referência, a
+  observação e a legenda de cada foto — não saía em lugar nenhum. Hoje são
+  três colunas (`evidRefs`, `evidNotas`, `legendas`), cada anexo separado por
+  ` | `. A foto continua fora: a planilha leva o texto dela. Com “Mostrar
+  todas”, a exportação carrega o waiver inteiro, sem corte — o `longo: true`
+  da coluna é só dica de estilo da tela, não limite de conteúdo.
+- **Toda exportação leva uma aba “Recorte”** dizendo data, autor, quantos itens
+  e qual filtro estava aplicado. Planilha que anda pela empresa sem dizer de que
+  recorte veio acaba lida como se fosse o total.
+- **O PDF da tabela vira paisagem acima de cinco colunas** (`rep-page--landscape`,
+  a mesma classe das páginas de anexo — `Report.limite` já conhece os 210 mm).
+  Retrato com dez colunas partia toda palavra ao meio.
+
+### Planilhas (`xlsx.js`): nada pintado além da última coluna
+O cabeçalho vai com `s="1"` **nas células**, nunca na `<row>`: o estilo na linha
+pinta a linha até a última coluna da folha, e o Excel e quem lê a planilha
+passam a ver "dados" em centenas de colunas vazias. A folha também diz a
+`<dimension>` usada. (Teste: `tests/melhorias.test.js`.)
+
+### Banco NCR (`ncrs.js`, `ncrfluxo.js`, `ncrview.js`)
+- **Marcos em ordem de fila, não alfabética** (`Fluxo.ordemMarco`/`cmpMarco`,
+  a mesma `posicao` do desenho): listas, filtros, ordenação das colunas de
+  marco e o caminho da coluna Waiver. `J05 (J06Cer)` é o J05 (o parêntese
+  não muda a posição); `Ind` fica logo depois do marco dele.
+- **Coluna Waiver = caminho**, como o "Caminho do waiver" da Tabela: os
+  vínculos na ordem da fila, cada etiqueta com a cor da situação do item
+  (`.st-cor--<status>`, as cores de `Store.STATUS` em três tons — a cor pura
+  com letra branca não passa no contraste), e `(J09)` tracejado quando o
+  último relatório aponta para um marco onde a NCR ainda não está
+  (`Herdar.avanco`, estados `aLevar`/`semRelatorio`).
+- **Alerta "fechada com waiver pendente"**: `Ncrs.fechada(rec)` e algum
+  vínculo fora de `aceito`. É só tela — etiqueta, KPI, filtro, ficha,
+  editor (`renderLigacaoBanco`), lista (`.alerta-dot`) e Kanban. Não vai ao
+  PDF.
+- **Colunas**: a chave virou `derrogacao:ncrColunas2` quando o padrão mudou
+  (pedido do Bruno, com a imagem da janela), para o padrão novo valer uma vez
+  para todos. A lista gravada É a ordem — `visiveis()` não reordena. A
+  janela tem ↑/↓ (teclado) e arrastar; o cabeçalho da tabela também arrasta
+  (`arrastavel`). O Número fica sempre em primeiro.
+- **Importação do banco** reaproveita o NCR Control: o mesmo leitor de xlsx
+  (`xlsxler.js` é cópia literal do motor dele — o `xlsx.js` daqui escreve, não
+  lê), a mesma detecção de cabeçalho e os mesmos aliases de coluna, a mesma
+  chave (`chaveNcr`) e o mesmo `grupoSbr`. Aceita também o `ncr.json` do NCR
+  Control. **Só SBR4** (`Ncrs.SBR_ALVO`): coluna SBR; vazia, o número
+  (`NCR-…-14-…`). Nunca apaga NCR — a que some do export fica com
+  `fonte.presente = false`.
+- **Correlação** só preenche o vazio (a menos de "substituir"), e a NCR que
+  ainda não está no banco vai para `meta.pendentes`, aplicada quando chegar.
+- **Vínculo NCR ↔ relatório não é gravado à parte**: é lido dos relatórios
+  (item com `ncrKey` igual ou com o mesmo número). Por isso os relatórios
+  antigos aparecem vinculados sem migração, e excluir o item desfaz o
+  vínculo. `waiver.adicoes` é só o registro histórico. Marco Atual casa com o
+  relatório por **igual exato** (`J06 Ind` ≠ `J06`) — decisão do Bruno; na
+  ficha há "Adicionar a outro relatório…".
+- **Adicionar ao Waiver** passa por `Store.logChange` como item criado à mão
+  (sessão, autoria, pasta). Description ← descrição do banco; Observation ←
+  Observação; Função ← `FVnn - TEXTO EM MAIÚSCULAS`; Sistema(s) e Waiver
+  Historic também. Recusa se a NCR já estiver no relatório.
+- **Fechada** (`Ncrs.fechada`): status final do NCR Control (`Closed`,
+  `CEDOC Closure`…), ou palavra de fechamento no status, ou data de
+  fechamento sem status. É o que pinta a linha de vermelho e o "Só abertas".
+- **Fluxo** (`ncrfluxo.js`): porta ES5 de `Detalhe.trajSVG`/`flowSVG` do NCR
+  Control, com o `FLUXO_PADRAO`, as `ETAPAS`, `ordemInferida` e `classificar`
+  de lá. Usa o `cls` do evento quando vem do NCR Control e refaz a
+  classificação quando não vem. Cores escritas por extenso (o desenho não
+  depende das variáveis CSS de lá); SVG com `width`/`height` (§6).
+- **A tela** (pedidos do Bruno depois de usar): a tabela é a página, com
+  todas as NCRs e cabeçalho `sticky` — **sem `overflow` em caixa
+  intermediária**, senão o sticky morre (§6); a lateral vira trilho estreito
+  nesta aba. Editar uma célula troca **só aquela linha**
+  (`NcrView.atualizarLinha`): a rolagem não volta ao topo, e a linha que saiu
+  do filtro fica à vista (`st.fixadas`, amarelo) até o filtro mudar. As
+  listas da tabela são botões que viram `<select>` no clique — 1.600 linhas ×
+  3 listas de até 45 opções montadas de saída seriam ~200 mil elementos.
+  Filtros de múltipla escolha (com "Marcar todos", para tirar só o que não se
+  quer); o filtro **não é guardado** (mesma regra da
+  Tabela); colunas, painel recolhido e "destacar fechadas" são preferência do
+  navegador (`localStorage`). Excel/CSV exportam o que está à vista, com a
+  aba "Recorte".
+- **Texto livre do Waiver editado na célula** (`celulaTexto`): Observação e
+  Obs Ship Manager, o texto à vista ou "+ escrever" quando vazio; o clique abre
+  a caixa ali, grava a cada 400 ms e, ao sair (blur ou Esc), só aquela linha é
+  redesenhada (`atualizarLinha`). Pedido do Bruno: versões antigas (e o NCR
+  Control) editavam a coluna direto na tabela. Não existe no visualizador.
+- **Zebra e separadores** (pedido do Bruno: legibilidade). `nth-child(even)`
+  no `tbody`, então a alternância acompanha filtro, ordem e a troca de uma
+  linha só (`atualizarLinha`). Os estados vêm **depois** e com especificidade
+  igual ou maior: passar o mouse, `:focus-within` (a linha do foco do teclado,
+  com barra na cor da aba), `is-fixada` (amarelo) e `is-fechada` com o
+  destaque ligado (vermelho, um tom em linha par). As regras de estado ganharam
+  `tbody` justamente para vencer a zebra — quem mexer aqui confira no
+  navegador, não de cabeça.
+- **Pasta**: `derrogacao-ncr-banco.json` (grande; vale a fonte com
+  `importadoEm` mais novo; histórico é união) e `derrogacao-ncr-waiver.json`
+  (pequeno; vale o `waiver.editedAt` mais novo). Separados para preencher um
+  campo não regravar megabytes pela rede; só se grava o arquivo em que este
+  lado tem novidade (`localMaisNovo`). Toda escrita com `comSegundaChance`.
+  O poll olha os três arquivos; a ficha aberta (`dialog.nb-dlg`) não segura o
+  poll — ela se redesenha quando a NCR muda por fora (`aposMudancaExterna`).
+- **Proteção**: antes de cada importação, retrato em `ncrmeta:antes-importacao`
+  (+ cópia em `historico-ncr/` com a pasta ligada). Desfazer/restaurar
+  (`Ncrs.restaurar`) regrava com carimbos **posteriores** aos atuais — senão
+  a pasta traria de volta o que se desfez — e não apaga as NCRs que entraram.
+- O **backup de tudo** leva `ncrBase`; abrir um backup junta o banco NCR pelas
+  regras da pasta. Versões antigas ignoram a chave nova.
+
+### NCR fechada: a lista do Bruno (`Config.STATUS_NCR_FECHADA`)
+`Ncrs.statusFechado(status)` compara pelo `Ncrs.norm` (sem caixa, espaço nem
+pontuação) com a lista do `config.js` — *CEDOC Closure/Unfounded*, *CEDOC
+Closure*, *7.2 - TA Unfounded*, *Closed* e *Closed/Unfounded* — e mantém o
+critério antigo por palavra (*closed/closure/fechada/encerrada/cancelada*),
+para não reabrir o que já era fechado. `Ncrs.fechada(rec)` usa isso sobre
+`Ncrs.fonte(rec)` (o status corrigido vale), mais "sem status e com data de
+fechamento" e "temporária já substituída". O `ncrfluxo.js` põe o *7.2 - TA
+Unfounded* na etapa 7 e o trata como final.
+
+**NCR fechada não pede waiver** (pedido do Bruno): `pronta` no Banco NCR é
+`!fechada`; o Kanban troca o "+ J09 Waiver" por "fechada — sem waiver";
+`Herdar.avanco` devolve `ncrFechada`, que o painel (*aceitos, falta trazer*),
+a Tabela (*Já levada?* = "não precisa — NCR fechada") e o caminho do Banco
+NCR (sem o `(J09)` pendente) respeitam. O **estado** do `avanco` não mudou —
+a cópia continua não estando lá —; quem conta pendência é que olha a marca. O
+alerta ⚠ *fechada com waiver pendente* fica: é ele que acha o item esquecido.
+
+### Detalhes do banco NCR: o que vem em várias linhas (`fonte.detalhes`)
+O Bruno não achava na ficha as deliberações dos produtos. Havia dois ralos:
+a NCR repetida em várias linhas da aba principal ("vale a última linha" — as
+outras sumiam) e o `linhasDoJson`, que jogava fora lista e objeto dentro do
+registro. Agora:
+
+- `importarBase` agrupa as linhas por chave antes de tudo;
+  `combinarLinhas` deixa a coluna igual em todas como está, junta com " | "
+  a que muda (é o que a tabela e a busca veem) e faz dela uma tabela
+  (`tituloDasLinhas`: "Produtos e deliberações" quando o nome das colunas
+  sugere isso). Os **papéis** (status, título…) ficam com o valor da última
+  linha, como antes — um status "Open | Closed" quebraria o `fechada`.
+- Outras abas do mesmo arquivo com a coluna do número (`linhasDaPlanilha` →
+  `extras`) viram tabelas com o nome da aba. A correlação continua de fora.
+- `achatar` leva lista de objetos do JSON para tabela e objeto para campos
+  "pai › filho".
+- A comparação "igual à importação anterior" inclui os detalhes; sem isso,
+  reimportar o mesmo arquivo depois da atualização não traria nada.
+- `juntarBanco`: mesma importação sem os detalhes = regravada por uma versão
+  anterior (que os apaga, porque `normalizarFonte` de lá não os conhece);
+  este lado marca `localMaisNovo` e os devolve à pasta.
+
+A ficha desenha cada grupo como seção (`nb-sec--detalhe`), com a tabela
+`nb-hist` do histórico — o padrão visual que o Bruno pediu para manter.
+
+### Correções: temporária → definitiva, ajustes e auditoria (`correcoes.js`)
+Três coisas que o banco importado não sabe, num arquivo próprio da pasta
+(`derrogacao-ncr-correcoes.json`) pelo motivo dos comunicados: a versão
+anterior, ao regravar o arquivo do Waiver, **apagaria** um campo novo no
+`waiver` (`normalizarWaiver` remonta campo a campo e não tem `extrasDe`).
+
+**Substituições.** `substituir(temp, def)` grava `de → para` (uma sucessora
+por temporária; corrente T1 → T2 → D resolvida por `definitiva`, círculo
+recusado). Nada é renomeado — o item do J06 continua com o número
+temporário. O que junta os dois é a leitura:
+
+- `Ncrs.chaveCaso(item)`: sem substituição é o `Store.numeroChave` de
+  sempre; com ela, temporária e definitiva caem em `'caso:' + definitiva`.
+  **Quem pareia item de um marco com o de outro usa esta**: `Fluxo.indice/
+  anterior`, `Herdar.avanco/avaliar`, `Painel.semRepetir`. A mesclagem
+  (`Store.mergeLWW`, dentro do mesmo marco) **não** — juntar num item só uma
+  temporária e uma definitiva do mesmo relatório seria perder um deles.
+- `Ncrs.chavesDoItem(it)` inclui a definitiva: `vinculos`/`mapaVinculos`
+  dão à definitiva os itens com o número temporário.
+- `Ncrs.recDoItem(item)`: a NCR que responde pelo item — a definitiva, se o
+  número é de temporária substituída. Kanban, alerta da lista e a linha
+  "Banco NCR" do editor usam.
+- A temporária substituída é `fechada`, sai da contagem do KPI e não gera
+  alerta; o Kanban não lhe dá cartão; `adicionarAoWaiver` a recusa.
+
+**Ajustes.** Camada por cima da `fonte`, nunca reescrita dela. Cada ajuste
+guarda `banco` (o valor importado quando foi feito); `ajusteAtivo` só vale
+enquanto o banco continuar dizendo aquilo — importação com outro valor
+**supera** o ajuste sozinha, e a área administrativa avisa. Campo é um papel
+(`status`, `titulo`…) ou `c:<coluna>`; o de papel atualiza a coluna do papel
+e vice-versa. `fonte(rec)` tem cache por `versao` + `Ncrs.versao()`.
+
+**Auditoria.** Uma linha por mudança (ajuste, ajuste desfeito, ligação,
+ligação desfeita, senha): `{em, por, tipo, ncr, campo, de, para, obs}`. União
+pelo id, teto de 3000. `Log` registra só tipo e id — nunca valor.
+
+**Senha.** SHA-256 escrito à mão (`crypto.subtle` só existe em contexto
+seguro, e a conta tem de dar igual em todo computador), com sal e 2000
+iterações. Fica no arquivo da pasta; **a pasta é quem diz a senha** — a local
+só entra na junção quando foi definida ou trocada aqui e ainda não gravada
+(`senhaPendente`). Entre duas, vale a **criada primeiro** (`melhorSenha`):
+quem definir outra num navegador sem pasta não passa por cima da do
+administrador ao ligar a pasta. Apagar o bloco `senha` do arquivo zera — é o
+"esqueci a senha". Nunca vai no backup nem na publicação.
+
+**Junção**: por registro vale o `em` mais novo (desfeito é lápide); a
+auditoria é união. `juntar(d, { senha: true })` só no arquivo da pasta.
+Backup e publicação levam `ncrBase.correcoes` (sem a senha); o visualizador
+as adota em `Ncrs.adotarBase`.
+
+### A área administrativa (`admin.js`)
+Pedido do Bruno: corrigir à mão um dado (o status de uma NCR, por exemplo),
+com auditoria, e escondido de quem não é administrador. Entrada no fim dos
+Ajustes (`Admin.blocoAjustes`), em seção própria como a Conversa: é do
+programa, não do relatório. Destravada, vale até recarregar ou "Sair" (só na
+memória). Abas: corrigir dados de NCR, NCRs temporárias, auditoria (com
+Excel/CSV e a aba "Recorte"), senha. Com a área aberta, a ficha ganha
+"✎ Corrigir dados (administrador)" (`ctx.admin` no `ctxBanco`).
+
+- **Não é controle de acesso, e a tela diz isso** (§6). A senha tira as
+  funções da frente; quem protege os dados é a permissão da pasta.
+- Toda ação exige o nome (`Store.getUser()`), que vai na auditoria.
+- Não existe no visualizador: os Ajustes não abrem lá, `Admin.ativo()` é
+  falso em leitura, e o `#adminDialog` leva `data-so-editor`.
+
+### Aba Kanban (`kanban.js`)
+O quadro de um marco. Colunas: **"NCR to be closed"** + as quatro de
+`Store.STATUS`. O nome é do Bruno: NCR do marco que não está no Waiver dele
+não tem waiver, então tem de ser fechada até o marco — por isso ali só fica
+a que ainda falta fechar; a fechada (verde, o contrário do resto do programa,
+onde fechada é vermelho) vai para a área Encerradas, abaixo. Entram os itens NCR dos relatórios com **o mesmo marco pelo
+texto** (`Ncrs.marcoChave`, a regra do Banco NCR), as NCRs do banco com esse
+Marco Atual que não estão lá, e os itens de outros marcos que `Herdar.avanco`
+diz que vão para ele e ainda não foram (a mesma "segunda porta" do painel).
+Deduplicado pela chave da NCR.
+
+- **Arrastar muda a situação** por `mudarSituacaoDe` em `app.js`:
+  `Store.setStatus` + `Store.logChange` + `Store.save` + pasta — o mesmo
+  caminho do editor, para um item de **qualquer** relatório (o Kanban não
+  precisa do relatório aberto). Alternativa sem arrastar: o `<select>` do
+  cartão (WCAG 2.5.7). Sair de `aceito` pede confirmação — o item aceito é
+  travado no editor, e o Kanban não pode ser a porta dos fundos da trava.
+- Soltar um cartão do banco numa coluna = `adicionarAoWaiver(rec, p,
+  situacao)`.
+- **Sem `overflow` no quadro**: o cabeçalho de cada coluna gruda na rolagem
+  da aba (§6).
+- O marco escolhido e os filtros não são guardados: abre no marco do
+  relatório aberto (sem o "Ind", se os Ind estiverem escondidos).
+- **Marcos "Ind" (industriais) ficam fora** — decisão do Bruno: têm pouca
+  relevância. Escondidos do seletor por padrão (botão "Marcos industriais"),
+  e nunca somados ao marco sem Ind. Cuidado: `Fluxo.marco("J09 Ind")` é o
+  J09 (ignora o Ind), então a porta "a caminho" confere o **texto** do
+  Expiry (`ehInd`) — senão um waiver até "J09 Ind" cairia no quadro do J09.
+- **DEVs no quadro** (`st.devs`, botão "Incluir as DEVs"): vista geral —
+  as DEVs dos relatórios cujo **marco de DEV** (`Report.marcoOf(p,'dev')`)
+  casa com o marco entram como `tipo: 'item', kind: 'dev'`, na coluna da
+  situação, sem `rec` (logo sem "to be closed", encerrada nem alerta), com a
+  etiqueta `.kb-st-ncr.is-dev`. `ctx.abrir` e `ctx.mudarSituacao` recebem o
+  `kind`. Desligado de saída; não é guardado. A planilha tem a coluna Tipo.
+- **Cartão compacto** (pedido do Bruno: ver mais NCRs de uma vez). Recolhido:
+  número (inteiro — é ele que identifica), ⚠ e o "+" na linha 1; status da
+  NCR no banco, função em poucas letras (`Kanban.funcaoCurta`: "FV03 - …" e
+  "03 - …" viram "FV03"), bigramas e caminho na linha 2, e as ações — que
+  descem de linha quando não cabem. **A descrição não existe no recolhido**,
+  por isso texto longo não estica o cartão. O "+" (`aria-expanded`,
+  `aria-controls`) mostra a descrição inteira, a origem, o alerta por extenso
+  e a autoria. `st.abertos` (por `c.id`) só vive na memória: abrir não grava
+  e não muda a coluna, e sobrevive ao redesenho.
+- **Encerradas numa área própria** (pedido do Bruno). Em `cartoes()`, a
+  carta da coluna `fora` que está **fechada** (`c.fechada` = `Ncrs.fechada`,
+  isto é, a lista `Config.STATUS_NCR_FECHADA` e o critério por palavra:
+  Closed, CEDOC Closure, 7.2 - TA Unfounded…) passa para a coluna
+  `encerrada`, que não é coluna do quadro: é a seção
+  recolhível abaixo dele (`areaEncerradas`), com o mesmo cartão (as mesmas
+  ações). **Todo status de fechada sai** — era só o CEDOC Closure, e o Bruno
+  estranhou ver "Closed" em "NCR to be closed" (setembro): a coluna passou a
+  ter só o que ainda falta fechar, e o alto dela conta "N a fechar". A área
+  aberta/recolhida fica em `derrogacao:kanbanEncerradas` (preferência de
+  tela); a quantidade fica sempre à vista (título, faixa de números e aviso
+  no alto da primeira coluna).
+- **Duas exportações, do que está à vista** (marco e filtros): a **visual**
+  (`montarFolhas`/`planejar`) monta folhas próprias em `#printRoot` —
+  `rep-page--kanban`, A4 ou A3 (`rep-page--a3`, com `@page rep-a3` e
+  `rep-a3-landscape` no report.css; `Report.limite` conhece a A3), retrato ou
+  paisagem — e usa a impressão do navegador, como o relatório. As cinco
+  colunas dividem a largura; cada coluna enche a folha até o pé e continua na
+  seguinte com o cabeçalho repetido ("(cont.)", ou "—" se já acabou); nenhum
+  cartão é partido. A letra (`--kbp-fs`) sai de `LETRA_BASE` por papel e
+  orientação; "caber na largura" cresce até 40% se tudo couber numa folha e
+  encolhe até 15% para não imprimir uma segunda folha quase vazia; "caber numa
+  folha só" desce até 5,5 pt. A janela (`#kbExportDialog`) mostra antes
+  quantas folhas e que letra — a mesma conta da impressão. As encerradas vão
+  numa lista no fim (`Report.paginar`, com o pé como rodapé). A **planilha**
+  (`Kanban.planilha`) sai pelo `Xlsx.blob`: uma linha por NCR, com a aba
+  "Recorte" (§10). As escolhas de papel ficam em `derrogacao:kanbanImpressao`.
+
+A **Tabela**, o **Banco NCR** e o **Kanban** usam o trilho estreito na
+lateral (pedido do Bruno: "diminua as margens para caber tudo"); a Tabela
+também perdeu o padding lateral. Só tela — o PDF da tabela é o de antes.
+(Em setembro o Bruno pediu para essas três abas não terem barra lateral
+nenhuma — "layout vertical" —; ficou para confirmar com ele o que isso quer
+dizer, porque no código o trilho já é "as abas na vertical".)
+
+### Sistemas (bigramas) e a DEV
+`Summary.sistemasDoTexto` é o único lugar que separa "MB, DT" em sistemas
+(vírgula, `;`, `/`, `&`, `+`, `|`, " e "; códigos de até 3 letras separados só
+por espaço; repetido no mesmo item conta uma vez). Resumo, painel, filtros da
+Tabela e do Banco NCR usam. A DEV ganhou `systems` no editor (mesmo campo da
+NCR, `grid--3`) **só para os indicadores**: o título e o índice do PDF da DEV
+continuam `ncrId|func` — o PDF é sagrado (há teste).
+
+### Gráficos do resumo em PDF (`SummaryView.blocoGrafico`)
+Um gráfico inteiro era uma unidade só: não cabia no que sobrava da folha, ia
+para a seguinte e deixava meia folha em branco (com muitos marcos, uma folha por
+gráfico). Agora o PDF monta cada gráfico como `data-lista`: pedidos de
+`LINHAS_POR_PEDACO` barras são as unidades, título e legenda são
+`data-cabecalho` (repetem), e todos os pedaços usam a mesma escala
+(`opts.max`). `Report.retirarExcedente` passou a esconder (`esconderSeVazia`) a
+lista que perdeu todas as unidades — o cabeçalho sozinho contava na medição e
+empurrava para fora unidades que caberiam; o clone da continuação zera o
+`display`. A tela continua com `graficoProgresso` etc. (um SVG só). Os cinco
+indicadores cabem numa linha no PDF (`repeat(5, 1fr)`).
+
 ### Aba Resumo (`summary.js`)
 Gráficos em **SVG escrito à mão** — sem biblioteca, imprimem em vetor e
 funcionam de `file://`. Paleta validada para daltonismo. Filtros (tipo,
@@ -159,10 +1196,415 @@ situação, sistema, arch status, evidência, busca) alteram números, gráficos
 tabelas, **CSV e resumo em PDF** — e o PDF filtrado diz qual foi o recorte. O
 **backup do marco sai sempre inteiro**: backup pela metade não é backup.
 
+**Parados há 30+ dias** (`Summary.DIAS_PARADO`): pendentes sem edição há um mês
+ou mais, do mais esquecido para o menos. Sai do `editedAt` que já existia — item
+aceito nunca conta, porque está pronto, não parado.
+
+**O marco em mini cards** (`miniCardsDeMarco`), no lugar do `<select>`: a mesma
+pastilha `tb-chip` do Kanban e da Tabela (com o modificador `tb-chip--card`,
+de duas linhas), na fila dos marcos (`SummaryView.ordenarPorMarco`, que usa
+`Fluxo.cmpMarco`) — "Todos os marcos" primeiro. Escolha única,
+`aria-pressed`, ✓ no escolhido (a escolha não é só cor; o ✓ vale para toda
+`tb-chip.is-on`, inclusive na Tabela e no Kanban). Os números do card são os
+do escopo **com os filtros** — os mesmos do `<select>` de antes e dos
+indicadores logo abaixo. `summaryFilter` nasce `null`: na primeira vez vale
+`Config.relatorioInicial` (o J09), senão "todos"; depois fica o que a pessoa
+escolheu, até fechar a página. "Todos os marcos" ganhou CSV também
+(`toCsvTodos`); o backup continua só por marco, e inteiro. Os gráficos (tela e
+PDF) seguem a mesma fila dos cards.
+
+### O caminho padrão da pasta
+`Store.CAMINHO_PADRAO` é o caminho combinado pela equipe
+(`G:\DOP\GTO\3_INTERNO\01_SAFE TO DIVE\10_SISTEMA DE DERROGAÇÃO\00_BD`).
+Ele é o valor de saída de `Store.getDbFolder()` e aparece no diálogo e no aviso
+do alto (`#pastaNotice`), com botão de copiar.
+
+- **Chave própria** (`derrogacao:pastaBanco`). Antes o caminho do banco e o da
+  pasta de backup dividiam a mesma chave e um sobrescrevia o outro.
+- **Isso não abre pasta nenhuma.** Nenhum navegador abre uma pasta por caminho;
+  quem escolhe é a pessoa, na janela do Windows. O que dispensa escolher de novo
+  é o crachá guardado no IndexedDB (§ a pasta da rede). O caminho é texto: serve
+  para colar na janela e para viajar com os dados.
+- **O que dava trabalho de verdade era a permissão de cada sessão**, que só pode
+  ser pedida dentro de um gesto. `pedirPermissaoNoPrimeiroGesto` usa o primeiro
+  clique em qualquer lugar, por até 2 minutos depois de abrir — passado esse
+  tempo a pessoa já está trabalhando e uma janela roubando o foco atrapalharia
+  mais do que ajudaria. `pedidoEmVoo` impede duas janelas de permissão ao mesmo
+  tempo.
+- O caminho que vier no arquivo da pasta sobrepõe o local e é gravado — é o que
+  faz a próxima abertura já vir com o caminho certo, sem ninguém digitar.
+
+### O cursor sobrevive ao redesenho do editor
+Redesenhar o editor quando o colega muda o item aberto é obrigatório (§6).
+O preço, até agora, era brutal: o `innerHTML = ''` destrói o campo em uso, o
+foco volta para o corpo da página e **as teclas seguintes não vão para lugar
+nenhum**. Quem estava escrevendo continuava escrevendo no vazio — era isto o
+"a tela fica atualizando e às vezes perdemos dados".
+
+`guardarCursor()` anota o id do campo focado e a posição da seleção;
+`devolverCursor()` os devolve **no fim** do `renderEditor()`, com tudo montado
+e as travas já aplicadas (campo travado não aceita foco, e tentar antes o
+deixaria no lugar errado). Os ids são fixos (`f-<campo>`), que é o que torna
+isso possível.
+
+### Filtrar o PDF por situação
+A janela de exportação recorta por situação do item (pastilhas com a mesma cor
+do resto do programa) e traz **Marcar todos / Limpar** para os relatórios.
+`Report.build`/`buildMany` recebem `opts.filtro`, que atravessa a capa, as
+páginas e as evidências pelo mesmo caminho — senão o índice prometeria uma
+página que não existe.
+
+- **A capa diz que é recorte** (`rep-cover-recorte`, em inglês, como o resto da
+  folha). É a mesma regra da aba "Recorte" das planilhas (§10): um Waiver
+  Request parcial que não se anuncia é lido como o pedido inteiro. Sem filtro
+  nada é acrescentado — a folha sai idêntica à de sempre, e o PDF continua
+  sagrado.
+- **O recorte não sobrevive ao fechar a janela**, pelo mesmo motivo do filtro
+  da aba Tabela: reabrir e exportar sem perceber que ainda está filtrado é
+  mandar meio relatório para o cliente.
+- Relatório que fica sem nenhum item no recorte é desmarcado e desabilitado:
+  ele não geraria folha.
+- **Escolher itens dentro de um relatório** (pedido do Bruno): `pdfItens`
+  (`<projeto>|<ncr|dev>` → `{id: true}`; ausente = o relatório inteiro, que é
+  o padrão e não mudou). `pickedReports` põe em cada seleção `filtro` e
+  `recorte` ("Partial list — k of n items selected."), e `Report.buildMany`
+  os soma ao filtro de situação e ao texto da capa. "Só o item aberto" é o
+  mesmo mecanismo com um item só. Some ao fechar a janela, como o recorte de
+  situação. Teste: `tests/imprimir.test.js`.
+
+### O diário do console (`log.js`)
+Pedido do Bruno depois do `InvalidStateError`: ver o processamento acontecendo
+e ser avisado quando algo dá errado, em vez de descobrir por acaso numa linha
+vermelha que ninguém sabe ler.
+
+- **Três níveis**, guardados em `derrogacao:log`: `silencio` (só o que deu
+  errado), `normal` (o padrão) e `tudo` (mais cada gravação local e cada
+  tempo). Erro aparece **em qualquer nível**, inclusive no silêncio: o nível
+  existe para calar o que deu certo.
+- **O texto das NCRs nunca é registrado.** É material de programa de defesa e
+  o console fica aberto ao lado de quem passa. Vão nomes de campo, contagens,
+  tamanhos e ids — nunca o conteúdo. Vale para o `relatarMesclagem` (só os
+  rótulos dos campos atropelados) e para o `capturarRevisoes` (só os nomes).
+  Há um teste que semeia um texto marcado e reprova se ele aparecer em
+  qualquer lugar do diário.
+- **Toda falha sai em três partes**: o que falhou, o que isso significa e o
+  que a pessoa pode fazer. `Pasta.explicar(e)` traduz os erros do File System
+  Access para o caso real — pasta de rede, equipe gravando junto.
+- **A mensagem vai como argumento à parte do `console`**, nunca dentro do
+  texto de formato: ela pode carregar coisa digitada (o número de uma NCR, o
+  nome de um arquivo), e um `%s` perdido faria o console comer a linha
+  seguinte. Só a hora e a área, que são escritas no código, entram no `%c`.
+- **`Log.etapa`** abre e fecha com o tempo decorrido. Etapa que abre e não
+  fecha é exatamente o que se quer enxergar.
+- **`Log.vigiar()`** captura `error` e `unhandledrejection`, para nada passar
+  em branco.
+- **Tem janela, não só comando** (⋯ Mais → *Diagnóstico e diário do console*,
+  em seção própria do menu: não é do relatório aberto, é do programa). Cada
+  comando vira um botão que faz a coisa, com o comando escrito ao lado para
+  quem preferir digitar, e a saída aparece ali mesmo — decorar comando não é
+  trabalho de quem usa o programa (§9). O aviso de privacidade fica à vista na
+  janela, não escondido.
+- **`Derrogacao.*`** é o que a pessoa digita: `ajuda()`, `tudo()`, `normal()`,
+  `silencio()`, `diagnostico()`, `diario()`, `copiar()`. `copiar()` junta o
+  diagnóstico com as últimas linhas e põe na área de transferência (com a
+  reserva do `execCommand`, porque em `file://` não há `navigator.clipboard`).
+- **A troca de situação da pasta é notícia; a repetição não.** `pastaDita`
+  guarda a última anunciada: `sincronizando` passa a cada 20 s e `off` é só
+  "ainda não escolheram pasta" — nenhum dos dois vira linha. A **volta ao
+  normal** vira, porque quem viu o vermelho precisa saber que passou.
+
+### O aviso de pasta parada
+Perder a pasta em silêncio é o começo do problema que a mesclagem campo a
+campo resolve no fim: quem trabalha horas sem saber que está sozinho produz
+os dois textos no mesmo campo. Por isso o `#pastaNotice` tem um segundo
+papel — com `pastaEstado` em `erro` ou `permissao` ele vira alarme
+(`.notice--parada`), diz **há quanto tempo** a pasta não responde
+(`ultimoSucesso`) e **ignora o "Agora não"**: aquele botão cala o convite
+para escolher a pasta, nunca o alarme de que ela parou.
+
+### O visualizador: modo leitura (`leitura.js`) e publicação (`publicacao.js`)
+Pedido do Bruno: um HTML para quem **só visualiza** — status das derrogações,
+todas as informações e exportações —, numa pasta da rede. Não é outro
+programa: é **este**, gerado como `derrogacao-visualizador.html` com
+`<meta name="derrogacao-modo" content="leitura">` (ou `?modo=leitura` na URL,
+para conferir a versão multiarquivo). Assim toda aba e toda exportação nova do
+editor chega ao visualizador sem ninguém lembrar. (Houve uma primeira versão
+como programa separado, feita sobre uma base velha; foi refeita assim.)
+
+- **Nada grava.** `Leitura.blindar()` (chamada no início do `boot`) troca por
+  no-op tudo o que grava: `Store.save/remove/putHandle/saveSnapshot/ncrPutMany/
+  ncrMetaPut/saveBase…`, as gravações de `Pasta` (e `Pasta.ligada()` passa a
+  ser falso), `Revisoes/Chat.gravarLocais`. Por cima disso, os portões de
+  mudança no `app.js` recusam em leitura (`addNcr`, `deleteNcr`, `duplicarNcr`,
+  `moverNcr/moveNcr`, `levarAdiante`, `adicionarAoWaiver`, `mudarSituacaoDe`,
+  `importBackupFile`, `openCopyDialog`, `openSettings`, colar imagem, Ctrl+S),
+  `ctx.leitura` desliga a edição na `ncrview.js` e no `kanban.js`, e
+  `travarParaLeitura()` deixa o editor só leitura: campos `readOnly`, situação
+  desabilitada, botão que escreve some; ficam os marcados `data-mostra` (ver ao
+  lado, recolher, fluxo, ficha). O que é só do editor na página leva
+  `data-so-editor` no `index.html` e some por CSS (`body.modo-leitura`) — CSS,
+  e não `hidden`, porque o código do editor mexe no `hidden` desses elementos.
+  **Quem acrescentar uma função que grava ou um botão que escreve precisa
+  lembrar do modo leitura** — a blindagem pega o que for esquecido na tela,
+  mas só se a função estiver na lista dela.
+- **De onde vêm os dados**: de `file://` o Chrome/Edge bloqueia ler `.json`
+  (e a CSP tem `connect-src 'none'`), mas carrega `<script src>` de qualquer
+  pasta, inclusive por caminho absoluto (verificado no Chromium, com e sem
+  `--allow-file-access-from-files`, com espaço, acento e `#`). Então o editor
+  publica **`visualizador-dados.js`** (`window.DERROGACAO_VISUALIZADOR = {format:
+  'derrogacao-visualizacao', schema, publishedAt, publishedBy, projects,
+  ncrBase}`), e o visualizador o injeta com `?t=<agora>`. Ordem: pasta dos dados
+  por caminho (`localStorage derrogacao-visualizador:pastaDados`, senão o
+  `<meta name="derrogacao-pasta-dados">` que o gerador põe a partir de
+  `PASTA_DADOS_VISUALIZADOR` no `build-standalone.py` — **é ali que entra a pasta
+  definitiva quando o Bruno informar**; hoje ela vem de
+  `Config.PASTA_VISUALIZADOR`, `X:\36.GTO - RELATÓRIOS GTO\NCR_MILESTONE\00_BD_VISUALIZADOR`,
+  com o `derrogacao-visualizador.html` na pasta de cima, `NCR_MILESTONE`)
+  → ao lado → nada: tela com **um botão
+  só** ("Tentar de novo"). Releitura com dados à vista que falha → faixa
+  `#leituraAviso` com o botão. Arquivo aberto à mão é lido como texto
+  (`Publicacao.interpretar`), nunca executado. UNC (`file://servidor/…`) não
+  foi testável aqui (Linux): confirmar no Edge da empresa quando a pasta existir.
+- **Releitura** no Atualizar, a cada 5 min e ao voltar para a janela se o
+  prazo venceu lá fora
+  — pelo ciclo único (`atualizacao.js`, §5 "A atualização automática"), com
+  `podeReler` (janela aberta, arquivo aberto à mão) e `relerPublicacao`;
+  compara o conteúdo **bruto** (a normalização preenche carimbos com "agora").
+  Relatório, aba, item e a ordem escolhida ali sobrevivem. O banco NCR é
+  trocado inteiro, só na memória (`Ncrs.adotarBase`).
+- **O que vai** (`Publicacao.limpar`): relatórios com marco ou itens, todos os
+  itens, autoria, imagens **embutidas** (as que faltam na memória são lidas da
+  pasta com `hidratarImagens`, numa cópia) e o `Ncrs.paraBackup()`. **Não vão**:
+  `sessions`, `deleted`, `lastBackup*`, `syncBase` e a `nota` (a tela promete
+  que a anotação interna fica "só aqui e na pasta da equipe").
+- **Editor**: `⋯ Mais → 👁 Publicar para visualizadores`. Pasta própria
+  (`Pasta.publicacao`, crachá `'publicacao'` no store `handles`), Publicar
+  agora (sincroniza antes), Baixar o arquivo, **Publicar sozinho**
+  (`localStorage derrogacao:publicarAuto`; após `flushSave` e `sincronizar`,
+  no máximo a cada `Publicacao.INTERVALO_MS`, e só se `Publicacao.conteudo`
+  mudou — que ignora `updatedAt/lastEditedAt`, renovados a cada gravação).
+  Chip `#pubChip` quando a permissão cai. **Aviso `#pubNotice`** (pedido do
+  Bruno: "sempre linkado; se cair, peça confirmação"): com `pubEstado` fora
+  de `on` — nunca escolhida, sem permissão nesta sessão, erro ao gravar —
+  aparece no alto, com o caminho de `Config.PASTA_VISUALIZADOR` e o botão que
+  escolhe ou reconecta (o gesto que o navegador exige). "Agora não" cala só
+  aquele estado (`pubAvisoCalado`); a próxima queda pergunta de novo. Ao
+  voltar para a janela, `conferirPublicacao` relê a permissão.
+- **Conferido no navegador** (scripts fora do repositório, que não tem mais
+  suíte): o PDF do editor saiu idêntico, pixel a pixel, antes e depois da
+  mudança; o visualizador não deixa nenhum campo editável, não arrasta, não
+  grava no IndexedDB nem no localStorage de relatórios e não faz requisição
+  externa.
+
+### A navegação: ordem, nomes e cores
+A ordem das abas é a do trabalho, pedida pelo Bruno: **Banco NCR · Kanban ·
+Tabela · Waiver NCR · Waiver DEV**, depois Resumo, Fluxos e a Conversa
+(opcional). É a ordem do `index.html` — a do DOM é a da tela e a do leitor de
+tela. "NCR" e "DEV" viraram "Waiver NCR" e "Waiver DEV" **só no rótulo**:
+`data-kind`, `state.kind`, `Store.itemsKey` e o backup continuam `ncr`/`dev`.
+Os textos que falam do item ("+ Nova NCR", "NCRs") continuam falando do item.
+
+- **Cada área com a sua cor**, as que já existiam (`.tab[data-kind] --tab`):
+  um ponto de 7 px antes do nome (`.tab::before`), sempre à vista; a aba aberta
+  com fundo, texto e barra na cor; e uma faixa de 3 px na cor da área no alto
+  do `.editor`. A cor nunca é o único sinal (nome, barra, fundo,
+  `aria-selected`).
+- **Duas linhas nos 332 px**: com os rótulos longos, a letra da aba desceu
+  para 12 px e o respiro lateral para 4 px — Banco NCR, Kanban, Tabela e
+  Waiver NCR na primeira linha, o resto na segunda. Com outra fonte (Segoe UI)
+  pode virar três linhas; ninguém some.
+- **Teclado** (padrão WAI-ARIA de abas): setas (as quatro, porque no trilho as
+  abas ficam empilhadas), Home e End; a aba escondida (a Conversa desligada)
+  **não entra na roda** — antes a seta caía nela e abria uma aba invisível.
+
+### O seletor de relatório só onde ele manda (`renderSeletorGlobal`)
+O "Relatório" (e o campo "Marco") da barra de cima escolhe o relatório das
+abas Waiver NCR/DEV. No Banco NCR, no Kanban, na Tabela, no Resumo e na
+Conversa ele não mudava nada — cada uma tem o próprio recorte —, e ficava à
+vista como um filtro que não filtra ao lado do que filtra (o Kanban, por
+exemplo, só lia o relatório aberto uma vez, na abertura). Ali ele **some**
+(`hidden` em `#relatorioCampo` e `#marcoCampo`). Na aba Fluxos ele fica —
+"este relatório" depende dele —, e com "todos os marcos" ou no painel fica
+**desabilitado**, com `#relatorioNota` dizendo que não se aplica (o select
+aponta para ela com `aria-describedby`). "+ Novo relatório" continua em
+todas. Nas abas de tela cheia o botão de cima vira "PDF dos relatórios…":
+o PDF dele é o do Waiver Request, não o da tela.
+
+A barra de cima das abas Waiver, com a pasta ligada, é a mais cheia do
+programa: abaixo de uns 1560 px ela quebra em duas linhas (antes, uns
+1500 px). O subtítulo da marca some abaixo de 1760 px para adiar isso.
+
+### O marco da vez (`config.js`)
+`Config.MARCO_INICIAL` (hoje `'J09'`) é o único lugar do marco prioritário.
+`Config.ehMarco(texto, alvo)` compara sem maiúsculas, espaços e zero à
+esquerda (`j 9` = `J09`) e aceita o prefixo `RANAE` — com nota menor, para o
+"J09" escrito igual ganhar de "RANAE J09" —, e mais nada: `J09 Ind`, `J09Cer`,
+`J19`, `J090` não são o J09. `Config.relatorioInicial(projects)` devolve o
+relatório (o escrito igual primeiro, depois o mexido por último) ou `null`.
+
+- **Editor**: o boot abre esse relatório; sem ele, `list[0]` (o mais recente),
+  como sempre. Nunca cria relatório.
+- **A pasta pode trazê-lo depois** (quem liga a pasta pela primeira vez):
+  `aberturaPendente` fica armado quando a abertura caiu no mais recente, e
+  `abrirMarcoInicial()` troca para o J09 depois da primeira sincronização —
+  **só se a pessoa ainda não escolheu nem escreveu nada** (qualquer `input`,
+  troca de relatório, "+ Novo relatório" ou abrir item desarma).
+- **Visualizador**: a primeira leitura abre o J09; as releituras mantêm o que
+  a pessoa escolheu.
+- **Kanban**: já nascia no marco do relatório aberto — logo, no J09.
+- **Resumo**: `summaryFilter` nasce `null` e vira o J09 (ou "todos") na
+  primeira vez (§5, "Aba Resumo").
+- A Tabela continua abrindo com todos os marcos: ela responde "onde está a
+  NCR-018?", e nascer recortada esconderia itens.
+
+### A atualização automática (`atualizacao.js`) — só no visualizador
+Um relógio só (`Atualizacao.iniciar` troca a configuração, nunca cria outro),
+de `Config.INTERVALO_ATUALIZACAO_MS` (5 min), **só no visualizador**:
+`podeReler` + `relerPublicacao`, começando depois da primeira leitura.
+
+- **O contador fica no ⋯ Mais** (`#atualizaMenu`, "próxima em 04:32"), e na
+  barra só o botão "⟳ Atualizar" (pedido do Bruno: na barra ele mudava a cada
+  segundo). A frase inteira vai na dica do botão; a falha pinta o botão
+  (`is-aviso`), além da faixa `#leituraAviso`.
+- **Voltar para a janela não recomeça a contagem.** Em segundo plano o tique
+  para, mas o prazo continua: ao voltar, só roda na hora se o prazo venceu lá
+  fora. (Era "voltou depois de 1 minuto → roda já", e a contagem recomeçava
+  de 5:00 a cada troca de aba — o Bruno viu e reclamou.)
+- `podeAgora` adia (15 s) com janela aberta ou a pré-visualização; a falha
+  deixa os dados como estão. Arquivo aberto à mão não relê sozinho.
+- **O editor não tem relógio de 5 minutos** (pedido do Bruno: "só faz
+  sentido no visualizador"). Com a pasta, a conferência de 20 s
+  (`pollPasta`) já traz o colega; ela também religa depois de uma falha (no
+  máximo a cada `RELIGAR_MS`, 1 min) e roda ao voltar para a janela
+  (`aoVoltarParaJanela`). Em segundo plano ela não roda — mas a gravação do
+  que foi digitado (2,5 s depois) roda, e essa relê a pasta: é o trabalho
+  daqui indo para lá, não uma conferência. O botão "⟳ Atualizar" do editor
+  é `atualizarDaPasta`: `flushSave`, cancela o `gravaTimer` (senão a mesma
+  rodada acontecia duas vezes) e `sincronizar({})`. O relógio antigo do
+  editor ainda tinha outro defeito: toda gravação chamava `marcarFeita` e
+  zerava o contador.
+- **Os comunicados do visualizador não têm relógio próprio**: vêm dentro da
+  publicação, na mesma leitura (`carregarLeitura` → `receberComunicados`).
+  Quem mais precisar de uma rodada entra no mesmo ciclo (`carregarLeitura`)
+  — não cria outro temporizador.
+
+### Comunicados para o visualizador (`comunicados.js`)
+Pedido do Bruno: alguns acontecimentos do J09 merecem chegar a quem só
+acompanha — um waiver novo, uma NCR nova, um waiver aceito. **Nem toda
+edição**: quem decide é quem edita, com um clique. Proposto e aprovado antes
+de implementar (com os padrões abaixo, que o Bruno não contestou).
+
+- **O comunicado só nasce do clique em "📣 Publicar comunicado"**
+  (`publicarComunicado` no app.js, a única chamada de `Comunicados.criar`).
+  Nada olha os dados para deduzir acontecimento: mesclar, importar o banco,
+  abrir backup ou normalizar nunca cria comunicado. O editor salva sozinho a
+  cada tecla, então não existe "Salvar e comunicar": salvar é o de sempre, e
+  o comunicado é a ação a mais — oferecida no aviso logo depois da mudança
+  (`ofertaDoItem`/`ofertaDaNcr`, o `toast` aceita uma lista de ações),
+  sempre à mão no botão 📣 da barra de situação e na ficha da NCR, e
+  listada em ⋯ Mais → 📣 Comunicados.
+- **Três tipos** (`Comunicados.TIPOS`): `novo-waiver` (item com número num
+  relatório de marco monitorado), `nova-ncr` (NCR do banco com Marco Atual
+  monitorado) e `waiver-aceito` (item com `status === Store.STATUS_CONCLUIDO`
+  — o valor interno, nunca o texto da tela). A frase de cada um se entende
+  sem a mensagem opcional (até 280 caracteres).
+- **Os marcos vêm de `Config.MARCOS_COMUNICADOS`**, comparados por
+  `Config.ehMarco`: "J09 Ind", "J09Cer" e "J19" não são o J09. O "J09" não
+  aparece escrito em nenhum outro arquivo do programa.
+- **A prévia mostra tudo antes**: tipo, marco, número, situação nova (com a
+  de antes — `anotarTroca` guarda a última troca da sessão, para o botão da
+  barra também saber), título curto, autor, data e hora.
+- **Duplicado**: a chave do acontecimento (`Comunicados.chave`: tipo + marco
+  + NCR/DEV + número, e a situação no aceito) — pelo número, não pelo id do
+  item, porque a mesclagem pareia itens pelo número. Já comunicado, a prévia
+  diz quando e por quem e o botão vira "Comunicar de novo"; o visualizador
+  mostra um por chave (o mais novo).
+- **Arquivo próprio na pasta: `comunicados.json`**, como a conversa e o
+  diário — e não dentro do `derrogacao-dados.json`, porque a versão anterior
+  do programa, ao regravar os dados, apagaria um campo que não conhece.
+  União pelo id (comunicado não se edita), `comSegundaChance` pelo
+  `Pasta.gravarArquivo`, troca em toda `sincronizar` (`gravarJuncao`) e, se
+  só ele mudou, sozinho (`pollPasta`/`atualizarDaPasta` olham a data dele
+  também). Cópia local no `localStorage` (`derrogacao:comunicados`), como a
+  conversa: é pouco e precisa estar à mão.
+- **O visualizador só enxerga a publicação**: por isso os comunicados vão no
+  `visualizador-dados.js` (`Publicacao.montar(…, comunicados)`; o
+  `conteudo` inclui os ids, para a publicação automática perceber comunicado
+  novo). Com a pasta dos visualizadores ligada, comunicar publica na hora.
+  Visualizador antigo ignora a chave (conferido com o `derrogacao.html`
+  anterior).
+- **No visualizador**: pop-up não modal no canto (`#comPop`, filho do
+  `body` — a impressão o esconde), sem tomar o foco, **um só** com a lista
+  quando chegam vários; "Abrir waiver"/"Ver NCR" (conta como lido), "Marcar
+  como lido", "Depois" (`comAdiados`, só na memória: volta na próxima
+  abertura); a etiqueta 📣 com os não lidos abre o histórico. Os lidos ficam
+  em `derrogacao-visualizador:comunicadosLidos` (conveniência de quem está
+  sentado ali, até 300 ids). **Novidade = não lido e com até
+  `Config.DIAS_COMUNICADO_NOVO` dias (4), sempre** — pop-up, etiqueta e a
+  marca "novo" do histórico. Era "7 dias só na primeira abertura", e quem
+  voltava depois de semanas recebia a pilha inteira (o Bruno perguntou e
+  pediu 4 dias). Também impede um comunicado antigo, trazido de volta por um
+  backup, de reaparecer como novidade.
+- **Retenção: os últimos 100** (`Comunicados.MAX`), e não 90 dias: o arquivo
+  é relido por todo visualizador a cada 5 minutos, e um período movimentado
+  engordaria o arquivo por prazo; por contagem o tamanho tem teto (~40 KB).
+- **Backup de tudo leva `comunicados`**; abrir backup junta pelo id (não cria
+  nada); backup antigo, sem a coleção, dá lista vazia. `Store.fromBackup` não
+  foi tocado.
+- **A mensagem de quem comunicou sai destacada** (`.com-msg`: bloco com
+  fundo roxo claro, barra lateral, "Mensagem de Fulano" e o texto em
+  negrito) — pedido do Bruno: é o que a frase padrão não diz.
+- **O diário do console** registra tipo, marco e id — nunca o número nem a
+  mensagem (há conferência disso em `tests/comunicados.test.js`).
+- **Modo leitura**: `Comunicados.gravarLocais` está na `blindar()`; os
+  portões são `abrirComunicar`/`publicarComunicado`/`sincronizarComunicados`
+  (`Leitura.ativo()`); o botão 📣 da barra nem é criado no visualizador, e o
+  da ficha depende de `ctx.comunicar` e de `leitura()`.
+- **O que não existe (ainda)**: retirar um comunicado publicado por engano.
+  Exigiria lápide, como a da conversa; a prévia é a proteção por enquanto.
+
+### Instalação e uso sem rede
+`manifest.webmanifest` + `sw.js`, registrados só em `https:` ou `localhost`
+(de `file://` a API nem existe, e o arquivo único não acompanha manifesto — o
+`build-standalone.py` remove a linha). Serve a duas coisas: abrir sem rede e
+fazer o Edge oferecer **Instalar**, que é o que faz o navegador guardar a
+permissão da pasta entre sessões.
+
 ## 6. Armadilhas já pagas — não repita
 
-- **`ERRORS: none` não é aprovação.** Um teste já reportou isso enquanto
-  capturava páginas em branco. Confira o artefato.
+- **O visualizador é este programa.** Botão novo que escreve, ou função nova
+  que grava, precisa do modo leitura: um `if (Leitura.ativo()) return` no
+  portão, `data-so-editor` no elemento, a função na lista de `blindar()`. E o
+  inverso: controle que só mostra, dentro do editor, leva `data-mostra`, senão
+  some no visualizador.
+- **"Somente leitura" não é controle de acesso.** Quem impede a edição é a
+  permissão da pasta na rede; diga isso sempre que o assunto voltar.
+
+- **Console limpo não é aprovação.** Um teste já reportou "nenhum erro"
+  enquanto capturava páginas em branco. O console só conta o que o navegador
+  reclamou; quem diz se o resultado presta é o artefato — abra o PDF, olhe a
+  folha, confira o número.
+- **A mesclagem não pode ficar aplicada pela metade.** `Store.mergeListas`
+  altera `state.projects` **no lugar**. Se a gravação na pasta falhar depois
+  disso, o resultado ainda precisa ser salvo aqui e redesenhado — é o que
+  `sincronizar()` faz no `catch` via `adotar()`. Sem isso a tela mostra um
+  texto que já não é o do programa e a tecla seguinte o grava por cima do que
+  o colega escreveu.
+- **Nada sai do computador, e isso se verifica.** `Store.normalizeImage` só
+  aceita `data:` e `blob:` em `src`, e há uma CSP no `index.html`. Um `.json`
+  recebido com `src` apontando para a rede faria o navegador buscá-lo — um
+  aviso de leitura dentro de material de programa.
+- **CSV é entrada de programa, não só texto.** Campo que comece por
+  `= + - @` sai com apóstrofo à frente (`csvCampo`); aspas não protegem.
+- **A CSP tem `connect-src 'none'`, e isso alcança os testes.** O programa
+  nunca chama `fetch`, então nada deve poder chamar — nem um `.json` recebido.
+  Teste que queira conferir um arquivo servido não usa `fetch()` de dentro da
+  página: pergunte de fora, ou use `Page.getAppManifest` pelo CDP, que é o
+  que o navegador faz de verdade.
+- **`manifest-src 'self'` não é enfeite.** Sem essa diretiva o Chrome não lê o
+  `manifest.webmanifest` (conferido: `Page.getAppManifest` volta sem dados) e o
+  Edge deixa de oferecer "instalar" — sem erro nenhum no console. No arquivo
+  único ela sai, porque lá não há manifesto para autorizar.
 - **`[hidden]` perde para `display: flex`.** Existe um
   `[hidden] { display: none !important }` global no `app.css`. Não remova.
 - **Não redesenhe o formulário durante a digitação** — perde o cursor.
@@ -175,25 +1617,164 @@ tabelas, **CSV e resumo em PDF** — e o PDF filtrado diz qual foi o recorte. O
 - **Ao mudar a interface, confira o PDF.** São folhas de estilo separadas, mas
   `app.css` tem regras que alcançam `.rep-page` (o resumo impresso, por
   exemplo).
-- **Não versione `derrogacao.html`** na `main` (está no `.gitignore`); ele é
-  gerado na publicação.
+- **O `derrogacao.html` é versionado, e é conteúdo derivado.** Mexeu no
+  `index.html`, num css ou num js? Rode `python3 tools/build-standalone.py`
+  antes de commitar. O workflow `conferir.yml` roda
+  `tools/build-standalone.py --conferir` a cada envio e reprova quando os dois
+  divergem — sem isso, quem baixasse o repositório levaria uma versão antiga
+  do programa achando que levava a de agora.
+- **Botão novo na barra lateral pode empurrar os outros para fora.**
+  `.sidebar-head-actions` tem 332 px; sem `flex-wrap` a fila escorre por baixo
+  do editor e o botão deixa de ser clicável (dois testes caíram assim).
+- **A fila de abas tem os mesmos 332 px.** Com `flex: 1` (largura igual para
+  todas), a quinta aba cortou o próprio rótulo; e um número dentro dela faria
+  a fila quebrar de linha justamente quando chegasse recado. Hoje cada aba
+  leva a largura do seu texto, a fila pode quebrar se precisar, e o aviso de
+  não lido é um ponto no canto — que não ocupa espaço na fila.
+- **SVG sem `width`/`height` sai em branco na impressão.** Com só o `viewBox`
+  ele ocupa espaço na tela e nada no papel: o layout de impressão do Chrome não
+  deduz o tamanho como o da tela. Os desenhos do fluxo levam os dois atributos.
+- **As media queries de tela estreita valem na impressão** — a folha tem
+  210 mm. Uma regra `@media (max-width: 900px)` mudou a altura das linhas só no
+  papel, e a paginação, que mede na tela, errou a conta de folhas. O que entra
+  na folha tem layout próprio sob `.rep-page`, sem depender da largura.
+- **Fechar o balão no `scroll` apaga o balão que acabou de abrir.** Rolar
+  para trazer o card à vista dispara o evento *depois* do `mouseenter`, e o
+  balão sumia sem ninguém entender por quê (um teste pegou isso). Hoje a
+  rolagem **reposiciona** o balão junto do card e só fecha quando o card sai
+  da tela.
+- **`overflow: auto` sem altura mata o `position: sticky` de dentro.** O
+  cabeçalho da aba Tabela não grudava: quem rolava era a aba inteira, e o
+  cabeçalho não tinha a que se prender. A caixa da tabela tem `max-height` e
+  rola sozinha — conferido no navegador, não de memória.
+- **A base da mesclagem não pode avançar antes da gravação.** É o erro que
+  transformaria a proteção em destruição: com `base` igual ao meu estado
+  ainda não gravado, todo campo em que eu difiro do arquivo vira "campo que
+  só o outro mexeu", e a junção seguinte apaga o meu trabalho inteiro. Por
+  isso são duas bases, e por isso a de mesclagem só avança dentro do `then`
+  da gravação.
+- **Gráfico estreito no papel quer viewBox estreito.** `Summary.barras` nasceu
+  com viewBox de 720 para a largura da tela. Numa coluna de 110 mm da folha,
+  os 11 px do rótulo saem com menos de meio milímetro — ilegível, e sem erro
+  nenhum. Daí o `opts.larg`/`opts.rotulo`: menos unidades de viewBox para a
+  mesma largura impressa é letra maior.
+- **Lista que quase cabe custa mais do que a que não cabe.** A paginação tira
+  unidades do fim uma a uma; quando todas as linhas de um `data-lista` saem, o
+  cabeçalho fica — e se ele ainda transbordar por três milímetros, o bloco
+  inteiro de antes vai junto. Foi o que deixou meia folha do painel em branco.
+  Quando a lista é longa e previsível, é melhor dar folha própria a ela do que
+  esperar a paginação resolver.
+- **Teste de `file://` com `--allow-file-access-from-files` esconde erro de
+  verdade.** O Bruno abre o arquivo único do G: sem flag nenhuma, e o Chrome
+  trata cada `file:` como origem única. Os testes daqui passam essa flag para
+  a pasta de mentira funcionar; quando a dúvida for sobre o console dele,
+  rode **sem** a flag também, senão o erro que ele vê não aparece aqui.
+- **Pasta compartilhada não se testa copiando um lado no outro.** Isso é
+  "um está com a pasta velha do outro", que é outro caso. Duas pessoas ao
+  mesmo tempo só aparece com uma pasta de verdade entre as abas — os arquivos
+  bombeados nos dois sentidos, valendo o mais recente (`rede.py`). Foi só com
+  isso que o atropelo apareceu.
+- **Redesenhar o editor rouba o teclado de quem está escrevendo.** Ver "O
+  cursor sobrevive ao redesenho" no §5: o redesenho é obrigatório, devolver o
+  foco também.
+- **Um `if` solto enfiado no meio rouba o `else` de quem estava antes.**
+  Aconteceu no `Painel.apurar`: ao acrescentar um contador entre o
+  `if (r.jaChegou)` e o `else if (r.item.done)`, o else passou a pertencer ao
+  contador novo e "Aceitos, falta trazer" zerou. Hoje aquele par está com
+  chaves, de propósito.
+- **Semente de teste tem de ser escrita como o Bruno escreve.** A primeira
+  versão do `semear_marcos.js` punha "J08 To: J09" no Waiver Historic do item
+  do J08 — o que ninguém faz —, e com isso o painel parecia funcionar e a
+  coluna parecia certa. O histórico termina no marco do próprio relatório; o
+  futuro está nas datas de validade.
+- **Banco do navegador numa versão maior que a pedida trava o programa
+  inteiro.** Uma versão de teste da integração do banco NCR subiu o IndexedDB
+  para a v4; a versão seguinte pedia a v3, o navegador respondeu `VersionError`
+  e nada funcionava — não gravava, não lia os relatórios, não guardava o crachá
+  da pasta ("não consigo vincular o banco") —, com os dados todos intactos lá
+  dentro. Hoje o `openDb` abre sem pedir versão quando dá `VersionError`, cria
+  só a prateleira que faltar, e o `migrarNcrV4` copia uma vez o banco NCR das
+  prateleiras de teste (`ncrs`, `ncrmeta`) para o `snapshots`. **Nunca suba o
+  `DB_VERSION` sem necessidade**: a versão anterior do programa deixa de abrir
+  o navegador para sempre, e isso não tem volta sem apagar o banco.
+- **Dois `function` com o mesmo nome no mesmo arquivo: vale o segundo, sem
+  aviso.** O `pasta.js` tinha `carimbo()` (a última leitura, exportada) e
+  `carimbo(d)` (o nome datado do histórico); o segundo apagava o primeiro, e
+  `Pasta.carimbo()` quebraria se chamado. O segundo virou `carimboDeNome`.
+- **Não versione dados de NCR.** O repositório é **público**. O JSON de
+  correlação, exports e históricos ficam na pasta da equipe.
+- **O service worker é rede-primeiro, de propósito.** Cache-primeiro traria de
+  volta o problema de HTML novo com JS velho que o `?v=<sha>` existe para
+  evitar. O `sw.js` também é carimbado na publicação: sem mudar de conteúdo,
+  o navegador não o atualiza.
+- **`.rep-page` (report.css) vem depois do app.css.** Uma regra de uma classe
+  só no app.css (`.rep-page--kanban { font-size: … }`) perde para o
+  `.rep-page { font-size: 11pt }` de lá, sem erro nenhum: a escala do Kanban
+  impresso não mudava nada e a prévia errava a conta de folhas. Folha nova de
+  impressão estilizada no app.css leva as duas classes
+  (`.rep-page.rep-page--kanban`).
+- **Rodapé vazio na hora de medir mede uma linha a menos.** O pé do Kanban
+  impresso nascia vazio e ganhava "folha 1 de 3" depois da paginação; com o
+  texto, a folha passava 3 px da A3 e o Chrome cuspia uma folha em branco. O
+  pé nasce com texto de mesmo tamanho, e a numeração certa entra no fim.
+- **`flushSave()` sempre agenda uma sincronização** (2,5 s depois, via
+  `agendarGravacaoPasta`). Quem chama `flushSave` e logo em seguida
+  `sincronizar` (o botão "⟳ Atualizar") cancela esse `gravaTimer`, senão a
+  mesma rodada acontece duas vezes — e a segunda relê a pasta num momento em
+  que ninguém pediu.
+- **O `app.js` não tem `global`.** Ele é `(function () { … })()`, sem o
+  parâmetro que os outros módulos recebem; um `global.Correcoes` ali derrubou
+  a abertura inteira ("não consegui ler o armazenamento deste navegador").
+  No `app.js`, `window.X`.
+- **Quem lê a `fonte` da NCR lê `Ncrs.fonte(rec)`.** Ler `rec.fonte.status`
+  direto mostra o status do banco e ignora a correção do administrador — a
+  tela ficaria dizendo uma coisa e o `fechada` outra.
+- **Pareamento entre marcos é `Ncrs.chaveCaso`, não `Store.numeroChave`.**
+  Com o segundo, a NCR temporária e a definitiva não se acham.
+- **O destino "J09" não é o relatório "J09 Ind".** `Fluxo.marco` lê os dois
+  como J09; o `Herdar` escolhia o primeiro da lista, e com o "J09 Ind"
+  mexido por último o J09 parecia não ter a cópia. Hoje o "Ind" do texto do
+  Expiry tem de bater com o do relatório (`relatorioDestino`), a regra do
+  Kanban.
+- **"J09 " no começo do texto também é o "J09 Ind".** Um teste que procurava a
+  opção do J09 com `/^J09 /` pegava o industrial quando ele vinha primeiro na
+  lista, e falhava só às vezes. Use `/^J09 \(/` — ou `Config.ehMarco`.
 
-## 7. Como testar
+## 7. Conferir antes de publicar
 
-`tests/README.md` tem o passo a passo. Em resumo: 24 suítes Playwright que
-abrem a aplicação de verdade, fazem o caminho do usuário e conferem o
-resultado, **inclusive o PDF gerado**. Rode a suíte inteira antes de publicar —
-já houve mais de uma vez em que uma mudança de interface quebrou um teste de
-exportação.
+A suíte voltou, menor e em Node (`tests/`, ver `tests/README.md`): o Bruno
+pediu testes automatizados para os comportamentos novos. `node tests/rodar.js`
+roda todas (navegação, abertura no marco da vez, Kanban e suas exportações,
+Resumo, atualização automática, Banco NCR, comunicados — do editor ao pop-up
+do visualizador —, compatibilidade e os arquivos únicos de `file://`). Elas abrem o programa de verdade, semeiam pela API do
+programa, conferem arquivos baixados e o número de folhas e o papel dos PDFs.
+Não é o programa: nada ali entra no `derrogacao.html`, e o programa continua
+sem build e sem dependência.
 
-Para a pasta compartilhada, os testes injetam um diretório OPFS no lugar do
-seletor do Windows: mesma interface `FileSystemDirectoryHandle`, então o
-caminho exercitado é o real.
+A suíte não substitui olhar, e vale para toda mudança de interface: **abra o
+PDF exportado** (relatório, resumo e fluxos), confira a capa, uma folha de
+continuação e uma página de evidência. Mais de uma vez uma mudança de tela
+vazou para a impressão sem ninguém perceber — é o §2, "o PDF é sagrado". Nesta
+rodada (a dos comunicados) o PDF do relatório J06 de exemplo foi comparado
+**pixel a pixel** com o da versão anterior (52 folhas, idênticas), e a versão
+anterior foi aberta diante dos dados novos: o editor abre o backup com
+`comunicados`, e o visualizador lê a publicação com eles, sem erro.
+
+Abra também de `file://` e pelo `derrogacao.html`: são os dois caminhos que o
+Bruno usa e os que mais escapam. E abra o `derrogacao-visualizador.html` com um
+`visualizador-dados.js` (⋯ Mais → Publicar → Baixar o arquivo): nenhum campo
+editável, nenhum botão que escreva, as abas e as exportações funcionando.
 
 ## 8. Publicação
 
+Dois workflows:
+
+- `.github/workflows/conferir.yml` — a cada envio, confere se o
+  `derrogacao.html` versionado ainda corresponde ao `index.html` e aos assets.
+- `.github/workflows/pages.yml` — publica.
+
 `main` → workflow `.github/workflows/pages.yml`:
-gera `derrogacao.html`, carimba `?v=<sha>` nos assets, força tudo para a branch
+gera `derrogacao.html` e `derrogacao-visualizador.html`, carimba `?v=<sha>` nos assets, força tudo para a branch
 `gh-pages`. A API do token não consegue criar o site do Pages; por isso o
 espelho em branch, e não `actions/deploy-pages`.
 
@@ -223,4 +1804,117 @@ desta máquina às vezes bloqueia `github.io`.
 | LWW na pasta, três pontas no arquivo | situações diferentes |
 | Histórico dentro da pasta | o navegador só libera a pasta escolhida |
 | Situação interna separada do Arch Status | um é do documento, o outro do acompanhamento |
-| Índice da capa fecha com o Arch Status | o SBR4 traz assim (o SBR3 não trazia) |
+| Índice da capa fecha com a **situação do item**, não com o Arch Status | pedido do Bruno: o Arch Status é texto livre e muitas vezes vazio; a situação é sempre uma das quatro e diz de relance em que pé está. O Arch Status continua impresso na página do item (§4) |
+| A situação sai em inglês na capa (`Store.STATUS.en`) | a folha é um documento em inglês; "Em preenchimento" seria a única palavra em português dela |
+| O marco de destino sai do `Waiver Approved Expiry`, sem campo novo | o campo que já diz até quando o waiver vale é o que diz para onde ele vai; um campo paralelo sairia do ar na primeira vez que alguém editasse só o texto |
+| Levar adiante exige o relatório do destino já criado | criar marco a partir de um campo de texto encheria a lista de marcos com typo, e cada um viajaria para a pasta da equipe |
+| A cópia herdada mantém o mesmo número | o pareamento é sempre dentro do marco; é o número que liga a NCR-001 do J08 à do J09 no fluxo (ao contrário de `Store.duplicar`, que copia no mesmo relatório) |
+| A cópia herdada chega em "Em preenchimento", com o ciclo anterior em branco | o waiver de lá foi aceito, o daqui ainda nem foi pedido; Arch Answer, Arch Status e as datas eram a resposta do marco que terminou |
+| `herdadoDe` não sobe o `SCHEMA` e fica fora da `signature()` | mesmos motivos da `nota`: `extrasDe` já preserva, e o desempate tem de ser idêntico ao das versões anteriores |
+| RANAE e TRAP entram em `Fluxo.ORDEM` pelo nome, sem número | são os dois marcos depois do J12 e não têm "J"; sem isso cairiam como card solto no fim do desenho. "RANAE J06" continua sendo o J06 — havendo número, é o número que manda |
+| O painel recorta por "seta que termina aqui" **ou** "o documento diz que vale até aqui", não por "passa por aqui" | quem já saiu do J08 não está indo para o J08; e o histórico nunca diz o futuro, então sem a segunda porta o painel do J09 ficava vazio antes de o marco começar |
+| "Vai para" sai do Approved Expiry (e do Request Expiry na falta), nunca do Waiver Historic | o histórico termina no marco do próprio relatório: a última seta dele é a chegada, não a saída |
+| `Herdar.destinoDe` é estrito (só o aprovado); `paraOnde` é generoso (aceita o pedido) | copiar o item é ação e só pode seguir o que foi aprovado; ler para onde ele aponta é leitura, e o pedido já informa |
+| "Já levada?" só cobra depois de o waiver ser aceito | antes disso não há o que levar, e o "não" seria cobrança de uma coisa que ainda não venceu |
+| O painel ignora os filtros da aba Fluxos e os esconde | eles são do fluxo por item; botão que não faz nada é pior do que botão nenhum |
+| No painel, a cópia que já chegou ganha da original | uma NCR levada adiante existe duas vezes neste navegador, e quem ainda dá trabalho é a cópia; daí "já no relatório" × "falta trazer" |
+| O painel em PDF sai em duas folhas fixas | numa só, o cabeçalho órfão da lista empurrava os gráficos para a folha seguinte e deixava meia folha em branco |
+| Paginar em vez de mudar as margens para `@page` | mover as margens para a página quebraria quem imprime com "Margens: Nenhuma", que é o que o README manda fazer |
+| Imagem em arquivo na pasta, embutida no backup | na pasta o que pesa é reescrever tudo a cada gravação; no backup o arquivo tem de viajar sozinho |
+| Item aceito abre travado, com "editar mesmo assim" | a regra da pasta espalha um clique distraído para todo mundo em 20 s |
+| Fluxo lido do `historic`, sem campo novo | o texto do relatório é a verdade; um campo paralelo sairia do ar na primeira vez que alguém editasse só o texto |
+| Ordem dos marcos fixa em `Fluxo.ORDEM` | as setas mandam; a lista só decide quando o texto não diz (confirmada com o Bruno, com J06 e J10 onde a mensagem dele tinha typo) |
+| Cópia nasce com o número marcado `(cópia)` | a mesclagem pareia itens pelo número: dois com o mesmo número viram um só no computador do colega |
+| Conversa em arquivo próprio na pasta, fora do backup e do PDF | os dados são reescritos e versionados a cada gravação; o papo não tem por que viajar junto |
+| Conversa desligada de saída, ligada por navegador | é a única aba que não serve ao relatório: quem quer, liga |
+| A tela diz que a conversa direta não é secreta | ela não é, e deixar isso subentendido seria pior do que não ter a conversa |
+| `derrogacao.html` versionado na `main`, com conferência no CI | quem baixa o repositório leva o programa pronto; a conferência é o preço de guardar conteúdo derivado |
+| A resposta do marco anterior é só leitura, e só do que está neste navegador | os dados são de quem tem a pasta; inventar resposta, ou escrever no relatório do outro marco, seria pior do que não mostrar nada |
+| A coluna ao lado é só leitura | dois formulários abertos escreveriam no mesmo item enquanto `field()` amarrar os campos ao selecionado; consultar sem risco vale mais do que editar em dois lugares |
+| A coluna fica fora do `<main>`, como terceira coluna do `.layout` | o editor tem quatro painéis de aba lá dentro; mexer neles para abrir espaço era mexer no que já funciona |
+| Balão em `div` sobre o SVG, e não `<title>` do SVG | o `<title>` é uma linha só, sem formatação e com o atraso do navegador; e os dois juntos apareceriam ao mesmo tempo |
+| Lista do resumo impresso em `div`, não em `<table>` | a paginação move filhos diretos do bloco; linha de tabela mora no `<tbody>` e não migraria sem partir a tabela |
+| Empate de `editedAt` resolvido pela assinatura | `>` sozinho deixava as duas bases divergindo para sempre |
+| Reordenar também por botões ↑/↓ | arrastar sozinho exclui quem não consegue o gesto (WCAG 2.5.7) |
+| Uma anotação por item, e não uma conversa por item | é quase sempre recado de uma pessoa só e de vida curta; um vetor de notas exigiria união por id dentro do `mergeLWW`, e o campo passaria a se comportar diferente de todos os outros (escolhido com o Bruno) |
+| A anotação não sobe o `SCHEMA` | `extrasDe` já a preserva na versão antiga (provado no navegador); subir poria a equipe inteira em só leitura até todo mundo trocar o arquivo |
+| A anotação fica fora da `signature()` | o desempate tem de ser idêntico ao das versões anteriores, senão as bases divergem |
+| Aba Tabela olha todos os relatórios; ordenar nela não muda o PDF | a pergunta que ela responde é "em que marco está este item?"; a ordem do relatório tem dono, que é `project.ordem` |
+| A planilha leva o texto dos anexos, nunca a imagem | o texto cabe numa célula e é o que se procura depois; a foto tem dois caminhos próprios, o PDF do relatório e o backup `.json` |
+| Colunas e ordenação da Tabela no `localStorage`, filtro não | as colunas são de quem está sentado ali; um filtro guardado esconderia itens na abertura seguinte sem dizer por quê |
+| `.xlsx` escrito à mão, em vez de CSV ou de biblioteca | sem dependência (§2), e o CSV perde tipo, cabeçalho congelado e filtros — e trata `=` como fórmula |
+| Toda exportação leva a aba "Recorte" | planilha filtrada que não diz que está filtrada é lida como se fosse o total |
+| Caminho do banco com valor de saída e chave própria | ninguém deveria precisar perguntar onde fica a pasta; e o caminho do backup é outro campo |
+| Mesclagem campo a campo, com base guardada, em vez de item inteiro | dois campos diferentes do mesmo item nunca foram conflito; tratá-los como se fossem era perder texto em silêncio |
+| Visualizador = o editor em modo leitura, não um programa à parte | escolhido com o Bruno: toda aba e exportação nova chega a ele sozinha; um programa separado ficaria para trás a cada melhoria |
+| Visualizador lê um `.js` publicado, por caminho ou ao lado | de `file://` o navegador bloqueia ler `.json`; `<script>` passa, sem clique e sem permissão |
+| Visualizador mostra NCR, DEV, Resumo, Fluxos, Tabela, Banco NCR e Kanban; sem Conversa (mas com os comunicados, que não são conversa: só o editor escreve) | escolha do Bruno |
+| Publicação leva tudo, inclusive em preenchimento, e a autoria; não leva sessões, histórico do texto nem a anotação interna | decisão do Bruno (tudo e autoria); a anotação tem na tela a promessa de ficar na equipe |
+| Pasta dos dados do visualizador com padrão gravado no arquivo, e a informada na tela por cima | a pasta definitiva ainda não existe; quando existir, ninguém precisa configurar |
+| A base de mesclagem só avança depois da gravação dar certo | avançá-la antes faz a junção seguinte ler o meu trabalho como sendo do outro, e apagá-lo |
+| Duas bases (mesclagem e diário) na mesma prateleira do IndexedDB | criar prateleira nova obriga a subir a versão do banco, e a versão anterior do programa deixaria de abrir o mesmo navegador |
+| A base que vale é decidida pelo `baseadoEm` do arquivo, não pelo relógio do item | ser mais novo não é ter visto: só o carimbo do arquivo diz se a cópia que chegou partiu da minha gravação ou de antes dela |
+| O recorte do PDF não fica guardado entre aberturas | exportar meio Waiver Request sem perceber é pior do que escolher o filtro de novo |
+| A capa avisa quando o PDF é parcial | mesma regra da aba "Recorte": lista filtrada que não diz que é filtrada é lida como o total |
+| O relógio só decide quando os dois escreveram no MESMO campo | é o único caso que sobra sem base comum; e nele o texto perdedor é guardado, não descartado |
+| Diário de alterações em arquivo próprio, fora do backup e do PDF | mesma razão da conversa: os dados são reescritos e versionados a cada gravação |
+| Cada computador anota só o que ele escreveu | anotar o que chega dos outros duplicaria cada linha em cada máquina |
+| Restaurar um texto é uma edição nova, com hora nova | só assim ele vale também no computador dos outros, em vez de voltar apagado |
+| Permissão da pasta pedida no primeiro clique, por 2 minutos | é o único jeito de atender à regra do gesto sem deixar o aviso esperando um clique no lugar certo |
+| Banco NCR no armazém `snapshots`, sem subir o IndexedDB | a versão anterior do programa continua abrindo o mesmo navegador; relatórios intocados |
+| Só SBR4 no banco NCR, por enquanto | pedido do Bruno; `Ncrs.SBR_ALVO` |
+| Observation em campo próprio, fora do PDF, separado da nota | pedido do Bruno: a nota é recado de pendência; a observation é o texto da NCR |
+| Marco Atual casa com relatório só se igual | `J06 Ind`/`J06Cer` podem não ser o `J06`; a ficha oferece escolher à mão |
+| Correlação só completa o vazio | reimportar não desfaz correção manual |
+| Vínculo lido dos relatórios, não gravado à parte | não dessincroniza; os relatórios antigos já aparecem vinculados |
+| Editar na tabela do Banco NCR não redesenha a tabela | a rolagem voltava ao topo e a linha sumia do filtro no meio da edição |
+| Exportação do Banco NCR leva o que está à vista, com "Recorte" | pedido do Bruno; mesma regra da aba Tabela |
+| JSON de correlação fora do Git | repositório público, dado do programa |
+| Marcos em ordem de fila em todo lugar (`Fluxo.cmpMarco`) | pedido do Bruno: "na ordem que combinamos, igual ao extrato da tabela"; alfabética põe J05 (J06Cer) e J06Cer em lugar errado |
+| Coluna Waiver colorida pela situação do item | pedido do Bruno; as cores de `Store.STATUS`, em tons que passam no contraste |
+| Aviso de NCR fechada com waiver pendente, só na tela | pedido do Bruno; *Waiver accepted* não avisa. O PDF é sagrado (§2) |
+| Colunas do Banco NCR reordenáveis, chave nova para o padrão novo | o padrão da imagem do Bruno tinha de valer para quem já tinha escolha gravada |
+| Kanban por marco, marco pelo texto igual | mesma regra do Banco NCR (`J09 Ind` ≠ `J09`) |
+| Kanban esconde os marcos "Ind" e nunca os soma ao marco sem Ind | decisão do Bruno: o marco industrial tem pouca relevância |
+| Primeira coluna do Kanban é "NCR to be closed" | pedido do Bruno: NCR do marco fora do Waiver dele precisa ser fechada |
+| Arrastar no Kanban muda a situação; sair de "aceito" confirma | é o gesto natural de um quadro; a confirmação protege a trava do item aceito |
+| Navegação: Banco NCR · Kanban · Tabela · Waiver NCR · Waiver DEV (depois Resumo, Fluxos) | pedido do Bruno; só os rótulos mudaram — `ncr`/`dev` continuam as chaves |
+| Cada área com a sua cor (ponto, e a aba aberta com fundo e barra) | pedido do Bruno: saber de relance onde se está; a cor nunca é o único sinal |
+| Seletor "Relatório" some onde não manda; nos Fluxos fica desabilitado com o motivo | um filtro que não filtra ao lado do que filtra confundia (pedido do Bruno) |
+| Marco que abre primeiro em `Config.MARCO_INICIAL` (J09), sem criar relatório | pedido do Bruno, "priorizar o Marco 9"; num lugar só porque o marco da vez muda |
+| A comparação do marco aceita caixa, espaço, zero à esquerda e "RANAE", e mais nada | "J09 Ind", "J09Cer" e "J19" são outros marcos |
+| A Tabela continua abrindo com todos os marcos | ela responde "onde está a NCR-018?"; nascer recortada esconderia itens |
+| Atualização automática de 5 min só no visualizador; no editor, a conferência de 20 s e o botão | pedido do Bruno: no editor o relógio repetia a conferência de 20 s, e o contador zerava a cada gravação |
+| O contador fica no ⋯ Mais; na barra, só "⟳ Atualizar" | pedido do Bruno: na barra ele mudava a cada segundo |
+| Voltar para a janela não recomeça a contagem; só roda se o prazo venceu lá fora | o "roda ao voltar" recomeçava de 5:00 a cada troca de aba |
+| A conferência de 20 s não roda em segundo plano | ao voltar, o ciclo confere na hora; ler a pasta com a janela escondida é trabalho para ninguém |
+| Cartão do Kanban recolhido, "+" para a descrição; abrir não grava | pedido do Bruno: mais NCRs à vista |
+| Toda NCR fechada (`Ncrs.fechada`) sai de "NCR to be closed" para a área Encerradas | pedido do Bruno: "Closed" na coluna de NCRs a fechar não faz sentido; antes só o CEDOC Closure saía |
+| A área das encerradas fica abaixo do quadro, recolhível, com a quantidade sempre à vista | pedido do Bruno; recolhida por padrão, a escolha fica no navegador |
+| Kanban impresso pela janela de impressão, A4/A3, com escala automática | o mesmo caminho do relatório (§5): fidelidade e zero dependência; "Margens: Nenhuma" continua valendo |
+| Planilha do Kanban em .xlsx, com a aba "Recorte" | a regra das outras planilhas (§10, "Toda exportação leva a aba Recorte") |
+| Resumo: mini cards (`tb-chip`) no lugar do dropdown, números com os filtros | pedido do Bruno; a mesma pastilha e a mesma fila das outras áreas |
+| O ✓ na pastilha escolhida vale em todo lugar (Tabela, Kanban, Resumo) | a escolha não pode ser só cor, e a mesma pastilha tem de se comportar igual |
+| Pastilhas de marco da Tabela na fila dos marcos | a mesma ordem do Kanban e do Resumo ("marcos em ordem de fila em todo lugar") |
+| Zebra no Banco NCR, com os estados por cima | pedido do Bruno: legibilidade de uma tabela de 13 colunas |
+| Suíte de testes de volta, em `tests/` (Node + Playwright) | pedido do Bruno para os comportamentos novos; é ferramenta de quem edita, fora do programa |
+| Comunicado só com clique e prévia; nunca deduzido dos dados | pedido do Bruno: "nem toda edição deve gerar notificação"; deduzir criaria comunicado em mesclagem e importação |
+| Comunicados em `comunicados.json`, fora do arquivo de dados | a versão anterior, ao regravar os dados, apagaria o campo; e a união pelo id é a da conversa |
+| Comunicados dentro da publicação, sem relógio próprio | o visualizador só enxerga a publicação; um segundo ciclo concorreria com o da atualização automática |
+| Retenção por contagem (100), não por prazo | o arquivo é relido a cada 5 min por todo visualizador; por contagem o tamanho tem teto |
+| Comunicado é novidade por 4 dias, sempre (`Config.DIAS_COMUNICADO_NOVO`) | pedido do Bruno: quem volta depois de semanas não deve receber a pilha inteira; eles continuam no histórico |
+| Pasta do visualizador em `Config.PASTA_VISUALIZADOR`; o editor avisa e pede para conectar a cada queda | pedido do Bruno: sempre ligado à pasta, com confirmação quando cair |
+| O backup de tudo leva os comunicados | backup pela metade não é backup; versões antigas ignoram a chave |
+| "Novo waiver" = item do relatório Waiver do J09; "Nova NCR" = NCR do banco com Marco Atual J09 | a leitura proposta ao Bruno antes de implementar |
+| NCR fechada = a lista do Bruno em `Config.STATUS_NCR_FECHADA`, mais o critério por palavra de antes | pedido do Bruno ("7.2 - TA Unfounded" não era reconhecido); a palavra fica para não reabrir o que já era fechado |
+| NCR fechada não pede waiver, mas o alerta ⚠ de waiver pendente continua | pedido do Bruno; o alerta é o que acha o item de waiver esquecido de uma NCR que já acabou |
+| Temporária → definitiva é uma ligação, nunca renomear o item | "o histórico seja preservado; os registros antigos continuem rastreáveis" (pedido do Bruno) |
+| A ligação vale na leitura (vínculo, fluxo, painel, Kanban, levar adiante), não na mesclagem | juntar num item só a temporária e a definitiva do mesmo relatório seria perder um deles |
+| Ligar temporária → definitiva é de qualquer editor (ficha), e fica na auditoria | é organização do dado, como o Marco Atual; a área administrativa também lista e desfaz |
+| Correção do administrador é camada por cima, e o banco a supera quando muda o valor | uma correção de hoje não pode esconder para sempre o que o sistema oficial disser amanhã |
+| Correções, ligações e auditoria em arquivo próprio da pasta | a versão anterior, ao regravar o arquivo do Waiver, apagaria campo novo no `waiver` |
+| Área administrativa com senha, com a pasta decidindo a senha e a criada primeiro valendo | não há servidor nem login; a senha esconde, a permissão da pasta protege — e a tela diz isso |
+| A ficha mostra as linhas repetidas do export (produtos, deliberações) em tabela | pedido do Bruno: "tudo o que estiver associado à NCR", no padrão visual da ficha |
+| Obs Ship Manager nos dois lugares da Observação (NCR e item), fora do PDF | pedido do Bruno: "igual a coluna observação" |
+| A coluna nova entra uma vez na escolha de colunas já gravada, sem trocar a chave | trocar a chave desfaria a escolha de todo mundo por causa de uma coluna |
+

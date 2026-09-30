@@ -43,6 +43,29 @@
   min-height: 210mm;
 }
 
+/* O Kanban impresso (kanban.js) é a única folha que também sai em A3, e com
+   margens menores: são cinco colunas lado a lado. Nenhuma folha do relatório
+   usa estas classes. */
+.rep-page--a3 {
+  width: 297mm;
+  min-height: 420mm;
+}
+.rep-page--a3.rep-page--landscape {
+  width: 420mm;
+  min-height: 297mm;
+}
+.rep-page--kanban {
+  --rep-pad-x: 10mm;
+  --rep-pad-top: 10mm;
+  --rep-pad-bottom: 10mm;
+}
+
+/* Enquanto a paginação faz as contas, a área útil encolhe um pouco: é a
+   margem de segurança contra o arredondamento da impressão, sem a qual um
+   texto que fecha exatamente no fim da folha pode escorregar para a
+   seguinte na hora de imprimir. A classe só existe durante a medição. */
+.rep-page.rep-medindo { padding-bottom: calc(var(--rep-pad-bottom) + 1.5mm); }
+
 /* páginas de anexo têm margens menores, para caber mais imagem */
 .rep-page--evidence {
   --rep-pad-x: 12mm;
@@ -91,6 +114,17 @@
 .rep-index-item a {
   color: var(--rep-link);
   text-decoration: underline;
+}
+
+/* Aviso de recorte — só aparece quando a exportação foi filtrada por
+   situação. Sem filtro a capa sai exatamente como sempre saiu (§2). */
+.rep-cover-recorte {
+  margin: 0 0 4mm;
+  padding: 1.5mm 2.5mm;
+  border-left: 1mm solid #d9a441;
+  background: #fdf4e3;
+  font-size: 9pt;
+  color: #6b4400;
 }
 
 /* data de emissão, no pé da capa */
@@ -282,6 +316,14 @@
   size: A4 landscape;
   margin: 0;
 }
+@page rep-a3 {
+  size: A3 portrait;
+  margin: 0;
+}
+@page rep-a3-landscape {
+  size: A3 landscape;
+  margin: 0;
+}
 
 @media print {
   html, body {
@@ -304,6 +346,8 @@
     page-break-after: auto;
   }
   .print-root .rep-page--landscape { page: rep-landscape; }
+  .print-root .rep-page--a3 { page: rep-a3; }
+  .print-root .rep-page--a3.rep-page--landscape { page: rep-a3-landscape; }
 
   .rep-page { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .rep-page--summary,

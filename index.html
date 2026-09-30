@@ -3,9 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Nada sai do computador: sem origem externa para script, estilo, imagem ou
+     conexão. Vale também para o arquivo único aberto de file://. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <title>Waiver Request — Gerador de Relatórios de Derrogação</title>
 <meta name="description" content="Editor de relatórios de derrogação de NCR com exportação em PDF no padrão Waiver Request.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%234B0082'/><text y='72' x='50' text-anchor='middle' font-size='60' fill='white' font-family='Arial'>W</text></svg>">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#4B0082">
 <link rel="stylesheet" href="assets/css/app.css">
 <link rel="stylesheet" href="assets/css/report.css">
 </head>
@@ -17,27 +22,52 @@
     <span class="brand-mark" aria-hidden="true">W</span>
     <span class="brand-text">
       <b>Waiver Request</b>
-      <small>gerador de relatórios de derrogação</small>
+      <small id="brandSub">gerador de relatórios de derrogação</small>
     </span>
+    <span class="leitura-selo" id="leituraSelo" hidden
+          title="Este é o visualizador: mostra e exporta, mas não altera nada dos relatórios">somente leitura</span>
   </div>
 
+  <!-- O relatório aberto só manda nas abas Waiver NCR e Waiver DEV (e na
+       aba Fluxos, quando ela olha "este relatório"). Nas outras o campo some
+       — cada uma tem o próprio recorte. Ver renderSeletorGlobal() no app.js. -->
   <div class="topbar-group">
-    <div class="topbar-field">
+    <div class="topbar-field" id="relatorioCampo">
       <label for="projectSelect">Relatório</label>
-      <select id="projectSelect"></select>
+      <select id="projectSelect" aria-describedby="relatorioNota"></select>
+      <span class="topbar-nota" id="relatorioNota" hidden></span>
     </div>
-    <button class="btn btn--onDark" id="newProjectTopBtn" title="Criar um relatório para outro marco">+ Novo relatório</button>
+    <button data-so-editor class="btn btn--onDark" id="newProjectTopBtn" title="Criar um relatório para outro marco">+ Novo relatório</button>
   </div>
 
-  <div class="topbar-field topbar-field--grow">
+  <div data-so-editor class="topbar-field topbar-field--grow" id="marcoCampo">
     <label for="marcoInput">Marco</label>
     <input type="text" id="marcoInput" placeholder="ex.: RANAE J06">
   </div>
 
   <div class="topbar-right">
-  <button class="pasta-chip" id="pastaChip" hidden data-estado="off">
+  <button data-so-editor class="pasta-chip" id="pastaChip" hidden data-estado="off">
     <span id="pastaChipLabel">📁</span>
   </button>
+  <button data-so-editor class="pasta-chip" id="pubChip" hidden data-estado="permissao"
+          title="A publicação automática para os visualizadores precisa da sua permissão para gravar na pasta deles. Clique aqui.">
+    👁 permitir publicação
+  </button>
+  <!-- só no visualizador: os comunicados da equipe (comunicados.js) -->
+  <button class="pasta-chip com-chip" id="comChip" hidden aria-label="Comunicados">
+    📣<span class="com-chip-conta" id="comChipConta"></span>
+  </button>
+  <!-- só no visualizador: de quando são os dados, e reler -->
+  <button class="pasta-chip leitura-fonte" id="fonteChip" hidden data-estado="erro">
+    <span id="fonteChipLabel">📄 sem dados</span>
+  </button>
+  <!-- "⟳ Atualizar": ler agora. No editor só aparece com a pasta da equipe
+       (e não há relógio: a conferência de 20 s já traz o colega); no
+       visualizador, sempre — e lá o contador da atualização automática
+       (atualizacao.js) fica no ⋯ Mais, para não ficar mudando na barra. -->
+  <div class="topbar-atualiza" id="atualizaBox" hidden>
+    <button class="btn btn--onDark topbar-atualiza-btn" id="atualizarBtn">⟳ Atualizar</button>
+  </div>
   <div class="topbar-actions">
     <button class="btn btn--onDark" id="previewBtn">Pré-visualizar</button>
     <button class="btn btn--go" id="pdfBtn">Exportar PDF…</button>
@@ -45,43 +75,59 @@
       <button class="btn btn--onDark btn--menu" id="menuBtn" aria-haspopup="true" aria-expanded="false" title="Mais ações: backup, abrir arquivo, ajustes">⋯ Mais</button>
       <div class="menu-pop" id="menuPop" hidden>
 
-        <div class="menu-title">Arquivos <small>trocar trabalho com outras pessoas</small></div>
-        <button class="menu-item menu-item--accent" id="backupAllBtn">
+        <div data-so-editor class="menu-title">Arquivos <small>trocar trabalho com outras pessoas</small></div>
+        <button data-so-editor class="menu-item menu-item--accent" id="backupAllBtn">
           ★ Salvar backup de tudo <small>todos os relatórios · use este no dia a dia</small>
         </button>
-        <button class="menu-item" id="pastaBtn" hidden>
+        <button data-so-editor class="menu-item" id="pastaBtn" hidden>
           🗄 Pasta da rede como banco de dados <small id="pastaBtnSub">ler e gravar direto numa pasta da rede</small>
         </button>
-        <button class="menu-item" id="restoreBtn">
+        <button data-so-editor class="menu-item" id="publicarBtn">
+          👁 Publicar para visualizadores <small id="publicarBtnSub">o arquivo que o visualizador (só leitura) lê</small>
+        </button>
+        <button data-so-editor class="menu-item" id="restoreBtn">
           Abrir arquivo… <small>recebe e mescla o trabalho de um colega</small>
         </button>
-        <button class="menu-item" id="backupBtn">
+        <button data-so-editor class="menu-item" id="backupBtn">
           Salvar só este relatório <small>apenas o marco aberto, para enviar a alguém</small>
         </button>
-        <a class="menu-item" id="standaloneLink" href="derrogacao.html" download hidden>
+        <a data-so-editor class="menu-item" id="standaloneLink" href="derrogacao.html" download hidden>
           ⤓ Baixar para usar sem internet <small>um arquivo só, abre com dois cliques</small>
         </a>
-        <button class="menu-item" id="undoMergeBtn" hidden>
+        <button data-so-editor class="menu-item" id="undoMergeBtn" hidden>
           ↩ Desfazer a última mesclagem <small id="undoMergeWhen"></small>
         </button>
 
-        <div class="menu-title">Relatório aberto <small id="menuMarco"></small></div>
-        <button class="menu-item menu-item--warn" id="mergeLocalBtn" hidden>
+        <div data-so-editor class="menu-title">Relatório aberto <small id="menuMarco"></small></div>
+        <button data-so-editor class="menu-item menu-item--warn" id="mergeLocalBtn" hidden>
           ⇄ Juntar com o outro relatório deste marco <small id="mergeLocalWho"></small>
         </button>
-        <button class="menu-item" id="sessionsBtn">
+        <button data-so-editor class="menu-item" id="sessionsBtn">
           Histórico de alterações <small>quem mexeu em quê, por sessão</small>
         </button>
-        <button class="menu-item" id="settingsBtn">
+        <button data-so-editor class="menu-item" id="settingsBtn">
           Ajustes de capa e rodapé <small>títulos, rodapé, marco da DEV</small>
         </button>
-        <div class="menu-sep"></div>
-        <button class="menu-item menu-item--danger" id="deleteProjectBtn">
+        <div data-so-editor class="menu-sep"></div>
+        <button data-so-editor class="menu-item menu-item--danger" id="deleteProjectBtn">
           Excluir este relatório
         </button>
 
+        <div class="menu-title">Este programa <small>vale para tudo, não só para o marco aberto</small></div>
+        <button class="menu-item" id="logBtn">
+          🩺 Diagnóstico e diário do console <small id="logBtnSub">ver o que o programa está fazendo e o que deu errado</small>
+        </button>
+        <!-- só no visualizador: quando é a próxima leitura automática -->
+        <div class="menu-info" id="atualizaMenu" hidden>
+          ⟳ Atualização automática
+          <small id="atualizarConta" role="timer" aria-live="off"></small>
+        </div>
+        <button class="menu-item" id="comunicadosBtn">
+          📣 Comunicados <small id="comunicadosBtnSub">os avisos publicados para quem usa o visualizador</small>
+        </button>
 
-        <button class="menu-foot" id="userBtn">
+
+        <button data-so-editor class="menu-foot" id="userBtn">
           <span class="menu-foot-who" id="userBtnLabel">Definir meu nome</span>
           <span class="menu-foot-act">trocar</span>
         </button>
@@ -90,14 +136,59 @@
     <input type="file" id="restoreInput" accept="application/json,.json" hidden>
   </div>
 
-  <div class="topbar-status">
-    <span id="saveState" data-state="saved">salvo no navegador</span>
+  <div data-so-editor class="topbar-status">
+    <span id="saveState" data-state="saved" role="status" aria-live="polite" aria-atomic="true">salvo no navegador</span>
     <span id="editedBy" class="edited-by"></span>
   </div>
   </div>
 </header>
 
-<div class="notice" id="backupNotice" hidden>
+<div data-so-editor class="notice notice--pasta" id="pastaNotice" role="status" aria-live="polite" hidden>
+  <span id="pastaNoticeText"></span>
+  <code class="notice-caminho" id="pastaNoticePath"></code>
+  <button class="btn btn--sm btn--accent" id="pastaNoticeBtn">Escolher a pasta…</button>
+  <button class="btn btn--sm" id="pastaNoticeCopy">Copiar o caminho</button>
+  <button class="btn btn--sm btn--quiet" id="pastaNoticeDismiss">Agora não</button>
+</div>
+
+<!-- editor: a pasta do visualizador não está ligada (nunca escolhida, sem
+     permissão nesta sessão, ou parou de responder). Volta a cada queda. -->
+<div data-so-editor class="notice notice--pasta" id="pubNotice" role="status" aria-live="polite" hidden>
+  <span id="pubNoticeText"></span>
+  <code class="notice-caminho" id="pubNoticePath"></code>
+  <button class="btn btn--sm btn--accent" id="pubNoticeBtn">Conectar agora</button>
+  <button class="btn btn--sm" id="pubNoticeCopy">Copiar o caminho</button>
+  <button class="btn btn--sm btn--quiet" id="pubNoticeDismiss">Agora não</button>
+</div>
+
+<!-- só no visualizador: a releitura falhou e os dados à vista podem estar velhos -->
+<div class="notice notice--leitura" id="leituraAviso" role="status" aria-live="polite" hidden>
+  <span id="leituraAvisoTexto"></span>
+  <button class="btn btn--sm btn--accent" id="leituraAvisoBtn">⟳ Atualizar</button>
+</div>
+
+<!-- só no visualizador: nenhum dado lido ainda -->
+<div class="leitura-vazio" id="semDados" hidden>
+  <div class="editor-empty">
+    <p id="semDadosTitulo">Carregando os dados…</p>
+    <div id="semDadosCorpo" hidden>
+      <p id="semDadosTexto" class="leitura-vazio-txt"></p>
+      <div class="leitura-vazio-acoes">
+        <button class="btn btn--primary leitura-btn-grande" id="semDadosTentarBtn">⟳ Tentar de novo</button>
+      </div>
+      <details class="dlg-tips leitura-vazio-mais" id="semDadosMais">
+        <summary>Outras formas de abrir os dados</summary>
+        <div class="leitura-vazio-acoes">
+          <button class="btn btn--sm" id="semDadosConfigBtn">Informar a pasta dos dados…</button>
+          <button class="btn btn--sm" id="semDadosAbrirBtn">Abrir arquivo…</button>
+        </div>
+        <p class="hint">Também dá para arrastar o arquivo para esta janela.</p>
+      </details>
+    </div>
+  </div>
+</div>
+
+<div data-so-editor class="notice" id="backupNotice" role="status" aria-live="polite" hidden>
   <span id="backupNoticeText"></span>
   <button class="btn btn--sm btn--accent" id="backupNoticeBtn">★ Fazer backup total agora</button>
   <button class="btn btn--sm btn--quiet" id="backupNoticeDismiss">Depois</button>
@@ -107,15 +198,50 @@
 <div class="layout">
 
   <aside class="sidebar">
-    <div class="tabs" role="tablist" aria-label="Tipo de derrogação">
-      <button class="tab" role="tab" data-kind="ncr" aria-selected="true">
-        NCR <span class="tab-count">0</span>
+    <!-- A ordem é a do trabalho, pedida pelo Bruno: o banco de NCRs, o quadro
+         do marco, a tabela de todos os itens e só então os dois relatórios de
+         Waiver. As chaves internas (data-kind "ncr" e "dev") não mudaram: só
+         os rótulos. Resumo, Fluxos e Conversa vêm depois. -->
+    <div class="tabs" role="tablist" aria-label="Áreas do programa">
+      <button class="tab" role="tab" id="tabBanco" data-kind="banco"
+              aria-selected="false" aria-controls="bancoScroll" tabindex="-1"
+              title="Banco NCR — as NCRs do SBR4 importadas do banco NCR, com marcos, função vital e observação">
+        Banco NCR
       </button>
-      <button class="tab" role="tab" data-kind="dev" aria-selected="false">
-        DEV <span class="tab-count">0</span>
+      <button class="tab" role="tab" id="tabKanban" data-kind="kanban"
+              aria-selected="false" aria-controls="kanbanScroll" tabindex="-1"
+              title="Kanban — as NCRs de um marco em cartões, por situação do waiver">
+        Kanban
       </button>
-      <button class="tab tab--wide" role="tab" data-kind="resumo" aria-selected="false">
+      <button class="tab" role="tab" id="tabTabela" data-kind="tabela"
+              aria-selected="false" aria-controls="tabelaScroll" tabindex="-1"
+              title="Tabela — todos os itens de todos os relatórios: busca, filtros e exportação">
+        Tabela
+      </button>
+      <button class="tab" role="tab" id="tabNcr" data-kind="ncr"
+              aria-selected="true" aria-controls="editorScroll" tabindex="0"
+              title="Waiver NCR — o relatório de waiver das NCRs do marco aberto: a lista de itens e o formulário">
+        Waiver NCR <span class="tab-count">0</span>
+      </button>
+      <button class="tab" role="tab" id="tabDev" data-kind="dev"
+              aria-selected="false" aria-controls="editorScroll" tabindex="-1"
+              title="Waiver DEV — o relatório de waiver dos desvios (DEV) do marco aberto: a lista de itens e o formulário">
+        Waiver DEV <span class="tab-count">0</span>
+      </button>
+      <button class="tab" role="tab" id="tabResumo" data-kind="resumo"
+              aria-selected="false" aria-controls="summaryScroll" tabindex="-1"
+              title="Resumo — números, gráficos e tabelas de todos os marcos">
         Resumo
+      </button>
+      <button class="tab" role="tab" id="tabFluxos" data-kind="fluxos"
+              aria-selected="false" aria-controls="fluxosScroll" tabindex="-1"
+              title="Fluxos — o caminho dos waivers de cada item, lido do Waiver Historic">
+        Fluxos
+      </button>
+      <button data-so-editor class="tab" role="tab" id="tabConversa" data-kind="conversa"
+              aria-selected="false" aria-controls="conversaScroll" tabindex="-1" hidden
+              title="Recados da equipe, pela pasta da rede">
+        Conversa <span class="tab-ponto" id="conversaCount" hidden></span>
       </button>
     </div>
 
@@ -123,17 +249,20 @@
     <div class="sidebar-head">
       <div class="sidebar-head-row">
         <h2 id="sidebarTitle">NCRs</h2>
-        <div class="sidebar-head-actions">
+        <div data-so-editor class="sidebar-head-actions">
           <button class="btn btn--sm btn--primary" id="addNcrBtn">+ Nova NCR</button>
+          <button class="btn btn--sm" id="dupNcrBtn" title="Criar uma cópia do item selecionado, para editar por cima">Duplicar</button>
           <button class="btn btn--sm" id="copyNcrBtn" title="Copiar NCRs de outro relatório">Copiar de…</button>
           <button class="btn btn--sm btn--danger" id="delNcrBtn" title="Excluir a NCR selecionada">Excluir</button>
         </div>
       </div>
-      <input type="search" id="ncrFilter" placeholder="Filtrar por número, sistema ou função…">
+      <input type="search" id="ncrFilter"
+             aria-label="Buscar em todo o texto do item: número, sistema, descrição, certificado"
+             placeholder="Buscar em todo o texto: número, sistema, descrição, certificado…">
       <div class="ordem-row">
         <label for="ordemSelect">Ordem</label>
         <select id="ordemSelect"></select>
-        <button class="btn btn--sm" id="ordemFixarBtn" hidden
+        <button data-so-editor class="btn btn--sm" id="ordemFixarBtn" hidden
                 title="Grava esta ordem como a ordem manual, para poder ajustar arrastando">fixar</button>
       </div>
       <div class="progress-row">
@@ -142,7 +271,7 @@
           <input type="checkbox" id="pendingOnly"> esconder aceitos
         </label>
       </div>
-      <div class="session-info" id="sessionInfo" hidden>
+      <div data-so-editor class="session-info" id="sessionInfo" hidden>
         <span id="sessionCount"></span>
         <button class="btn btn--sm" id="sessionInfoBtn">ver</button>
       </div>
@@ -156,6 +285,39 @@
     </div>
     </div>
 
+    <div class="sidebar-note" id="sidebarFluxos" hidden>
+      O fluxo é lido do campo <strong>Waiver Historic</strong> de cada item:
+      cada linha <em>“J04 To: J06”</em> é uma seta.
+      <br><br>A <strong>lista</strong> mostra um fluxo por item; o
+      <strong>mapa</strong> soma todos num desenho só, e a
+      <strong>matriz</strong> conta cada seta. Em <em>Itens de</em> escolha
+      entre o relatório aberto e todos os marcos; em <em>Passa por</em>,
+      recorte pelos marcos citados nos próprios textos.
+    </div>
+
+    <div class="sidebar-conversa" id="sidebarConversa" hidden>
+      <div class="sidebar-note">
+        Recados da equipe, guardados <strong>na pasta da rede</strong> — não há
+        servidor nem nuvem. Chega a cada sincronização, junto com os dados.
+      </div>
+      <div class="conv-canais" id="convCanais"></div>
+    </div>
+
+    <div class="sidebar-note" id="sidebarTabela" hidden>
+      Uma linha por item de <strong>todos os marcos</strong> deste navegador.
+      Use a busca para achar uma NCR ou DEV sem saber em que relatório ela
+      está; clique na linha para abrir o item. <strong>Ordenar aqui não muda
+      a ordem do relatório nem a do PDF.</strong>
+    </div>
+
+    <div class="sidebar-note" id="sidebarBanco" hidden>
+      <strong>Banco NCR</strong> — as NCRs do SBR4.
+    </div>
+
+    <div class="sidebar-note" id="sidebarKanban" hidden>
+      <strong>Kanban</strong> — as NCRs de um marco, por situação do waiver.
+    </div>
+
     <div class="sidebar-note" id="sidebarResumo" hidden>
       O resumo reúne <strong>todos os marcos</strong> deste navegador — não só o
       relatório aberto. Escolha um marco na tela ao lado para ver o detalhe e
@@ -164,9 +326,44 @@
   </aside>
 
   <main class="editor">
-    <div class="editor-scroll" id="editorScroll"></div>
-    <div class="editor-scroll summary-scroll" id="summaryScroll" hidden></div>
+    <div class="editor-scroll" id="editorScroll" role="tabpanel"
+         aria-labelledby="tabNcr" tabindex="0"></div>
+    <div class="editor-scroll summary-scroll" id="summaryScroll" role="tabpanel"
+         aria-labelledby="tabResumo" tabindex="0" hidden></div>
+    <div class="editor-scroll summary-scroll" id="fluxosScroll" role="tabpanel"
+         aria-labelledby="tabFluxos" tabindex="0" hidden></div>
+    <div class="editor-scroll summary-scroll" id="tabelaScroll" role="tabpanel"
+         aria-labelledby="tabTabela" tabindex="0" hidden></div>
+    <div class="editor-scroll conversa-scroll" id="conversaScroll" role="tabpanel"
+         aria-labelledby="tabConversa" tabindex="0" hidden></div>
+    <div class="editor-scroll banco-scroll" id="bancoScroll" role="tabpanel"
+         aria-labelledby="tabBanco" tabindex="0" hidden></div>
+    <div class="editor-scroll kanban-scroll" id="kanbanScroll" role="tabpanel"
+         aria-labelledby="tabKanban" tabindex="0" hidden></div>
   </main>
+
+  <!-- o item preso ao lado: só leitura, para escrever um olhando o outro -->
+  <aside class="lado" id="ladoPane" hidden aria-label="Item preso ao lado">
+    <div class="lado-head">
+      <div class="lado-head-txt">
+        <strong id="ladoTitulo">—</strong>
+        <span id="ladoOnde"></span>
+      </div>
+      <div class="lado-head-acoes">
+        <button class="btn btn--sm" id="ladoTrocarBtn" type="button"
+                title="Escolher outro item para ver aqui">trocar</button>
+        <button class="btn btn--sm" id="ladoAbrirBtn" type="button"
+                title="Abrir este item no editor">abrir</button>
+        <button class="btn btn--sm btn--quiet" id="ladoFecharBtn" type="button"
+                title="Fechar a coluna" aria-label="Fechar a coluna">✕</button>
+      </div>
+    </div>
+    <div class="lado-aviso">
+      Só leitura. Para escrever, abra o item — ou use <strong>copiar</strong> em
+      cada bloco.
+    </div>
+    <div class="lado-body" id="ladoBody"></div>
+  </aside>
 
 </div>
 
@@ -191,11 +388,32 @@
   <div class="dlg-body">
     <h3>Exportar para PDF</h3>
     <p>Marque os relatórios que quer gerar. Um só gera o arquivo isolado;
-       vários geram um arquivo único com todos em sequência.</p>
+       vários geram um arquivo único com todos em sequência. Em
+       <strong>Situação dos itens</strong> dá para imprimir só o que está numa
+       situação — por exemplo, só os <em>Waiver requested</em>. Em
+       <strong>Escolher itens</strong>, em cada relatório, marque só as NCRs
+       ou DEVs que precisa; <strong>Só o item aberto</strong> imprime apenas
+       o que está na tela.</p>
 
+    <div class="pick-head">
+      <span class="pick-head-rot">Relatórios</span>
+      <span class="pick-head-acoes">
+        <button class="btn btn--sm" id="pdfSoEsteBtn" type="button">Só o item aberto</button>
+        <button class="btn btn--sm" id="pdfTodosBtn" type="button">Marcar todos</button>
+        <button class="btn btn--sm" id="pdfNenhumBtn" type="button">Limpar</button>
+      </span>
+    </div>
     <div id="pdfPick" class="pick-list"></div>
+
+    <div class="pick-head">
+      <span class="pick-head-rot">Situação dos itens</span>
+      <span class="pick-head-acoes" id="pdfSitAcoes"></span>
+    </div>
+    <div id="pdfSituacoes" class="pick-sit"></div>
+
     <p class="pick-summary" id="pdfSummary"></p>
-    <div id="pdfGaps" class="dlg-gaps" hidden></div>
+    <p class="dlg-folhas" id="pdfFolhas" hidden></p>
+    <div data-so-editor id="pdfGaps" class="dlg-gaps" hidden></div>
 
     <details class="dlg-tips">
       <summary>Ajustes na janela de impressão</summary>
@@ -210,6 +428,44 @@
   <div class="dlg-actions">
     <button class="btn" id="pdfCancelBtn">Cancelar</button>
     <button class="btn btn--primary" id="pdfGoBtn">Gerar PDF</button>
+  </div>
+</dialog>
+
+<dialog id="logDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>Diagnóstico e diário do console</h3>
+    <p>O programa escreve, em português, cada etapa do que está fazendo — e,
+       quando algo dá errado, o que aconteceu, o que significa e o que fazer.
+       Para ver ao vivo, aperte <kbd>F12</kbd> e abra a aba <strong>Console</strong>.</p>
+
+    <p class="log-privacidade">
+      Isto é só console: <strong>nada sai do computador</strong>, nada é enviado e
+      nada é gravado em arquivo. O <strong>texto das NCRs nunca é registrado</strong> —
+      vão nomes de campo, contagens e números, nunca o que está escrito dentro do campo.
+    </p>
+
+    <div class="dlg-sec">
+      <div class="dlg-sec-tit">Quanto detalhe você quer ver</div>
+      <div class="log-niveis" id="logNiveis" role="radiogroup" aria-label="Nível do diário"></div>
+      <p class="hint">A escolha fica neste navegador. Problema aparece em qualquer
+         nível, inclusive no silêncio: o nível cala o que deu certo, nunca o que deu errado.</p>
+    </div>
+
+    <div class="dlg-sec">
+      <div class="dlg-sec-tit">O que dá para fazer</div>
+      <div class="log-acoes" id="logAcoes"></div>
+      <p class="hint">Cada um destes também pode ser digitado no console —
+         o comando está escrito ao lado do botão.</p>
+    </div>
+
+    <div class="dlg-sec">
+      <div class="dlg-sec-tit">Agora <span class="log-contas" id="logContas"></span></div>
+      <pre class="log-saida" id="logSaida" tabindex="0"></pre>
+    </div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="logCloseBtn">Fechar</button>
+    <button class="btn btn--primary" id="logCopiarBtn">Copiar tudo para um e-mail</button>
   </div>
 </dialog>
 
@@ -284,9 +540,16 @@
     <div class="field">
       <label for="pastaCaminhoInput">Caminho da pasta (para os outros saberem onde é)</label>
       <input type="text" id="pastaCaminhoInput" placeholder="ex.: Z:\Projetos\SBR3\Derrogacao">
-      <div class="hint">O navegador não deixa nenhum programa abrir uma pasta por
-        caminho — quem escolhe é sempre a pessoa, na janela do Windows. Este texto
-        viaja junto com os dados só para dizer ao próximo <em>onde</em> apontar.</div>
+      <div class="pasta-caminho-acoes">
+        <button class="btn btn--sm" id="pastaCaminhoCopiarBtn" type="button">Copiar o caminho</button>
+        <button class="btn btn--sm" id="pastaPadraoBtn" type="button"
+                title="Volta ao caminho combinado pela equipe">Usar o caminho padrão</button>
+      </div>
+      <div class="hint">Já vem preenchido com o caminho combinado pela equipe —
+        mude quando a pasta mudar de lugar. O navegador não deixa nenhum programa
+        abrir uma pasta por caminho: quem escolhe é sempre a pessoa, na janela do
+        Windows (dá para colar este texto na barra de endereço dela). Depois de
+        escolhida uma vez, o programa reabre a mesma pasta sozinho.</div>
     </div>
 
     <details class="dlg-tips">
@@ -302,6 +565,8 @@
         <li>Precisa do <strong>Edge</strong> ou do <strong>Chrome</strong>.</li>
       </ol>
     </details>
+
+    <p class="pasta-tamanhos" id="pastaTamanhos" hidden></p>
 
     <div id="pastaHistorico" class="hist-box" hidden></div>
   </div>
@@ -334,7 +599,7 @@
   <div class="dlg-body">
     <h3>Ajustes do relatório</h3>
     <p>Textos fixos que aparecem nas páginas. Valem para este relatório
-       (as duas abas) e quase nunca precisam ser mudados.</p>
+       (Waiver NCR e Waiver DEV) e quase nunca precisam ser mudados.</p>
     <div id="settingsBody"></div>
   </div>
   <div class="dlg-actions">
@@ -354,15 +619,326 @@
   </div>
 </dialog>
 
-<div class="toast" id="toast" hidden></div>
+<dialog id="ladoDialog">
+  <div class="dlg-body">
+    <h3>Ver um item ao lado</h3>
+    <p>Escolha o item que fica na coluna da direita, em só leitura, enquanto
+      você escreve. Pode ser deste relatório ou de qualquer outro marco que
+      esteja neste navegador.</p>
+    <div id="ladoEscolhaBody"></div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="ladoEscolhaCancelBtn">Cancelar</button>
+  </div>
+</dialog>
+
+<dialog id="fluxoDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>Fluxo dos waivers</h3>
+    <p class="fx-item" id="fluxoItem"></p>
+    <div class="fx-palco" id="fluxoPalco"></div>
+    <p class="fx-caminho" id="fluxoCaminho"></p>
+    <div class="fx-avisos" id="fluxoAvisos" hidden></div>
+    <details class="dlg-tips" id="fluxoCru">
+      <summary>O texto como está escrito no Waiver Historic</summary>
+      <pre class="fx-cru" id="fluxoCruTxt"></pre>
+    </details>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn btn--primary" id="fluxoCloseBtn">Fechar</button>
+  </div>
+</dialog>
+
+<dialog id="difDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>O que mudou neste item</h3>
+    <p>Os campos em que só uma pessoa mexeu são juntados sem escolha nenhuma.
+       Isto é o que chegou de fora — e, se houver, o campo em que os dois
+       escreveram ao mesmo tempo, que é o único em que um texto teve de sair.
+       Nada some sem ficar no histórico do item.</p>
+    <p class="dif-quem" id="difQuem"></p>
+    <div id="difBody" class="dif-box"></div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn btn--primary" id="difCloseBtn">Fechar</button>
+  </div>
+</dialog>
+
+<dialog id="revDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>Histórico do texto</h3>
+    <p>Quem escreveu o quê, campo a campo, com o texto de antes guardado.
+       Serve para achar de novo um texto que foi substituído — inclusive um
+       que a sincronização tenha escrito por cima.</p>
+    <div class="rev-barra">
+      <div class="rev-escopo" id="revEscopo"></div>
+      <input type="search" id="revBusca" class="rev-busca"
+             aria-label="Procurar no histórico"
+             placeholder="procurar no texto, no campo ou no nome">
+    </div>
+    <p class="dif-quem" id="revResumo"></p>
+    <div id="revBody" class="rev-box"></div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn btn--primary" id="revCloseBtn">Fechar</button>
+  </div>
+</dialog>
+
+<!-- ====================== banco NCR ====================== -->
+<input type="file" id="ncrFileInput" hidden>
+
+<!-- ficha da NCR: quase a tela inteira; o conteúdo é montado por ncrview.js -->
+<dialog id="ncrDialog" class="nb-dlg nb-ficha" aria-label="Ficha da NCR">
+  <div class="nb-ficha-cab"></div>
+  <div class="nb-ficha-corpo"></div>
+</dialog>
+<!-- área administrativa (admin.js): senha, correções manuais, NCRs
+     temporárias e auditoria. Só no editor. -->
+<dialog data-so-editor id="adminDialog" class="dlg--wide adm-dlg" aria-label="Área administrativa">
+  <div class="dlg-body"></div>
+  <div class="dlg-actions"></div>
+</dialog>
+<dialog id="nbColsDialog" class="dlg--wide nb-dlg">
+  <div class="dlg-body"></div>
+  <div class="dlg-actions"></div>
+</dialog>
+<!-- exportação visual do Kanban: papel, orientação, escala — montada por kanban.js -->
+<dialog id="kbExportDialog" class="dlg--wide" aria-label="Exportar o Kanban para impressão">
+  <div class="dlg-body"></div>
+  <div class="dlg-actions"></div>
+</dialog>
+
+<dialog id="ncrCorrDialog">
+  <div class="dlg-body">
+    <h3>Importar correlação</h3>
+    <p>Preenche, nas NCRs do banco, <strong>Marco Original</strong>, <strong>Marco
+       Atual</strong>, <strong>Função Vital</strong>, <strong>Waiver Historic</strong>
+       e <strong>Observação</strong>. Aceita o JSON de correlação ou a própria
+       planilha (aba “Correlação NCR”; a aba “Possibilidades da Mascara” alimenta
+       as listas).</p>
+    <ul class="nb-regras">
+      <li>Só as NCRs que já estão no banco são atualizadas; as outras ficam
+          guardadas e entram sozinhas quando chegarem numa importação do banco.</li>
+      <li>Célula vazia no arquivo nunca apaga nada.</li>
+      <li>Nenhuma NCR é duplicada: a chave é o número.</li>
+    </ul>
+    <label class="nb-check">
+      <input type="checkbox" id="ncrCorrSubst">
+      Substituir também os valores que já estão preenchidos aqui
+    </label>
+    <div class="hint">Desmarcado (o normal): só completa o que está em branco — reimportar o
+      arquivo não desfaz o que foi corrigido à mão depois.</div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="ncrCorrCancelBtn">Cancelar</button>
+    <button class="btn btn--primary" id="ncrCorrGoBtn">Escolher o arquivo…</button>
+  </div>
+</dialog>
+
+<dialog id="ncrResumoDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3 id="ncrResumoTitulo">Importação concluída</h3>
+    <p class="mg-origin" id="ncrResumoArquivo"></p>
+    <div id="ncrResumoBody"></div>
+    <p class="hint">Antes de importar, o estado anterior do banco NCR foi guardado:
+      dá para baixar essa cópia ou desfazer a importação.</p>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="ncrResumoCopyBtn">Baixar cópia de antes</button>
+    <button class="btn" id="ncrResumoUndoBtn">Desfazer esta importação</button>
+    <button class="btn btn--primary" id="ncrResumoCloseBtn">Fechar</button>
+  </div>
+</dialog>
+
+<dialog id="ncrListasDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>Listas dos dropdowns</h3>
+    <p>Uma opção por linha. Vêm da aba “Possibilidades da Mascara” e valem para
+       todos (viajam pela pasta e pelo backup). Tirar uma opção daqui não apaga
+       o valor de nenhuma NCR que já a use.</p>
+    <div class="grid grid--2">
+      <div class="field">
+        <label for="ncrListaMarcos">Marcos (Original e Atual)</label>
+        <textarea id="ncrListaMarcos" rows="14"></textarea>
+      </div>
+      <div class="field">
+        <label for="ncrListaFuncoes">Funções vitais</label>
+        <textarea id="ncrListaFuncoes" rows="14"></textarea>
+      </div>
+    </div>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="ncrListasPadraoBtn">Voltar às possibilidades da máscara</button>
+    <button class="btn" id="ncrListasCancelBtn">Cancelar</button>
+    <button class="btn btn--primary" id="ncrListasSaveBtn">Salvar</button>
+  </div>
+</dialog>
+
+<!-- ====================== publicação para os visualizadores ====================== -->
+<dialog id="publicarDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>Publicar para visualizadores</h3>
+    <p>O <strong>visualizador</strong> é este mesmo programa em modo somente
+       leitura, num arquivo à parte (<code>derrogacao-visualizador.html</code>),
+       para quem precisa acompanhar as derrogações sem editar. Ele lê o arquivo
+       <code>visualizador-dados.js</code> — ao lado dele ou na pasta dos dados
+       informada nele. Publicar é gravar esse arquivo lá.</p>
+
+    <p class="pasta-estado" id="publicarEstado" data-estado="off"></p>
+
+    <div class="pasta-linha">
+      <span class="pasta-linha-rot">Pasta dos dados do visualizador</span>
+      <strong id="publicarPastaNome">—</strong>
+      <button class="btn btn--sm btn--primary" id="publicarEscolherBtn">Escolher a pasta…</button>
+      <button class="btn btn--sm btn--accent" id="publicarPermitirBtn" hidden>Permitir acesso</button>
+      <button class="btn btn--sm btn--danger" id="publicarDesligarBtn" hidden>Desligar</button>
+    </div>
+
+    <label class="pub-auto">
+      <input type="checkbox" id="publicarAuto">
+      <span><strong>Publicar sozinho</strong> — depois de cada gravação, no
+      máximo a cada 2 minutos e só se algo mudou. Sem isso, os visualizadores
+      só veem o que você publicar pelo botão.</span>
+    </label>
+
+    <p class="pub-visto" id="publicarVisto"></p>
+
+    <details class="dlg-tips">
+      <summary>Como montar o visualizador</summary>
+      <ol>
+        <li>Coloque numa pasta da rede o arquivo do visualizador,
+            <strong>derrogacao-visualizador.html</strong><span id="publicarBaixarVis"> —
+            <a href="derrogacao-visualizador.html" download>baixar o visualizador</a></span>.</li>
+        <li>Aqui, <em>Escolher a pasta…</em> apontando a pasta onde os dados vão
+            ficar (pode ser a mesma do visualizador, ou outra) e <em>Publicar
+            agora</em>. Sem Edge/Chrome, use <em>Baixar o arquivo</em> e copie-o
+            para lá à mão.</li>
+        <li>Se os dados ficarem noutra pasta, informe-a no visualizador
+            (etiqueta 📄 → <em>Pasta dos dados</em>) — ou peça para gravá-la
+            como padrão dentro do próprio arquivo.</li>
+        <li>As pessoas abrem o visualizador com dois cliques. Ele lê os dados
+            sozinho e confere de tempos em tempos se há publicação nova.</li>
+        <li>Quem garante que ninguém edita é a <strong>permissão da pasta na
+            rede</strong>: os visualizadores só com leitura, e sem acesso à pasta
+            do banco de dados.</li>
+      </ol>
+    </details>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="publicarBaixarBtn" title="Baixa o arquivo para você copiar à mão para a pasta dos visualizadores">Baixar o arquivo</button>
+    <button class="btn btn--accent" id="publicarAgoraBtn">Publicar agora</button>
+    <button class="btn btn--primary" id="publicarFecharBtn">Fechar</button>
+  </div>
+</dialog>
+
+<!-- ====================== comunicados (comunicados.js) ====================== -->
+<!-- A prévia: o comunicado só nasce do botão "Publicar comunicado". -->
+<dialog id="comunicarDialog" class="dlg--wide com-dlg" aria-labelledby="comunicarTitulo">
+  <div class="dlg-body">
+    <h3 id="comunicarTitulo">📣 Comunicar no visualizador</h3>
+    <p>A alteração já está salva — isto é só o aviso. Quem usa o visualizador vê
+       este comunicado num pop-up discreto, na próxima vez que os dados forem lidos.
+       Nada é enviado sem o botão abaixo.</p>
+    <fieldset class="com-tipos" id="comunicarTipos" hidden></fieldset>
+    <div class="com-previa-rot">Prévia do que o visualizador vai mostrar</div>
+    <div class="com-previa" id="comunicarPrevia"></div>
+    <dl class="com-campos" id="comunicarCampos"></dl>
+    <label class="com-msg-rot" for="comunicarMsg">Mensagem curta <small>(opcional — o comunicado se entende sem ela)</small></label>
+    <textarea id="comunicarMsg" rows="2" maxlength="280" placeholder="ex.: aceito na reunião de hoje"></textarea>
+    <div class="hint com-conta" id="comunicarConta">0 / 280</div>
+    <p class="com-ja" id="comunicarJa" role="alert" hidden></p>
+    <p class="hint" id="comunicarDestino"></p>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="comunicarCancelarBtn">Cancelar</button>
+    <button class="btn btn--accent" id="comunicarOk">📣 Publicar comunicado</button>
+  </div>
+</dialog>
+
+<!-- O histórico: no editor, o registro inteiro; no visualizador, um por
+     acontecimento, com os não lidos marcados. -->
+<dialog id="comunicadosDialog" class="dlg--wide com-dlg" aria-labelledby="comunicadosTitulo">
+  <div class="dlg-body">
+    <h3 id="comunicadosTitulo">📣 Comunicados</h3>
+    <p id="comunicadosIntro"></p>
+    <div class="com-hist-acoes">
+      <button class="btn btn--sm btn--accent" id="comunicadosNovoBtn" data-so-editor hidden>📣 Comunicar o item aberto</button>
+      <button class="btn btn--sm" id="comunicadosLidosBtn" hidden>Marcar todos como lidos</button>
+    </div>
+    <ul class="com-lista" id="comunicadosLista"></ul>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn btn--primary" id="comunicadosFecharBtn">Fechar</button>
+  </div>
+</dialog>
+
+<!-- ====================== visualizador: de onde vêm os dados ====================== -->
+<dialog id="fonteDialog" class="dlg--wide">
+  <div class="dlg-body">
+    <h3>Dados deste visualizador</h3>
+    <p class="pasta-estado" id="fonteEstado" data-estado="off"></p>
+    <dl class="leitura-fonte-dados" id="fonteDados"></dl>
+
+    <div class="leitura-caminho">
+      <label for="caminhoInput"><strong>Pasta dos dados</strong> — onde está o
+        <code>visualizador-dados.js</code> publicado pelo editor</label>
+      <div class="leitura-caminho-linha">
+        <input type="text" id="caminhoInput" placeholder="ex.: G:\DOP\GTO\...\Visualizador">
+        <button class="btn btn--sm btn--primary" id="caminhoSalvarBtn">Salvar e ler</button>
+      </div>
+      <p class="hint" id="caminhoPadrao"></p>
+      <button class="btn btn--sm" id="caminhoLimparBtn" hidden>Voltar ao padrão do arquivo</button>
+    </div>
+
+    <details class="dlg-tips">
+      <summary>Outras formas de abrir os dados</summary>
+      <p>Um arquivo publicado, o banco da pasta (<code>derrogacao-dados.json</code>)
+         ou um backup do editor. Vale até fechar a página e não se atualiza sozinho.
+         O arquivo é lido como texto — nada nele é executado.</p>
+      <button class="btn btn--sm" id="fonteAbrirBtn">Abrir arquivo…</button>
+    </details>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn" id="fonteAtualizarBtn">⟳ Atualizar agora</button>
+    <button class="btn btn--primary" id="fonteFecharBtn">Fechar</button>
+  </div>
+</dialog>
+<input type="file" id="abrirDadosInput" accept=".js,.json,application/json,text/javascript" hidden>
+
+<!-- visualizador: o pop-up dos comunicados novos. Não é janela modal e não
+     toma o foco; vários de uma vez viram uma lista só. -->
+<aside class="com-pop" id="comPop" role="region" aria-label="Comunicados novos" aria-live="polite" hidden></aside>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <!-- conteúdo montado apenas para impressão -->
 <div class="print-root" id="printRoot"></div>
 
+<script src="assets/js/log.js"></script>
+<script src="assets/js/config.js"></script>
+<script src="assets/js/atualizacao.js"></script>
+<script src="assets/js/leitura.js"></script>
 <script src="assets/js/store.js"></script>
+<script src="assets/js/revisoes.js"></script>
 <script src="assets/js/pasta.js"></script>
+<script src="assets/js/publicacao.js"></script>
+<script src="assets/js/xlsxler.js"></script>
+<script src="assets/js/ncrs.js"></script>
+<script src="assets/js/correcoes.js"></script>
+<script src="assets/js/ncrfluxo.js"></script>
 <script src="assets/js/report.js"></script>
+<script src="assets/js/fluxo.js"></script>
+<script src="assets/js/herdar.js"></script>
 <script src="assets/js/summary.js"></script>
+<script src="assets/js/painel.js"></script>
+<script src="assets/js/xlsx.js"></script>
+<script src="assets/js/tabela.js"></script>
+<script src="assets/js/chat.js"></script>
+<script src="assets/js/comunicados.js"></script>
+<script src="assets/js/lado.js"></script>
+<script src="assets/js/ncrview.js"></script>
+<script src="assets/js/kanban.js"></script>
+<script src="assets/js/admin.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
 </html>
