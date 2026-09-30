@@ -3035,6 +3035,15 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .nb2-dd:hover { border-color: var(--kind); }
 .nb2-dd.is-vazio { color: var(--muted); }
 .nb2-sel { font-size: 12px; padding: 3px 5px; max-width: 260px; }
+/* texto livre do Waiver editado na célula (Observação, Obs Ship Manager) */
+.nb2-txt {
+  font: inherit; font-size: 12px; color: inherit; text-align: left; cursor: text;
+  background: transparent; border: 1px solid transparent; border-radius: 5px;
+  padding: 2px 4px; width: 100%; overflow-wrap: anywhere;
+}
+.nb2-txt:hover { border-color: var(--kind); }
+.nb2-txt.is-vazio { color: var(--muted); font-style: italic; }
+.nb2-ta { font: inherit; font-size: 12px; width: 100%; min-width: 220px; padding: 4px 6px; resize: vertical; }
 .nb2-waiver { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 120px; }
 .nb2-rel {
   font: inherit; font-size: 11px; font-weight: 700; color: #fff; background: var(--accent);
@@ -18028,6 +18037,9 @@ if(isWorker){
         if (fora) td.appendChild(el('span', 'nb2-mini nb2-fora', 'fora do filtro'));
       } else if (c.editar && !leitura()) {
         td.appendChild(celulaEditavel(r, c.campo, c.editar));
+      } else if (c.waiver && c.largo && !leitura()) {
+        td.classList.add('is-longo');
+        td.appendChild(celulaTexto(r, c.campo));
       } else if (c.especial) {
         celulaWaiver(td, l);
       } else {
@@ -18078,6 +18090,46 @@ if(isWorker){
         /* saiu sem escolher: volta a ser botão */
         setTimeout(function () { if (sel.parentNode && !sel.dataset.mudou) atualizarLinha(rec.key); }, 150);
       });
+    });
+    return b;
+  }
+
+  /* O texto livre do Waiver (Observação, Obs Ship Manager) editado na própria
+     célula: o texto à vista, ou "+ escrever" quando está vazio; o clique abre
+     a caixa de texto ali mesmo, e ela grava enquanto se digita. A tabela não
+     é redesenhada durante a digitação (perderia o cursor): só a linha, ao
+     sair do campo. */
+  function celulaTexto(rec, campo) {
+    var atual = str(rec.waiver[campo]);
+    var b = el('button', 'nb2-txt' + (atual ? '' : ' is-vazio'), atual ? curto(atual, 90) : '+ escrever');
+    b.type = 'button';
+    b.title = (atual || 'não preenchido') + ' — clique para editar';
+    b.addEventListener('click', function () {
+      var ta = el('textarea', 'nb2-ta');
+      ta.rows = 3;
+      ta.value = atual;
+      ta.setAttribute('aria-label', rec.numero);
+      var tm = null, sujo = false;
+      function gravar() {
+        clearTimeout(tm);
+        if (!sujo) return Promise.resolve();
+        sujo = false;
+        return ctx.editar(rec, campo, ta.value).then(function () { st.fixadas[rec.key] = true; });
+      }
+      ta.addEventListener('input', function () {
+        sujo = true;
+        clearTimeout(tm);
+        tm = setTimeout(gravar, 400);
+      });
+      ta.addEventListener('blur', function () {
+        gravar().then(function () { atualizarLinha(rec.key); });
+      });
+      ta.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { e.preventDefault(); ta.blur(); }
+      });
+      b.parentNode.replaceChild(ta, b);
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
     });
     return b;
   }

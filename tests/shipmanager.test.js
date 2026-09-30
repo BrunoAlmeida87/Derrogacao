@@ -57,6 +57,22 @@ const L = require('./lib');
       'a busca acha pelo texto, e a coluna mostra o texto');
     await pg.fill('#nbBusca', '');
 
+    console.log('editar na própria célula da tabela');
+    const NUM2 = L.numero(5);
+    await pg.fill('#nbBusca', NUM2);
+    await pg.waitForTimeout(500);
+    const colSm = await pg.$$eval('#nb2Table thead th', ths => ths.findIndex(t => /Obs Ship Manager/.test(t.textContent)));
+    const celula = '#nb2Table tbody tr:first-child td:nth-child(' + (colSm + 1) + ')';
+    L.igual(await pg.textContent(celula + ' .nb2-txt'), '+ escrever', 'célula vazia: "+ escrever"');
+    await pg.click(celula + ' .nb2-txt');
+    await pg.keyboard.type('anotado na tabela', { delay: 20 });
+    await pg.waitForTimeout(700);
+    L.igual(await pg.evaluate((n) => Ncrs.get(n).waiver.obsShipManager, NUM2), 'anotado na tabela', 'grava enquanto digita, sem redesenhar a tabela');
+    await pg.keyboard.press('Escape');
+    await pg.waitForTimeout(300);
+    L.igual(await pg.textContent(celula + ' .nb2-txt'), 'anotado na tabela', 'ao sair, a célula mostra o texto');
+    await pg.fill('#nbBusca', '');
+
     console.log('levada ao relatório');
     const item = await pg.evaluate(async (n) => {
       const dados = Ncrs.paraItemWaiver(Ncrs.get(n));

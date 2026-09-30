@@ -463,6 +463,9 @@
         if (fora) td.appendChild(el('span', 'nb2-mini nb2-fora', 'fora do filtro'));
       } else if (c.editar && !leitura()) {
         td.appendChild(celulaEditavel(r, c.campo, c.editar));
+      } else if (c.waiver && c.largo && !leitura()) {
+        td.classList.add('is-longo');
+        td.appendChild(celulaTexto(r, c.campo));
       } else if (c.especial) {
         celulaWaiver(td, l);
       } else {
@@ -513,6 +516,46 @@
         /* saiu sem escolher: volta a ser botão */
         setTimeout(function () { if (sel.parentNode && !sel.dataset.mudou) atualizarLinha(rec.key); }, 150);
       });
+    });
+    return b;
+  }
+
+  /* O texto livre do Waiver (Observação, Obs Ship Manager) editado na própria
+     célula: o texto à vista, ou "+ escrever" quando está vazio; o clique abre
+     a caixa de texto ali mesmo, e ela grava enquanto se digita. A tabela não
+     é redesenhada durante a digitação (perderia o cursor): só a linha, ao
+     sair do campo. */
+  function celulaTexto(rec, campo) {
+    var atual = str(rec.waiver[campo]);
+    var b = el('button', 'nb2-txt' + (atual ? '' : ' is-vazio'), atual ? curto(atual, 90) : '+ escrever');
+    b.type = 'button';
+    b.title = (atual || 'não preenchido') + ' — clique para editar';
+    b.addEventListener('click', function () {
+      var ta = el('textarea', 'nb2-ta');
+      ta.rows = 3;
+      ta.value = atual;
+      ta.setAttribute('aria-label', rec.numero);
+      var tm = null, sujo = false;
+      function gravar() {
+        clearTimeout(tm);
+        if (!sujo) return Promise.resolve();
+        sujo = false;
+        return ctx.editar(rec, campo, ta.value).then(function () { st.fixadas[rec.key] = true; });
+      }
+      ta.addEventListener('input', function () {
+        sujo = true;
+        clearTimeout(tm);
+        tm = setTimeout(gravar, 400);
+      });
+      ta.addEventListener('blur', function () {
+        gravar().then(function () { atualizarLinha(rec.key); });
+      });
+      ta.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { e.preventDefault(); ta.blur(); }
+      });
+      b.parentNode.replaceChild(ta, b);
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
     });
     return b;
   }

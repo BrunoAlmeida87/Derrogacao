@@ -921,6 +921,11 @@ tela que responde "onde está a NCR-018?" sem abrir marco por marco.
   Tabela); colunas, painel recolhido e "destacar fechadas" são preferência do
   navegador (`localStorage`). Excel/CSV exportam o que está à vista, com a
   aba "Recorte".
+- **Texto livre do Waiver editado na célula** (`celulaTexto`): Observação e
+  Obs Ship Manager, o texto à vista ou "+ escrever" quando vazio; o clique abre
+  a caixa ali, grava a cada 400 ms e, ao sair (blur ou Esc), só aquela linha é
+  redesenhada (`atualizarLinha`). Pedido do Bruno: versões antigas (e o NCR
+  Control) editavam a coluna direto na tabela. Não existe no visualizador.
 - **Zebra e separadores** (pedido do Bruno: legibilidade). `nth-child(even)`
   no `tbody`, então a alternância acompanha filtro, ordem e a troca de uma
   linha só (`atualizarLinha`). Os estados vêm **depois** e com especificidade
