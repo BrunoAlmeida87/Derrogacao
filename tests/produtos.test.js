@@ -426,6 +426,48 @@ function lerDaPasta(pg, nome) {
       return { a: a, guardado: !!r };
     });
     L.ok(gravou.a === 12 && !gravou.guardado, 'o visualizador não grava o banco de produtos no navegador');
+
+    console.log('abertas × fechadas, mapa por marca e imagens A4');
+    await pg.click('.tab[data-kind="produtos"]');
+    await pg.waitForSelector('#pr2Table tbody tr');
+    const ind = await pg.evaluate(() => {
+      const r = Array.from(document.querySelectorAll('#pr2Table tbody tr')).filter(x => x.cells[0].textContent === 'P0100004')[0];
+      return { ab: r.querySelectorAll('.pr-pil--aberta').length, fe: r.querySelectorAll('.pr-pil--fechada').length, txt: r.cells[6].textContent };
+    });
+    L.ok(ind.ab + ind.fe > 0 && /\d/.test(ind.txt), 'a coluna NCRs mostra pastilhas de abertas (●) e fechadas (✓) com a conta de cada uma: ' + ind.txt);
+    await pg.click('.pr2-vistas [data-vista="mapa"]');
+    await pg.waitForSelector('#pr2MapaMarcasTab');
+    const mm = await pg.evaluate(() => {
+      const t = document.getElementById('pr2MapaMarcasTab');
+      const cab = Array.from(t.tHead.rows[0].cells).map(c => c.textContent);
+      const lin = Array.from(t.tBodies[0].rows).filter(r => r.cells[0].textContent === 'BH00004M')[0];
+      return { cab: cab, pontos: Array.from(lin.cells).map((c, i) => c.classList.contains('is-on') ? cab[i] : null).filter(Boolean) };
+    });
+    L.ok(mm.cab.indexOf('FV 2') > 0 && mm.pontos.join() === 'FV 2,FV 10', 'mapa da marca funcional por função vital: BH00004M em FV 2 e FV 10');
+    await pg.click('#pr2MapaMarcas .pr2-vistas .btn:nth-child(2)');
+    const mm2 = await pg.evaluate(() => {
+      const t = document.getElementById('pr2MapaMarcasTab');
+      const cab = Array.from(t.tHead.rows[0].cells).map(c => c.textContent);
+      const lin = Array.from(t.tBodies[0].rows).filter(r => r.cells[0].textContent === 'BH00004M')[0];
+      return Array.from(lin.cells).map((c, i) => c.classList.contains('is-on') ? cab[i] : null).filter(Boolean).join();
+    });
+    L.igual(mm2, 'J06,J09', 'e por marco: BH00004M em J06 e J09');
+    await pg.click('.pr2-vistas [data-vista="tabela"]');
+    const png = (buf) => ({ w: buf.readUInt32BE(16), h: buf.readUInt32BE(20), ok: buf.slice(1, 4).toString() === 'PNG' });
+    await pg.click('#pr2Table tbody tr:has-text("P0100004") .pr-num');
+    await pg.waitForSelector('#prodDialog[open]');
+    const ip = await L.baixar(pg, () => pg.click('#prodDialog .nb-ficha-cab .btn:has-text("Imagem")'));
+    const dp = png(ip.buffer);
+    L.ok(dp.ok && dp.w === 2480 && dp.h === 3508 && /^Produto_P0100004\.png$/.test(ip.nome), 'a ficha do produto baixa como PNG de uma folha A4 a 300 dpi (2480×3508): ' + ip.nome);
+    await pg.keyboard.press('Escape');
+    await pg.click('.tab[data-kind="banco"]');
+    await pg.waitForSelector('#nb2Table tbody tr');
+    await pg.evaluate((n) => NcrView.abrirFicha(n), N(3));
+    await pg.waitForSelector('#ncrDialog[open] .nb-sec--produtos');
+    const inr = await L.baixar(pg, () => pg.click('#ncrDialog .nb-ficha-cab .btn:has-text("Imagem")'));
+    const dn = png(inr.buffer);
+    L.ok(dn.ok && dn.w === 2480 && dn.h === 3508 && /^NCR_.*\.png$/.test(inr.nome), 'a ficha da NCR também: ' + inr.nome);
+    await pg.keyboard.press('Escape');
   } finally {
     const errosOutros = [];
     outros.forEach(o => errosOutros.push.apply(errosOutros, o.erros.filter(e => !/404|Failed to load resource/.test(e))));

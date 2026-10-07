@@ -3960,7 +3960,7 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
 .pr2-table th:nth-child(4) { width: 76px; }
 .pr2-table th:nth-child(5) { width: 19%; }
 .pr2-table th:nth-child(6) { width: 15%; }
-.pr2-table th:nth-child(7) { width: 70px; }
+.pr2-table th:nth-child(7) { width: 128px; }
 .pr2-table td.is-longo { max-width: none; min-width: 0; }
 .pr2-table tr.is-na td { color: var(--muted); }
 .pr2-table td { vertical-align: middle; }
@@ -4046,6 +4046,40 @@ dialog.pr-ficha { width: min(1100px, 96vw); height: auto; max-height: 92vh; bord
 .pr-sist-n { width: 52px; flex: 0 0 52px; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
 .pr-sist-leg { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
 .pr-sist-chave { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; }
+
+/* --- NCRs do produto: abertas × fechadas ------------------------------------- */
+.pr-ind { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; min-width: 64px;
+  font: inherit; background: none; border: 0; padding: 2px 4px; border-radius: 8px; }
+button.pr-ind { cursor: pointer; }
+button.pr-ind:hover { background: var(--kind-sf); }
+.pr-ind-pil { display: inline-flex; gap: 4px; }
+.pr-pil { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 700; line-height: 1.5; white-space: nowrap; }
+.pr-pil--aberta { background: #c2410c; color: #fff; }
+.pr-pil--fechada { background: #fff; color: #1d6b45; border: 1px solid #9fd0b4; }
+.pr-ind-barra { display: flex; width: 100%; min-width: 56px; height: 4px; border-radius: 2px; overflow: hidden; background: #eceef2; }
+.pr-ind-ab { background: #c2410c; }
+.pr-ind-fe { background: #3aa66f; }
+.pr-ind-txt { margin-left: 8px; font-size: 12.5px; color: var(--ink-2); }
+.nb-sec-sub .pr-ind { flex-direction: row; vertical-align: middle; min-width: 0; }
+.pr-status { margin-left: 8px; font-size: 12px; color: var(--ink-2); }
+.pr-onde { overflow-wrap: anywhere; min-width: 180px; }
+
+/* a ficha do produto: lugar de sobra para as NCRs */
+dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
+.pr-grade2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 900px) { .pr-grade2 { grid-template-columns: 1fr; } }
+.pr-tab-ncrs td, .pr-tab-ncrs th { white-space: nowrap; word-break: normal; }
+.pr-tab-ncrs td.pr-onde { white-space: normal; }
+
+/* marca funcional por função vital / por marco */
+.pr-mm-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.pr-mm .pr-mm-marca { min-width: 120px; }
+.pr-mm-cel { min-width: 46px; height: 24px; color: #6b7a0a; font-size: 14px; }
+.pr-mm-cel.is-on { background: #f3f6df; }
+.pr-mm-cel.is-na { background: #eceef2; color: #6d7383; }
+.pr-mm thead th { position: sticky; top: 0; z-index: 2; }
+.pr-mm .pr-mz-canto { position: sticky; left: 0; z-index: 3; background: #eef1f5; }
+.pr-mm .pr-mm-marca { background: #eef1f5; }
 
 </style>
 <style>
@@ -18707,6 +18741,326 @@ if(isWorker){
 
 </script>
 <script>
+/* assets/js/cartao.js */
+/* ==========================================================================
+   cartao.js — uma ficha em imagem, numa folha A4
+   --------------------------------------------------------------------------
+   Pedido do Bruno: baixar a imagem do pop-up dos produtos (as NCRs de cada
+   um) e a do pop-up da NCR, "em boa resolução, bem organizada, que caiba em
+   uma folha A4". O pop-up da tela não serve de foto: ele rola, tem botões e
+   muda com a largura da janela. Então a imagem é DESENHADA de novo, num
+   canvas, a partir dos mesmos dados — sem biblioteca, sem rede, igual em
+   qualquer computador.
+
+   A folha é A4 em retrato, a 300 dpi (2480 × 3508 px), desenhada em unidades
+   de 1240 × 1754 e ampliada ×2. Quem chama descreve BLOCOS; `gerar` mede e,
+   se o conteúdo passa da folha, reduz a letra (até `ESCALA_MIN`) antes de
+   desistir — e diz quando desistiu, para o chamador cortar o que sobra.
+
+   Blocos:
+     { t: 'cab',   titulo, sub, tags: [{t, c}] }
+     { t: 'sec',   titulo, sub }
+     { t: 'pares', itens: [[rotulo, valor]], cols }
+     { t: 'chips', rot, chips: [{t, c}] }
+     { t: 'texto', rot, texto, linhas }
+     { t: 'tab',   cols: [{t, w}], rows: [[celula]] }     celula: texto | {chips} | {tag}
+     { t: 'nota',  texto }
+   `c` de um chip/tag é uma das chaves de CORES.
+   ========================================================================== */
+(function (global) {
+  'use strict';
+
+  var L = 1240, A = 1754, ZOOM = 2, ESCALA_MIN = 0.62;
+  var MARGEM = 54;
+  var FONTE = '"Segoe UI", "Helvetica Neue", Arial, sans-serif';
+  var MONO = 'Consolas, "Courier New", monospace';
+
+  var CORES = {
+    marco: ['#e8eefb', '#1a4fa0'], fv: ['#f3f6df', '#4a5906'], na: ['#eceef2', '#6d7383'],
+    exato: ['#e7f4ec', '#1d6b45'], variacao: ['#fff4d6', '#8a5a00'], parecido: ['#ffffff', '#6d7383'],
+    aberta: ['#fdeadc', '#b4470f'], fechada: ['#e7f4ec', '#1d6b45'], erro: ['#fdecec', '#b42318'],
+    info: ['#eef0f4', '#3a4252'], sbr: ['#e9eef4', '#34506b']
+  };
+
+  function str(v) { return v == null ? '' : String(v); }
+
+  /* quebra o texto em linhas que caibam em `larg` (palavras longas são cortadas) */
+  function quebrar(ctx, texto, larg) {
+    var linhas = [];
+    str(texto).split(/\n/).forEach(function (par) {
+      var palavras = par.split(/\s+/).filter(Boolean);
+      if (!palavras.length) { linhas.push(''); return; }
+      var atual = '';
+      palavras.forEach(function (p) {
+        while (ctx.measureText(p).width > larg && p.length > 1) {
+          var n = p.length;
+          while (n > 1 && ctx.measureText(p.slice(0, n)).width > larg) n--;
+          if (atual) { linhas.push(atual); atual = ''; }
+          linhas.push(p.slice(0, n));
+          p = p.slice(n);
+        }
+        var t = atual ? atual + ' ' + p : p;
+        if (ctx.measureText(t).width <= larg) atual = t;
+        else { linhas.push(atual); atual = p; }
+      });
+      if (atual) linhas.push(atual);
+    });
+    return linhas;
+  }
+
+  function limitar(linhas, max, ctx, larg) {
+    if (!max || linhas.length <= max) return linhas;
+    var cortadas = linhas.slice(0, max);
+    var u = cortadas[max - 1];
+    while (u.length > 1 && ctx.measureText(u + '…').width > larg) u = u.slice(0, -1);
+    cortadas[max - 1] = u + '…';
+    return cortadas;
+  }
+
+  function rect(ctx, x, y, w, h, r, fill, stroke, tracejado) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) {
+      ctx.setLineDash(tracejado ? [4, 3] : []);
+      ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+
+  /**
+   * Desenha (ou só mede, com `seco`) os blocos na escala `f`. Devolve a altura
+   * usada. Tudo em unidades de 1240 de largura.
+   */
+  function desenhar(ctx, blocos, f, seco, tema) {
+    var y = MARGEM;
+    var W = L - 2 * MARGEM;
+    var fs = function (n) { return Math.round(n * f * 10) / 10; };
+    function fonte(px, peso, mono) { ctx.font = (peso || 400) + ' ' + fs(px) + 'px ' + (mono ? MONO : FONTE); }
+
+    function chip(x, yy, t, c, tamanho) {
+      var cor = CORES[c] || CORES.info;
+      fonte(tamanho || 15, 700);
+      var w = ctx.measureText(t).width + fs(16), h = fs((tamanho || 15) + 9);
+      if (!seco) {
+        rect(ctx, x, yy, w, h, h / 2, cor[0], c === 'parecido' ? cor[1] : null, c === 'parecido');
+        ctx.fillStyle = cor[1]; ctx.textBaseline = 'middle';
+        ctx.fillText(t, x + fs(8), yy + h / 2 + 1);
+      }
+      return { w: w, h: h };
+    }
+
+    /* uma fila de chips que quebra de linha; devolve a altura */
+    function fila(x, yy, largMax, chips, tamanho) {
+      var cx = x, cy = yy, h = 0, gap = fs(6);
+      chips.forEach(function (ch) {
+        fonte(tamanho || 15, 700);
+        var w = ctx.measureText(ch.t).width + fs(16);
+        if (cx + w > x + largMax && cx > x) { cx = x; cy += h + gap; }
+        var m = chip(cx, cy, ch.t, ch.c, tamanho);
+        h = m.h; cx += m.w + gap;
+      });
+      return cy + h - yy;
+    }
+
+    blocos.forEach(function (b) {
+      if (b.t === 'cab') {
+        fonte(36, 800); ctx.textBaseline = 'alphabetic';
+        if (!seco) {
+          ctx.fillStyle = tema.cor; ctx.fillRect(0, 0, L, fs(10));
+          ctx.fillStyle = tema.cor; ctx.fillText(b.titulo, MARGEM, y + fs(40));
+        }
+        y += fs(40);
+        if (b.sub) {
+          fonte(18, 400);
+          var ls = limitar(quebrar(ctx, b.sub, W), 3, ctx, W);
+          ls.forEach(function (l) { if (!seco) { ctx.fillStyle = '#2a2f3a'; ctx.fillText(l, MARGEM, y + fs(28)); } y += fs(25); });
+          y += fs(4);
+        }
+        if (b.tags && b.tags.length) { y += fs(10); y += fila(MARGEM, y, W, b.tags, 16); }
+        y += fs(14);
+        if (!seco) { ctx.fillStyle = '#c9ced8'; ctx.fillRect(MARGEM, y, W, 1.5); }
+        y += fs(18);
+      } else if (b.t === 'sec') {
+        y += fs(10);
+        fonte(15, 800); ctx.textBaseline = 'alphabetic';
+        if (!seco) {
+          ctx.fillStyle = tema.cor; ctx.fillRect(MARGEM, y, fs(5), fs(20));
+          ctx.fillStyle = '#3a4252'; ctx.fillText(str(b.titulo).toUpperCase(), MARGEM + fs(14), y + fs(16));
+        }
+        if (b.sub) {
+          fonte(13, 400);
+          if (!seco) { ctx.fillStyle = '#6d7383'; ctx.fillText(b.sub, MARGEM + fs(14) + ctx.measureText(str(b.titulo).toUpperCase()).width * 1.18 + fs(14), y + fs(16)); }
+        }
+        y += fs(30);
+      } else if (b.t === 'pares') {
+        var cols = b.cols || 2, cw = W / cols, linhasMax = 0;
+        var alturas = [], i;
+        b.itens.forEach(function (it, k) {
+          fonte(13, 700);
+          var rot = str(it[0]);
+          fonte(16, 400, it[2]);
+          var vl = limitar(quebrar(ctx, it[1] || '—', cw - fs(20)), it[3] || 3, ctx, cw - fs(20));
+          alturas.push({ vl: vl, mono: it[2], rot: rot });
+        });
+        for (i = 0; i < alturas.length; i += cols) {
+          var linha = alturas.slice(i, i + cols), h = 0;
+          linha.forEach(function (a) { h = Math.max(h, fs(18) + a.vl.length * fs(21)); });
+          linha.forEach(function (a, k) {
+            var x = MARGEM + k * cw;
+            if (!seco) {
+              fonte(12, 700); ctx.fillStyle = '#6d7383'; ctx.textBaseline = 'alphabetic';
+              ctx.fillText(a.rot.toUpperCase(), x, y + fs(13));
+              fonte(16, 400, a.mono); ctx.fillStyle = '#1b1f27';
+              a.vl.forEach(function (l, n) { ctx.fillText(l, x, y + fs(34) + n * fs(21)); });
+            }
+          });
+          y += h + fs(12);
+        }
+      } else if (b.t === 'chips') {
+        fonte(13, 700); ctx.textBaseline = 'alphabetic';
+        var rw = fs(150);
+        if (!seco) { ctx.fillStyle = '#6d7383'; ctx.fillText(str(b.rot).toUpperCase(), MARGEM, y + fs(19)); }
+        var hh = fila(MARGEM + rw, y, W - rw, b.chips, 15);
+        y += Math.max(hh, fs(24)) + fs(10);
+      } else if (b.t === 'texto') {
+        fonte(12, 700); ctx.textBaseline = 'alphabetic';
+        if (!seco) { ctx.fillStyle = '#6d7383'; ctx.fillText(str(b.rot).toUpperCase(), MARGEM, y + fs(13)); }
+        y += fs(20);
+        fonte(16, 400);
+        var tl = limitar(quebrar(ctx, b.texto || '—', W), b.linhas || 6, ctx, W);
+        tl.forEach(function (l) { if (!seco) { ctx.fillStyle = '#1b1f27'; ctx.fillText(l, MARGEM, y + fs(16)); } y += fs(21); });
+        y += fs(10);
+      } else if (b.t === 'nota') {
+        fonte(14, 400);
+        var nl = quebrar(ctx, b.texto, W);
+        nl.forEach(function (l) { if (!seco) { ctx.fillStyle = '#6d7383'; ctx.fillText(l, MARGEM, y + fs(14)); } y += fs(19); });
+        y += fs(8);
+      } else if (b.t === 'tab') {
+        var tot = 0;
+        b.cols.forEach(function (c) { tot += c.w; });
+        var xs = [], acc = MARGEM;
+        b.cols.forEach(function (c) { xs.push(acc); acc += W * c.w / tot; });
+        var larguras = b.cols.map(function (c) { return W * c.w / tot - fs(16); });
+        /* cabeçalho */
+        var hc = fs(30);
+        if (!seco) {
+          ctx.fillStyle = '#eef1f5'; ctx.fillRect(MARGEM, y, W, hc);
+          fonte(12, 800); ctx.fillStyle = '#4b5261'; ctx.textBaseline = 'middle';
+          b.cols.forEach(function (c, k) { ctx.fillText(c.t.toUpperCase(), xs[k] + fs(8), y + hc / 2); });
+        }
+        y += hc;
+        b.rows.forEach(function (row, ri) {
+          var alt = fs(30), medidas = [];
+          row.forEach(function (cel, k) {
+            var m;
+            if (cel && cel.chips) {
+              var cx = 0, cy = 0, hh2 = 0, gap = fs(5);
+              cel.chips.forEach(function (ch) {
+                fonte(13, 700);
+                var w = ctx.measureText(ch.t).width + fs(14);
+                if (cx + w > larguras[k] && cx > 0) { cx = 0; cy += fs(22) + gap; }
+                cx += w + gap; hh2 = cy + fs(22);
+              });
+              m = { h: hh2 + fs(10) };
+            } else if (cel && cel.tag) {
+              m = { h: fs(34) + (cel.sub ? fs(18) : 0) };
+            } else {
+              fonte(15, 400, cel && cel.mono);
+              var ll = limitar(quebrar(ctx, str(cel && cel.t != null ? cel.t : cel), larguras[k]), 3, ctx, larguras[k]);
+              m = { ll: ll, h: ll.length * fs(19) + fs(12) };
+            }
+            medidas.push(m);
+            alt = Math.max(alt, m.h);
+          });
+          if (!seco) {
+            if (ri % 2) { ctx.fillStyle = '#f5f7fa'; ctx.fillRect(MARGEM, y, W, alt); }
+            ctx.fillStyle = '#dde1e8'; ctx.fillRect(MARGEM, y + alt - 1, W, 1);
+            row.forEach(function (cel, k) {
+              var x = xs[k] + fs(8);
+              if (cel && cel.chips) {
+                var cx2 = x, cy2 = y + fs(6), gap2 = fs(5);
+                cel.chips.forEach(function (ch) {
+                  fonte(13, 700);
+                  var w = ctx.measureText(ch.t).width + fs(14);
+                  if (cx2 + w > x + larguras[k] && cx2 > x) { cx2 = x; cy2 += fs(22) + gap2; }
+                  var cor = CORES[ch.c] || CORES.info;
+                  rect(ctx, cx2, cy2, w, fs(22), fs(11), cor[0], null);
+                  ctx.fillStyle = cor[1]; ctx.textBaseline = 'middle'; ctx.fillText(ch.t, cx2 + fs(7), cy2 + fs(11) + 1);
+                  cx2 += w + gap2;
+                });
+              } else if (cel && cel.tag) {
+                chip(x, y + fs(6), cel.tag.t, cel.tag.c, 13);
+                if (cel.sub) { fonte(11, 400); ctx.fillStyle = '#6d7383'; ctx.textBaseline = 'alphabetic'; ctx.fillText(cel.sub, x, y + fs(46)); }
+              } else {
+                fonte(15, cel && cel.t != null && cel.forte ? 700 : 400, cel && cel.mono);
+                ctx.fillStyle = (cel && cel.cor) || '#1b1f27'; ctx.textBaseline = 'alphabetic';
+                medidas[k].ll.forEach(function (l, n) { ctx.fillText(l, x, y + fs(21) + n * fs(19)); });
+              }
+            });
+          }
+          y += alt;
+        });
+        y += fs(10);
+      }
+    });
+    return y;
+  }
+
+  /**
+   * Gera o canvas A4. `opts`: tema { cor }, rodape. Devolve { canvas, coube,
+   * escala }. `coube` falso = nem na escala mínima coube: o chamador corta
+   * conteúdo e tenta de novo.
+   */
+  function gerar(blocos, opts) {
+    opts = opts || {};
+    var tema = opts.tema || { cor: '#34506b' };
+    var cv = document.createElement('canvas');
+    cv.width = L * ZOOM; cv.height = A * ZOOM;
+    var ctx = cv.getContext('2d');
+    ctx.scale(ZOOM, ZOOM);
+    var reserva = 46;                            /* o rodapé */
+    var f = 1.3, usado = 0;
+    for (; f >= ESCALA_MIN - 0.001; f -= 0.04) {
+      usado = desenhar(ctx, blocos, f, true, tema);
+      if (usado <= A - reserva) break;
+    }
+    var coube = usado <= A - reserva;
+    if (!coube) f = ESCALA_MIN;
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, L, A);
+    desenhar(ctx, blocos, f, false, tema);
+    ctx.font = '400 12px ' + FONTE; ctx.fillStyle = '#8a91a0'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(str(opts.rodape), MARGEM, A - 24);
+    return { canvas: cv, coube: coube, escala: f };
+  }
+
+  /** Baixa o canvas como PNG. */
+  function baixar(canvas, nome) {
+    function salvar(blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = nome;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+    }
+    if (canvas.toBlob) { canvas.toBlob(function (b) { salvar(b); }, 'image/png'); return; }
+    var d = canvas.toDataURL('image/png').split(',')[1], bin = atob(d), u = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    salvar(new Blob([u], { type: 'image/png' }));
+  }
+
+  /** Nome de arquivo seguro. */
+  function nomeSeguro(s) { return str(s).replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '') || 'ficha'; }
+
+  global.Cartao = { gerar: gerar, baixar: baixar, nomeSeguro: nomeSeguro, LARGURA: L * ZOOM, ALTURA: A * ZOOM };
+})(window);
+
+</script>
+<script>
 /* assets/js/produtosview.js */
 /* ==========================================================================
    produtosview.js — a aba Produtos, a ficha do produto e o bloco "produtos"
@@ -18741,7 +19095,7 @@ if(isWorker){
   var ROTULOS_FIXOS = {
     situacao: { ambos: 'Com marco e função vital', soMarco: 'Só com marco', soFuncao: 'Só com função vital',
       na: 'N/A — sem marco e sem função vital' },
-    ncr: { sim: 'Citado em alguma NCR', nao: 'Sem NCR' }
+    ncr: { sim: 'Citado em alguma NCR', aberta: 'Com NCR aberta', soFechada: 'Só NCRs fechadas', nao: 'Sem NCR' }
   };
   var NIVEIS = {
     exato: { rot: 'exato', dica: 'A mesma marca está no banco de produtos.' },
@@ -18828,6 +19182,35 @@ if(isWorker){
     return w;
   }
 
+  /**
+   * Quantas NCRs citam o produto, e em que pé estão: uma pastilha cheia e
+   * quente para as abertas (é o que pede atenção) e uma vazada e verde para as
+   * fechadas; embaixo, uma barrinha na mesma proporção. Produto só com NCR
+   * fechada fica calmo; sem NCR, um traço.
+   */
+  function indicadorNcr(abertas, fechadas, possiveis, aoClicar) {
+    var total = abertas + fechadas;
+    var w = el(aoClicar ? 'button' : 'span', 'pr-ind' + (total ? '' : ' is-zero'));
+    if (aoClicar) { w.type = 'button'; w.addEventListener('click', aoClicar); }
+    if (!total) {
+      w.appendChild(el('span', 'pr-zero', possiveis ? '(' + possiveis + ')' : '—'));
+      w.title = possiveis ? possiveis + ' NCR(s) com marca parecida, a conferir' : 'Nenhuma NCR cita este produto';
+      return w;
+    }
+    var linha = el('span', 'pr-ind-pil');
+    if (abertas) linha.appendChild(el('span', 'pr-pil pr-pil--aberta', '● ' + abertas));
+    if (fechadas) linha.appendChild(el('span', 'pr-pil pr-pil--fechada', '✓ ' + fechadas));
+    w.appendChild(linha);
+    var barra = el('span', 'pr-ind-barra');
+    var b1 = el('span', 'pr-ind-ab'); b1.style.width = (100 * abertas / total).toFixed(0) + '%';
+    var b2 = el('span', 'pr-ind-fe'); b2.style.width = (100 * fechadas / total).toFixed(0) + '%';
+    barra.appendChild(b1); barra.appendChild(b2);
+    w.appendChild(barra);
+    w.title = abertas + ' NCR(s) aberta(s) e ' + fechadas + ' fechada(s) citam este produto' +
+      (possiveis ? ' (mais ' + possiveis + ' possível(is))' : '') + (aoClicar ? ' — abrir a ficha' : '');
+    return w;
+  }
+
   function etiquetaNivel(nivel, dica) {
     var n = NIVEIS[nivel];
     var e = el('span', 'pr-nivel pr-nivel--' + nivel, n.rot);
@@ -18854,6 +19237,9 @@ if(isWorker){
       var ns = mapa[it.id] || [];
       var certas = ns.filter(function (x) { return x.nivel !== 'parecido'; });
       var l = { it: it, sistema: Produtos.sistemaDe(it), ncrs: certas, possiveis: ns.length - certas.length };
+      /* as NCRs que ainda estão abertas e as que já fecharam: é o que diz se o produto ainda dá trabalho */
+      l.abertas = certas.filter(function (x) { return !Ncrs.fechada(x.rec); }).length;
+      l.fechadas = certas.length - l.abertas;
       l.busca = Ncrs.norm([it.produto, it.marca, it.descricao, it.marcos.join(' '),
         it.funcoes.join(' '), it.funcoes.map(function (f) { return 'fv ' + f; }).join(' '), l.sistema,
         certas.map(function (x) { return x.rec.numero; }).join(' ')].join(' '));
@@ -18875,7 +19261,10 @@ if(isWorker){
       var m = l.it.marcos.length > 0, f = l.it.funcoes.length > 0;
       return [m && f ? 'ambos' : (m ? 'soMarco' : (f ? 'soFuncao' : 'na'))];
     },
-    ncr: function (l) { return [l.ncrs.length ? 'sim' : 'nao']; }
+    ncr: function (l) {
+      if (!l.ncrs.length) return ['nao'];
+      return l.abertas ? ['sim', 'aberta'] : ['sim', 'soFechada'];
+    }
   };
 
   function nomeValor(chave, v) {
@@ -18938,7 +19327,7 @@ if(isWorker){
       if (x === null || y === null) return x === y ? 0 : (x === null ? 1 : -1);
       return Produtos.cmpFuncao(x, y);
     } },
-    { id: 'ncrs', nome: 'NCRs', cmp: function (a, b) { return a.ncrs.length - b.ncrs.length; } }
+    { id: 'ncrs', nome: 'NCRs', cmp: function (a, b) { return (a.abertas - b.abertas) || (a.fechadas - b.fechadas); } }
   ];
 
   function aVista() {
@@ -19099,12 +19488,14 @@ if(isWorker){
     ['Com marco', function (c) { return c.comMarco; }, function () { return 'marco de segurança'; }, ['situacao', ['ambos', 'soMarco']]],
     ['Com função vital', function (c) { return c.comFuncao; }, function () { return 'ao menos uma'; }, ['situacao', ['ambos', 'soFuncao']]],
     ['N/A', function (c) { return c.semNada; }, function () { return 'sem marco e sem função vital'; }, ['situacao', ['na']]],
-    ['Citados em NCR', function (c) { return c.citados; }, function () { return 'aparecem em alguma NCR'; }, ['ncr', ['sim']]]
+    ['Citados em NCR', function (c) { return c.citados; }, function () { return 'aparecem em alguma NCR'; }, ['ncr', ['sim']]],
+    ['Com NCR aberta', function (c) { return c.comAberta; }, function () { return 'ainda dão trabalho'; }, ['ncr', ['aberta']]]
   ];
 
   function numeros() {
     var c = Produtos.contagens();
     c.citados = linhas().filter(function (l) { return l.ncrs.length; }).length;
+    c.comAberta = linhas().filter(function (l) { return l.abertas; }).length;
     return c;
   }
 
@@ -19275,6 +19666,7 @@ if(isWorker){
   /** A busca, um filtro ou a ordem mudaram: a lista recomeça do alto. */
   function mudouRecorte() {
     st.limite = LOTE;
+    st.limiteMapa = LOTE_MAPA;
     renderConteudo();
   }
 
@@ -19366,13 +19758,8 @@ if(isWorker){
     var tm = el('td'); tm.appendChild(chipsMarcos(it)); tr.appendChild(tm);
     var tf = el('td'); tf.appendChild(chipsFuncoes(it)); tr.appendChild(tf);
     var tn = el('td', 'pr-nncr');
-    if (l.ncrs.length) {
-      var bn = el('button', 'pr-contador', String(l.ncrs.length));
-      bn.type = 'button';
-      bn.title = l.ncrs.length + ' NCR(s) citam este produto' + (l.possiveis ? ' (mais ' + l.possiveis + ' possível(is))' : '') + ' — abrir a ficha';
-      bn.addEventListener('click', function (e) { e.stopPropagation(); abrirDetalhe(it.id); });
-      tn.appendChild(bn);
-    } else tn.appendChild(el('span', 'pr-zero', l.possiveis ? '(' + l.possiveis + ')' : '—'));
+    tn.appendChild(indicadorNcr(l.abertas, l.fechadas, l.possiveis, l.ncrs.length
+      ? function (e) { e.stopPropagation(); abrirDetalhe(it.id); } : null));
     tr.appendChild(tn);
     tr.addEventListener('click', function () { abrirDetalhe(it.id); });
     return tr;
@@ -19390,6 +19777,7 @@ if(isWorker){
   function desenharMapa(box, ls) {
     if (!ls.length) { box.appendChild(el('p', 'nb2-nada', 'Nenhum produto com esse recorte.')); return; }
     box.appendChild(mapaMatriz(ls));
+    box.appendChild(mapaMarcas(ls));
     box.appendChild(mapaSistemas(ls));
   }
 
@@ -19479,6 +19867,98 @@ if(isWorker){
     caixa.appendChild(t);
     sec.appendChild(caixa);
     sec.appendChild(el('p', 'nb2-mini', 'Um produto com vários marcos ou funções conta em cada cruzamento; o total de cada linha e de cada coluna conta o produto uma vez.'));
+    return sec;
+  }
+
+  /**
+   * A marca funcional (Industrial Mark) em cada função vital, ou em cada marco:
+   * uma linha por marca, uma coluna por função (ou marco), um ponto onde o
+   * produto está. É o "quem depende de quê" produto a produto, que a matriz
+   * de cima só conta. Respeita a busca e os filtros, então dá para recortar
+   * por sistema antes de olhar.
+   */
+  var LOTE_MAPA = 120;
+  function mapaMarcas(ls) {
+    var eixo = pref('eixoMarcas', 'funcao');
+    var sec = el('section', 'nb-sec pr-sec');
+    sec.id = 'pr2MapaMarcas';
+    var topo = el('div', 'pr-mm-topo');
+    var tit = el('div');
+    tit.appendChild(el('h4', null, 'Marca funcional por ' + (eixo === 'funcao' ? 'função vital' : 'marco de segurança')));
+    tit.appendChild(el('p', 'nb-sec-sub', 'Um ponto onde o produto está ligado. Clique na coluna para filtrar; na marca, para abrir a ficha.'));
+    topo.appendChild(tit);
+    var alt = el('div', 'pr2-vistas');
+    [['funcao', 'Por função vital'], ['marco', 'Por marco']].forEach(function (o) {
+      var b = botao(o[1], 'btn--sm nb2-toggle' + (eixo === o[0] ? ' is-on' : ''), function () {
+        setPref('eixoMarcas', o[0]);
+        st.limiteMapa = LOTE_MAPA;
+        renderConteudo();
+      });
+      b.setAttribute('aria-pressed', eixo === o[0] ? 'true' : 'false');
+      alt.appendChild(b);
+    });
+    topo.appendChild(alt);
+    sec.appendChild(topo);
+
+    var comMarca = ls.filter(function (l) { return l.it.marca; });
+    var chave = eixo === 'funcao' ? 'funcoes' : 'marcos';
+    var cols = [], vistos = {}, semAlgum = false;
+    comMarca.forEach(function (l) {
+      if (!l.it[chave].length) semAlgum = true;
+      l.it[chave].forEach(function (v) { if (!vistos[v]) { vistos[v] = 1; cols.push(v); } });
+    });
+    cols.sort(eixo === 'funcao' ? Produtos.cmpFuncao : function (a, b) { return Fluxo.cmpMarco(a, b); });
+    if (semAlgum) cols.push('__na');
+    if (!comMarca.length) { sec.appendChild(el('p', 'nb2-nada', 'Nenhum produto com Functional Mark neste recorte.')); return sec; }
+    var linhasOrd = comMarca.slice().sort(function (a, b) { return Store.cmpTexto(a.it.marca, b.it.marca) || Store.cmpTexto(a.it.produto, b.it.produto); });
+    var limite = st.limiteMapa || LOTE_MAPA;
+
+    var caixa = el('div', 'pr-matriz-caixa');
+    var t = el('table', 'pr-matriz pr-mm');
+    t.id = 'pr2MapaMarcasTab';
+    var trh = el('tr');
+    trh.appendChild(el('th', 'pr-mz-canto', 'Functional Mark'));
+    cols.forEach(function (c) {
+      var th = el('th', 'pr-mz-col');
+      var b = el('button', 'pr-mz-cab', c === '__na' ? Produtos.NA : (eixo === 'funcao' ? 'FV ' + c : c));
+      b.type = 'button';
+      b.title = c === '__na' ? 'Produtos sem ' + (eixo === 'funcao' ? 'função vital' : 'marco')
+        : (eixo === 'funcao' ? Produtos.rotuloFuncao(c) : 'Marco ' + c) + ' — ver os produtos';
+      b.addEventListener('click', function () {
+        var f = {}; f[eixo === 'funcao' ? 'funcao' : 'marco'] = [c]; irParaTabela(f);
+      });
+      th.appendChild(b);
+      trh.appendChild(th);
+    });
+    var thead = el('thead'); thead.appendChild(trh); t.appendChild(thead);
+    var tb = el('tbody');
+    linhasOrd.slice(0, limite).forEach(function (l) {
+      var tr = el('tr');
+      var rh = el('th', 'pr-mz-lin pr-mm-marca');
+      var b = el('button', 'pr-mz-cab pr-marca', l.it.marca);
+      b.type = 'button';
+      b.title = (l.it.produto ? l.it.produto + ' — ' : '') + l.it.descricao;
+      b.addEventListener('click', function () { abrirDetalhe(l.it.id); });
+      rh.appendChild(b);
+      tr.appendChild(rh);
+      cols.forEach(function (c) {
+        var tem = c === '__na' ? !l.it[chave].length : l.it[chave].indexOf(c) >= 0;
+        var td = el('td', 'pr-mm-cel' + (tem ? ' is-on' : '') + (tem && c === '__na' ? ' is-na' : ''));
+        if (tem) td.textContent = '●';
+        tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    caixa.appendChild(t);
+    sec.appendChild(caixa);
+    if (linhasOrd.length > limite) {
+      var mais = el('div', 'pr2-mais');
+      mais.appendChild(el('span', null, 'Mostrando ' + limite + ' de ' + linhasOrd.length + ' marcas'));
+      mais.appendChild(botao('Mostrar mais ' + LOTE_MAPA, 'btn--sm', function () { st.limiteMapa = limite + LOTE_MAPA; renderConteudo(); }));
+      mais.appendChild(botao('Mostrar todas (' + linhasOrd.length + ')', 'btn--sm', function () { st.limiteMapa = linhasOrd.length; renderConteudo(); }));
+      sec.appendChild(mais);
+    }
     return sec;
   }
 
@@ -19587,6 +20067,10 @@ if(isWorker){
     if (!it.marcos.length && !it.funcoes.length) tags.appendChild(el('span', 'nb-chip nb-chip--aviso', Produtos.NA));
     t1.appendChild(tags);
     cab.appendChild(t1);
+    var bImg = botao('⤓ Imagem (A4)', 'btn--sm', function () { baixarImagemDoProduto(it); },
+      'Baixa esta ficha como imagem PNG em boa resolução, do tamanho de uma folha A4');
+    bImg.setAttribute('data-mostra', '');
+    cab.appendChild(bImg);
     cab.appendChild(botao('Fechar ✕', 'btn--sm', function () { dlg.close(); }));
 
     var body = dlg.querySelector('.nb-ficha-corpo');
@@ -19594,14 +20078,12 @@ if(isWorker){
     body.innerHTML = '';
     if (it.descricao) body.appendChild(el('p', 'nb-ficha-titulo', it.descricao));
 
-    var grade = el('div', 'nb-ficha-grade');
-    var esq = el('div', 'nb-ficha-col');
-    var dir = el('div', 'nb-ficha-col');
-    grade.appendChild(esq);
-    grade.appendChild(dir);
+    /* a identificação e os marcos lado a lado; as NCRs, que são o que mais
+       ocupa, embaixo e em toda a largura — numa coluna estreita a tabela cortava */
+    var grade = el('div', 'pr-grade2');
     body.appendChild(grade);
 
-    var s1 = secao(esq, 'Identificação');
+    var s1 = secao(grade, 'Identificação');
     var dl = el('dl', 'nb-campos');
     campoDl(dl, 'Product Mark', it.produto, true);
     campoDl(dl, 'Functional Mark', it.marca, true);
@@ -19609,7 +20091,7 @@ if(isWorker){
     campoDl(dl, 'Sistema (bigrama)', sis);
     s1.appendChild(dl);
 
-    var s2 = secao(esq, 'Marcos de segurança e funções vitais');
+    var s2 = secao(grade, 'Marcos de segurança e funções vitais');
     var lm = el('div', 'pr-bloco');
     lm.appendChild(el('span', 'nb-rot', 'Safety Milestones'));
     lm.appendChild(chipsMarcos(it));
@@ -19628,7 +20110,15 @@ if(isWorker){
     }
 
     var ncrs = Produtos.ncrsDoProduto(it.id, false);
-    var s3 = secao(dir, 'NCRs que citam este produto');
+    var certas = ncrs.filter(function (x) { return x.nivel !== 'parecido'; });
+    var ab = certas.filter(function (x) { return !Ncrs.fechada(x.rec); }).length;
+    var s3 = secao(body, 'NCRs que citam este produto');
+    var resumoNcr = s3.querySelector('.nb-sec-sub');
+    resumoNcr.textContent = '';
+    resumoNcr.appendChild(indicadorNcr(ab, certas.length - ab, 0, null));
+    resumoNcr.appendChild(el('span', 'pr-ind-txt', certas.length
+      ? ab + ' aberta(s) · ' + (certas.length - ab) + ' fechada(s)'
+      : 'nenhuma NCR do banco cita este produto'));
     s3.appendChild(tabelaNcrs(ncrs, function (key) { dlg.close(); ctx.abrirFicha(key); }));
 
     var fam = Produtos.familiaDe(it);
@@ -19653,14 +20143,15 @@ if(isWorker){
     var poss = ncrs.filter(function (x) { return x.nivel === 'parecido'; });
     var w = el('div');
     function tabela(lista) {
-      var t = el('table', 'nb-hist');
+      var caixa = el('div', 'nb-det-caixa');
+      var t = el('table', 'nb-hist pr-tab-ncrs');
       var hr = el('tr');
-      ['NCR', 'Status', 'Correspondência', 'Escrito na NCR', 'Onde'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
+      ['NCR', 'Situação da NCR', 'Correspondência', 'Escrito na NCR', 'Em que campo'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
       var th = el('thead'); th.appendChild(hr); t.appendChild(th);
       var tb = el('tbody');
       lista.forEach(function (x) {
         var tr = el('tr');
-        var a = el('td');
+        var a = el('td', 'pr-nowrap');
         var b = el('button', 'nb2-num', x.rec.numero);
         b.type = 'button';
         b.title = 'Abrir a ficha da NCR';
@@ -19668,21 +20159,23 @@ if(isWorker){
         a.appendChild(b);
         tr.appendChild(a);
         var f = Ncrs.fonte(x.rec);
+        var fechada = Ncrs.fechada(x.rec);
         var s = el('td', 'pr-nowrap');
-        s.appendChild(el('span', 'nb-chip' + (Ncrs.fechada(x.rec) ? ' nb-chip--fechada' : ''), f.status || (Ncrs.fechada(x.rec) ? 'fechada' : 'sem status')));
+        s.appendChild(el('span', 'pr-pil ' + (fechada ? 'pr-pil--fechada' : 'pr-pil--aberta'), fechada ? '✓ fechada' : '● aberta'));
+        s.appendChild(el('span', 'pr-status', f.status || 'sem status'));
         tr.appendChild(s);
         var n = el('td', 'pr-nowrap');
         n.appendChild(etiquetaNivel(x.nivel));
         tr.appendChild(n);
         tr.appendChild(el('td', 'pr-nowrap pr-marca', x.tokens.join(', ')));
-        tr.appendChild(el('td', null, x.onde));
+        tr.appendChild(el('td', 'pr-onde', x.onde));
         tb.appendChild(tr);
       });
       t.appendChild(tb);
-      return t;
+      caixa.appendChild(t);
+      return caixa;
     }
     if (certas.length) w.appendChild(tabela(certas));
-    else w.appendChild(el('p', 'nb2-mini', 'Nenhuma NCR do banco cita este produto.'));
     if (poss.length) {
       var d = document.createElement('details');
       d.className = 'pr-possiveis';
@@ -19693,6 +20186,95 @@ if(isWorker){
       w.appendChild(d);
     }
     return w;
+  }
+
+  /* --- a imagem A4 --------------------------------------------------------------- */
+
+  var ROTULO_NIVEL = { exato: 'exato', variacao: 'variação', parecido: 'parecido' };
+
+  function rodapeDaImagem() {
+    return 'Gerado em ' + new Date().toLocaleString('pt-BR') + ' por ' + (Store.getUser() || '(sem nome)') + ' · Waiver Request';
+  }
+
+  function chipsDe(lista, cls, rot) { return lista.map(function (v) { return { t: rot ? rot(v) : v, c: cls }; }); }
+
+  /** Blocos do Cartao para a lista de produtos que uma NCR cita (a ficha da NCR usa). */
+  function blocosDosProdutos(achados, maximo) {
+    var certos = achados.filter(function (a) { return a.nivel !== 'parecido'; });
+    var poss = achados.filter(function (a) { return a.nivel === 'parecido'; });
+    var out = [{ t: 'sec', titulo: 'Produtos, marcos de segurança e funções vitais',
+      sub: certos.length ? certos.length + ' produto(s) citado(s)' : 'nenhum produto do banco encontrado' }];
+    function linha(a) {
+      var it = a.item;
+      return [{ t: it.produto || '—', mono: true, forte: true }, { t: it.marca || 'N/A', mono: true }, it.descricao,
+        { chips: it.marcos.length ? chipsDe(it.marcos, 'marco') : [{ t: 'N/A', c: 'na' }] },
+        { chips: it.funcoes.length ? chipsDe(it.funcoes, 'fv', function (f) { return 'FV ' + f; }) : [{ t: 'N/A', c: 'na' }] },
+        { tag: { t: ROTULO_NIVEL[a.nivel], c: a.nivel }, sub: a.nivel === 'exato' ? '' : 'NCR: ' + a.tokens.join(', ') }];
+    }
+    var cols = [{ t: 'Product Mark', w: 12 }, { t: 'Functional Mark', w: 12 }, { t: 'Designation', w: 25 },
+      { t: 'Marcos', w: 16 }, { t: 'Funções vitais', w: 15 }, { t: 'Correspondência', w: 14 }];
+    if (certos.length) {
+      var r = Produtos.resumoDe(certos);
+      out.push({ t: 'chips', rot: 'Marcos', chips: r.marcos.length ? chipsDe(r.marcos, 'marco') : [{ t: 'N/A', c: 'na' }] });
+      out.push({ t: 'chips', rot: 'Funções vitais', chips: r.funcoes.length ? chipsDe(r.funcoes, 'fv', function (f) { return 'FV ' + f; }) : [{ t: 'N/A', c: 'na' }] });
+      out.push({ t: 'tab', cols: cols, rows: certos.slice(0, maximo).map(linha) });
+      if (certos.length > maximo) out.push({ t: 'nota', texto: '… e mais ' + (certos.length - maximo) + ' produto(s) — veja a ficha na tela.' });
+    }
+    if (poss.length) {
+      out.push({ t: 'nota', texto: 'Parecidos, a conferir (' + poss.length + '): mesma base da marca, sufixo diferente.' });
+      out.push({ t: 'tab', cols: cols, rows: poss.slice(0, Math.max(2, Math.floor(maximo / 3))).map(linha) });
+    }
+    return out;
+  }
+
+  function baixarImagemDoProduto(it) {
+    var ncrs = Produtos.ncrsDoProduto(it.id, false);
+    var certas = ncrs.filter(function (x) { return x.nivel !== 'parecido'; });
+    var ab = certas.filter(function (x) { return !Ncrs.fechada(x.rec); }).length;
+    var fam = Produtos.familiaDe(it);
+    var sis = Produtos.sistemaDe(it);
+    var maximo = 40, res;
+    for (var tentativa = 0; tentativa < 8; tentativa++) {
+      var linhaNcr = function (x) {
+        var fechada = Ncrs.fechada(x.rec);
+        return [{ t: x.rec.numero, mono: true, forte: true },
+          { tag: { t: fechada ? '✓ fechada' : '● aberta', c: fechada ? 'fechada' : 'aberta' }, sub: Ncrs.fonte(x.rec).status || '' },
+          { tag: { t: ROTULO_NIVEL[x.nivel], c: x.nivel } }, { t: x.tokens.join(', '), mono: true }, x.onde];
+      };
+      var colsN = [{ t: 'NCR', w: 26 }, { t: 'Situação da NCR', w: 20 }, { t: 'Correspondência', w: 13 }, { t: 'Escrito na NCR', w: 15 }, { t: 'Em que campo', w: 26 }];
+      var blocos = [
+        { t: 'cab', titulo: it.produto || it.marca, sub: it.descricao,
+          tags: [it.marca ? { t: it.marca, c: 'info' } : null, sis ? { t: 'sistema ' + sis, c: 'sbr' } : null,
+            (!it.marcos.length && !it.funcoes.length) ? { t: 'N/A', c: 'na' } : null].filter(Boolean) },
+        { t: 'sec', titulo: 'Identificação' },
+        { t: 'pares', cols: 2, itens: [['Product Mark', it.produto || 'N/A', true], ['Functional Mark', it.marca || 'N/A', true],
+          ['Designation', it.descricao || 'N/A'], ['Sistema (bigrama)', sis || 'N/A']] },
+        { t: 'sec', titulo: 'Marcos de segurança e funções vitais' },
+        { t: 'chips', rot: 'Safety Milestones', chips: it.marcos.length ? chipsDe(it.marcos, 'marco') : [{ t: 'N/A', c: 'na' }] },
+        { t: 'chips', rot: 'Vital Functions #', chips: it.funcoes.length ? chipsDe(it.funcoes, 'fv', function (f) {
+          var n = Produtos.nomesDaFuncao(f); return 'FV ' + f + (n.length === 1 ? ' – ' + n[0] : ''); }) : [{ t: 'N/A', c: 'na' }] },
+        { t: 'sec', titulo: 'NCRs que citam este produto',
+          sub: certas.length ? ab + ' aberta(s) · ' + (certas.length - ab) + ' fechada(s)' : 'nenhuma' }
+      ];
+      if (certas.length) blocos.push({ t: 'tab', cols: colsN, rows: certas.slice(0, maximo).map(linhaNcr) });
+      if (certas.length > maximo) blocos.push({ t: 'nota', texto: '… e mais ' + (certas.length - maximo) + ' NCR(s).' });
+      var poss = ncrs.filter(function (x) { return x.nivel === 'parecido'; });
+      if (poss.length) {
+        blocos.push({ t: 'nota', texto: 'Possíveis, a conferir (' + poss.length + '): marca parecida.' });
+        blocos.push({ t: 'tab', cols: colsN, rows: poss.slice(0, 4).map(linhaNcr) });
+      }
+      if (fam.length) {
+        blocos.push({ t: 'sec', titulo: 'Mesma família da Functional Mark', sub: fam.length + ' produto(s)' });
+        blocos.push({ t: 'tab', cols: [{ t: 'Product Mark', w: 14 }, { t: 'Functional Mark', w: 14 }, { t: 'Designation', w: 30 }, { t: 'Marcos', w: 18 }, { t: 'Funções vitais', w: 18 }],
+          rows: fam.slice(0, 6).map(function (o) { return [{ t: o.produto, mono: true, forte: true }, { t: o.marca, mono: true }, o.descricao,
+            { chips: o.marcos.length ? chipsDe(o.marcos, 'marco') : [{ t: 'N/A', c: 'na' }] },
+            { chips: o.funcoes.length ? chipsDe(o.funcoes, 'fv', function (f) { return 'FV ' + f; }) : [{ t: 'N/A', c: 'na' }] }]; }) });
+      }
+      res = Cartao.gerar(blocos, { tema: { cor: '#5f6e08' }, rodape: rodapeDaImagem() });
+      if (res.coube) break;
+      maximo = Math.max(4, Math.floor(maximo * 0.65));
+    }
+    Cartao.baixar(res.canvas, 'Produto_' + Cartao.nomeSeguro(it.produto || it.marca) + '.png');
   }
 
   function tabelaProdutos(lista, abrir) {
@@ -19814,6 +20396,7 @@ if(isWorker){
     redesenhar: redesenhar,
     abrirDetalhe: abrirProdutoPorId,
     blocoDaNcr: blocoDaNcr,
+    blocosDosProdutos: blocosDosProdutos,
     chipsMarcos: chipsMarcos,
     chipsFuncoes: chipsFuncoes,
     descricaoDoFiltro: descricaoDoFiltro,
@@ -21168,6 +21751,10 @@ if(isWorker){
         ctx.admin.corrigir(rec.key);
       }, 'Correção manual dos dados do banco NCR, com registro de auditoria'));
     }
+    var imagem = botao('⤓ Imagem (A4)', 'btn--sm', function () { baixarImagem(rec); },
+      'Baixa esta ficha como imagem PNG em boa resolução, do tamanho de uma folha A4');
+    imagem.setAttribute('data-mostra', '');
+    cab.appendChild(imagem);
     var fechar = botao('Fechar ✕', 'btn--sm', function () { dlg.close(); });
     cab.appendChild(fechar);
 
@@ -21421,6 +22008,63 @@ if(isWorker){
       sa.appendChild(tabelaAuditoria(aud));
     }
     body.scrollTop = rolagem;
+  }
+
+  /**
+   * A ficha como imagem A4 (cartao.js): o resumo do que está no pop-up — dados
+   * do Waiver, relatórios, produtos com marcos e funções vitais e os campos do
+   * banco NCR. O fluxo e o histórico ficam de fora: não cabem numa folha.
+   * Se passar da folha, corta campos e produtos até caber.
+   */
+  function baixarImagem(rec) {
+    var f = Ncrs.fonte(rec), w = rec.waiver, fechada = Ncrs.fechada(rec);
+    var sub = substituicaoDe(rec);
+    var vinc = vinculosEmOrdem(Ncrs.vinculos(rec, ctx.projects()));
+    var campos = Object.keys(f.campos).filter(function (k) { return str(f.campos[k]).trim() !== ''; });
+    var ordem = Ncrs.meta().colunas || [];
+    campos.sort(function (a, b) {
+      var ia = ordem.indexOf(a), ib = ordem.indexOf(b);
+      return (ia < 0 ? 1e6 : ia) - (ib < 0 ? 1e6 : ib);
+    });
+    var nCampos = campos.length, maxProd = 12, res;
+    for (var tentativa = 0; tentativa < 10; tentativa++) {
+      var tags = [];
+      if (f.status) tags.push({ t: f.status, c: fechada ? 'erro' : 'info' });
+      tags.push({ t: fechada ? 'fechada' : 'aberta', c: fechada ? 'erro' : 'fechada' });
+      if (f.sbr) tags.push({ t: f.sbr, c: 'sbr' });
+      if (sub) tags.push({ t: 'temporária → ' + sub.paraNumero, c: 'info' });
+      var blocos = [{ t: 'cab', titulo: rec.numero, sub: f.titulo, tags: tags },
+        { t: 'sec', titulo: 'Dados do Waiver' },
+        { t: 'pares', cols: 3, itens: [['Marco Original', w.marcoOriginal || '—'], ['Marco Atual', w.marcoAtual || '—'],
+          ['Função Vital', w.funcaoVital || '—']] }];
+      if (w.waiverHistoric) blocos.push({ t: 'texto', rot: 'Waiver Historic', texto: w.waiverHistoric, linhas: 3 });
+      if (w.observacao) blocos.push({ t: 'texto', rot: 'Observação', texto: w.observacao, linhas: 4 });
+      if (w.obsShipManager) blocos.push({ t: 'texto', rot: 'Obs Ship Manager', texto: w.obsShipManager, linhas: 3 });
+      blocos.push({ t: 'sec', titulo: 'Relatórios de Waiver' });
+      blocos.push({ t: 'chips', rot: 'Vinculada a', chips: vinc.length ? vinc.map(function (v) {
+        var aceito = v.item.status === Store.STATUS_CONCLUIDO;
+        return { t: nomeRel(v.project) + ' · ' + Store.statusInfo(v.item.status).nome, c: aceito ? 'fechada' : 'info' };
+      }) : [{ t: 'nenhum relatório', c: 'na' }] });
+      if (global.ProdView && global.Produtos && Produtos.total()) {
+        ProdView.blocosDosProdutos(Produtos.deNcr(rec), maxProd).forEach(function (b) { blocos.push(b); });
+      }
+      blocos.push({ t: 'sec', titulo: 'Dados do banco NCR', sub: f.importadoEm ? 'importado em ' + Ncrs.data(f.importadoEm) : '' });
+      if (f.descricao) blocos.push({ t: 'texto', rot: 'Descrição', texto: f.descricao, linhas: Math.max(3, Math.min(8, nCampos > 14 ? 4 : 8)) });
+      var sel = campos.slice(0, nCampos);
+      if (sel.length) {
+        blocos.push({ t: 'pares', cols: 2, itens: sel.map(function (k) {
+          var v = Ncrs.data(f.campos[k]);
+          return [k, v.length > 220 ? v.slice(0, 220) + '…' : v, false, 2];
+        }) });
+      }
+      if (nCampos < campos.length) blocos.push({ t: 'nota', texto: '… e mais ' + (campos.length - nCampos) + ' campo(s) do banco NCR — veja a ficha na tela.' });
+      res = Cartao.gerar(blocos, { tema: { cor: '#34506b' },
+        rodape: 'Gerado em ' + new Date().toLocaleString('pt-BR') + ' por ' + (Store.getUser() || '(sem nome)') + ' · Waiver Request' });
+      if (res.coube) break;
+      nCampos = Math.max(0, Math.floor(nCampos * 0.7));
+      maxProd = Math.max(3, Math.floor(maxProd * 0.7));
+    }
+    Cartao.baixar(res.canvas, 'NCR_' + Cartao.nomeSeguro(rec.numero) + '.png');
   }
 
   /** A tabela da auditoria — na ficha e na área administrativa. */

@@ -1341,6 +1341,10 @@
         ctx.admin.corrigir(rec.key);
       }, 'Correção manual dos dados do banco NCR, com registro de auditoria'));
     }
+    var imagem = botao('⤓ Imagem (A4)', 'btn--sm', function () { baixarImagem(rec); },
+      'Baixa esta ficha como imagem PNG em boa resolução, do tamanho de uma folha A4');
+    imagem.setAttribute('data-mostra', '');
+    cab.appendChild(imagem);
     var fechar = botao('Fechar ✕', 'btn--sm', function () { dlg.close(); });
     cab.appendChild(fechar);
 
@@ -1594,6 +1598,63 @@
       sa.appendChild(tabelaAuditoria(aud));
     }
     body.scrollTop = rolagem;
+  }
+
+  /**
+   * A ficha como imagem A4 (cartao.js): o resumo do que está no pop-up — dados
+   * do Waiver, relatórios, produtos com marcos e funções vitais e os campos do
+   * banco NCR. O fluxo e o histórico ficam de fora: não cabem numa folha.
+   * Se passar da folha, corta campos e produtos até caber.
+   */
+  function baixarImagem(rec) {
+    var f = Ncrs.fonte(rec), w = rec.waiver, fechada = Ncrs.fechada(rec);
+    var sub = substituicaoDe(rec);
+    var vinc = vinculosEmOrdem(Ncrs.vinculos(rec, ctx.projects()));
+    var campos = Object.keys(f.campos).filter(function (k) { return str(f.campos[k]).trim() !== ''; });
+    var ordem = Ncrs.meta().colunas || [];
+    campos.sort(function (a, b) {
+      var ia = ordem.indexOf(a), ib = ordem.indexOf(b);
+      return (ia < 0 ? 1e6 : ia) - (ib < 0 ? 1e6 : ib);
+    });
+    var nCampos = campos.length, maxProd = 12, res;
+    for (var tentativa = 0; tentativa < 10; tentativa++) {
+      var tags = [];
+      if (f.status) tags.push({ t: f.status, c: fechada ? 'erro' : 'info' });
+      tags.push({ t: fechada ? 'fechada' : 'aberta', c: fechada ? 'erro' : 'fechada' });
+      if (f.sbr) tags.push({ t: f.sbr, c: 'sbr' });
+      if (sub) tags.push({ t: 'temporária → ' + sub.paraNumero, c: 'info' });
+      var blocos = [{ t: 'cab', titulo: rec.numero, sub: f.titulo, tags: tags },
+        { t: 'sec', titulo: 'Dados do Waiver' },
+        { t: 'pares', cols: 3, itens: [['Marco Original', w.marcoOriginal || '—'], ['Marco Atual', w.marcoAtual || '—'],
+          ['Função Vital', w.funcaoVital || '—']] }];
+      if (w.waiverHistoric) blocos.push({ t: 'texto', rot: 'Waiver Historic', texto: w.waiverHistoric, linhas: 3 });
+      if (w.observacao) blocos.push({ t: 'texto', rot: 'Observação', texto: w.observacao, linhas: 4 });
+      if (w.obsShipManager) blocos.push({ t: 'texto', rot: 'Obs Ship Manager', texto: w.obsShipManager, linhas: 3 });
+      blocos.push({ t: 'sec', titulo: 'Relatórios de Waiver' });
+      blocos.push({ t: 'chips', rot: 'Vinculada a', chips: vinc.length ? vinc.map(function (v) {
+        var aceito = v.item.status === Store.STATUS_CONCLUIDO;
+        return { t: nomeRel(v.project) + ' · ' + Store.statusInfo(v.item.status).nome, c: aceito ? 'fechada' : 'info' };
+      }) : [{ t: 'nenhum relatório', c: 'na' }] });
+      if (global.ProdView && global.Produtos && Produtos.total()) {
+        ProdView.blocosDosProdutos(Produtos.deNcr(rec), maxProd).forEach(function (b) { blocos.push(b); });
+      }
+      blocos.push({ t: 'sec', titulo: 'Dados do banco NCR', sub: f.importadoEm ? 'importado em ' + Ncrs.data(f.importadoEm) : '' });
+      if (f.descricao) blocos.push({ t: 'texto', rot: 'Descrição', texto: f.descricao, linhas: Math.max(3, Math.min(8, nCampos > 14 ? 4 : 8)) });
+      var sel = campos.slice(0, nCampos);
+      if (sel.length) {
+        blocos.push({ t: 'pares', cols: 2, itens: sel.map(function (k) {
+          var v = Ncrs.data(f.campos[k]);
+          return [k, v.length > 220 ? v.slice(0, 220) + '…' : v, false, 2];
+        }) });
+      }
+      if (nCampos < campos.length) blocos.push({ t: 'nota', texto: '… e mais ' + (campos.length - nCampos) + ' campo(s) do banco NCR — veja a ficha na tela.' });
+      res = Cartao.gerar(blocos, { tema: { cor: '#34506b' },
+        rodape: 'Gerado em ' + new Date().toLocaleString('pt-BR') + ' por ' + (Store.getUser() || '(sem nome)') + ' · Waiver Request' });
+      if (res.coube) break;
+      nCampos = Math.max(0, Math.floor(nCampos * 0.7));
+      maxProd = Math.max(3, Math.floor(maxProd * 0.7));
+    }
+    Cartao.baixar(res.canvas, 'NCR_' + Cartao.nomeSeguro(rec.numero) + '.png');
   }
 
   /** A tabela da auditoria — na ficha e na área administrativa. */

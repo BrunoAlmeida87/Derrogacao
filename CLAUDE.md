@@ -107,6 +107,7 @@ assets/js/correcoes.js     NCR temporária → definitiva, ajustes do administra
                            auditoria e a senha (dados; a tela é o admin.js)
 assets/js/produtos.js      banco de produtos: planilha, casamento com a NCR, pasta
 assets/js/ncrfluxo.js      o fluxo da NCR (trajetória e mapa) do NCR Control
+assets/js/cartao.js        a ficha em imagem PNG, numa folha A4 (canvas)
 assets/js/produtosview.js  aba Produtos, ficha do produto, bloco da ficha da NCR
 assets/js/ncrview.js       aba Banco NCR: tabela, filtros, ficha
 assets/js/kanban.js        aba Kanban: as NCRs de um marco, por situação
@@ -125,7 +126,7 @@ exemplos/                  .json prontos para importar
 Ordem de carga dos scripts (importa: cada um usa o anterior):
 `log.js → config.js → atualizacao.js → leitura.js → store.js → revisoes.js → pasta.js → publicacao.js → xlsxler.js → ncrs.js →
 correcoes.js → produtos.js → ncrfluxo.js → report.js → fluxo.js → herdar.js → summary.js → painel.js →
-xlsx.js → tabela.js → chat.js → comunicados.js → lado.js → produtosview.js → ncrview.js → kanban.js → admin.js → app.js`.
+xlsx.js → tabela.js → chat.js → comunicados.js → lado.js → cartao.js → produtosview.js → ncrview.js → kanban.js → admin.js → app.js`.
 (`produtos.js` não usa ninguém ao carregar: `Store`, `Ncrs`, `Correcoes` e `Fluxo`
 só na hora da chamada — e `ncrs.js` o chama no backup, na publicação e na
 junção; `produtosview.js` não conhece `NcrView`: a ficha da NCR é que o chama.)
@@ -1181,6 +1182,16 @@ passar os dados, e a planilha quase não muda (uma vez, talvez uma atualização
   escreveu, e os parecidos num `<details>`. As funções vitais saem com o nome
   que as Listas do banco NCR dão ao número (um nome só; o 20 tem vários e
   fica "FV 20" — `Produtos.nomesDaFuncao`, em cache).
+- **Abertas × fechadas** (`indicadorNcr`): a coluna NCRs mostra `● n` (aberta,
+  cheia) e `✓ n` (fechada, vazada) por `Ncrs.fechada(rec)`, com barrinha
+  proporcional; o filtro `ncr` tem sim/aberta/soFechada/nao.
+- **Imagem A4** (`cartao.js`): `Cartao.gerar(blocos)` desenha num canvas
+  2480×3508 (1240×1754 ×2), cresce a letra até 1,3× se sobra folha e a reduz até
+  0,62× se falta; sem caber, o chamador corta (campos, produtos) e tenta de novo
+  (`baixarImagemDoProduto`, `NcrView` `baixarImagem`). Desenhada de novo, não
+  foto do pop-up (que rola e muda com a janela). Os botões levam `data-mostra`.
+- **Mapa de marcas** (`mapaMarcas`): Functional Mark × função vital ou marco,
+  120 linhas por vez.
 - **Armadilha.** `NcrView.abrirFicha` usa o `ctx` que o `NcrView.render` guarda:
   de fora da aba Banco é preciso `switchKind('banco')` antes (os caminhos do
   Kanban e da aba Produtos já fazem). Sem isso, `ctx` é nulo.

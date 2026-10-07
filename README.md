@@ -1245,6 +1245,22 @@ opção. Duas vistas do mesmo recorte:
   (quantos produtos há em cada cruzamento) e a divisão **por sistema**. Clicar
   numa célula, num marco, numa função ou numa barra leva à tabela já filtrada.
 
+A coluna **NCRs** diz em que pé estão as NCRs de cada produto: uma pastilha
+cheia e quente `● 2` para as **abertas**, uma vazada e verde `✓ 1` para as
+**fechadas**, e uma barrinha na mesma proporção embaixo. Produto só com NCR
+fechada fica calmo; o número "Com NCR aberta" e o filtro *Citado em NCR*
+(com aberta · só fechadas · sem NCR) acham o que ainda dá trabalho.
+
+O **Mapa** tem ainda a **marca funcional por função vital** (ou **por marco**):
+uma linha por Functional Mark, uma coluna por função, um ponto onde o produto
+está ligado. Respeita a busca e os filtros.
+
+As fichas saem em **imagem**: **⤓ Imagem (A4)**, na ficha do produto e na da
+NCR, baixa um PNG de uma folha A4 a 300 dpi (2480 × 3508), redesenhado para o
+papel — a letra se ajusta ao que cabe, e o que não cabe é dito no rodapé do
+bloco. A da NCR leva os dados do Waiver, os relatórios, os produtos com marcos e
+funções vitais e os campos do banco NCR (o fluxo e o histórico ficam só na tela).
+
 Clicar num produto abre a **ficha do produto**: a identificação, os marcos e as
 funções vitais (com o nome que o banco NCR dá a cada número), as **NCRs que o
 citam** (cada uma abre a ficha dela) e a **família** da marca — os produtos

@@ -31,7 +31,7 @@
   var ROTULOS_FIXOS = {
     situacao: { ambos: 'Com marco e função vital', soMarco: 'Só com marco', soFuncao: 'Só com função vital',
       na: 'N/A — sem marco e sem função vital' },
-    ncr: { sim: 'Citado em alguma NCR', nao: 'Sem NCR' }
+    ncr: { sim: 'Citado em alguma NCR', aberta: 'Com NCR aberta', soFechada: 'Só NCRs fechadas', nao: 'Sem NCR' }
   };
   var NIVEIS = {
     exato: { rot: 'exato', dica: 'A mesma marca está no banco de produtos.' },
@@ -118,6 +118,35 @@
     return w;
   }
 
+  /**
+   * Quantas NCRs citam o produto, e em que pé estão: uma pastilha cheia e
+   * quente para as abertas (é o que pede atenção) e uma vazada e verde para as
+   * fechadas; embaixo, uma barrinha na mesma proporção. Produto só com NCR
+   * fechada fica calmo; sem NCR, um traço.
+   */
+  function indicadorNcr(abertas, fechadas, possiveis, aoClicar) {
+    var total = abertas + fechadas;
+    var w = el(aoClicar ? 'button' : 'span', 'pr-ind' + (total ? '' : ' is-zero'));
+    if (aoClicar) { w.type = 'button'; w.addEventListener('click', aoClicar); }
+    if (!total) {
+      w.appendChild(el('span', 'pr-zero', possiveis ? '(' + possiveis + ')' : '—'));
+      w.title = possiveis ? possiveis + ' NCR(s) com marca parecida, a conferir' : 'Nenhuma NCR cita este produto';
+      return w;
+    }
+    var linha = el('span', 'pr-ind-pil');
+    if (abertas) linha.appendChild(el('span', 'pr-pil pr-pil--aberta', '● ' + abertas));
+    if (fechadas) linha.appendChild(el('span', 'pr-pil pr-pil--fechada', '✓ ' + fechadas));
+    w.appendChild(linha);
+    var barra = el('span', 'pr-ind-barra');
+    var b1 = el('span', 'pr-ind-ab'); b1.style.width = (100 * abertas / total).toFixed(0) + '%';
+    var b2 = el('span', 'pr-ind-fe'); b2.style.width = (100 * fechadas / total).toFixed(0) + '%';
+    barra.appendChild(b1); barra.appendChild(b2);
+    w.appendChild(barra);
+    w.title = abertas + ' NCR(s) aberta(s) e ' + fechadas + ' fechada(s) citam este produto' +
+      (possiveis ? ' (mais ' + possiveis + ' possível(is))' : '') + (aoClicar ? ' — abrir a ficha' : '');
+    return w;
+  }
+
   function etiquetaNivel(nivel, dica) {
     var n = NIVEIS[nivel];
     var e = el('span', 'pr-nivel pr-nivel--' + nivel, n.rot);
@@ -144,6 +173,9 @@
       var ns = mapa[it.id] || [];
       var certas = ns.filter(function (x) { return x.nivel !== 'parecido'; });
       var l = { it: it, sistema: Produtos.sistemaDe(it), ncrs: certas, possiveis: ns.length - certas.length };
+      /* as NCRs que ainda estão abertas e as que já fecharam: é o que diz se o produto ainda dá trabalho */
+      l.abertas = certas.filter(function (x) { return !Ncrs.fechada(x.rec); }).length;
+      l.fechadas = certas.length - l.abertas;
       l.busca = Ncrs.norm([it.produto, it.marca, it.descricao, it.marcos.join(' '),
         it.funcoes.join(' '), it.funcoes.map(function (f) { return 'fv ' + f; }).join(' '), l.sistema,
         certas.map(function (x) { return x.rec.numero; }).join(' ')].join(' '));
@@ -165,7 +197,10 @@
       var m = l.it.marcos.length > 0, f = l.it.funcoes.length > 0;
       return [m && f ? 'ambos' : (m ? 'soMarco' : (f ? 'soFuncao' : 'na'))];
     },
-    ncr: function (l) { return [l.ncrs.length ? 'sim' : 'nao']; }
+    ncr: function (l) {
+      if (!l.ncrs.length) return ['nao'];
+      return l.abertas ? ['sim', 'aberta'] : ['sim', 'soFechada'];
+    }
   };
 
   function nomeValor(chave, v) {
@@ -228,7 +263,7 @@
       if (x === null || y === null) return x === y ? 0 : (x === null ? 1 : -1);
       return Produtos.cmpFuncao(x, y);
     } },
-    { id: 'ncrs', nome: 'NCRs', cmp: function (a, b) { return a.ncrs.length - b.ncrs.length; } }
+    { id: 'ncrs', nome: 'NCRs', cmp: function (a, b) { return (a.abertas - b.abertas) || (a.fechadas - b.fechadas); } }
   ];
 
   function aVista() {
@@ -389,12 +424,14 @@
     ['Com marco', function (c) { return c.comMarco; }, function () { return 'marco de segurança'; }, ['situacao', ['ambos', 'soMarco']]],
     ['Com função vital', function (c) { return c.comFuncao; }, function () { return 'ao menos uma'; }, ['situacao', ['ambos', 'soFuncao']]],
     ['N/A', function (c) { return c.semNada; }, function () { return 'sem marco e sem função vital'; }, ['situacao', ['na']]],
-    ['Citados em NCR', function (c) { return c.citados; }, function () { return 'aparecem em alguma NCR'; }, ['ncr', ['sim']]]
+    ['Citados em NCR', function (c) { return c.citados; }, function () { return 'aparecem em alguma NCR'; }, ['ncr', ['sim']]],
+    ['Com NCR aberta', function (c) { return c.comAberta; }, function () { return 'ainda dão trabalho'; }, ['ncr', ['aberta']]]
   ];
 
   function numeros() {
     var c = Produtos.contagens();
     c.citados = linhas().filter(function (l) { return l.ncrs.length; }).length;
+    c.comAberta = linhas().filter(function (l) { return l.abertas; }).length;
     return c;
   }
 
@@ -565,6 +602,7 @@
   /** A busca, um filtro ou a ordem mudaram: a lista recomeça do alto. */
   function mudouRecorte() {
     st.limite = LOTE;
+    st.limiteMapa = LOTE_MAPA;
     renderConteudo();
   }
 
@@ -656,13 +694,8 @@
     var tm = el('td'); tm.appendChild(chipsMarcos(it)); tr.appendChild(tm);
     var tf = el('td'); tf.appendChild(chipsFuncoes(it)); tr.appendChild(tf);
     var tn = el('td', 'pr-nncr');
-    if (l.ncrs.length) {
-      var bn = el('button', 'pr-contador', String(l.ncrs.length));
-      bn.type = 'button';
-      bn.title = l.ncrs.length + ' NCR(s) citam este produto' + (l.possiveis ? ' (mais ' + l.possiveis + ' possível(is))' : '') + ' — abrir a ficha';
-      bn.addEventListener('click', function (e) { e.stopPropagation(); abrirDetalhe(it.id); });
-      tn.appendChild(bn);
-    } else tn.appendChild(el('span', 'pr-zero', l.possiveis ? '(' + l.possiveis + ')' : '—'));
+    tn.appendChild(indicadorNcr(l.abertas, l.fechadas, l.possiveis, l.ncrs.length
+      ? function (e) { e.stopPropagation(); abrirDetalhe(it.id); } : null));
     tr.appendChild(tn);
     tr.addEventListener('click', function () { abrirDetalhe(it.id); });
     return tr;
@@ -680,6 +713,7 @@
   function desenharMapa(box, ls) {
     if (!ls.length) { box.appendChild(el('p', 'nb2-nada', 'Nenhum produto com esse recorte.')); return; }
     box.appendChild(mapaMatriz(ls));
+    box.appendChild(mapaMarcas(ls));
     box.appendChild(mapaSistemas(ls));
   }
 
@@ -769,6 +803,98 @@
     caixa.appendChild(t);
     sec.appendChild(caixa);
     sec.appendChild(el('p', 'nb2-mini', 'Um produto com vários marcos ou funções conta em cada cruzamento; o total de cada linha e de cada coluna conta o produto uma vez.'));
+    return sec;
+  }
+
+  /**
+   * A marca funcional (Industrial Mark) em cada função vital, ou em cada marco:
+   * uma linha por marca, uma coluna por função (ou marco), um ponto onde o
+   * produto está. É o "quem depende de quê" produto a produto, que a matriz
+   * de cima só conta. Respeita a busca e os filtros, então dá para recortar
+   * por sistema antes de olhar.
+   */
+  var LOTE_MAPA = 120;
+  function mapaMarcas(ls) {
+    var eixo = pref('eixoMarcas', 'funcao');
+    var sec = el('section', 'nb-sec pr-sec');
+    sec.id = 'pr2MapaMarcas';
+    var topo = el('div', 'pr-mm-topo');
+    var tit = el('div');
+    tit.appendChild(el('h4', null, 'Marca funcional por ' + (eixo === 'funcao' ? 'função vital' : 'marco de segurança')));
+    tit.appendChild(el('p', 'nb-sec-sub', 'Um ponto onde o produto está ligado. Clique na coluna para filtrar; na marca, para abrir a ficha.'));
+    topo.appendChild(tit);
+    var alt = el('div', 'pr2-vistas');
+    [['funcao', 'Por função vital'], ['marco', 'Por marco']].forEach(function (o) {
+      var b = botao(o[1], 'btn--sm nb2-toggle' + (eixo === o[0] ? ' is-on' : ''), function () {
+        setPref('eixoMarcas', o[0]);
+        st.limiteMapa = LOTE_MAPA;
+        renderConteudo();
+      });
+      b.setAttribute('aria-pressed', eixo === o[0] ? 'true' : 'false');
+      alt.appendChild(b);
+    });
+    topo.appendChild(alt);
+    sec.appendChild(topo);
+
+    var comMarca = ls.filter(function (l) { return l.it.marca; });
+    var chave = eixo === 'funcao' ? 'funcoes' : 'marcos';
+    var cols = [], vistos = {}, semAlgum = false;
+    comMarca.forEach(function (l) {
+      if (!l.it[chave].length) semAlgum = true;
+      l.it[chave].forEach(function (v) { if (!vistos[v]) { vistos[v] = 1; cols.push(v); } });
+    });
+    cols.sort(eixo === 'funcao' ? Produtos.cmpFuncao : function (a, b) { return Fluxo.cmpMarco(a, b); });
+    if (semAlgum) cols.push('__na');
+    if (!comMarca.length) { sec.appendChild(el('p', 'nb2-nada', 'Nenhum produto com Functional Mark neste recorte.')); return sec; }
+    var linhasOrd = comMarca.slice().sort(function (a, b) { return Store.cmpTexto(a.it.marca, b.it.marca) || Store.cmpTexto(a.it.produto, b.it.produto); });
+    var limite = st.limiteMapa || LOTE_MAPA;
+
+    var caixa = el('div', 'pr-matriz-caixa');
+    var t = el('table', 'pr-matriz pr-mm');
+    t.id = 'pr2MapaMarcasTab';
+    var trh = el('tr');
+    trh.appendChild(el('th', 'pr-mz-canto', 'Functional Mark'));
+    cols.forEach(function (c) {
+      var th = el('th', 'pr-mz-col');
+      var b = el('button', 'pr-mz-cab', c === '__na' ? Produtos.NA : (eixo === 'funcao' ? 'FV ' + c : c));
+      b.type = 'button';
+      b.title = c === '__na' ? 'Produtos sem ' + (eixo === 'funcao' ? 'função vital' : 'marco')
+        : (eixo === 'funcao' ? Produtos.rotuloFuncao(c) : 'Marco ' + c) + ' — ver os produtos';
+      b.addEventListener('click', function () {
+        var f = {}; f[eixo === 'funcao' ? 'funcao' : 'marco'] = [c]; irParaTabela(f);
+      });
+      th.appendChild(b);
+      trh.appendChild(th);
+    });
+    var thead = el('thead'); thead.appendChild(trh); t.appendChild(thead);
+    var tb = el('tbody');
+    linhasOrd.slice(0, limite).forEach(function (l) {
+      var tr = el('tr');
+      var rh = el('th', 'pr-mz-lin pr-mm-marca');
+      var b = el('button', 'pr-mz-cab pr-marca', l.it.marca);
+      b.type = 'button';
+      b.title = (l.it.produto ? l.it.produto + ' — ' : '') + l.it.descricao;
+      b.addEventListener('click', function () { abrirDetalhe(l.it.id); });
+      rh.appendChild(b);
+      tr.appendChild(rh);
+      cols.forEach(function (c) {
+        var tem = c === '__na' ? !l.it[chave].length : l.it[chave].indexOf(c) >= 0;
+        var td = el('td', 'pr-mm-cel' + (tem ? ' is-on' : '') + (tem && c === '__na' ? ' is-na' : ''));
+        if (tem) td.textContent = '●';
+        tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    caixa.appendChild(t);
+    sec.appendChild(caixa);
+    if (linhasOrd.length > limite) {
+      var mais = el('div', 'pr2-mais');
+      mais.appendChild(el('span', null, 'Mostrando ' + limite + ' de ' + linhasOrd.length + ' marcas'));
+      mais.appendChild(botao('Mostrar mais ' + LOTE_MAPA, 'btn--sm', function () { st.limiteMapa = limite + LOTE_MAPA; renderConteudo(); }));
+      mais.appendChild(botao('Mostrar todas (' + linhasOrd.length + ')', 'btn--sm', function () { st.limiteMapa = linhasOrd.length; renderConteudo(); }));
+      sec.appendChild(mais);
+    }
     return sec;
   }
 
@@ -877,6 +1003,10 @@
     if (!it.marcos.length && !it.funcoes.length) tags.appendChild(el('span', 'nb-chip nb-chip--aviso', Produtos.NA));
     t1.appendChild(tags);
     cab.appendChild(t1);
+    var bImg = botao('⤓ Imagem (A4)', 'btn--sm', function () { baixarImagemDoProduto(it); },
+      'Baixa esta ficha como imagem PNG em boa resolução, do tamanho de uma folha A4');
+    bImg.setAttribute('data-mostra', '');
+    cab.appendChild(bImg);
     cab.appendChild(botao('Fechar ✕', 'btn--sm', function () { dlg.close(); }));
 
     var body = dlg.querySelector('.nb-ficha-corpo');
@@ -884,14 +1014,12 @@
     body.innerHTML = '';
     if (it.descricao) body.appendChild(el('p', 'nb-ficha-titulo', it.descricao));
 
-    var grade = el('div', 'nb-ficha-grade');
-    var esq = el('div', 'nb-ficha-col');
-    var dir = el('div', 'nb-ficha-col');
-    grade.appendChild(esq);
-    grade.appendChild(dir);
+    /* a identificação e os marcos lado a lado; as NCRs, que são o que mais
+       ocupa, embaixo e em toda a largura — numa coluna estreita a tabela cortava */
+    var grade = el('div', 'pr-grade2');
     body.appendChild(grade);
 
-    var s1 = secao(esq, 'Identificação');
+    var s1 = secao(grade, 'Identificação');
     var dl = el('dl', 'nb-campos');
     campoDl(dl, 'Product Mark', it.produto, true);
     campoDl(dl, 'Functional Mark', it.marca, true);
@@ -899,7 +1027,7 @@
     campoDl(dl, 'Sistema (bigrama)', sis);
     s1.appendChild(dl);
 
-    var s2 = secao(esq, 'Marcos de segurança e funções vitais');
+    var s2 = secao(grade, 'Marcos de segurança e funções vitais');
     var lm = el('div', 'pr-bloco');
     lm.appendChild(el('span', 'nb-rot', 'Safety Milestones'));
     lm.appendChild(chipsMarcos(it));
@@ -918,7 +1046,15 @@
     }
 
     var ncrs = Produtos.ncrsDoProduto(it.id, false);
-    var s3 = secao(dir, 'NCRs que citam este produto');
+    var certas = ncrs.filter(function (x) { return x.nivel !== 'parecido'; });
+    var ab = certas.filter(function (x) { return !Ncrs.fechada(x.rec); }).length;
+    var s3 = secao(body, 'NCRs que citam este produto');
+    var resumoNcr = s3.querySelector('.nb-sec-sub');
+    resumoNcr.textContent = '';
+    resumoNcr.appendChild(indicadorNcr(ab, certas.length - ab, 0, null));
+    resumoNcr.appendChild(el('span', 'pr-ind-txt', certas.length
+      ? ab + ' aberta(s) · ' + (certas.length - ab) + ' fechada(s)'
+      : 'nenhuma NCR do banco cita este produto'));
     s3.appendChild(tabelaNcrs(ncrs, function (key) { dlg.close(); ctx.abrirFicha(key); }));
 
     var fam = Produtos.familiaDe(it);
@@ -943,14 +1079,15 @@
     var poss = ncrs.filter(function (x) { return x.nivel === 'parecido'; });
     var w = el('div');
     function tabela(lista) {
-      var t = el('table', 'nb-hist');
+      var caixa = el('div', 'nb-det-caixa');
+      var t = el('table', 'nb-hist pr-tab-ncrs');
       var hr = el('tr');
-      ['NCR', 'Status', 'Correspondência', 'Escrito na NCR', 'Onde'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
+      ['NCR', 'Situação da NCR', 'Correspondência', 'Escrito na NCR', 'Em que campo'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
       var th = el('thead'); th.appendChild(hr); t.appendChild(th);
       var tb = el('tbody');
       lista.forEach(function (x) {
         var tr = el('tr');
-        var a = el('td');
+        var a = el('td', 'pr-nowrap');
         var b = el('button', 'nb2-num', x.rec.numero);
         b.type = 'button';
         b.title = 'Abrir a ficha da NCR';
@@ -958,21 +1095,23 @@
         a.appendChild(b);
         tr.appendChild(a);
         var f = Ncrs.fonte(x.rec);
+        var fechada = Ncrs.fechada(x.rec);
         var s = el('td', 'pr-nowrap');
-        s.appendChild(el('span', 'nb-chip' + (Ncrs.fechada(x.rec) ? ' nb-chip--fechada' : ''), f.status || (Ncrs.fechada(x.rec) ? 'fechada' : 'sem status')));
+        s.appendChild(el('span', 'pr-pil ' + (fechada ? 'pr-pil--fechada' : 'pr-pil--aberta'), fechada ? '✓ fechada' : '● aberta'));
+        s.appendChild(el('span', 'pr-status', f.status || 'sem status'));
         tr.appendChild(s);
         var n = el('td', 'pr-nowrap');
         n.appendChild(etiquetaNivel(x.nivel));
         tr.appendChild(n);
         tr.appendChild(el('td', 'pr-nowrap pr-marca', x.tokens.join(', ')));
-        tr.appendChild(el('td', null, x.onde));
+        tr.appendChild(el('td', 'pr-onde', x.onde));
         tb.appendChild(tr);
       });
       t.appendChild(tb);
-      return t;
+      caixa.appendChild(t);
+      return caixa;
     }
     if (certas.length) w.appendChild(tabela(certas));
-    else w.appendChild(el('p', 'nb2-mini', 'Nenhuma NCR do banco cita este produto.'));
     if (poss.length) {
       var d = document.createElement('details');
       d.className = 'pr-possiveis';
@@ -983,6 +1122,95 @@
       w.appendChild(d);
     }
     return w;
+  }
+
+  /* --- a imagem A4 --------------------------------------------------------------- */
+
+  var ROTULO_NIVEL = { exato: 'exato', variacao: 'variação', parecido: 'parecido' };
+
+  function rodapeDaImagem() {
+    return 'Gerado em ' + new Date().toLocaleString('pt-BR') + ' por ' + (Store.getUser() || '(sem nome)') + ' · Waiver Request';
+  }
+
+  function chipsDe(lista, cls, rot) { return lista.map(function (v) { return { t: rot ? rot(v) : v, c: cls }; }); }
+
+  /** Blocos do Cartao para a lista de produtos que uma NCR cita (a ficha da NCR usa). */
+  function blocosDosProdutos(achados, maximo) {
+    var certos = achados.filter(function (a) { return a.nivel !== 'parecido'; });
+    var poss = achados.filter(function (a) { return a.nivel === 'parecido'; });
+    var out = [{ t: 'sec', titulo: 'Produtos, marcos de segurança e funções vitais',
+      sub: certos.length ? certos.length + ' produto(s) citado(s)' : 'nenhum produto do banco encontrado' }];
+    function linha(a) {
+      var it = a.item;
+      return [{ t: it.produto || '—', mono: true, forte: true }, { t: it.marca || 'N/A', mono: true }, it.descricao,
+        { chips: it.marcos.length ? chipsDe(it.marcos, 'marco') : [{ t: 'N/A', c: 'na' }] },
+        { chips: it.funcoes.length ? chipsDe(it.funcoes, 'fv', function (f) { return 'FV ' + f; }) : [{ t: 'N/A', c: 'na' }] },
+        { tag: { t: ROTULO_NIVEL[a.nivel], c: a.nivel }, sub: a.nivel === 'exato' ? '' : 'NCR: ' + a.tokens.join(', ') }];
+    }
+    var cols = [{ t: 'Product Mark', w: 12 }, { t: 'Functional Mark', w: 12 }, { t: 'Designation', w: 25 },
+      { t: 'Marcos', w: 16 }, { t: 'Funções vitais', w: 15 }, { t: 'Correspondência', w: 14 }];
+    if (certos.length) {
+      var r = Produtos.resumoDe(certos);
+      out.push({ t: 'chips', rot: 'Marcos', chips: r.marcos.length ? chipsDe(r.marcos, 'marco') : [{ t: 'N/A', c: 'na' }] });
+      out.push({ t: 'chips', rot: 'Funções vitais', chips: r.funcoes.length ? chipsDe(r.funcoes, 'fv', function (f) { return 'FV ' + f; }) : [{ t: 'N/A', c: 'na' }] });
+      out.push({ t: 'tab', cols: cols, rows: certos.slice(0, maximo).map(linha) });
+      if (certos.length > maximo) out.push({ t: 'nota', texto: '… e mais ' + (certos.length - maximo) + ' produto(s) — veja a ficha na tela.' });
+    }
+    if (poss.length) {
+      out.push({ t: 'nota', texto: 'Parecidos, a conferir (' + poss.length + '): mesma base da marca, sufixo diferente.' });
+      out.push({ t: 'tab', cols: cols, rows: poss.slice(0, Math.max(2, Math.floor(maximo / 3))).map(linha) });
+    }
+    return out;
+  }
+
+  function baixarImagemDoProduto(it) {
+    var ncrs = Produtos.ncrsDoProduto(it.id, false);
+    var certas = ncrs.filter(function (x) { return x.nivel !== 'parecido'; });
+    var ab = certas.filter(function (x) { return !Ncrs.fechada(x.rec); }).length;
+    var fam = Produtos.familiaDe(it);
+    var sis = Produtos.sistemaDe(it);
+    var maximo = 40, res;
+    for (var tentativa = 0; tentativa < 8; tentativa++) {
+      var linhaNcr = function (x) {
+        var fechada = Ncrs.fechada(x.rec);
+        return [{ t: x.rec.numero, mono: true, forte: true },
+          { tag: { t: fechada ? '✓ fechada' : '● aberta', c: fechada ? 'fechada' : 'aberta' }, sub: Ncrs.fonte(x.rec).status || '' },
+          { tag: { t: ROTULO_NIVEL[x.nivel], c: x.nivel } }, { t: x.tokens.join(', '), mono: true }, x.onde];
+      };
+      var colsN = [{ t: 'NCR', w: 26 }, { t: 'Situação da NCR', w: 20 }, { t: 'Correspondência', w: 13 }, { t: 'Escrito na NCR', w: 15 }, { t: 'Em que campo', w: 26 }];
+      var blocos = [
+        { t: 'cab', titulo: it.produto || it.marca, sub: it.descricao,
+          tags: [it.marca ? { t: it.marca, c: 'info' } : null, sis ? { t: 'sistema ' + sis, c: 'sbr' } : null,
+            (!it.marcos.length && !it.funcoes.length) ? { t: 'N/A', c: 'na' } : null].filter(Boolean) },
+        { t: 'sec', titulo: 'Identificação' },
+        { t: 'pares', cols: 2, itens: [['Product Mark', it.produto || 'N/A', true], ['Functional Mark', it.marca || 'N/A', true],
+          ['Designation', it.descricao || 'N/A'], ['Sistema (bigrama)', sis || 'N/A']] },
+        { t: 'sec', titulo: 'Marcos de segurança e funções vitais' },
+        { t: 'chips', rot: 'Safety Milestones', chips: it.marcos.length ? chipsDe(it.marcos, 'marco') : [{ t: 'N/A', c: 'na' }] },
+        { t: 'chips', rot: 'Vital Functions #', chips: it.funcoes.length ? chipsDe(it.funcoes, 'fv', function (f) {
+          var n = Produtos.nomesDaFuncao(f); return 'FV ' + f + (n.length === 1 ? ' – ' + n[0] : ''); }) : [{ t: 'N/A', c: 'na' }] },
+        { t: 'sec', titulo: 'NCRs que citam este produto',
+          sub: certas.length ? ab + ' aberta(s) · ' + (certas.length - ab) + ' fechada(s)' : 'nenhuma' }
+      ];
+      if (certas.length) blocos.push({ t: 'tab', cols: colsN, rows: certas.slice(0, maximo).map(linhaNcr) });
+      if (certas.length > maximo) blocos.push({ t: 'nota', texto: '… e mais ' + (certas.length - maximo) + ' NCR(s).' });
+      var poss = ncrs.filter(function (x) { return x.nivel === 'parecido'; });
+      if (poss.length) {
+        blocos.push({ t: 'nota', texto: 'Possíveis, a conferir (' + poss.length + '): marca parecida.' });
+        blocos.push({ t: 'tab', cols: colsN, rows: poss.slice(0, 4).map(linhaNcr) });
+      }
+      if (fam.length) {
+        blocos.push({ t: 'sec', titulo: 'Mesma família da Functional Mark', sub: fam.length + ' produto(s)' });
+        blocos.push({ t: 'tab', cols: [{ t: 'Product Mark', w: 14 }, { t: 'Functional Mark', w: 14 }, { t: 'Designation', w: 30 }, { t: 'Marcos', w: 18 }, { t: 'Funções vitais', w: 18 }],
+          rows: fam.slice(0, 6).map(function (o) { return [{ t: o.produto, mono: true, forte: true }, { t: o.marca, mono: true }, o.descricao,
+            { chips: o.marcos.length ? chipsDe(o.marcos, 'marco') : [{ t: 'N/A', c: 'na' }] },
+            { chips: o.funcoes.length ? chipsDe(o.funcoes, 'fv', function (f) { return 'FV ' + f; }) : [{ t: 'N/A', c: 'na' }] }]; }) });
+      }
+      res = Cartao.gerar(blocos, { tema: { cor: '#5f6e08' }, rodape: rodapeDaImagem() });
+      if (res.coube) break;
+      maximo = Math.max(4, Math.floor(maximo * 0.65));
+    }
+    Cartao.baixar(res.canvas, 'Produto_' + Cartao.nomeSeguro(it.produto || it.marca) + '.png');
   }
 
   function tabelaProdutos(lista, abrir) {
@@ -1104,6 +1332,7 @@
     redesenhar: redesenhar,
     abrirDetalhe: abrirProdutoPorId,
     blocoDaNcr: blocoDaNcr,
+    blocosDosProdutos: blocosDosProdutos,
     chipsMarcos: chipsMarcos,
     chipsFuncoes: chipsFuncoes,
     descricaoDoFiltro: descricaoDoFiltro,

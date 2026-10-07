@@ -3943,7 +3943,7 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
 .pr2-table th:nth-child(4) { width: 76px; }
 .pr2-table th:nth-child(5) { width: 19%; }
 .pr2-table th:nth-child(6) { width: 15%; }
-.pr2-table th:nth-child(7) { width: 70px; }
+.pr2-table th:nth-child(7) { width: 128px; }
 .pr2-table td.is-longo { max-width: none; min-width: 0; }
 .pr2-table tr.is-na td { color: var(--muted); }
 .pr2-table td { vertical-align: middle; }
@@ -4029,3 +4029,37 @@ dialog.pr-ficha { width: min(1100px, 96vw); height: auto; max-height: 92vh; bord
 .pr-sist-n { width: 52px; flex: 0 0 52px; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
 .pr-sist-leg { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
 .pr-sist-chave { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; }
+
+/* --- NCRs do produto: abertas × fechadas ------------------------------------- */
+.pr-ind { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; min-width: 64px;
+  font: inherit; background: none; border: 0; padding: 2px 4px; border-radius: 8px; }
+button.pr-ind { cursor: pointer; }
+button.pr-ind:hover { background: var(--kind-sf); }
+.pr-ind-pil { display: inline-flex; gap: 4px; }
+.pr-pil { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 700; line-height: 1.5; white-space: nowrap; }
+.pr-pil--aberta { background: #c2410c; color: #fff; }
+.pr-pil--fechada { background: #fff; color: #1d6b45; border: 1px solid #9fd0b4; }
+.pr-ind-barra { display: flex; width: 100%; min-width: 56px; height: 4px; border-radius: 2px; overflow: hidden; background: #eceef2; }
+.pr-ind-ab { background: #c2410c; }
+.pr-ind-fe { background: #3aa66f; }
+.pr-ind-txt { margin-left: 8px; font-size: 12.5px; color: var(--ink-2); }
+.nb-sec-sub .pr-ind { flex-direction: row; vertical-align: middle; min-width: 0; }
+.pr-status { margin-left: 8px; font-size: 12px; color: var(--ink-2); }
+.pr-onde { overflow-wrap: anywhere; min-width: 180px; }
+
+/* a ficha do produto: lugar de sobra para as NCRs */
+dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
+.pr-grade2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 900px) { .pr-grade2 { grid-template-columns: 1fr; } }
+.pr-tab-ncrs td, .pr-tab-ncrs th { white-space: nowrap; word-break: normal; }
+.pr-tab-ncrs td.pr-onde { white-space: normal; }
+
+/* marca funcional por função vital / por marco */
+.pr-mm-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.pr-mm .pr-mm-marca { min-width: 120px; }
+.pr-mm-cel { min-width: 46px; height: 24px; color: #6b7a0a; font-size: 14px; }
+.pr-mm-cel.is-on { background: #f3f6df; }
+.pr-mm-cel.is-na { background: #eceef2; color: #6d7383; }
+.pr-mm thead th { position: sticky; top: 0; z-index: 2; }
+.pr-mm .pr-mz-canto { position: sticky; left: 0; z-index: 3; background: #eef1f5; }
+.pr-mm .pr-mm-marca { background: #eef1f5; }
