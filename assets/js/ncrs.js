@@ -1274,6 +1274,8 @@
     });
     meta = normalizarMeta(nb && nb.meta);
     if (correcoes()) correcoes().adotar(nb && nb.correcoes);
+    /* o banco de produtos (produtos.js) vai junto, no retrato publicado */
+    if (global.Produtos) global.Produtos.adotar(nb && nb.produtos);
     mudou();
     return lista().length;
   }
@@ -1283,6 +1285,9 @@
   function paraBackup() {
     var out = { format: 'derrogacao-ncr-base', schema: 1, ncrs: copia(lista()), meta: copia(meta) };
     if (correcoes()) out.correcoes = correcoes().paraBackup();
+    /* o banco de produtos, também em chave própria (versões anteriores a ignoram) */
+    var pr = global.Produtos ? global.Produtos.paraBackup() : null;
+    if (pr) out.produtos = pr;
     return out;
   }
 
@@ -1455,8 +1460,10 @@
     var b = juntarWaiver({ ncrs: ncrs, listas: m.listas, pendentes: m.pendentes });
     /* as correções do backup entram pelas regras da pasta (sem a senha) */
     var cj = (correcoes() && nb && nb.correcoes) ? correcoes().juntar(nb.correcoes) : { mudou: false };
+    /* o banco de produtos do backup entra pelas mesmas regras da pasta */
+    var pj = (global.Produtos && nb && nb.produtos) ? global.Produtos.juntar(nb.produtos) : { mudou: false };
     return { entraram: a.entraram + b.entraram, atualizados: a.atualizados + b.atualizados,
-             alterados: a.alterados.concat(b.alterados), correcoes: cj.mudou };
+             alterados: a.alterados.concat(b.alterados), correcoes: cj.mudou, produtos: pj.mudou };
   }
 
   /* --- utilidades para a tela ------------------------------------------------ */

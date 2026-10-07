@@ -14,9 +14,9 @@ const L = require('./lib');
     const abas = await pg.$$eval('.tab', ts => ts.filter(t => !t.hidden).map(t => ({
       kind: t.dataset.kind, nome: t.childNodes[0].textContent.trim()
     })));
-    L.igual(abas.map(a => a.nome), ['Banco NCR', 'Kanban', 'Tabela', 'Waiver NCR', 'Waiver DEV', 'Resumo', 'Fluxos'],
-      'as áreas na ordem pedida, com "Waiver NCR" e "Waiver DEV"');
-    L.igual(abas.map(a => a.kind), ['banco', 'kanban', 'tabela', 'ncr', 'dev', 'resumo', 'fluxos'],
+    L.igual(abas.map(a => a.nome), ['Banco NCR', 'Kanban', 'Tabela', 'Waiver NCR', 'Waiver DEV', 'Resumo', 'Fluxos', 'Produtos'],
+      'as áreas na ordem pedida, com "Waiver NCR" e "Waiver DEV" (e Produtos depois de Fluxos)');
+    L.igual(abas.map(a => a.kind), ['banco', 'kanban', 'tabela', 'ncr', 'dev', 'resumo', 'fluxos', 'produtos'],
       'as chaves internas continuam "ncr" e "dev"');
     L.igual(await pg.getAttribute('.tabs', 'aria-label'), 'Áreas do programa', 'a faixa de abas diz o que é');
 
@@ -34,7 +34,7 @@ const L = require('./lib');
     await pg.keyboard.press('ArrowRight');
     L.igual(await pg.evaluate(() => document.activeElement.dataset.kind), 'dev', 'seta para a direita: Waiver DEV');
     await pg.keyboard.press('End');
-    L.igual(await pg.evaluate(() => document.activeElement.dataset.kind), 'fluxos', 'End: a última aba à vista (a Conversa escondida não entra)');
+    L.igual(await pg.evaluate(() => document.activeElement.dataset.kind), 'produtos', 'End: a última aba à vista (a Conversa escondida não entra)');
     await pg.keyboard.press('ArrowRight');
     L.igual(await pg.evaluate(() => document.activeElement.dataset.kind), 'banco', 'da última, a seta volta à primeira');
     await pg.keyboard.press('Home');
@@ -47,7 +47,7 @@ const L = require('./lib');
       return { rel: !c.hidden && c.offsetParent !== null, marco: !m.hidden && m.offsetParent !== null,
         desab: document.getElementById('projectSelect').disabled };
     });
-    for (const k of ['banco', 'kanban', 'tabela', 'resumo']) {
+    for (const k of ['banco', 'kanban', 'tabela', 'resumo', 'produtos']) {
       await pg.click('.tab[data-kind="' + k + '"]');
       const v = await visivel();
       L.ok(!v.rel && !v.marco, k + ': sem o seletor de relatório nem o campo Marco (não mudam nada ali)');

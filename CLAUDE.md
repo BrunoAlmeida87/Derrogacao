@@ -20,8 +20,13 @@ rótulos mudaram a pedido do Bruno; as chaves internas continuam `ncr` e
 anexos viram páginas A4 paisagem no fim.
 
 A navegação, na ordem pedida: **Banco NCR · Kanban · Tabela · Waiver NCR ·
-Waiver DEV**, e depois Resumo, Fluxos e (opcional) Conversa (§5, "A
+Waiver DEV**, e depois Resumo, Fluxos, Produtos e (opcional) Conversa (§5, "A
 navegação").
+
+Há também a aba **Produtos**: o banco de produtos (Product Mark, Functional
+Mark, Designation, marcos de segurança e funções vitais), importado de uma
+planilha, que alimenta a ficha da NCR com os marcos e as funções vitais dos
+produtos que ela cita (§5, "O banco de produtos").
 
 Desde a integração com o NCR Control há também a aba **Banco NCR**: as NCRs
 do SBR4 importadas do banco NCR, com campos próprios do Waiver (marcos, função
@@ -100,7 +105,9 @@ assets/js/xlsxler.js       LÊ .xlsx — cópia literal do motor do NCR Control
 assets/js/ncrs.js          banco NCR: modelo, importações, junção da pasta
 assets/js/correcoes.js     NCR temporária → definitiva, ajustes do administrador,
                            auditoria e a senha (dados; a tela é o admin.js)
+assets/js/produtos.js      banco de produtos: planilha, casamento com a NCR, pasta
 assets/js/ncrfluxo.js      o fluxo da NCR (trajetória e mapa) do NCR Control
+assets/js/produtosview.js  aba Produtos, ficha do produto, bloco da ficha da NCR
 assets/js/ncrview.js       aba Banco NCR: tabela, filtros, ficha
 assets/js/kanban.js        aba Kanban: as NCRs de um marco, por situação
 assets/js/admin.js         a área administrativa (a tela das correções)
@@ -117,8 +124,11 @@ exemplos/                  .json prontos para importar
 
 Ordem de carga dos scripts (importa: cada um usa o anterior):
 `log.js → config.js → atualizacao.js → leitura.js → store.js → revisoes.js → pasta.js → publicacao.js → xlsxler.js → ncrs.js →
-correcoes.js → ncrfluxo.js → report.js → fluxo.js → herdar.js → summary.js → painel.js →
-xlsx.js → tabela.js → chat.js → comunicados.js → lado.js → ncrview.js → kanban.js → admin.js → app.js`.
+correcoes.js → produtos.js → ncrfluxo.js → report.js → fluxo.js → herdar.js → summary.js → painel.js →
+xlsx.js → tabela.js → chat.js → comunicados.js → lado.js → produtosview.js → ncrview.js → kanban.js → admin.js → app.js`.
+(`produtos.js` não usa ninguém ao carregar: `Store`, `Ncrs`, `Correcoes` e `Fluxo`
+só na hora da chamada — e `ncrs.js` o chama no backup, na publicação e na
+junção; `produtosview.js` não conhece `NcrView`: a ficha da NCR é que o chama.)
 (`ncrs.js` e `correcoes.js` se usam um ao outro só na hora da chamada;
 `fluxo.js`, `herdar.js`, `painel.js` e `kanban.js` usam `Ncrs.chaveCaso` /
 `Ncrs.recDoItem`, que olham as substituições.)
@@ -1091,6 +1101,90 @@ Excel/CSV e a aba "Recorte"), senha. Com a área aberta, a ficha ganha
 - Não existe no visualizador: os Ajustes não abrem lá, `Admin.ativo()` é
   falso em leitura, e o `#adminDialog` leva `data-so-editor`.
 
+### O banco de produtos (`produtos.js`, `produtosview.js`)
+Pedido do Bruno, com a imagem da planilha `VF_product_list`: correlacionar os
+**produtos** e a **Functional Mark** (também chamada Industrial Mark) com os
+**marcos de segurança** e as **funções vitais**, por importação — ele não podia
+passar os dados, e a planilha quase não muda (uma vez, talvez uma atualização).
+
+- **O dado.** `{ id, produto, marca, descricao, marcos: [], funcoes: [], em }`.
+  A identidade é o Product Mark sem os zeros à esquerda (`canonProduto`:
+  `P0104501` = `P104501`); sem Product Mark, `FM:<marca>`. Vários valores na
+  célula vêm separados por `;` (também `,` `|` e quebra de linha). **Sem marco
+  e sem função vital é produto igual aos outros**, guardado com listas vazias
+  e mostrado como `N/A` em todo lugar (tabela, ficha, mapa, planilha). O `N/A`
+  não é gravado: é como se desenha a lista vazia — uma única regra.
+- **Importar acrescenta e atualiza; nunca apaga.** `Produtos.importar` casa
+  pela chave: novo entra, igual não mexe, mudado é trocado (a planilha manda) e
+  ganha `em` = o instante da importação; o que está no banco e não está na
+  planilha fica. Coluna que a planilha não tem não apaga o que já se sabe.
+  Cabeçalho reconhecido por nomes (inglês e português, `ALIAS`); sem nenhum
+  conhecido, vale a posição A–E se as primeiras linhas parecem marca. O botão
+  fica no painel da aba (aberto sozinho com o banco vazio) — "feature
+  escondida" na medida em que se usa uma vez, mas sem sumir. O resumo reaproveita
+  `mostrarResumoImportacao`, com `res.semDesfazer` escondendo o "desfazer" e a
+  "cópia de antes", que são do banco NCR: esta importação só acrescenta e
+  atualiza, e o resumo lista o que mudou em cada atualizado.
+- **O casamento com a NCR** (`Produtos.deNcr(rec)`) procura **em todo o texto**
+  da `Ncrs.fonte(rec)` — colunas, título, descrição e as tabelas de
+  `detalhes` — porque não se sabe em que coluna cada export põe a marca. Três
+  caminhos, todos só devolvendo o que o banco conhece: o desenho da marca
+  funcional (`RE_MARCA`: duas letras, cinco dígitos, uma letra, até dois
+  dígitos; separadores `- _ .` e espaço entre letras e dígitos), o Product
+  Mark (`RE_PRODUTO`) e a palavra inteira igual a uma chave do banco. Os graus
+  (`casarMarca`), que a tela diz sempre:
+  **exato** (mesma marca); **variação** (a NCR escreve a marca do banco e mais
+  1–2 caracteres: `BH00004M5` → `BH00004M`, a mais longa que couber —
+  `DIF_MAX`); **parecido** (mesma base de 7 caracteres, sufixo diferente, ou
+  marca do banco *mais longa* que a escrita). **Parecido nunca entra no resumo
+  de marcos e funções**: é "conferir". A assimetria é de propósito: a NCR
+  com caracteres *a mais* é o caso real; o banco com caracteres a mais (o
+  `BH00037A`, um bujão na válvula `BH00037`) é outro item. Por isso o
+  `BH00037` não "é" o `BH00037A`. Acha pelas duas portas (`vias`:
+  `produto`, `marca`), e se a mesma NCR cita as duas, é um resultado só.
+- **A fonte do achado é a `fonte`, não o Waiver.** Observação e Obs Ship
+  Manager (texto de quem edita) não entram: o bloco diz "produtos citados nos
+  dados da NCR".
+- **O mapa produto → NCRs** (`mapaNcrs`) é refeito só quando o banco de
+  produtos, as correções ou o carimbo `importadoEm` de alguma NCR muda — a
+  `fonte` só muda por importação ou correção; editar um campo do Waiver não
+  conta. Teste que mexe na `fonte` direto na memória precisa trocar o
+  `importadoEm`, como uma importação faria.
+- **Onde mora.** IndexedDB, `snapshots` → `ncrmeta:produtos` (`Store.ncrMetaPut`,
+  sem subir o `DB_VERSION`); pasta: `derrogacao-produtos.json`, arquivo
+  próprio (a versão anterior regravaria um campo que não conhece, como nas
+  correções), juntado **produto a produto pelo `em` mais novo**, sem apagar,
+  `localMaisNovo` quando este lado tem algo que lá não tem (`sincronizarNcrs`
+  lê o arquivo junto dos outros e `pollPasta` olha a data dele). Backup e
+  publicação levam em `ncrBase.produtos` (`Ncrs.paraBackup/adotarBase/
+  juntarBackup`; versões anteriores ignoram); `Publicacao.conteudo` e a
+  `assinatura` do visualizador incluem o carimbo e a contagem, senão uma
+  importação não faria o editor republicar nem o visualizador reler. No
+  visualizador o banco é o retrato publicado (`Produtos.adotar`), `salvar` é
+  barrado em `Leitura.blindar` e o botão de importar nem é criado.
+- **A aba** reaproveita a barra, o painel, os números clicáveis, os filtros de
+  múltipla escolha (com "Marcar todos" e a contagem de cada opção pelos
+  *outros* filtros) e a tabela do Banco NCR (`.nb2-*`), com a cor própria
+  (`#5f6e08`) e o trilho estreito. Filtros não são guardados (a regra da
+  Tabela); a vista e o painel recolhido são preferência. **Sistema = o
+  bigrama**, as duas primeiras letras da marca funcional (`sistemaDe`).
+  Vistas: **Tabela** e **Mapa** (matriz marco × função vital, cada
+  cruzamento clicável, e a divisão por sistema). `"n/a"` na busca acha o que a
+  tabela mostra como N/A (sem marca, sem marco ou sem função vital);
+  `BH-00004` acha `BH00004` (`l.compacto`).
+- **A tabela mostra 300 e pede mais** (`LOTE`), com `table-layout: fixed`.
+  Montar as 2.400 linhas custava mais de um segundo só de layout (medido: o
+  JavaScript era 120 ms). A busca, um filtro ou a ordem recomeçam do alto.
+- **A ficha da NCR** ganha o bloco (`ProdView.blocoDaNcr`), entre a grade e os
+  detalhes do export, só com banco de produtos carregado: resumo de marcos e
+  funções dos produtos certos, a tabela com o grau do casamento e o que a NCR
+  escreveu, e os parecidos num `<details>`. As funções vitais saem com o nome
+  que as Listas do banco NCR dão ao número (um nome só; o 20 tem vários e
+  fica "FV 20" — `Produtos.nomesDaFuncao`, em cache).
+- **Armadilha.** `NcrView.abrirFicha` usa o `ctx` que o `NcrView.render` guarda:
+  de fora da aba Banco é preciso `switchKind('banco')` antes (os caminhos do
+  Kanban e da aba Produtos já fazem). Sem isso, `ctx` é nulo.
+
 ### Aba Kanban (`kanban.js`)
 O quadro de um marco. Colunas: **"NCR to be closed"** + as quatro de
 `Store.STATUS`. O nome é do Bruno: NCR do marco que não está no Waiver dele
@@ -1398,7 +1492,7 @@ como programa separado, feita sobre uma base velha; foi refeita assim.)
 
 ### A navegação: ordem, nomes e cores
 A ordem das abas é a do trabalho, pedida pelo Bruno: **Banco NCR · Kanban ·
-Tabela · Waiver NCR · Waiver DEV**, depois Resumo, Fluxos e a Conversa
+Tabela · Waiver NCR · Waiver DEV**, depois Resumo, Fluxos, Produtos e a Conversa
 (opcional). É a ordem do `index.html` — a do DOM é a da tela e a do leitor de
 tela. "NCR" e "DEV" viraram "Waiver NCR" e "Waiver DEV" **só no rótulo**:
 `data-kind`, `state.kind`, `Store.itemsKey` e o backup continuam `ncr`/`dev`.
@@ -1745,7 +1839,7 @@ permissão da pasta entre sessões.
 A suíte voltou, menor e em Node (`tests/`, ver `tests/README.md`): o Bruno
 pediu testes automatizados para os comportamentos novos. `node tests/rodar.js`
 roda todas (navegação, abertura no marco da vez, Kanban e suas exportações,
-Resumo, atualização automática, Banco NCR, comunicados — do editor ao pop-up
+Resumo, atualização automática, Banco NCR, banco de produtos, comunicados — do editor ao pop-up
 do visualizador —, compatibilidade e os arquivos únicos de `file://`). Elas abrem o programa de verdade, semeiam pela API do
 programa, conferem arquivos baixados e o número de folhas e o papel dos PDFs.
 Não é o programa: nada ali entra no `derrogacao.html`, e o programa continua
@@ -1848,7 +1942,7 @@ desta máquina às vezes bloqueia `github.io`.
 | Mesclagem campo a campo, com base guardada, em vez de item inteiro | dois campos diferentes do mesmo item nunca foram conflito; tratá-los como se fossem era perder texto em silêncio |
 | Visualizador = o editor em modo leitura, não um programa à parte | escolhido com o Bruno: toda aba e exportação nova chega a ele sozinha; um programa separado ficaria para trás a cada melhoria |
 | Visualizador lê um `.js` publicado, por caminho ou ao lado | de `file://` o navegador bloqueia ler `.json`; `<script>` passa, sem clique e sem permissão |
-| Visualizador mostra NCR, DEV, Resumo, Fluxos, Tabela, Banco NCR e Kanban; sem Conversa (mas com os comunicados, que não são conversa: só o editor escreve) | escolha do Bruno |
+| Visualizador mostra NCR, DEV, Resumo, Fluxos, Tabela, Banco NCR, Kanban e Produtos; sem Conversa (mas com os comunicados, que não são conversa: só o editor escreve) | escolha do Bruno |
 | Publicação leva tudo, inclusive em preenchimento, e a autoria; não leva sessões, histórico do texto nem a anotação interna | decisão do Bruno (tudo e autoria); a anotação tem na tela a promessa de ficar na equipe |
 | Pasta dos dados do visualizador com padrão gravado no arquivo, e a informada na tela por cima | a pasta definitiva ainda não existe; quando existir, ninguém precisa configurar |
 | A base de mesclagem só avança depois da gravação dar certo | avançá-la antes faz a junção seguinte ler o meu trabalho como sendo do outro, e apagá-lo |
@@ -1917,4 +2011,11 @@ desta máquina às vezes bloqueia `github.io`.
 | A ficha mostra as linhas repetidas do export (produtos, deliberações) em tabela | pedido do Bruno: "tudo o que estiver associado à NCR", no padrão visual da ficha |
 | Obs Ship Manager nos dois lugares da Observação (NCR e item), fora do PDF | pedido do Bruno: "igual a coluna observação" |
 | A coluna nova entra uma vez na escolha de colunas já gravada, sem trocar a chave | trocar a chave desfaria a escolha de todo mundo por causa de uma coluna |
-
+| Banco de produtos por importação de planilha, na aba Produtos, com o botão no painel | pedido do Bruno: a planilha quase não muda; ele não podia passar os dados, então o programa lê |
+| A importação de produtos acrescenta e atualiza, nunca apaga | o que está no banco e não está na planilha fica; a planilha manda no que ela traz |
+| Produto sem marco e sem função vital entra e aparece como N/A | pedido do Bruno; é a lista vazia desenhada, não um valor gravado |
+| A marca da NCR é procurada em todo o texto, por duas portas (Product Mark e Functional Mark) | pedido do Bruno; não se sabe em que coluna cada export a põe |
+| Casamento em três graus — exato, variação (NCR com 1–2 caracteres a mais), parecido (conferir) —, e o parecido não entra no resumo | `BH00004M5` na NCR e `BH00004M` no banco é o caso real; a mesma base com outro sufixo é outro item (o bujão `BH00037A` não é a válvula `BH00037`) |
+| O banco de produtos viaja em `ncrBase.produtos` (backup, publicação) e tem arquivo próprio na pasta, junção produto a produto pelo `em` | a versão anterior ignora a chave; arquivo próprio pelo motivo das correções e dos comunicados |
+| Produtos na ordem das abas: depois de Fluxos | a ordem do Bruno (Banco NCR … Waiver DEV) não muda; é dado de consulta, como o Resumo e os Fluxos |
+| A tabela de produtos mostra 300 e pede mais | 2.400 linhas custavam mais de um segundo só de layout |

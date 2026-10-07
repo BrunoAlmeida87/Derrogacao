@@ -21,7 +21,7 @@ const { execFileSync } = require('child_process');
     await L.semear(pg, url, { pagina: 'derrogacao.html' });
     L.ok(/^J09 \(/.test(await pg.evaluate(() => document.getElementById('projectSelect').selectedOptions[0].textContent)), 'abre no J09');
     L.igual(await pg.$$eval('.tab', ts => ts.filter(t => !t.hidden).map(t => t.childNodes[0].textContent.trim())),
-      ['Banco NCR', 'Kanban', 'Tabela', 'Waiver NCR', 'Waiver DEV', 'Resumo', 'Fluxos'], 'as abas na ordem nova');
+      ['Banco NCR', 'Kanban', 'Tabela', 'Waiver NCR', 'Waiver DEV', 'Resumo', 'Fluxos', 'Produtos'], 'as abas na ordem nova');
     L.ok(await pg.evaluate(() => document.getElementById('atualizaBox').hidden), 'sem pasta, sem contador');
     await pg.click('.tab[data-kind="kanban"]');
     L.ok(await pg.$$eval('.kb-card', cs => cs.length) > 20, 'o Kanban abre, com os cartões compactos');

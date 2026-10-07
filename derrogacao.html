@@ -68,6 +68,7 @@ body[data-kind="conversa"] { --kind: #7a4b0f; --kind-sf: #f7efe6; --kind-br: #e2
 body[data-kind="tabela"] { --kind: #1a4fa0; --kind-sf: #e8eefb; --kind-br: #bdcdec; }
 body[data-kind="banco"]  { --kind: #34506b; --kind-sf: #e9eef4; --kind-br: #c3d0de; }
 body[data-kind="kanban"] { --kind: #8b1e5b; --kind-sf: #fbeef5; --kind-br: #eac3d7; }
+body[data-kind="produtos"] { --kind: #5f6e08; --kind-sf: #f3f6df; --kind-br: #d3dd9c; }
 
 * { box-sizing: border-box; }
 
@@ -373,6 +374,7 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
 .tab[data-kind="conversa"] { --tab: #7a4b0f; --tab-sf: #f7efe6; }
 .tab[data-kind="banco"]  { --tab: #34506b; --tab-sf: #e9eef4; }
 .tab[data-kind="kanban"] { --tab: #8b1e5b; --tab-sf: #fbeef5; }
+.tab[data-kind="produtos"] { --tab: #5f6e08; --tab-sf: #f3f6df; }
 .tab:hover { background: var(--tab-sf); color: var(--tab); }
 .tab[aria-selected="true"] {
   color: var(--tab);
@@ -2897,21 +2899,26 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 @media (min-width: 901px) {
   body[data-kind="banco"] .sidebar,
   body[data-kind="tabela"] .sidebar,
+  body[data-kind="produtos"] .sidebar,
   body[data-kind="kanban"] .sidebar { width: 118px; flex: 0 0 118px; }
   body[data-kind="banco"] .tabs,
   body[data-kind="tabela"] .tabs,
+  body[data-kind="produtos"] .tabs,
   body[data-kind="kanban"] .tabs { flex-direction: column; flex-wrap: nowrap; border-bottom: 0; }
   body[data-kind="banco"] .tab,
   body[data-kind="tabela"] .tab,
+  body[data-kind="produtos"] .tab,
   body[data-kind="kanban"] .tab {
     flex: 0 0 auto; justify-content: flex-start; padding: 10px 12px;
     border-bottom: 0; border-left: 3px solid transparent;
   }
   body[data-kind="banco"] .tab[aria-selected="true"],
   body[data-kind="tabela"] .tab[aria-selected="true"],
+  body[data-kind="produtos"] .tab[aria-selected="true"],
   body[data-kind="kanban"] .tab[aria-selected="true"] { border-left-color: var(--tab); }
   body[data-kind="banco"] #sidebarBanco,
   body[data-kind="tabela"] #sidebarTabela,
+  body[data-kind="produtos"] #sidebarProdutos,
   body[data-kind="kanban"] #sidebarKanban { display: none; }
 }
 /* a Tabela com pouca margem dos lados: a largura é das colunas */
@@ -3923,6 +3930,121 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
 .adm-nota { font-size: 12px; color: var(--muted); margin-top: 10px; }
 .adm-aud-caixa { max-height: 50vh; overflow: auto; }
 
+
+/* ==========================================================================
+   Produtos — o banco de produtos (produtosview.js)
+   A aba reaproveita a barra, o painel, os filtros e a tabela do Banco NCR
+   (.nb2-*); aqui só o que é dela.
+   ========================================================================== */
+.pr-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.pr-chip {
+  display: inline-block; padding: 1px 8px; border-radius: 10px;
+  font-size: 11.5px; font-weight: 700; line-height: 1.5; white-space: nowrap;
+}
+.pr-chip--marco { background: #e8eefb; color: #1a4fa0; }
+.pr-chip--fv { background: #f3f6df; color: #4a5906; }
+/* produto que não está atrelado a nada: existe, só não se aplica */
+.pr-na {
+  display: inline-block; padding: 1px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 700; letter-spacing: .03em;
+  background: #eceef2; color: #6d7383;
+}
+/* 2.400 linhas: com a largura das colunas decidida de antemão o navegador não
+   mede o texto de cada célula para acertá-la (era mais de um segundo) */
+.pr2-table { table-layout: fixed; }
+.pr2-table th:nth-child(1) { width: 118px; }
+.pr2-table th:nth-child(2) { width: 130px; }
+.pr2-table th:nth-child(3) { width: auto; }
+.pr2-table th:nth-child(4) { width: 76px; }
+.pr2-table th:nth-child(5) { width: 19%; }
+.pr2-table th:nth-child(6) { width: 15%; }
+.pr2-table th:nth-child(7) { width: 70px; }
+.pr2-table td.is-longo { max-width: none; min-width: 0; }
+.pr2-table tr.is-na td { color: var(--muted); }
+.pr2-table td { vertical-align: middle; }
+.pr2-linha { cursor: pointer; }
+.pr-marca { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; white-space: nowrap; }
+.pr-sist { font-weight: 700; color: var(--ink-2); }
+.pr-nncr { text-align: center; white-space: nowrap; }
+.pr-zero { color: var(--muted); }
+.pr-contador {
+  font: inherit; font-weight: 700; min-width: 26px; padding: 1px 8px; cursor: pointer;
+  border: 1px solid var(--kind-br); border-radius: 10px; background: var(--kind-sf); color: var(--kind);
+}
+.pr-contador:hover { background: var(--kind); color: #fff; }
+.pr-num { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+
+.pr2-vistas { display: flex; gap: 4px; }
+.pr2-mais {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; margin-top: 8px; font-size: 12.5px; color: var(--muted);
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.pr2-recorte { justify-content: space-between; }
+
+/* o grau do casamento com a NCR: exato, variação ou parecido */
+.pr-nivel {
+  display: inline-block; padding: 1px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.pr-nivel--exato { background: #e7f4ec; color: #1d6b45; }
+.pr-nivel--variacao { background: #fff4d6; color: #8a5a00; }
+.pr-nivel--parecido { background: #fff; color: #6d7383; border: 1px dashed #aab0bd; }
+.pr-tab-ncr td { vertical-align: middle; }
+.pr-possiveis { margin-top: 10px; }
+.pr-possiveis > summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--muted); }
+.pr-resumo {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+  margin: 0 0 12px; padding: 8px 12px; background: #f7f9fb; border-radius: 6px;
+}
+.nb-sec--produtos { border-left: 4px solid #5f6e08; }
+
+/* a ficha do produto é menor que a da NCR */
+dialog.pr-ficha { width: min(1100px, 96vw); height: auto; max-height: 92vh; border-top-color: #5f6e08; }
+.pr-ficha .nb-ficha-tit h3 { color: #5f6e08; font-family: ui-monospace, Consolas, monospace; }
+.pr-bloco { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 8px; }
+.pr-fv-nomes { margin: 4px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-2); }
+.pr-copiar { margin-left: 8px; }
+.nb-hist td.pr-nowrap { white-space: nowrap; word-break: normal; }
+
+/* o mapa: marco × função vital */
+.pr-sec { margin-bottom: 14px; }
+.pr-matriz-caixa { overflow: auto; max-height: 70vh; }
+.pr-matriz { border-collapse: separate; border-spacing: 2px; font-size: 12.5px; }
+.pr-matriz th, .pr-matriz td { padding: 0; text-align: center; }
+.pr-mz-canto { font-size: 10px; text-transform: uppercase; color: var(--muted); text-align: left; padding: 4px 8px; white-space: nowrap; }
+.pr-mz-col, .pr-mz-lin { background: #eef1f5; }
+.pr-mz-lin { text-align: left; position: sticky; left: 0; z-index: 1; }
+.pr-mz-cab {
+  font: inherit; font-weight: 700; font-size: 12px; width: 100%; min-width: 46px;
+  padding: 5px 8px; border: 0; background: none; color: var(--ink-2); cursor: pointer; white-space: nowrap;
+}
+.pr-mz-cab:hover { color: var(--kind); text-decoration: underline; }
+.pr-mz-cel { min-width: 46px; height: 30px; border-radius: 3px; }
+.pr-mz-cel.is-zero { color: #c3c8d2; background: #fafbfc; }
+.pr-mz-n {
+  font: inherit; font-weight: 700; width: 100%; height: 100%; min-height: 30px;
+  border: 0; background: none; color: inherit; cursor: pointer;
+}
+.pr-mz-n:hover { text-decoration: underline; }
+.pr-mz-tot { font-weight: 700; color: var(--ink-2); padding: 0 8px; background: #f5f7fa; border-radius: 3px; white-space: nowrap; }
+.pr-mz-rodape th { position: static; }
+
+/* o mapa: por sistema */
+.pr-sist-lista { display: flex; flex-direction: column; gap: 3px; max-width: 760px; }
+.pr-sist-linha {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 3px 6px;
+  font: inherit; text-align: left; background: none; border: 0; border-radius: 4px; cursor: pointer;
+}
+.pr-sist-linha:hover { background: var(--kind-sf); }
+.pr-sist-nome { width: 74px; flex: 0 0 74px; font-weight: 700; color: var(--ink-2); }
+.pr-sist-barra { flex: 1; display: flex; height: 14px; background: #f1f3f6; border-radius: 3px; overflow: hidden; }
+.pr-sist-com { background: #6b7a0a; }
+.pr-sist-na { background: #c3c8d2; }
+.pr-sist-n { width: 52px; flex: 0 0 52px; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.pr-sist-leg { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+.pr-sist-chave { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; }
+
 </style>
 <style>
 /* assets/css/report.css */
@@ -4513,6 +4635,11 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
               title="Fluxos — o caminho dos waivers de cada item, lido do Waiver Historic">
         Fluxos
       </button>
+      <button class="tab" role="tab" id="tabProdutos" data-kind="produtos"
+              aria-selected="false" aria-controls="produtosScroll" tabindex="-1"
+              title="Produtos — o banco de produtos: Product Mark, Functional Mark, marcos de segurança e funções vitais">
+        Produtos
+      </button>
       <button data-so-editor class="tab" role="tab" id="tabConversa" data-kind="conversa"
               aria-selected="false" aria-controls="conversaScroll" tabindex="-1" hidden
               title="Recados da equipe, pela pasta da rede">
@@ -4589,6 +4716,10 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
       <strong>Banco NCR</strong> — as NCRs do SBR4.
     </div>
 
+    <div class="sidebar-note" id="sidebarProdutos" hidden>
+      <strong>Produtos</strong> — marcos de segurança e funções vitais de cada produto.
+    </div>
+
     <div class="sidebar-note" id="sidebarKanban" hidden>
       <strong>Kanban</strong> — as NCRs de um marco, por situação do waiver.
     </div>
@@ -4615,6 +4746,8 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
          aria-labelledby="tabBanco" tabindex="0" hidden></div>
     <div class="editor-scroll kanban-scroll" id="kanbanScroll" role="tabpanel"
          aria-labelledby="tabKanban" tabindex="0" hidden></div>
+    <div class="editor-scroll banco-scroll produtos-scroll" id="produtosScroll" role="tabpanel"
+         aria-labelledby="tabProdutos" tabindex="0" hidden></div>
   </main>
 
   <!-- o item preso ao lado: só leitura, para escrever um olhando o outro -->
@@ -4961,6 +5094,14 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
 
 <!-- ====================== banco NCR ====================== -->
 <input type="file" id="ncrFileInput" hidden>
+<!-- banco de produtos: a planilha (Product Mark, Functional Mark, Designation, marcos, funções vitais) -->
+<input data-so-editor type="file" id="prodFileInput" accept=".xlsx,.xlsm" hidden>
+
+<!-- ficha de um produto: montada por produtosview.js -->
+<dialog id="prodDialog" class="nb-dlg nb-ficha pr-ficha" aria-label="Ficha do produto">
+  <div class="nb-ficha-cab"></div>
+  <div class="nb-ficha-corpo"></div>
+</dialog>
 
 <!-- ficha da NCR: quase a tela inteira; o conteúdo é montado por ncrview.js -->
 <dialog id="ncrDialog" class="nb-dlg nb-ficha" aria-label="Ficha da NCR">
@@ -5015,7 +5156,7 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
     <h3 id="ncrResumoTitulo">Importação concluída</h3>
     <p class="mg-origin" id="ncrResumoArquivo"></p>
     <div id="ncrResumoBody"></div>
-    <p class="hint">Antes de importar, o estado anterior do banco NCR foi guardado:
+    <p class="hint" id="ncrResumoDica">Antes de importar, o estado anterior do banco NCR foi guardado:
       dá para baixar essa cópia ou desfazer a importação.</p>
   </div>
   <div class="dlg-actions">
@@ -5919,6 +6060,8 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
         Pasta.publicacao.retomar = nada;
       }
     }
+    /* o banco de produtos no visualizador é o retrato publicado */
+    if (global.Produtos && Produtos.salvar) Produtos.salvar = nada;
     if (global.Revisoes && Revisoes.gravarLocais) Revisoes.gravarLocais = function () {};
     if (global.Chat && Chat.gravarLocais) Chat.gravarLocais = function () {};
     if (global.Chat && Chat.ligado) Chat.ligado = function () { return false; };
@@ -8873,7 +9016,14 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
       delete c.updatedAt;
       delete c.lastEditedAt;
       return c;
-    }), ncrBase ? ncrBase.ncrs : null, idsDe(comunicados)]);
+    }), ncrBase ? ncrBase.ncrs : null, idsDe(comunicados), carimboProdutos(ncrBase)]);
+  }
+
+  /* o banco de produtos muda por importação: o carimbo e a contagem bastam
+     para saber se há o que publicar de novo */
+  function carimboProdutos(ncrBase) {
+    var p = ncrBase && ncrBase.produtos;
+    return p ? [str(p.importadoEm), (p.itens || []).length] : null;
   }
 
   /* os comunicados não se editam: a lista de ids diz se chegou algum */
@@ -8943,7 +9093,7 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
       quem: str(d.publishedBy || d.updatedBy || d.exportedBy),
       /* o conteúdo como veio, antes de normalizar (a normalização preenche
          carimbos ausentes com "agora"): é o que diz se a releitura mudou algo */
-      assinatura: JSON.stringify([d.projects || d, d.ncrBase ? d.ncrBase.ncrs : null])
+      assinatura: JSON.stringify([d.projects || d, d.ncrBase ? d.ncrBase.ncrs : null, carimboProdutos(d.ncrBase)])
     };
   }
 
@@ -10907,6 +11057,8 @@ if(isWorker){
     });
     meta = normalizarMeta(nb && nb.meta);
     if (correcoes()) correcoes().adotar(nb && nb.correcoes);
+    /* o banco de produtos (produtos.js) vai junto, no retrato publicado */
+    if (global.Produtos) global.Produtos.adotar(nb && nb.produtos);
     mudou();
     return lista().length;
   }
@@ -10916,6 +11068,9 @@ if(isWorker){
   function paraBackup() {
     var out = { format: 'derrogacao-ncr-base', schema: 1, ncrs: copia(lista()), meta: copia(meta) };
     if (correcoes()) out.correcoes = correcoes().paraBackup();
+    /* o banco de produtos, também em chave própria (versões anteriores a ignoram) */
+    var pr = global.Produtos ? global.Produtos.paraBackup() : null;
+    if (pr) out.produtos = pr;
     return out;
   }
 
@@ -11088,8 +11243,10 @@ if(isWorker){
     var b = juntarWaiver({ ncrs: ncrs, listas: m.listas, pendentes: m.pendentes });
     /* as correções do backup entram pelas regras da pasta (sem a senha) */
     var cj = (correcoes() && nb && nb.correcoes) ? correcoes().juntar(nb.correcoes) : { mudou: false };
+    /* o banco de produtos do backup entra pelas mesmas regras da pasta */
+    var pj = (global.Produtos && nb && nb.produtos) ? global.Produtos.juntar(nb.produtos) : { mudou: false };
     return { entraram: a.entraram + b.entraram, atualizados: a.atualizados + b.atualizados,
-             alterados: a.alterados.concat(b.alterados), correcoes: cj.mudou };
+             alterados: a.alterados.concat(b.alterados), correcoes: cj.mudou, produtos: pj.mudou };
   }
 
   /* --- utilidades para a tela ------------------------------------------------ */
@@ -11896,6 +12053,811 @@ if(isWorker){
     juntar: juntar,
     gravado: gravado,
     adotar: adotar
+  };
+})(window);
+
+</script>
+<script>
+/* assets/js/produtos.js */
+/* ==========================================================================
+   produtos.js — o banco de produtos: marcas, marcos de segurança, funções vitais
+   --------------------------------------------------------------------------
+   Uma planilha (VF_product_list) diz, para cada produto, qual é a marca
+   funcional dele ("Industrial Mark" / "Functional Mark"), quais marcos de
+   segurança o alcançam e quais funções vitais dependem dele:
+
+       Product Mark | Functional Mark | Designation | Safety Milestones | Vital Functions #
+       P0104501     | BC22714F        | BATTERY …   | J05;J07           | 20
+
+   Vários valores na mesma célula vêm separados por ";". Produto sem marco e
+   sem função vital é produto igual aos outros: entra no banco e aparece como
+   N/A (não se aplica) — ele existe, só não está atrelado a nenhum.
+
+   O que este módulo faz, e por quê:
+
+   - **Banco por importação.** A planilha é grande e quase não muda, então o
+     banco nasce de um botão de importar (na aba Produtos), uma vez — e de
+     novo, se um dia ela for atualizada. A importação ACRESCENTA e ATUALIZA
+     (pela marca do produto); nunca apaga. O que está no banco e não está na
+     planilha fica como está.
+   - **Casamento com a NCR, com tolerância.** A NCR escreve a marca de um jeito
+     e o banco de outro: BH00004M5 na NCR, BH00004M no banco. Por isso o
+     casamento tem três níveis, e a tela diz qual foi:
+         exato      a mesma marca (ou o mesmo Product Mark);
+         variação   a NCR escreveu a marca do banco e mais 1 ou 2 caracteres
+                    no fim (BH00004M5 → BH00004M);
+         parecido   mesma base (2 letras + 5 dígitos), sufixo diferente — é
+                    "conferir", nunca "é esse".
+     E procura pelas duas portas: o Product Mark e a Functional Mark.
+   - **A marca é procurada em todo o texto da NCR** (colunas, título,
+     descrição e as tabelas de produtos e deliberações), porque não se sabe em
+     que coluna cada export a põe. Só aparece o que o banco de produtos conhece:
+     "BH00004" solto num texto que o banco não tem não vira resultado.
+
+   Persistência, como o resto do banco NCR (§4 do CLAUDE.md): no IndexedDB, na
+   prateleira `snapshots` (`ncrmeta:produtos`) — nenhuma versão nova do banco —;
+   na pasta da rede, num arquivo próprio (`derrogacao-produtos.json`); dentro
+   do backup de tudo e da publicação para o visualizador, em
+   `ncrBase.produtos` (versões anteriores ignoram a chave).
+
+   Não usa ninguém ao carregar: `Store`, `Ncrs`, `Correcoes` e `Fluxo` só são
+   chamados na hora da chamada.
+   ========================================================================== */
+(function (global) {
+  'use strict';
+
+  var ARQUIVO = 'derrogacao-produtos.json';
+  var FORMATO = 'derrogacao-produtos';
+  var META_ID = 'produtos';
+  var MAX_IMPORTACOES = 30;
+  var NA = 'N/A';
+  /* quantos caracteres a mais a NCR pode ter no fim da marca e ainda contar
+     como "variação" (BH00004M5 tem 1 a mais que BH00004M) */
+  var DIF_MAX = 2;
+  var RANK = { exato: 3, variacao: 2, parecido: 1 };
+
+  /* --- utilidades --------------------------------------------------------- */
+
+  function str(v) { return typeof v === 'string' ? v : (v == null ? '' : String(v)); }
+  function limpo(v) { return str(v).replace(/\s+/g, ' ').trim(); }
+  function nowIso() { return new Date().toISOString(); }
+  function copia(o) { return o == null ? o : JSON.parse(JSON.stringify(o)); }
+
+  function semAcento(s) {
+    var t = str(s);
+    if (t.normalize) t = t.normalize('NFD').replace(/[̀-ͯ]/g, '');
+    return t;
+  }
+  function maiusc(s) { return semAcento(s).toUpperCase(); }
+  /** Só letras e números, em maiúsculas: "BH-00004 M5" e "bh00004m5" são a mesma marca. */
+  function nrm(s) { return maiusc(s).replace(/[^A-Z0-9]+/g, ''); }
+
+  /** O Product Mark sem os zeros à esquerda do número: P0104501 e P104501 são o mesmo produto. */
+  function canonProduto(s) {
+    var n = nrm(s);
+    var m = /^P0*(\d+)$/.exec(n);
+    return m ? 'P' + m[1] : n;
+  }
+
+  /** As duas letras e os cinco dígitos do começo da marca ("BH00004") — a "família". */
+  function base7(k) {
+    var m = /^[A-Z]{2}\d{5}/.exec(k);
+    return m ? m[0] : '';
+  }
+
+  /** O que a planilha traz numa célula, como texto (20 vira "20", não "20.0"). */
+  function celula(v) {
+    if (v === undefined || v === null) return '';
+    if (v instanceof Date) return isNaN(v.getTime()) ? '' : v.toISOString().slice(0, 10);
+    if (typeof v === 'number') return isFinite(v) ? String(v) : '';
+    if (typeof v === 'boolean') return v ? 'Sim' : 'Não';
+    return limpo(v);
+  }
+
+  /** "J05;J07" → ["J05", "J07"]. Separa por ;  ,  | e quebra de linha. */
+  function partir(v) {
+    if (Array.isArray(v)) return v.map(limpo).filter(Boolean);
+    return celula(v).split(/[;,|\n]+/).map(limpo).filter(Boolean);
+  }
+
+  function cmpMarco(a, b) {
+    if (global.Fluxo && Fluxo.cmpMarco) return Fluxo.cmpMarco(a, b);
+    return a < b ? -1 : (a > b ? 1 : 0);
+  }
+
+  function unicos(lista) {
+    var vistos = {};
+    return lista.filter(function (v) {
+      if (vistos[v]) return false;
+      vistos[v] = 1;
+      return true;
+    });
+  }
+
+  function normMarcos(lista) {
+    return unicos(lista.map(function (m) { return limpo(m).toUpperCase(); }).filter(Boolean)).sort(cmpMarco);
+  }
+
+  /** A função vital como número ("FV 01", "01", 1 e "1 - Sea water" são o 1); o que não é número fica como texto. */
+  function funcaoNum(t) {
+    var s = limpo(t).toUpperCase();
+    var m = /^[^\d]{0,4}(\d+)(?:\.0+)?(?:\s*[-–—].*)?$/.exec(s);
+    return m ? String(parseInt(m[1], 10)) : s;
+  }
+
+  function cmpFuncao(a, b) {
+    var x = parseInt(a, 10), y = parseInt(b, 10);
+    if (!isNaN(x) && !isNaN(y)) return x - y;
+    if (!isNaN(x)) return -1;
+    if (!isNaN(y)) return 1;
+    return a < b ? -1 : (a > b ? 1 : 0);
+  }
+
+  function normFuncoes(lista) {
+    return unicos(lista.map(funcaoNum).filter(Boolean)).sort(cmpFuncao);
+  }
+
+  /* --- o item ------------------------------------------------------------- */
+
+  /** A identidade do produto: o Product Mark; sem ele, a marca funcional. */
+  function chaveDe(produto, marca) {
+    var p = canonProduto(produto);
+    if (p) return p;
+    var m = nrm(marca);
+    return m ? 'FM:' + m : '';
+  }
+
+  function normalizar(o) {
+    if (!o || typeof o !== 'object') return null;
+    var produto = limpo(o.produto).toUpperCase();
+    var marca = limpo(o.marca).toUpperCase();
+    var id = chaveDe(produto, marca);
+    if (!id) return null;
+    return {
+      id: id, produto: produto, marca: marca, descricao: limpo(o.descricao),
+      marcos: normMarcos(partir(o.marcos)),
+      funcoes: normFuncoes(partir(o.funcoes)),
+      em: str(o.em)
+    };
+  }
+
+  function assinatura(it) {
+    return [it.marca, it.descricao, it.marcos.join(';'), it.funcoes.join(';')].join('|');
+  }
+
+  /* --- estado ------------------------------------------------------------- */
+
+  var itens = [];
+  var porId = {};
+  var meta = metaVazia();
+  var versao = 0;           // sobe a cada mudança; a tela usa para saber se redesenha
+  var ix = null;            // índices de procura, refeitos sob demanda
+  var cacheNcrs = null;
+
+  function metaVazia() {
+    return { importadoEm: '', importadoPor: '', arquivo: '', importacoes: [] };
+  }
+
+  function normalizarMeta(m) {
+    var b = metaVazia();
+    if (!m || typeof m !== 'object') return b;
+    b.importadoEm = str(m.importadoEm);
+    b.importadoPor = str(m.importadoPor);
+    b.arquivo = str(m.arquivo);
+    b.importacoes = Array.isArray(m.importacoes) ? m.importacoes.filter(function (i) { return i && i.id; }) : [];
+    return b;
+  }
+
+  function mudou() { versao++; ix = null; cacheNcrs = null; }
+
+  function reconstruir(lista) {
+    itens = [];
+    porId = {};
+    (lista || []).forEach(function (x) {
+      var it = normalizar(x);
+      if (it && !porId[it.id]) { itens.push(it); porId[it.id] = it; }
+    });
+    mudou();
+  }
+
+  function trocarItem(antigo, novo) {
+    var i = itens.indexOf(antigo);
+    if (i >= 0) itens[i] = novo; else itens.push(novo);
+    delete porId[antigo.id];
+    porId[novo.id] = novo;
+  }
+
+  function incluirItem(it) {
+    itens.push(it);
+    porId[it.id] = it;
+  }
+
+  /* --- persistência local ------------------------------------------------- */
+
+  function carregar() {
+    return Store.ncrMetaGet(META_ID).then(function (r) {
+      reconstruir(r && r.itens);
+      meta = normalizarMeta(r && r.meta);
+      return itens.length;
+    });
+  }
+
+  function salvar() {
+    mudou();
+    return Store.ncrMetaPut({ id: META_ID, schema: 1, itens: itens, meta: meta });
+  }
+
+  /* --- ler a planilha ----------------------------------------------------- */
+
+  /* os nomes que o cabeçalho pode ter, sem acento nem pontuação */
+  var ALIAS = {
+    produto: ['product mark', 'produto', 'product', 'marca do produto', 'marca produto', 'product marker',
+              'product number', 'product no', 'codigo do produto', 'cod produto', 'pm'],
+    marca: ['functional mark', 'functional marker', 'industrial mark', 'industrial marker', 'marca funcional',
+            'marca industrial', 'functional', 'industrial', 'fm'],
+    descricao: ['designation', 'designacao', 'descricao', 'description', 'descritivo', 'denominacao', 'nome'],
+    marcos: ['safety milestones', 'safety milestone', 'milestones', 'milestone', 'marcos de seguranca',
+             'marco de seguranca', 'marcos', 'marco'],
+    funcoes: ['vital functions', 'vital function', 'funcoes vitais', 'funcao vital', 'vital', 'fv']
+  };
+  var PAPEIS = ['produto', 'marca', 'descricao', 'marcos', 'funcoes'];
+  var PADRAO_MARCA = /^[A-Z]{2}\d{5}[A-Z]?\d{0,2}$/;
+  var PADRAO_PRODUTO = /^P\d{5,8}$/;
+
+  function normCab(s) { return maiusc(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+
+  function acharColuna(cols, aliases, usados) {
+    var n = cols.map(normCab);
+    var i, k;
+    for (k = 0; k < aliases.length; k++) {
+      i = n.indexOf(aliases[k]);
+      if (i >= 0 && !usados[i]) return i;
+    }
+    for (k = 0; k < aliases.length; k++) {
+      for (i = 0; i < n.length; i++) {
+        if (n[i] && !usados[i] && n[i].indexOf(aliases[k] + ' ') === 0) return i;
+      }
+    }
+    return -1;
+  }
+
+  /** papel -> índice da coluna, só dos que o cabeçalho tem. */
+  function mapear(cols) {
+    var usados = {}, m = {};
+    PAPEIS.forEach(function (p) {
+      var i = acharColuna(cols, ALIAS[p], usados);
+      if (i >= 0) { m[p] = i; usados[i] = 1; }
+    });
+    return m;
+  }
+
+  function temPapel(m, p) { return typeof m[p] === 'number'; }
+
+  /** Cabeçalho sem nome conhecido: lê as colunas A–E, na ordem em que a planilha foi descrita. */
+  function porPosicao(wb) {
+    var melhor = null;
+    (wb.sheets || []).forEach(function (s) {
+      var rows = s.rows || [];
+      var n = 0;
+      for (var i = 0; i < Math.min(rows.length, 80); i++) {
+        var r = rows[i] || [];
+        if (PADRAO_PRODUTO.test(nrm(celula(r[0]))) && PADRAO_MARCA.test(nrm(celula(r[1])))) n++;
+      }
+      if (n >= 3 && (!melhor || n > melhor.n)) melhor = { sheet: s, n: n };
+    });
+    if (!melhor) return null;
+    return { sheet: melhor.sheet, hi: -1, posicional: true,
+      mapa: { produto: 0, marca: 1, descricao: 2, marcos: 3, funcoes: 4 } };
+  }
+
+  function acharPlanilha(wb) {
+    var melhor = null;
+    (wb.sheets || []).forEach(function (s) {
+      var rows = s.rows || [];
+      for (var i = 0; i < Math.min(rows.length, 15); i++) {
+        var cols = (rows[i] || []).map(function (v) { return celula(v); });
+        var m = mapear(cols);
+        var n = Object.keys(m).length;
+        if (n < 2 || !(temPapel(m, 'produto') || temPapel(m, 'marca'))) continue;
+        var score = n * 10 + (rows.length > 50 ? 1 : 0);
+        if (!melhor || score > melhor.score) melhor = { sheet: s, hi: i, mapa: m, score: score, posicional: false };
+      }
+    });
+    return melhor || porPosicao(wb);
+  }
+
+  function colunasEncontradas(wb) {
+    var out = [];
+    (wb.sheets || []).forEach(function (s) {
+      var linha = (s.rows && s.rows[0] || []).map(celula).filter(Boolean);
+      out.push('aba "' + s.name + '": ' + (linha.join(', ') || '(sem cabeçalho)'));
+    });
+    return out.join(' · ');
+  }
+
+  /* --- importar ------------------------------------------------------------ */
+
+  function resumoDoItem(it) {
+    return [it.produto || '—', it.marca || '—'].join(' · ') + (it.descricao ? ' — ' + it.descricao : '');
+  }
+
+  function textoLista(l) { return l.length ? l.join(';') : NA; }
+
+  function diferencas(antigo, novo) {
+    var d = [];
+    if (antigo.marca !== novo.marca) d.push('Functional Mark: ' + (antigo.marca || '—') + ' → ' + (novo.marca || '—'));
+    if (antigo.descricao !== novo.descricao) d.push('Designation');
+    if (antigo.marcos.join(';') !== novo.marcos.join(';')) d.push('marcos: ' + textoLista(antigo.marcos) + ' → ' + textoLista(novo.marcos));
+    if (antigo.funcoes.join(';') !== novo.funcoes.join(';')) d.push('funções vitais: ' + textoLista(antigo.funcoes) + ' → ' + textoLista(novo.funcoes));
+    return d;
+  }
+
+  /**
+   * Lê a planilha e junta ao banco: o que não existe entra, o que existe e
+   * mudou é atualizado pela planilha, o resto fica. Nada é apagado — produto
+   * que sumiu da planilha continua aqui. Devolve { resumo, mudou }; quem
+   * chama grava (`salvar`).
+   */
+  function importar(entrada, arquivo, quem) {
+    if (!entrada || !entrada.sheets) {
+      throw new Error('o banco de produtos é importado de uma planilha .xlsx com as colunas Product Mark, ' +
+        'Functional Mark, Designation, Safety Milestones e Vital Functions #.');
+    }
+    var achado = acharPlanilha(entrada);
+    if (!achado) {
+      throw new Error('não encontrei as colunas Product Mark e Functional Mark nesta planilha. ' +
+        'Colunas lidas — ' + colunasEncontradas(entrada) + '.');
+    }
+    var m = achado.mapa;
+    var rows = achado.sheet.rows || [];
+    var agora = nowIso();
+    var res = { titulo: 'Banco de produtos importado', arquivo: str(arquivo), numeros: [], grupos: [],
+      erros: [], avisos: [], semDesfazer: true };
+
+    var col = function (row, papel) { return temPapel(m, papel) ? row[m[papel]] : undefined; };
+    var doArquivo = {}, ordem = [], lidas = 0, ignoradas = [], repetidos = [];
+
+    for (var r = achado.hi + 1; r < rows.length; r++) {
+      var row = rows[r] || [];
+      var produto = limpo(celula(col(row, 'produto'))).toUpperCase();
+      var marca = limpo(celula(col(row, 'marca'))).toUpperCase();
+      if (!produto && !marca) {
+        if (row.some(function (v) { return celula(v) !== ''; })) ignoradas.push('Linha ' + (r + 1) + ': sem Product Mark nem Functional Mark.');
+        continue;
+      }
+      /* a primeira linha de uma planilha lida por posição é o cabeçalho */
+      if (achado.posicional && r === 0 && !PADRAO_PRODUTO.test(nrm(produto)) && !PADRAO_MARCA.test(nrm(marca))) continue;
+      lidas++;
+      var it = normalizar({
+        produto: produto, marca: marca, descricao: celula(col(row, 'descricao')),
+        marcos: partir(col(row, 'marcos')), funcoes: partir(col(row, 'funcoes'))
+      });
+      var jaLa = doArquivo[it.id];
+      if (jaLa) {
+        /* o mesmo produto em duas linhas: valem os dois conjuntos de marcos e funções */
+        var antes = assinatura(jaLa);
+        jaLa.marcos = normMarcos(jaLa.marcos.concat(it.marcos));
+        jaLa.funcoes = normFuncoes(jaLa.funcoes.concat(it.funcoes));
+        if (!jaLa.descricao) jaLa.descricao = it.descricao;
+        if (!jaLa.marca) jaLa.marca = it.marca;
+        repetidos.push((it.produto || it.marca) + ' — linha ' + (r + 1) + (antes === assinatura(jaLa) ? ' (igual à anterior)' : ' (marcos e funções somados)'));
+        continue;
+      }
+      doArquivo[it.id] = it;
+      ordem.push(it.id);
+    }
+    if (!ordem.length) {
+      throw new Error('a planilha não tem nenhuma linha com Product Mark ou Functional Mark.');
+    }
+
+    var novos = [], atualizados = [], iguais = 0;
+    ordem.forEach(function (id) {
+      var novo = doArquivo[id];
+      var antigo = porId[id];
+      /* o produto antes só era conhecido pela marca funcional: agora tem o Product Mark */
+      if (!antigo && novo.produto && novo.marca && porId['FM:' + nrm(novo.marca)] && !porId['FM:' + nrm(novo.marca)].produto) {
+        antigo = porId['FM:' + nrm(novo.marca)];
+      }
+      if (!antigo) {
+        novo.em = agora;
+        incluirItem(novo);
+        novos.push(resumoDoItem(novo));
+        return;
+      }
+      /* coluna que a planilha não tem não apaga o que já se sabe */
+      if (!temPapel(m, 'marca')) novo.marca = antigo.marca;
+      if (!temPapel(m, 'descricao')) novo.descricao = antigo.descricao;
+      if (!temPapel(m, 'marcos')) novo.marcos = antigo.marcos;
+      if (!temPapel(m, 'funcoes')) novo.funcoes = antigo.funcoes;
+      var d = diferencas(antigo, novo);
+      if (!d.length && antigo.id === novo.id) { iguais++; return; }
+      novo.em = agora;
+      trocarItem(antigo, novo);
+      atualizados.push(resumoDoItem(novo) + (d.length ? ' — ' + d.join('; ') : ''));
+    });
+
+    var naPlanilha = {};
+    ordem.forEach(function (id) { naPlanilha[id] = 1; });
+    var mantidos = itens.filter(function (i) { return !naPlanilha[i.id] && !doArquivo[i.id]; }).length;
+    if (novos.length || atualizados.length) mudou();
+
+    meta.importadoEm = agora;
+    meta.importadoPor = str(quem);
+    meta.arquivo = str(arquivo);
+    meta.importacoes.push({ id: Store.uid(), em: agora, por: str(quem), arquivo: str(arquivo),
+      novos: novos.length, atualizados: atualizados.length, iguais: iguais, total: itens.length });
+    if (meta.importacoes.length > MAX_IMPORTACOES) meta.importacoes = meta.importacoes.slice(-MAX_IMPORTACOES);
+
+    var c = contagens();
+    res.numeros = [
+      ['Linhas lidas', lidas],
+      ['Produtos na planilha', ordem.length],
+      ['Novos no banco', novos.length, true],
+      ['Atualizados', atualizados.length, true],
+      ['Sem alteração', iguais],
+      ['No banco, fora da planilha (mantidos)', mantidos],
+      ['Produtos no banco agora', c.total, true],
+      ['Com marco de segurança', c.comMarco],
+      ['Com função vital', c.comFuncao],
+      [NA + ' — sem marco e sem função vital', c.semNada],
+      ['Erros', res.erros.length]
+    ];
+    var g = function (titulo, lista, explica) {
+      if (lista.length) res.grupos.push({ titulo: titulo, explica: explica || '', itens: lista });
+    };
+    g('Produtos novos', novos);
+    g('Produtos atualizados (o que mudou)', atualizados);
+    g('Repetidos na planilha', repetidos, 'o mesmo Product Mark em mais de uma linha: os marcos e as funções vitais foram somados');
+    g('Linhas ignoradas', ignoradas);
+    res.avisos.push('Lido da aba "' + achado.sheet.name + '"' + (achado.posicional
+      ? ', pelas colunas A a E (o cabeçalho não foi reconhecido).'
+      : ', cabeçalho na linha ' + (achado.hi + 1) + '.'));
+    if (achado.posicional) {
+      /* sem cabeçalho conhecido, a ordem das colunas é a descrita pelo Bruno */
+    } else {
+      var faltam = PAPEIS.filter(function (p) { return !temPapel(m, p); });
+      if (faltam.length) {
+        res.avisos.push('Colunas que a planilha não tem (o que já está no banco foi mantido): ' + faltam.map(function (p) {
+          return { produto: 'Product Mark', marca: 'Functional Mark', descricao: 'Designation',
+            marcos: 'Safety Milestones', funcoes: 'Vital Functions #' }[p];
+        }).join(', ') + '.');
+      }
+    }
+    return { resumo: res, mudou: novos.length + atualizados.length > 0 };
+  }
+
+  /* --- pasta, backup e publicação ----------------------------------------- */
+
+  function arquivo(quem) {
+    return {
+      format: FORMATO, schema: 1, updatedAt: nowIso(), updatedBy: str(quem),
+      importadoEm: meta.importadoEm, importadoPor: meta.importadoPor, arquivo: meta.arquivo,
+      importacoes: meta.importacoes, itens: itens
+    };
+  }
+
+  /** O banco inteiro, para ir dentro do backup e da publicação (dentro de `ncrBase`). */
+  function paraBackup() {
+    if (!itens.length) return null;
+    var a = arquivo('');
+    delete a.updatedAt;
+    delete a.updatedBy;
+    return copia(a);
+  }
+
+  /**
+   * Troca o banco inteiro, em memória, pelo que veio de uma publicação. Só o
+   * visualizador usa: ali o banco de produtos é o retrato publicado.
+   */
+  function adotar(d) {
+    reconstruir(d && d.itens);
+    meta = normalizarMeta(d);
+    return itens.length;
+  }
+
+  /**
+   * Junta o que veio da pasta (ou de um backup): produto a produto, vale o
+   * carimbo da importação que o escreveu por último; nada é apagado. Devolve
+   * o que mudou aqui e se este lado tem algo que a pasta ainda não tem.
+   */
+  function juntar(d) {
+    var res = { entraram: 0, atualizados: 0, localMaisNovo: false, mudou: false };
+    if (!d || !Array.isArray(d.itens)) return res;
+    var la = {};
+    d.itens.forEach(function (x) {
+      var it = normalizar(x);
+      if (!it) return;
+      la[it.id] = 1;
+      var meu = porId[it.id];
+      if (!meu) { incluirItem(it); res.entraram++; return; }
+      if (it.em > meu.em) { trocarItem(meu, it); res.atualizados++; }
+      else if (it.em < meu.em) res.localMaisNovo = true;
+    });
+    itens.forEach(function (i) { if (!la[i.id]) res.localMaisNovo = true; });
+    var ids = {};
+    meta.importacoes.forEach(function (i) { ids[i.id] = 1; });
+    var laIds = {};
+    var chegou = normalizarMeta(d);
+    chegou.importacoes.forEach(function (i) {
+      laIds[i.id] = 1;
+      if (!ids[i.id]) { meta.importacoes.push(i); ids[i.id] = 1; res.mudou = true; }
+    });
+    if (meta.importacoes.some(function (i) { return !laIds[i.id]; })) res.localMaisNovo = true;
+    meta.importacoes.sort(function (a, b) { return str(a.em).localeCompare(str(b.em)); });
+    if (meta.importacoes.length > MAX_IMPORTACOES) meta.importacoes = meta.importacoes.slice(-MAX_IMPORTACOES);
+    if (chegou.importadoEm > meta.importadoEm) {
+      meta.importadoEm = chegou.importadoEm;
+      meta.importadoPor = chegou.importadoPor;
+      meta.arquivo = chegou.arquivo;
+      res.mudou = true;
+    } else if (chegou.importadoEm < meta.importadoEm) res.localMaisNovo = true;
+    if (res.entraram || res.atualizados) { res.mudou = true; mudou(); }
+    return res;
+  }
+
+  /* --- consultas ----------------------------------------------------------- */
+
+  /** As duas primeiras letras da marca funcional — o bigrama do sistema (BH, DA, BC…). */
+  function sistemaDe(it) {
+    var m = /^([A-Z]{2})\d/.exec(nrm(it.marca));
+    return m ? m[1] : '';
+  }
+
+  function contagens() {
+    var c = { total: itens.length, comMarco: 0, comFuncao: 0, semNada: 0, comAmbos: 0 };
+    itens.forEach(function (i) {
+      var m = i.marcos.length > 0, f = i.funcoes.length > 0;
+      if (m) c.comMarco++;
+      if (f) c.comFuncao++;
+      if (m && f) c.comAmbos++;
+      if (!m && !f) c.semNada++;
+    });
+    return c;
+  }
+
+  /** [{valor, n}] dos marcos que aparecem no banco, na ordem da fila. */
+  function marcosUsados() {
+    var cont = {};
+    itens.forEach(function (i) { i.marcos.forEach(function (m) { cont[m] = (cont[m] || 0) + 1; }); });
+    return Object.keys(cont).sort(cmpMarco).map(function (v) { return { valor: v, n: cont[v] }; });
+  }
+
+  function funcoesUsadas() {
+    var cont = {};
+    itens.forEach(function (i) { i.funcoes.forEach(function (f) { cont[f] = (cont[f] || 0) + 1; }); });
+    return Object.keys(cont).sort(cmpFuncao).map(function (v) { return { valor: v, n: cont[v] }; });
+  }
+
+  /** Os nomes das funções vitais com este número, vindos da lista do banco NCR ("01 - Sea water circuit integrity"). */
+  var nomesPorFuncao = null, nomesDaLista = null;
+  function nomesDaFuncao(num) {
+    var lista = (global.Ncrs && Ncrs.listas && Ncrs.listas().funcoes) || [];
+    /* a tabela pergunta por cada chip de cada linha: o mapa número → nomes é
+       refeito só quando a lista de funções (a das Listas do banco NCR) muda */
+    if (nomesDaLista !== lista || !nomesPorFuncao) {
+      nomesPorFuncao = {};
+      nomesDaLista = lista;
+      lista.forEach(function (f) {
+        var m = /^[^\d]{0,4}(\d+)\s*[-–—]\s*(.+)$/.exec(limpo(f));
+        if (!m) return;
+        var n = String(parseInt(m[1], 10));
+        var l = nomesPorFuncao[n] = nomesPorFuncao[n] || [];
+        if (l.indexOf(m[2]) < 0) l.push(m[2]);
+      });
+    }
+    return (nomesPorFuncao[String(num)] || []).slice();
+  }
+
+  /** "FV 01 – Sea water circuit integrity"; com mais de um nome para o número (o 20), só "FV 20". */
+  function rotuloFuncao(num) {
+    var nomes = nomesDaFuncao(num);
+    return 'FV ' + num + (nomes.length === 1 ? ' – ' + nomes[0] : '');
+  }
+
+  function get(id) { return porId[id] || null; }
+
+  /** Os outros produtos da mesma "família" (mesmas duas letras e cinco dígitos da marca). */
+  function familiaDe(it) {
+    var b = base7(nrm(it.marca));
+    if (!b) return [];
+    return itens.filter(function (o) { return o !== it && base7(nrm(o.marca)) === b; });
+  }
+
+  /* --- casar com a NCR ------------------------------------------------------ */
+
+  function indices() {
+    if (ix) return ix;
+    var porProduto = {}, porMarca = {}, familias = {};
+    itens.forEach(function (it) {
+      if (it.produto) porProduto[canonProduto(it.produto)] = it;
+      if (it.marca) {
+        var k = nrm(it.marca);
+        (porMarca[k] = porMarca[k] || []).push(it);
+        var b = base7(k);
+        if (b) (familias[b] = familias[b] || []).push(it);
+      }
+    });
+    ix = { porProduto: porProduto, porMarca: porMarca, familias: familias };
+    return ix;
+  }
+
+  /**
+   * Uma marca funcional escrita no texto contra as do banco. Exata, ou a do
+   * banco com 1–2 caracteres a mais no fim (a variação: BH00004M5 → BH00004M,
+   * a marca mais longa que couber), ou — só como "parecido", para conferir —
+   * a mesma base com outro sufixo, ou uma marca do banco mais específica do
+   * que a escrita.
+   */
+  function casarMarca(tok) {
+    var i = indices();
+    var exatos = i.porMarca[tok];
+    if (exatos) return exatos.map(function (it) { return { item: it, nivel: 'exato' }; });
+    var b = base7(tok);
+    if (!b) return [];
+    var fam = i.familias[b] || [];
+    var melhorDif = 99, variantes = [], parecidos = [];
+    fam.forEach(function (it) {
+      var k = nrm(it.marca);
+      var dif = tok.length - k.length;
+      if (dif > 0 && dif <= DIF_MAX && tok.indexOf(k) === 0) {
+        if (dif < melhorDif) { melhorDif = dif; variantes = [it]; }
+        else if (dif === melhorDif) variantes.push(it);
+      } else parecidos.push(it);
+    });
+    var out = variantes.map(function (it) { return { item: it, nivel: 'variacao' }; });
+    if (out.length) return out;
+    return parecidos.slice(0, 8).map(function (it) { return { item: it, nivel: 'parecido' }; });
+  }
+
+  function registrar(achados, item, nivel, via, token, onde) {
+    var a = achados[item.id];
+    if (!a) {
+      achados[item.id] = { item: item, nivel: nivel, vias: [via], tokens: [token], onde: onde };
+      return;
+    }
+    if (RANK[nivel] > RANK[a.nivel]) { a.nivel = nivel; a.tokens = [token]; a.onde = onde; }
+    else if (RANK[nivel] === RANK[a.nivel] && a.tokens.indexOf(token) < 0) a.tokens.push(token);
+    if (nivel !== 'parecido' && a.vias.indexOf(via) < 0) a.vias.push(via);
+  }
+
+  /* BH00004M5, BH-00004-M5, BH 00004M, bh00004m5 — duas letras, cinco dígitos, uma letra e até dois dígitos.
+     Antes das duas letras tem de haver um limite (senão "NCR 12345" daria "CR12345"), e depois do fim
+     também (senão uma palavra comprida seria cortada no meio). */
+  var RE_MARCA = /(^|[^A-Z0-9])([A-Z]{2})[ \-_.]?(\d{5})(?:[\-_.]?([A-Z]))?(\d{0,2})(?![A-Z0-9])/g;
+  var RE_PRODUTO = /(^|[^A-Z0-9])P[ \-_.]?(\d{5,8})(?![A-Z0-9])/g;
+
+  function procurar(texto, onde, achados) {
+    var T = maiusc(texto);
+    if (T.length < 6) return;
+    var i = indices();
+    var m, tok;
+    RE_MARCA.lastIndex = 0;
+    while ((m = RE_MARCA.exec(T))) {
+      tok = m[2] + m[3] + (m[4] || '') + (m[5] || '');
+      casarMarca(tok).forEach(function (c) { registrar(achados, c.item, c.nivel, 'marca', tok, onde); });
+    }
+    RE_PRODUTO.lastIndex = 0;
+    while ((m = RE_PRODUTO.exec(T))) {
+      tok = 'P' + m[2];
+      var p = i.porProduto[canonProduto(tok)];
+      if (p) registrar(achados, p, nrm(p.produto) === tok ? 'exato' : 'variacao', 'produto', tok, onde);
+    }
+    /* marcas do banco que não seguem o desenho acima, mas aparecem como palavra inteira */
+    T.split(/[^A-Z0-9]+/).forEach(function (w) {
+      if (w.length < 6 || w.length > 16) return;
+      if (i.porMarca[w]) i.porMarca[w].forEach(function (it) { registrar(achados, it, 'exato', 'marca', w, onde); });
+      var pw = i.porProduto[canonProduto(w)];
+      if (pw) registrar(achados, pw, nrm(pw.produto) === w ? 'exato' : 'variacao', 'produto', w, onde);
+    });
+  }
+
+  /** Os textos da NCR onde a marca pode estar, com o nome de onde cada um veio. */
+  function segmentos(rec) {
+    var f = Ncrs.fonte(rec), out = [];
+    var add = function (t, onde) { t = str(t); if (t) out.push([t, onde]); };
+    Object.keys(f.campos || {}).forEach(function (k) { add(f.campos[k], k); });
+    (f.detalhes || []).forEach(function (g) {
+      g.linhas.forEach(function (l) {
+        l.forEach(function (v, j) { add(v, g.titulo + (g.colunas[j] ? ' › ' + g.colunas[j] : '')); });
+      });
+    });
+    add(f.titulo, 'Título');
+    add(f.descricao, 'Descrição');
+    return out;
+  }
+
+  /**
+   * Os produtos do banco que a NCR cita, do mais certo ao menos certo.
+   * [{ item, nivel: 'exato'|'variacao'|'parecido', vias: ['produto','marca'], tokens: [o que a NCR escreveu], onde }]
+   */
+  function deNcr(rec) {
+    if (!itens.length || !rec) return [];
+    var achados = {};
+    segmentos(rec).forEach(function (s) { procurar(s[0], s[1], achados); });
+    return Object.keys(achados).map(function (k) {
+      var a = achados[k];
+      /* sempre na mesma ordem: o Product Mark primeiro */
+      a.vias = ['produto', 'marca'].filter(function (v) { return a.vias.indexOf(v) >= 0; });
+      return a;
+    }).sort(function (a, b) {
+      return (RANK[b.nivel] - RANK[a.nivel]) || (a.item.marca < b.item.marca ? -1 : (a.item.marca > b.item.marca ? 1 : 0)) ||
+        (a.item.produto < b.item.produto ? -1 : (a.item.produto > b.item.produto ? 1 : 0));
+    });
+  }
+
+  /** Marcos e funções vitais do conjunto de produtos (só os casamentos que não são "parecido"). */
+  function resumoDe(achados) {
+    var marcos = [], funcoes = [];
+    achados.forEach(function (a) {
+      if (a.nivel === 'parecido') return;
+      marcos = marcos.concat(a.item.marcos);
+      funcoes = funcoes.concat(a.item.funcoes);
+    });
+    return { marcos: normMarcos(marcos), funcoes: normFuncoes(funcoes) };
+  }
+
+  /**
+   * produto → NCRs que o citam, para a aba Produtos. Refeito só quando o
+   * banco de produtos, as correções ou a fonte de alguma NCR mudou (uma
+   * edição de campo do Waiver não conta: ela não mexe no que a NCR cita).
+   */
+  function mapaNcrs() {
+    var recs = Ncrs.lista();
+    /* a fonte de uma NCR só muda por uma importação (o carimbo dela muda) ou por
+       uma correção do administrador (a versão das correções muda) */
+    var sig = recs.length + '|' + versao + '|' + (global.Correcoes && Correcoes.versao ? Correcoes.versao() : 0) + '|' +
+      recs.map(function (r) { return r.fonte.importadoEm; }).join(',');
+    if (cacheNcrs && cacheNcrs.sig === sig) return cacheNcrs.mapa;
+    var mapa = {};
+    if (itens.length) {
+      recs.forEach(function (rec) {
+        deNcr(rec).forEach(function (a) {
+          (mapa[a.item.id] = mapa[a.item.id] || []).push({ rec: rec, nivel: a.nivel, vias: a.vias, tokens: a.tokens, onde: a.onde });
+        });
+      });
+    }
+    cacheNcrs = { sig: sig, mapa: mapa };
+    return mapa;
+  }
+
+  /** As NCRs de um produto; `soCertas` deixa de fora os "parecido". */
+  function ncrsDoProduto(id, soCertas) {
+    var l = mapaNcrs()[id] || [];
+    return soCertas ? l.filter(function (x) { return x.nivel !== 'parecido'; }) : l;
+  }
+
+  global.Produtos = {
+    ARQUIVO: ARQUIVO,
+    FORMATO: FORMATO,
+    NA: NA,
+    carregar: carregar,
+    salvar: salvar,
+    importar: importar,
+    lista: function () { return itens; },
+    total: function () { return itens.length; },
+    get: get,
+    meta: function () { return meta; },
+    versao: function () { return versao; },
+    contagens: contagens,
+    marcosUsados: marcosUsados,
+    funcoesUsadas: funcoesUsadas,
+    nomesDaFuncao: nomesDaFuncao,
+    rotuloFuncao: rotuloFuncao,
+    sistemaDe: sistemaDe,
+    familiaDe: familiaDe,
+    deNcr: deNcr,
+    resumoDe: resumoDe,
+    mapaNcrs: mapaNcrs,
+    ncrsDoProduto: ncrsDoProduto,
+    arquivo: arquivo,
+    paraBackup: paraBackup,
+    adotar: adotar,
+    juntar: juntar,
+    /* para os testes e para a tela: as peças do casamento */
+    nrm: nrm,
+    canonProduto: canonProduto,
+    casarMarca: casarMarca,
+    cmpFuncao: cmpFuncao
   };
 })(window);
 
@@ -17743,6 +18705,1123 @@ if(isWorker){
 
 </script>
 <script>
+/* assets/js/produtosview.js */
+/* ==========================================================================
+   produtosview.js — a aba Produtos, a ficha do produto e o bloco "produtos"
+   da ficha da NCR
+   --------------------------------------------------------------------------
+   Os dados e o casamento com a NCR são do produtos.js; aqui só se desenha.
+
+   A aba tem duas vistas do mesmo recorte (busca + filtros):
+
+     Tabela  um produto por linha — Product Mark, Functional Mark,
+             Designation, sistema, marcos de segurança, funções vitais e
+             quantas NCRs o citam. Clicar abre a ficha do produto.
+     Mapa    o que a tabela não mostra: a matriz marco × função vital (quantos
+             produtos há em cada cruzamento) e a divisão por sistema. Clicar
+             numa célula ou numa barra leva à tabela já filtrada.
+
+   Produto sem marco e sem função vital aparece como N/A, em todo lugar.
+
+   Os filtros não são guardados entre aberturas (a mesma regra da Tabela e
+   do Banco NCR: filtro guardado esconde linhas sem dizer por quê); a vista e
+   o painel recolhido são preferência de quem está sentado ali.
+   ========================================================================== */
+(function (global) {
+  'use strict';
+
+  var PREF = 'derrogacao:produtos';
+  var FILTROS = ['sistema', 'marco', 'funcao', 'situacao', 'ncr'];
+  var NOMES_FILTRO = {
+    sistema: 'Sistema (bigrama)', marco: 'Marco de segurança', funcao: 'Função vital',
+    situacao: 'Marco e função vital', ncr: 'Citado em NCR'
+  };
+  var ROTULOS_FIXOS = {
+    situacao: { ambos: 'Com marco e função vital', soMarco: 'Só com marco', soFuncao: 'Só com função vital',
+      na: 'N/A — sem marco e sem função vital' },
+    ncr: { sim: 'Citado em alguma NCR', nao: 'Sem NCR' }
+  };
+  var NIVEIS = {
+    exato: { rot: 'exato', dica: 'A mesma marca está no banco de produtos.' },
+    variacao: { rot: 'variação', dica: 'A NCR escreve a marca do banco com caracteres a mais no fim.' },
+    parecido: { rot: 'parecido — conferir', dica: 'Mesma base da marca, sufixo diferente: confira antes de usar.' }
+  };
+
+  /* A tabela mostra os primeiros produtos e deixa pedir mais: montar de uma vez
+     as 2.400 linhas custava mais de um segundo só para o navegador medi-las. */
+  var LOTE = 300;
+
+  var host = null, ctx = null;
+  var st = { busca: '', filtros: vazios(), ordem: { col: 'produto', dir: 1 }, limite: LOTE };
+  var cacheLinhas = null;
+  var detalheAberto = null;
+
+  function vazios() {
+    var f = {};
+    FILTROS.forEach(function (k) { f[k] = []; });
+    return f;
+  }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function botao(texto, cls, fn, titulo) {
+    var b = el('button', 'btn ' + (cls || ''), texto);
+    b.type = 'button';
+    if (titulo) b.title = titulo;
+    if (fn) b.addEventListener('click', fn);
+    return b;
+  }
+  function str(v) { return v == null ? '' : String(v); }
+  function leitura() { return !!(ctx && ctx.leitura); }
+
+  function lerPref() {
+    try { return JSON.parse(global.localStorage.getItem(PREF) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function gravarPref(p) {
+    try { global.localStorage.setItem(PREF, JSON.stringify(p)); } catch (e) { /* sem armazenamento: vale até fechar */ }
+  }
+  function pref(chave, padrao) {
+    var p = lerPref();
+    return p[chave] === undefined ? padrao : p[chave];
+  }
+  function setPref(chave, valor) {
+    var p = lerPref();
+    p[chave] = valor;
+    gravarPref(p);
+  }
+
+  /* --- peças que as outras telas também usam ------------------------------- */
+
+  function chipMarco(m) {
+    var c = el('span', 'pr-chip pr-chip--marco', m);
+    c.title = 'Marco de segurança ' + m;
+    return c;
+  }
+  function chipFuncao(f) {
+    var c = el('span', 'pr-chip pr-chip--fv', 'FV ' + f);
+    var nomes = Produtos.nomesDaFuncao(f);
+    c.title = nomes.length ? 'Função vital ' + f + ' — ' + nomes.join(' · ') : 'Função vital ' + f;
+    return c;
+  }
+  function naTag(oQue) {
+    var n = el('span', 'pr-na', Produtos.NA);
+    n.title = 'Não se aplica: este produto não está atrelado a nenhum ' + oQue + '.';
+    return n;
+  }
+
+  function chipsMarcos(it) {
+    var w = el('span', 'pr-chips');
+    if (!it.marcos.length) w.appendChild(naTag('marco de segurança'));
+    it.marcos.forEach(function (m) { w.appendChild(chipMarco(m)); });
+    return w;
+  }
+  function chipsFuncoes(it) {
+    var w = el('span', 'pr-chips');
+    if (!it.funcoes.length) w.appendChild(naTag('função vital'));
+    it.funcoes.forEach(function (f) { w.appendChild(chipFuncao(f)); });
+    return w;
+  }
+
+  function etiquetaNivel(nivel, dica) {
+    var n = NIVEIS[nivel];
+    var e = el('span', 'pr-nivel pr-nivel--' + nivel, n.rot);
+    e.title = dica || n.dica;
+    return e;
+  }
+
+  /** O número do produto como botão que abre a ficha dele. */
+  function linkProduto(it, abrir) {
+    var b = el('button', 'nb2-num pr-num', it.produto || it.marca);
+    b.type = 'button';
+    b.title = 'Abrir a ficha do produto';
+    b.addEventListener('click', function (e) { e.stopPropagation(); abrir(it.id); });
+    return b;
+  }
+
+  /* --- as linhas e os filtros ----------------------------------------------- */
+
+  function linhas() {
+    var mapa = Produtos.mapaNcrs();
+    var v = Produtos.versao();
+    if (cacheLinhas && cacheLinhas.mapa === mapa && cacheLinhas.v === v) return cacheLinhas.ls;
+    var ls = Produtos.lista().map(function (it) {
+      var ns = mapa[it.id] || [];
+      var certas = ns.filter(function (x) { return x.nivel !== 'parecido'; });
+      var l = { it: it, sistema: Produtos.sistemaDe(it), ncrs: certas, possiveis: ns.length - certas.length };
+      l.busca = Ncrs.norm([it.produto, it.marca, it.descricao, it.marcos.join(' '),
+        it.funcoes.join(' '), it.funcoes.map(function (f) { return 'fv ' + f; }).join(' '), l.sistema,
+        certas.map(function (x) { return x.rec.numero; }).join(' ')].join(' '));
+      /* as marcas sem separador: "BH-00004" na busca acha "BH00004" */
+      l.compacto = Produtos.nrm(it.produto + ' ' + it.marca);
+      /* o que a tabela mostra como N/A: sem marca, sem marco ou sem função vital */
+      l.temNA = !it.marca || !it.marcos.length || !it.funcoes.length;
+      return l;
+    });
+    cacheLinhas = { mapa: mapa, v: v, ls: ls };
+    return ls;
+  }
+
+  var VALORES = {
+    sistema: function (l) { return [l.sistema || '__na']; },
+    marco: function (l) { return l.it.marcos.length ? l.it.marcos : ['__na']; },
+    funcao: function (l) { return l.it.funcoes.length ? l.it.funcoes : ['__na']; },
+    situacao: function (l) {
+      var m = l.it.marcos.length > 0, f = l.it.funcoes.length > 0;
+      return [m && f ? 'ambos' : (m ? 'soMarco' : (f ? 'soFuncao' : 'na'))];
+    },
+    ncr: function (l) { return [l.ncrs.length ? 'sim' : 'nao']; }
+  };
+
+  function nomeValor(chave, v) {
+    if (v === '__na') return Produtos.NA;
+    if (ROTULOS_FIXOS[chave]) return ROTULOS_FIXOS[chave][v] || v;
+    if (chave === 'funcao') return Produtos.rotuloFuncao(v);
+    return v;
+  }
+
+  /** Cada palavra da busca tem de aparecer; "n/a" acha o que a tabela mostra como N/A. */
+  function casaBusca(l) {
+    return String(st.busca).trim().split(/\s+/).every(function (palavra) {
+      if (!palavra) return true;
+      if (palavra.toLowerCase() === 'n/a') return l.temNA;
+      var n = Ncrs.norm(palavra), c = Produtos.nrm(palavra);
+      return (n && l.busca.indexOf(n) >= 0) || (c.length >= 3 && l.compacto.indexOf(c) >= 0);
+    });
+  }
+
+  function passa(l, ignorar) {
+    if (st.busca && !casaBusca(l)) return false;
+    for (var i = 0; i < FILTROS.length; i++) {
+      var k = FILTROS[i];
+      if (k === ignorar) continue;
+      var esc = st.filtros[k];
+      if (!esc.length) continue;
+      if (!VALORES[k](l).some(function (v) { return esc.indexOf(v) >= 0; })) return false;
+    }
+    return true;
+  }
+
+  function algumFiltro() {
+    return !!st.busca || FILTROS.some(function (k) { return st.filtros[k].length; });
+  }
+
+  function descricaoDoFiltro() {
+    var p = [];
+    if (st.busca) p.push('busca: “' + st.busca + '”');
+    FILTROS.forEach(function (k) {
+      if (st.filtros[k].length) p.push(NOMES_FILTRO[k] + ': ' + st.filtros[k].map(function (v) { return nomeValor(k, v); }).join(' ou '));
+    });
+    return p.join(' · ');
+  }
+
+  function posicaoMarco(l) { return l.it.marcos.length ? l.it.marcos[0] : null; }
+  function primeiraFuncao(l) { return l.it.funcoes.length ? l.it.funcoes[0] : null; }
+
+  var COLUNAS = [
+    { id: 'produto', nome: 'Product Mark', cmp: function (a, b) { return Store.cmpTexto(a.it.produto, b.it.produto); } },
+    { id: 'marca', nome: 'Functional Mark', cmp: function (a, b) { return Store.cmpTexto(a.it.marca, b.it.marca); } },
+    { id: 'descricao', nome: 'Designation', cmp: function (a, b) { return Store.cmpTexto(a.it.descricao, b.it.descricao); } },
+    { id: 'sistema', nome: 'Sistema', cmp: function (a, b) { return Store.cmpTexto(a.sistema, b.sistema); } },
+    { id: 'marcos', nome: 'Marcos de segurança', cmp: function (a, b) {
+      var x = posicaoMarco(a), y = posicaoMarco(b);
+      if (x === null || y === null) return x === y ? 0 : (x === null ? 1 : -1);
+      return Fluxo.cmpMarco(x, y);
+    } },
+    { id: 'funcoes', nome: 'Funções vitais', cmp: function (a, b) {
+      var x = primeiraFuncao(a), y = primeiraFuncao(b);
+      if (x === null || y === null) return x === y ? 0 : (x === null ? 1 : -1);
+      return Produtos.cmpFuncao(x, y);
+    } },
+    { id: 'ncrs', nome: 'NCRs', cmp: function (a, b) { return a.ncrs.length - b.ncrs.length; } }
+  ];
+
+  function aVista() {
+    var c = COLUNAS.filter(function (x) { return x.id === st.ordem.col; })[0] || COLUNAS[0];
+    var ls = linhas().filter(function (l) { return passa(l); });
+    /* a ordem é estável: o desempate é o Product Mark, e depois a posição na planilha */
+    var pos = {};
+    ls.forEach(function (l, i) { pos[l.it.id] = i; });
+    return ls.sort(function (a, b) {
+      return (c.cmp(a, b) * st.ordem.dir) || Store.cmpTexto(a.it.produto, b.it.produto) || (pos[a.it.id] - pos[b.it.id]);
+    });
+  }
+
+  /* --- a tela --------------------------------------------------------------- */
+
+  function render(h, c) {
+    host = h; ctx = c;
+    host.innerHTML = '';
+    var raiz = el('div', 'nb2 pr2');
+    var total = Produtos.total();
+
+    raiz.appendChild(barra(total));
+    var painel = el('div', 'nb2-painel');
+    painel.id = 'pr2Painel';
+    /* com o banco vazio o painel abre sozinho: é nele que está o botão de importar */
+    painel.hidden = total ? !pref('painel', false) : false;
+    painel.appendChild(acoes(total));
+    if (total) {
+      painel.appendChild(kpis());
+      painel.appendChild(filtrosBox());
+    }
+    raiz.appendChild(painel);
+
+    if (!total) {
+      raiz.appendChild(vazio());
+      host.appendChild(raiz);
+      return;
+    }
+    var recorte = el('div', 'nb2-recorte pr2-recorte');
+    recorte.id = 'pr2Recorte';
+    raiz.appendChild(recorte);
+    var conteudo = el('div', 'pr2-conteudo');
+    conteudo.id = 'pr2Conteudo';
+    raiz.appendChild(conteudo);
+    host.appendChild(raiz);
+    renderConteudo();
+  }
+
+  function barra(total) {
+    var b = el('div', 'nb2-barra');
+    var tit = el('div', 'nb2-titulo');
+    tit.appendChild(el('strong', null, 'Produtos — marcos e funções vitais'));
+    var conta = el('span', 'nb2-conta');
+    conta.id = 'pr2Conta';
+    conta.textContent = total ? total + ' produtos' : 'banco vazio';
+    tit.appendChild(conta);
+    b.appendChild(tit);
+
+    if (total) {
+      var busca = el('input', 'nb2-busca');
+      busca.type = 'search';
+      busca.id = 'pr2Busca';
+      busca.placeholder = 'Buscar: Product Mark, Functional Mark, descrição, marco, FV, NCR…';
+      busca.setAttribute('aria-label', 'Buscar nos produtos');
+      busca.value = st.busca;
+      var tm = null;
+      busca.addEventListener('input', function () {
+        clearTimeout(tm);
+        tm = setTimeout(function () { st.busca = busca.value; mudouRecorte(); }, 200);
+      });
+      b.appendChild(busca);
+
+      var vistas = el('div', 'pr2-vistas');
+      vistas.setAttribute('role', 'group');
+      vistas.setAttribute('aria-label', 'Vista');
+      [['tabela', 'Tabela', 'Um produto por linha'],
+       ['mapa', 'Mapa', 'Marcos × funções vitais e a divisão por sistema']].forEach(function (v) {
+        var on = pref('vista', 'tabela') === v[0];
+        var bt = botao(v[1], 'btn--sm nb2-toggle' + (on ? ' is-on' : ''), function () {
+          setPref('vista', v[0]);
+          st.limite = LOTE;
+          Array.prototype.forEach.call(vistas.children, function (x) {
+            var ativo = x.dataset.vista === v[0];
+            x.classList.toggle('is-on', ativo);
+            x.setAttribute('aria-pressed', ativo ? 'true' : 'false');
+          });
+          renderConteudo();
+        }, v[2]);
+        bt.dataset.vista = v[0];
+        bt.setAttribute('aria-pressed', on ? 'true' : 'false');
+        vistas.appendChild(bt);
+      });
+      b.appendChild(vistas);
+
+      var ex = el('div', 'nb2-exporta');
+      ex.appendChild(botao('⤓ Excel', 'btn--sm', function () { exportar('xlsx'); },
+        'Planilha com os produtos à vista (com o filtro aplicado) e uma aba dizendo qual foi o recorte'));
+      ex.appendChild(botao('CSV', 'btn--sm', function () { exportar('csv'); }, 'Os produtos à vista, em CSV'));
+      b.appendChild(ex);
+    }
+
+    var aberto = total ? pref('painel', false) : true;
+    var bp = botao(aberto ? '▲ Recolher painel' : '▼ Mostrar painel', 'btn--sm nb2-painel-btn', function () {
+      var p = document.getElementById('pr2Painel');
+      var agora = p.hidden;
+      p.hidden = !agora;
+      setPref('painel', agora);
+      bp.textContent = agora ? '▲ Recolher painel' : '▼ Mostrar painel';
+      bp.setAttribute('aria-expanded', agora ? 'true' : 'false');
+    }, 'Recolhe ou mostra a importação, os números e os filtros');
+    bp.setAttribute('aria-expanded', aberto ? 'true' : 'false');
+    bp.setAttribute('aria-controls', 'pr2Painel');
+    b.appendChild(bp);
+    return b;
+  }
+
+  function acoes(total) {
+    var box = el('div', 'nb2-acoes');
+    var m = Produtos.meta();
+    var ult = m.importadoEm
+      ? 'Banco de produtos atualizado em ' + Ncrs.data(m.importadoEm) + (m.importadoPor ? ' por ' + m.importadoPor : '') +
+        (m.arquivo && !leitura() ? ' · ' + m.arquivo : '')
+      : (total ? '' : 'O banco de produtos ainda não foi importado.');
+    if (!leitura()) {
+      var g = el('div', 'nb2-grupo');
+      g.appendChild(el('span', 'nb2-grupo-rot', 'Importar'));
+      g.appendChild(botao(total ? 'Atualizar com uma planilha…' : 'Importar planilha de produtos…',
+        total ? 'btn--sm' : 'btn--sm btn--primary', function () { ctx.importar(); },
+        'A planilha com Product Mark, Functional Mark, Designation, Safety Milestones e Vital Functions #. ' +
+        'Entra o que é novo e se atualiza o que mudou; nada é apagado.'));
+      box.appendChild(g);
+    }
+    if (ult) box.appendChild(el('span', 'nb2-ultima', ult));
+    return box;
+  }
+
+  function vazio() {
+    var c = el('div', 'nb2-vazio');
+    if (leitura()) {
+      c.appendChild(el('h3', null, 'O banco de produtos não veio nesta publicação'));
+      c.appendChild(el('p', 'nb2-mini', 'Quem publica é o editor: o banco de produtos entra na próxima publicação, depois de importado lá.'));
+      return c;
+    }
+    c.appendChild(el('h3', null, 'Nenhum produto no banco ainda'));
+    var p = el('p');
+    p.appendChild(document.createTextNode('Use '));
+    p.appendChild(el('strong', null, 'Importar planilha de produtos…'));
+    p.appendChild(document.createTextNode(', acima, e escolha a planilha com as colunas Product Mark, Functional Mark, ' +
+      'Designation, Safety Milestones e Vital Functions #. Vários marcos ou funções na mesma célula ficam separados por “;”.'));
+    c.appendChild(p);
+    return c;
+  }
+
+  /* --- números e filtros ------------------------------------------------------ */
+
+  var KPI_DEFS = [
+    ['Produtos', function (c) { return c.total; }, function () { return 'no banco'; }, null],
+    ['Com marco', function (c) { return c.comMarco; }, function () { return 'marco de segurança'; }, ['situacao', ['ambos', 'soMarco']]],
+    ['Com função vital', function (c) { return c.comFuncao; }, function () { return 'ao menos uma'; }, ['situacao', ['ambos', 'soFuncao']]],
+    ['N/A', function (c) { return c.semNada; }, function () { return 'sem marco e sem função vital'; }, ['situacao', ['na']]],
+    ['Citados em NCR', function (c) { return c.citados; }, function () { return 'aparecem em alguma NCR'; }, ['ncr', ['sim']]]
+  ];
+
+  function numeros() {
+    var c = Produtos.contagens();
+    c.citados = linhas().filter(function (l) { return l.ncrs.length; }).length;
+    return c;
+  }
+
+  function kpis() {
+    var row = el('div', 'sm-kpis nb2-kpis');
+    var c = numeros();
+    KPI_DEFS.forEach(function (k) {
+      var t = el('button', 'sm-kpi nb2-kpi');
+      t.type = 'button';
+      t.title = k[3] ? 'Filtrar por este grupo' : 'Limpar os filtros';
+      t.appendChild(el('span', 'sm-kpi-label', k[0]));
+      t.appendChild(el('strong', 'sm-kpi-value', String(k[1](c))));
+      t.appendChild(el('span', 'sm-kpi-sub', k[2]()));
+      t.addEventListener('click', function () {
+        st.busca = '';
+        st.filtros = vazios();
+        if (k[3]) st.filtros[k[3][0]] = k[3][1].slice();
+        render(host, ctx);
+      });
+      row.appendChild(t);
+    });
+    return row;
+  }
+
+  function opcoesDe(chave) {
+    var cont = {};
+    /* a contagem de cada opção respeita os OUTROS filtros, não o dela mesma */
+    linhas().forEach(function (l) {
+      if (!passa(l, chave)) return;
+      VALORES[chave](l).forEach(function (v) { cont[v] = (cont[v] || 0) + 1; });
+    });
+    var ks;
+    if (ROTULOS_FIXOS[chave]) ks = Object.keys(ROTULOS_FIXOS[chave]);
+    else {
+      /* todos os valores que existem, mesmo os que o recorte esconde (n = 0) */
+      var todos = {};
+      linhas().forEach(function (l) { VALORES[chave](l).forEach(function (v) { todos[v] = 1; }); });
+      ks = Object.keys(todos);
+      ks.sort(function (a, b) {
+        if (a === '__na') return 1;
+        if (b === '__na') return -1;
+        if (chave === 'marco') return Fluxo.cmpMarco(a, b);
+        if (chave === 'funcao') return Produtos.cmpFuncao(a, b);
+        return Store.cmpTexto(a, b);
+      });
+    }
+    return ks.map(function (v) { return { valor: v, nome: nomeValor(chave, v), n: cont[v] || 0 }; });
+  }
+
+  function filtrosBox() {
+    var box = el('div', 'nb2-filtros');
+    FILTROS.forEach(function (k) { box.appendChild(multi(k)); });
+    var limpa = botao('Limpar filtros', 'btn--sm nb2-limpar', function () {
+      st.busca = '';
+      st.filtros = vazios();
+      render(host, ctx);
+    });
+    limpa.id = 'pr2Limpar';
+    box.appendChild(limpa);
+    return box;
+  }
+
+  var popAberto = null;
+  function fecharPop() {
+    if (popAberto) { popAberto.hidden = true; popAberto.previousSibling.setAttribute('aria-expanded', 'false'); popAberto = null; }
+  }
+  document.addEventListener('mousedown', function (e) {
+    if (popAberto && !popAberto.parentNode.contains(e.target)) fecharPop();
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && popAberto) fecharPop(); });
+
+  function resumoBotao(chave) {
+    var esc = st.filtros[chave];
+    if (!esc.length) return 'Todos';
+    if (esc.length <= 2) return esc.map(function (v) { return nomeValor(chave, v); }).join(', ');
+    return esc.length + ' escolhidos';
+  }
+
+  function multi(chave) {
+    var opcoes = opcoesDe(chave);
+    var w = el('div', 'nb2-ms');
+    w.appendChild(el('span', 'nb2-ms-rot', NOMES_FILTRO[chave]));
+    var corpo = el('div', 'nb2-ms-corpo');
+    var btn = el('button', 'nb2-ms-btn' + (st.filtros[chave].length ? ' is-on' : ''));
+    btn.type = 'button';
+    btn.id = 'prF-' + chave;
+    btn.setAttribute('aria-haspopup', 'true');
+    btn.setAttribute('aria-expanded', 'false');
+    var txt = el('span', 'nb2-ms-txt', resumoBotao(chave));
+    btn.appendChild(txt);
+    btn.appendChild(el('span', 'nb2-ms-seta', '▾'));
+    corpo.appendChild(btn);
+
+    var pop = el('div', 'nb2-ms-pop');
+    pop.hidden = true;
+    var busca = null;
+    if (opcoes.length > 8) {
+      busca = el('input', 'nb2-ms-busca');
+      busca.type = 'search';
+      busca.placeholder = 'procurar…';
+      pop.appendChild(busca);
+    }
+    var lista = el('div', 'nb2-ms-lista');
+    function aoMudar() {
+      txt.textContent = resumoBotao(chave);
+      btn.classList.toggle('is-on', st.filtros[chave].length > 0);
+      mudouRecorte();
+    }
+    opcoes.forEach(function (o) {
+      var row = el('label', 'nb2-ms-op');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = o.valor;
+      cb.checked = st.filtros[chave].indexOf(o.valor) >= 0;
+      cb.addEventListener('change', function () {
+        var sel = st.filtros[chave].filter(function (v) { return v !== o.valor; });
+        if (cb.checked) sel.push(o.valor);
+        st.filtros[chave] = sel;
+        aoMudar();
+      });
+      row.appendChild(cb);
+      row.appendChild(el('span', 'nb2-ms-nome', o.nome));
+      row.appendChild(el('span', 'nb2-ms-n', String(o.n)));
+      row.dataset.busca = Ncrs.norm(o.nome);
+      lista.appendChild(row);
+    });
+    pop.appendChild(lista);
+    if (busca) {
+      busca.addEventListener('input', function () {
+        var q = Ncrs.norm(busca.value);
+        Array.prototype.forEach.call(lista.children, function (r) { r.hidden = !!q && r.dataset.busca.indexOf(q) < 0; });
+      });
+    }
+    var pe = el('div', 'nb2-ms-pe');
+    pe.appendChild(botao('Marcar todos', 'btn--sm nb2-ms-todos', function () {
+      var sel = st.filtros[chave].slice();
+      Array.prototype.forEach.call(lista.children, function (r) {
+        if (r.hidden) return;
+        var c = r.querySelector('input');
+        c.checked = true;
+        if (sel.indexOf(c.value) < 0) sel.push(c.value);
+      });
+      st.filtros[chave] = sel;
+      aoMudar();
+    }));
+    pe.appendChild(botao('Limpar', 'btn--sm', function () {
+      st.filtros[chave] = [];
+      Array.prototype.forEach.call(lista.querySelectorAll('input[type="checkbox"]'), function (c) { c.checked = false; });
+      aoMudar();
+    }));
+    pe.appendChild(botao('Pronto', 'btn--sm btn--primary', fecharPop));
+    pop.appendChild(pe);
+    corpo.appendChild(pop);
+    w.appendChild(corpo);
+    btn.addEventListener('click', function () {
+      if (popAberto === pop) { fecharPop(); return; }
+      fecharPop();
+      pop.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+      popAberto = pop;
+      if (busca) busca.focus();
+    });
+    return w;
+  }
+
+  /* --- o conteúdo: tabela ou mapa --------------------------------------------- */
+
+  /** A busca, um filtro ou a ordem mudaram: a lista recomeça do alto. */
+  function mudouRecorte() {
+    st.limite = LOTE;
+    renderConteudo();
+  }
+
+  function renderConteudo() {
+    var box = document.getElementById('pr2Conteudo');
+    if (!box) return;
+    var topo = host ? host.scrollTop : 0;
+    box.innerHTML = '';
+    var ls = aVista();
+    var total = Produtos.total();
+    var vista = pref('vista', 'tabela');
+    if (vista === 'mapa') desenharMapa(box, ls);
+    else desenharTabela(box, ls);
+    atualizarContagem(ls, total);
+    atualizarRecorte();
+    if (host) host.scrollTop = topo;
+  }
+
+  function atualizarContagem(ls, total) {
+    var c = document.getElementById('pr2Conta');
+    if (!c) return;
+    var f = algumFiltro();
+    c.textContent = f ? ls.length + ' de ' + total + ' produtos à vista' : total + ' produtos';
+    c.classList.toggle('is-on', f);
+  }
+
+  function atualizarRecorte() {
+    var box = document.getElementById('pr2Recorte');
+    if (!box) return;
+    box.innerHTML = '';
+    box.hidden = !algumFiltro();
+    if (!algumFiltro()) return;
+    box.appendChild(el('span', null, 'Recorte: ' + descricaoDoFiltro()));
+    box.appendChild(botao('Limpar', 'btn--sm btn--quiet', function () {
+      st.busca = '';
+      st.filtros = vazios();
+      render(host, ctx);
+    }));
+  }
+
+  function desenharTabela(box, ls) {
+    var caixa = el('div', 'nb2-tabela');
+    var t = el('table', 'nb2-table pr2-table');
+    t.id = 'pr2Table';
+    var thead = el('thead');
+    var trh = el('tr');
+    COLUNAS.forEach(function (c) {
+      var th = el('th');
+      var b = el('button', 'nb2-sort', c.nome);
+      b.type = 'button';
+      if (st.ordem.col === c.id) b.appendChild(el('span', 'nb2-seta', st.ordem.dir > 0 ? ' ▲' : ' ▼'));
+      b.title = 'Clique para ordenar';
+      b.addEventListener('click', function () {
+        if (st.ordem.col === c.id) st.ordem.dir = -st.ordem.dir;
+        else { st.ordem.col = c.id; st.ordem.dir = 1; }
+        mudouRecorte();
+      });
+      th.appendChild(b);
+      trh.appendChild(th);
+    });
+    thead.appendChild(trh);
+    t.appendChild(thead);
+    var tb = el('tbody');
+    ls.slice(0, st.limite).forEach(function (l) { tb.appendChild(linhaTabela(l)); });
+    t.appendChild(tb);
+    caixa.appendChild(t);
+    box.appendChild(caixa);
+    if (!ls.length) caixa.appendChild(el('p', 'nb2-nada', 'Nenhum produto com esse recorte.'));
+    if (ls.length > st.limite) {
+      var mais = el('div', 'pr2-mais');
+      mais.id = 'pr2Mais';
+      mais.appendChild(el('span', null, 'Mostrando ' + st.limite + ' de ' + ls.length + ' produtos'));
+      mais.appendChild(botao('Mostrar mais ' + LOTE, 'btn--sm', function () { st.limite += LOTE; renderConteudo(); }));
+      mais.appendChild(botao('Mostrar todos (' + ls.length + ')', 'btn--sm', function () { st.limite = ls.length; renderConteudo(); }));
+      box.appendChild(mais);
+    }
+  }
+
+  function linhaTabela(l) {
+    var it = l.it;
+    var tr = el('tr', 'pr2-linha' + (!it.marcos.length && !it.funcoes.length ? ' is-na' : ''));
+    tr.dataset.id = it.id;
+    var td = el('td');
+    td.appendChild(linkProduto(it, abrirDetalhe));
+    tr.appendChild(td);
+    tr.appendChild(el('td', 'pr-marca', it.marca || Produtos.NA));
+    tr.appendChild(el('td', 'is-longo', it.descricao));
+    tr.appendChild(el('td', 'pr-sist', l.sistema || '—'));
+    var tm = el('td'); tm.appendChild(chipsMarcos(it)); tr.appendChild(tm);
+    var tf = el('td'); tf.appendChild(chipsFuncoes(it)); tr.appendChild(tf);
+    var tn = el('td', 'pr-nncr');
+    if (l.ncrs.length) {
+      var bn = el('button', 'pr-contador', String(l.ncrs.length));
+      bn.type = 'button';
+      bn.title = l.ncrs.length + ' NCR(s) citam este produto' + (l.possiveis ? ' (mais ' + l.possiveis + ' possível(is))' : '') + ' — abrir a ficha';
+      bn.addEventListener('click', function (e) { e.stopPropagation(); abrirDetalhe(it.id); });
+      tn.appendChild(bn);
+    } else tn.appendChild(el('span', 'pr-zero', l.possiveis ? '(' + l.possiveis + ')' : '—'));
+    tr.appendChild(tn);
+    tr.addEventListener('click', function () { abrirDetalhe(it.id); });
+    return tr;
+  }
+
+  /* --- o mapa ------------------------------------------------------------------ */
+
+  function irParaTabela(filtros) {
+    FILTROS.forEach(function (k) { if (filtros[k]) st.filtros[k] = filtros[k]; });
+    setPref('vista', 'tabela');
+    st.limite = LOTE;
+    render(host, ctx);
+  }
+
+  function desenharMapa(box, ls) {
+    if (!ls.length) { box.appendChild(el('p', 'nb2-nada', 'Nenhum produto com esse recorte.')); return; }
+    box.appendChild(mapaMatriz(ls));
+    box.appendChild(mapaSistemas(ls));
+  }
+
+  function mapaMatriz(ls) {
+    var sec = el('section', 'nb-sec pr-sec');
+    sec.appendChild(el('h4', null, 'Marcos de segurança × funções vitais'));
+    sec.appendChild(el('p', 'nb-sec-sub', 'Quantos produtos há em cada cruzamento. Clique numa célula, num marco ou numa função para ver os produtos na tabela.'));
+    var marcos = [], fvs = [];
+    var seenM = {}, seenF = {};
+    var semMarco = 0, semFuncao = 0;
+    ls.forEach(function (l) {
+      if (!l.it.marcos.length) semMarco++;
+      if (!l.it.funcoes.length) semFuncao++;
+      l.it.marcos.forEach(function (m) { if (!seenM[m]) { seenM[m] = 1; marcos.push(m); } });
+      l.it.funcoes.forEach(function (f) { if (!seenF[f]) { seenF[f] = 1; fvs.push(f); } });
+    });
+    marcos.sort(function (a, b) { return Fluxo.cmpMarco(a, b); });
+    fvs.sort(Produtos.cmpFuncao);
+    var linhasM = marcos.concat(semMarco ? ['__na'] : []);
+    var colunasF = fvs.concat(semFuncao ? ['__na'] : []);
+    var cel = {}, totM = {}, totF = {}, max = 0;
+    ls.forEach(function (l) {
+      var ms = l.it.marcos.length ? l.it.marcos : ['__na'];
+      var fs = l.it.funcoes.length ? l.it.funcoes : ['__na'];
+      ms.forEach(function (m) {
+        totM[m] = (totM[m] || 0) + 1;
+        fs.forEach(function (f) {
+          var k = m + '\u0001' + f;
+          cel[k] = (cel[k] || 0) + 1;
+          if (cel[k] > max) max = cel[k];
+        });
+      });
+      fs.forEach(function (f) { totF[f] = (totF[f] || 0) + 1; });
+    });
+    var caixa = el('div', 'pr-matriz-caixa');
+    var t = el('table', 'pr-matriz');
+    t.id = 'pr2Matriz';
+    var th = el('thead');
+    var trh = el('tr');
+    trh.appendChild(el('th', 'pr-mz-canto', 'Marco \\ Função'));
+    colunasF.forEach(function (f) {
+      var c = el('th', 'pr-mz-col');
+      var b = el('button', 'pr-mz-cab', f === '__na' ? Produtos.NA : 'FV ' + f);
+      b.type = 'button';
+      b.title = f === '__na' ? 'Produtos sem função vital' : Produtos.rotuloFuncao(f) + ' — ver os produtos';
+      b.addEventListener('click', function () { irParaTabela({ funcao: [f] }); });
+      c.appendChild(b);
+      trh.appendChild(c);
+    });
+    trh.appendChild(el('th', 'pr-mz-tot', 'Total'));
+    th.appendChild(trh);
+    t.appendChild(th);
+    var tb = el('tbody');
+    linhasM.forEach(function (m) {
+      var tr = el('tr');
+      var rh = el('th', 'pr-mz-lin');
+      var b = el('button', 'pr-mz-cab', m === '__na' ? Produtos.NA : m);
+      b.type = 'button';
+      b.title = m === '__na' ? 'Produtos sem marco de segurança' : 'Marco ' + m + ' — ver os produtos';
+      b.addEventListener('click', function () { irParaTabela({ marco: [m] }); });
+      rh.appendChild(b);
+      tr.appendChild(rh);
+      colunasF.forEach(function (f) {
+        var n = cel[m + '\u0001' + f] || 0;
+        var td = el('td', 'pr-mz-cel' + (n ? '' : ' is-zero'));
+        if (n) {
+          var a = 0.12 + 0.78 * (n / max);
+          td.style.background = 'rgba(107, 122, 10, ' + a.toFixed(2) + ')';
+          if (a > 0.5) td.style.color = '#fff';
+          var bc = el('button', 'pr-mz-n', String(n));
+          bc.type = 'button';
+          bc.title = n + ' produto(s): ' + (m === '__na' ? 'sem marco' : 'marco ' + m) + ' e ' + (f === '__na' ? 'sem função vital' : 'FV ' + f);
+          bc.addEventListener('click', function () { irParaTabela({ marco: [m], funcao: [f] }); });
+          td.appendChild(bc);
+        } else td.textContent = '·';
+        tr.appendChild(td);
+      });
+      tr.appendChild(el('td', 'pr-mz-tot', String(totM[m] || 0)));
+      tb.appendChild(tr);
+    });
+    var rodape = el('tr', 'pr-mz-rodape');
+    rodape.appendChild(el('th', 'pr-mz-lin', 'Total'));
+    colunasF.forEach(function (f) { rodape.appendChild(el('td', 'pr-mz-tot', String(totF[f] || 0))); });
+    rodape.appendChild(el('td', 'pr-mz-tot', String(ls.length)));
+    tb.appendChild(rodape);
+    t.appendChild(tb);
+    caixa.appendChild(t);
+    sec.appendChild(caixa);
+    sec.appendChild(el('p', 'nb2-mini', 'Um produto com vários marcos ou funções conta em cada cruzamento; o total de cada linha e de cada coluna conta o produto uma vez.'));
+    return sec;
+  }
+
+  function mapaSistemas(ls) {
+    var sec = el('section', 'nb-sec pr-sec');
+    sec.appendChild(el('h4', null, 'Por sistema'));
+    sec.appendChild(el('p', 'nb-sec-sub', 'As duas primeiras letras da Functional Mark. Clique numa barra para ver os produtos.'));
+    var por = {};
+    ls.forEach(function (l) {
+      var k = l.sistema || '__na';
+      var o = por[k] = por[k] || { k: k, n: 0, com: 0 };
+      o.n++;
+      if (l.it.marcos.length || l.it.funcoes.length) o.com++;
+    });
+    var ordem = Object.keys(por).map(function (k) { return por[k]; }).sort(function (a, b) {
+      /* do maior para o menor; no empate, por nome, e "sem sistema" por último */
+      return (b.n - a.n) || ((a.k === '__na') - (b.k === '__na')) || Store.cmpTexto(a.k, b.k);
+    });
+    var max = ordem.length ? ordem[0].n : 1;
+    var lista = el('div', 'pr-sist-lista');
+    ordem.forEach(function (o) {
+      var l = el('button', 'pr-sist-linha');
+      l.type = 'button';
+      l.title = o.n + ' produto(s); ' + o.com + ' com marco ou função vital, ' + (o.n - o.com) + ' N/A — ver na tabela';
+      l.appendChild(el('span', 'pr-sist-nome', o.k === '__na' ? 'sem sistema' : o.k));
+      var barra = el('span', 'pr-sist-barra');
+      var b1 = el('span', 'pr-sist-com');
+      b1.style.width = (100 * o.com / max).toFixed(1) + '%';
+      var b2 = el('span', 'pr-sist-na');
+      b2.style.width = (100 * (o.n - o.com) / max).toFixed(1) + '%';
+      barra.appendChild(b1);
+      barra.appendChild(b2);
+      l.appendChild(barra);
+      l.appendChild(el('span', 'pr-sist-n', String(o.n)));
+      l.addEventListener('click', function () { irParaTabela({ sistema: [o.k] }); });
+      lista.appendChild(l);
+    });
+    sec.appendChild(lista);
+    var leg = el('p', 'pr-sist-leg');
+    leg.appendChild(el('span', 'pr-sist-chave pr-sist-com'));
+    leg.appendChild(document.createTextNode(' com marco ou função vital   '));
+    leg.appendChild(el('span', 'pr-sist-chave pr-sist-na'));
+    leg.appendChild(document.createTextNode(' N/A'));
+    sec.appendChild(leg);
+    return sec;
+  }
+
+  /* --- exportar ------------------------------------------------------------------ */
+
+  function exportar(tipo) {
+    var ls = aVista();
+    var linhasX = ls.map(function (l) {
+      var it = l.it;
+      return [it.produto, it.marca, it.descricao, l.sistema,
+        it.marcos.length ? it.marcos.join('; ') : Produtos.NA,
+        it.funcoes.length ? it.funcoes.join('; ') : Produtos.NA,
+        l.ncrs.map(function (x) { return x.rec.numero; }).join('; ')];
+    });
+    ctx.exportar(tipo, {
+      colunas: [
+        { titulo: 'Product Mark', larg: 14 }, { titulo: 'Functional Mark', larg: 16 },
+        { titulo: 'Designation', larg: 52 }, { titulo: 'Sistema', larg: 9 },
+        { titulo: 'Safety Milestones', larg: 20 }, { titulo: 'Vital Functions #', larg: 18 },
+        { titulo: 'NCRs que citam', larg: 44 }
+      ],
+      linhas: linhasX, total: Produtos.total(), recorte: descricaoDoFiltro()
+    });
+  }
+
+  /* --- a ficha do produto -------------------------------------------------------- */
+
+  function abrirDetalhe(id) {
+    var it = Produtos.get(id);
+    var dlg = document.getElementById('prodDialog');
+    if (!it || !dlg) return;
+    detalheAberto = id;
+    desenharDetalhe();
+    if (!dlg.open) dlg.showModal();
+    dlg.querySelector('.nb-ficha-corpo').scrollTop = 0;
+    dlg.onclose = function () { detalheAberto = null; };
+  }
+
+  function campoDl(dl, rotulo, valor, copiavel) {
+    dl.appendChild(el('dt', null, rotulo));
+    var dd = el('dd');
+    dd.appendChild(document.createTextNode(valor || Produtos.NA));
+    if (copiavel && valor && ctx && ctx.copiar) {
+      var b = botao('copiar', 'btn--sm btn--quiet pr-copiar', function () { ctx.copiar(valor); }, 'Copiar ' + rotulo);
+      dd.appendChild(b);
+    }
+    dl.appendChild(dd);
+  }
+
+  function desenharDetalhe() {
+    var it = detalheAberto ? Produtos.get(detalheAberto) : null;
+    var dlg = document.getElementById('prodDialog');
+    if (!it || !dlg) return;
+    var cab = dlg.querySelector('.nb-ficha-cab');
+    cab.innerHTML = '';
+    var t1 = el('div', 'nb-ficha-tit');
+    t1.appendChild(el('h3', null, it.produto || it.marca));
+    var tags = el('div', 'nb-ficha-tags');
+    var sis = Produtos.sistemaDe(it);
+    if (it.marca) tags.appendChild(el('span', 'nb-chip', it.marca));
+    if (sis) tags.appendChild(el('span', 'nb-chip nb-chip--sbr', 'sistema ' + sis));
+    if (!it.marcos.length && !it.funcoes.length) tags.appendChild(el('span', 'nb-chip nb-chip--aviso', Produtos.NA));
+    t1.appendChild(tags);
+    cab.appendChild(t1);
+    cab.appendChild(botao('Fechar ✕', 'btn--sm', function () { dlg.close(); }));
+
+    var body = dlg.querySelector('.nb-ficha-corpo');
+    var rolagem = body.scrollTop;
+    body.innerHTML = '';
+    if (it.descricao) body.appendChild(el('p', 'nb-ficha-titulo', it.descricao));
+
+    var grade = el('div', 'nb-ficha-grade');
+    var esq = el('div', 'nb-ficha-col');
+    var dir = el('div', 'nb-ficha-col');
+    grade.appendChild(esq);
+    grade.appendChild(dir);
+    body.appendChild(grade);
+
+    var s1 = secao(esq, 'Identificação');
+    var dl = el('dl', 'nb-campos');
+    campoDl(dl, 'Product Mark', it.produto, true);
+    campoDl(dl, 'Functional Mark', it.marca, true);
+    campoDl(dl, 'Designation', it.descricao);
+    campoDl(dl, 'Sistema (bigrama)', sis);
+    s1.appendChild(dl);
+
+    var s2 = secao(esq, 'Marcos de segurança e funções vitais');
+    var lm = el('div', 'pr-bloco');
+    lm.appendChild(el('span', 'nb-rot', 'Safety Milestones'));
+    lm.appendChild(chipsMarcos(it));
+    s2.appendChild(lm);
+    var lf = el('div', 'pr-bloco');
+    lf.appendChild(el('span', 'nb-rot', 'Vital Functions #'));
+    lf.appendChild(chipsFuncoes(it));
+    s2.appendChild(lf);
+    if (it.funcoes.length) {
+      var ul = el('ul', 'pr-fv-nomes');
+      it.funcoes.forEach(function (f) {
+        var nomes = Produtos.nomesDaFuncao(f);
+        ul.appendChild(el('li', null, 'FV ' + f + (nomes.length ? ' — ' + nomes.join(' · ') : '')));
+      });
+      s2.appendChild(ul);
+    }
+
+    var ncrs = Produtos.ncrsDoProduto(it.id, false);
+    var s3 = secao(dir, 'NCRs que citam este produto');
+    s3.appendChild(tabelaNcrs(ncrs, function (key) { dlg.close(); ctx.abrirFicha(key); }));
+
+    var fam = Produtos.familiaDe(it);
+    if (fam.length) {
+      var s4 = secao(body, 'Mesma família da Functional Mark');
+      s4.querySelector('.nb-sec-sub').textContent = 'Produtos do banco com a mesma base (' + (/^[A-Z]{2}\d{5}/.exec(Produtos.nrm(it.marca)) || [''])[0] + ') e outro sufixo. ' + fam.length + ' produto(s).';
+      s4.appendChild(tabelaProdutos(fam, function (id) { abrirDetalhe(id); }));
+    }
+    body.scrollTop = rolagem;
+  }
+
+  function secao(pai, titulo) {
+    var s = el('section', 'nb-sec');
+    s.appendChild(el('h4', null, titulo));
+    s.appendChild(el('p', 'nb-sec-sub', ''));
+    pai.appendChild(s);
+    return s;
+  }
+
+  function tabelaNcrs(ncrs, abrirNcr) {
+    var certas = ncrs.filter(function (x) { return x.nivel !== 'parecido'; });
+    var poss = ncrs.filter(function (x) { return x.nivel === 'parecido'; });
+    var w = el('div');
+    function tabela(lista) {
+      var t = el('table', 'nb-hist');
+      var hr = el('tr');
+      ['NCR', 'Status', 'Correspondência', 'Escrito na NCR', 'Onde'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
+      var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+      var tb = el('tbody');
+      lista.forEach(function (x) {
+        var tr = el('tr');
+        var a = el('td');
+        var b = el('button', 'nb2-num', x.rec.numero);
+        b.type = 'button';
+        b.title = 'Abrir a ficha da NCR';
+        b.addEventListener('click', function () { abrirNcr(x.rec.key); });
+        a.appendChild(b);
+        tr.appendChild(a);
+        var f = Ncrs.fonte(x.rec);
+        var s = el('td', 'pr-nowrap');
+        s.appendChild(el('span', 'nb-chip' + (Ncrs.fechada(x.rec) ? ' nb-chip--fechada' : ''), f.status || (Ncrs.fechada(x.rec) ? 'fechada' : 'sem status')));
+        tr.appendChild(s);
+        var n = el('td', 'pr-nowrap');
+        n.appendChild(etiquetaNivel(x.nivel));
+        tr.appendChild(n);
+        tr.appendChild(el('td', 'pr-nowrap pr-marca', x.tokens.join(', ')));
+        tr.appendChild(el('td', null, x.onde));
+        tb.appendChild(tr);
+      });
+      t.appendChild(tb);
+      return t;
+    }
+    if (certas.length) w.appendChild(tabela(certas));
+    else w.appendChild(el('p', 'nb2-mini', 'Nenhuma NCR do banco cita este produto.'));
+    if (poss.length) {
+      var d = document.createElement('details');
+      d.className = 'pr-possiveis';
+      var sm = document.createElement('summary');
+      sm.textContent = 'Possíveis, a conferir (' + poss.length + ')';
+      d.appendChild(sm);
+      d.appendChild(tabela(poss));
+      w.appendChild(d);
+    }
+    return w;
+  }
+
+  function tabelaProdutos(lista, abrir) {
+    var caixa = el('div', 'nb-det-caixa');
+    var t = el('table', 'nb-hist');
+    var hr = el('tr');
+    ['Product Mark', 'Functional Mark', 'Designation', 'Marcos', 'Funções vitais'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
+    var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+    var tb = el('tbody');
+    lista.forEach(function (it) {
+      var tr = el('tr');
+      var a = el('td'); a.appendChild(linkProduto(it, abrir)); tr.appendChild(a);
+      tr.appendChild(el('td', 'pr-marca', it.marca));
+      tr.appendChild(el('td', null, it.descricao));
+      var m = el('td'); m.appendChild(chipsMarcos(it)); tr.appendChild(m);
+      var f = el('td'); f.appendChild(chipsFuncoes(it)); tr.appendChild(f);
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    caixa.appendChild(t);
+    return caixa;
+  }
+
+  /* --- o bloco da ficha da NCR ------------------------------------------------------ */
+
+  /**
+   * "Produtos, marcos de segurança e funções vitais" da ficha da NCR: os
+   * produtos do banco que a NCR cita (pela marca funcional ou pelo Product
+   * Mark, com tolerância — ver produtos.js), cada um com o nível do
+   * casamento. Devolve null quando não há banco de produtos.
+   */
+  function blocoDaNcr(rec, opts) {
+    if (!Produtos.total()) return null;
+    opts = opts || {};
+    var achados = Produtos.deNcr(rec);
+    var certos = achados.filter(function (a) { return a.nivel !== 'parecido'; });
+    var poss = achados.filter(function (a) { return a.nivel === 'parecido'; });
+    var sec = el('section', 'nb-sec nb-sec--produtos');
+    sec.appendChild(el('h4', null, 'Produtos, marcos de segurança e funções vitais'));
+    sec.appendChild(el('p', 'nb-sec-sub', certos.length
+      ? certos.length + ' produto(s) do banco de produtos citado(s) nesta NCR.'
+      : 'Nenhum produto do banco de produtos foi encontrado nos dados desta NCR.'));
+    if (certos.length) {
+      var r = Produtos.resumoDe(certos);
+      var linha = el('div', 'pr-resumo');
+      linha.appendChild(el('span', 'nb-rot', 'Marcos'));
+      var cm = el('span', 'pr-chips');
+      if (!r.marcos.length) cm.appendChild(naTag('marco de segurança'));
+      r.marcos.forEach(function (m) { cm.appendChild(chipMarco(m)); });
+      linha.appendChild(cm);
+      linha.appendChild(el('span', 'nb-rot', 'Funções vitais'));
+      var cf = el('span', 'pr-chips');
+      if (!r.funcoes.length) cf.appendChild(naTag('função vital'));
+      r.funcoes.forEach(function (f) { cf.appendChild(chipFuncao(f)); });
+      linha.appendChild(cf);
+      sec.appendChild(linha);
+      sec.appendChild(tabelaDaNcr(certos, opts));
+    }
+    if (poss.length) {
+      var d = document.createElement('details');
+      d.className = 'pr-possiveis';
+      var sm = document.createElement('summary');
+      sm.textContent = 'Parecidos, a conferir (' + poss.length + ')';
+      d.appendChild(sm);
+      d.appendChild(tabelaDaNcr(poss, opts));
+      sec.appendChild(d);
+    }
+    return sec;
+  }
+
+  function tabelaDaNcr(achados, opts) {
+    var caixa = el('div', 'nb-det-caixa');
+    var t = el('table', 'nb-hist nb-det pr-tab-ncr');
+    var hr = el('tr');
+    ['Product Mark', 'Functional Mark', 'Designation', 'Marcos de segurança', 'Funções vitais', 'Correspondência']
+      .forEach(function (h) { hr.appendChild(el('th', null, h)); });
+    var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+    var tb = el('tbody');
+    achados.forEach(function (a) {
+      var it = a.item;
+      var tr = el('tr');
+      var p = el('td');
+      if (opts.abrirProduto) p.appendChild(linkProduto(it, opts.abrirProduto));
+      else p.appendChild(document.createTextNode(it.produto || '—'));
+      tr.appendChild(p);
+      tr.appendChild(el('td', 'pr-marca', it.marca || Produtos.NA));
+      tr.appendChild(el('td', null, it.descricao));
+      var m = el('td'); m.appendChild(chipsMarcos(it)); tr.appendChild(m);
+      var f = el('td'); f.appendChild(chipsFuncoes(it)); tr.appendChild(f);
+      var c = el('td');
+      var dica = a.nivel === 'variacao'
+        ? 'A NCR escreve “' + a.tokens.join(', ') + '”; o banco de produtos tem “' + (it.marca || it.produto) + '”.'
+        : (a.nivel === 'parecido'
+          ? 'A NCR cita “' + a.tokens.join(', ') + '”; o banco tem “' + (it.marca || it.produto) + '” — a mesma base, outro sufixo.'
+          : null);
+      c.appendChild(etiquetaNivel(a.nivel, dica));
+      c.appendChild(el('span', 'nb2-mini', 'achado por ' + a.vias.map(function (v) { return v === 'produto' ? 'Product Mark' : 'Functional Mark'; }).join(' e ') +
+        (a.tokens.length && a.nivel !== 'exato' ? ' · NCR: ' + a.tokens.join(', ') : '') + ' · em: ' + a.onde));
+      tr.appendChild(c);
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    caixa.appendChild(t);
+    return caixa;
+  }
+
+  /** O que muda por fora (pasta, importação): a tela e a ficha aberta se refazem. */
+  function redesenhar() {
+    if (host && host.offsetParent !== null) render(host, ctx);
+    if (detalheAberto) desenharDetalhe();
+  }
+
+  function abrirProdutoPorId(id) {
+    abrirDetalhe(id);
+  }
+
+  global.ProdView = {
+    render: render,
+    redesenhar: redesenhar,
+    abrirDetalhe: abrirProdutoPorId,
+    blocoDaNcr: blocoDaNcr,
+    chipsMarcos: chipsMarcos,
+    chipsFuncoes: chipsFuncoes,
+    descricaoDoFiltro: descricaoDoFiltro,
+    /* os testes mexem direto no recorte */
+    filtros: function () { return st; }
+  };
+})(window);
+
+</script>
+<script>
 /* assets/js/ncrview.js */
 /* ==========================================================================
    ncrview.js — aba "Banco NCR": a tabela das NCRs do SBR4 e a ficha de cada uma
@@ -19251,6 +21330,12 @@ if(isWorker){
       if (f.alterados.length) sb.appendChild(el('p', 'nb2-mini', '● Campos que mudaram na última importação.'));
       if (Object.keys(ajustadas).length) sb.appendChild(el('p', 'nb2-mini', '✎ Campos corrigidos pelo administrador (o valor do banco fica ao lado).'));
     }
+
+    /* os produtos do banco de produtos que esta NCR cita (pela marca funcional
+       ou pelo Product Mark, com tolerância), com os marcos de segurança e as
+       funções vitais de cada um — produtosview.js */
+    var blocoProdutos = global.ProdView ? ProdView.blocoDaNcr(rec, { abrirProduto: ctx.abrirProduto }) : null;
+    if (blocoProdutos) body.appendChild(blocoProdutos);
 
     /* o que o export traz em várias linhas: produtos, deliberações… — cada
        grupo numa tabela, no mesmo padrão do histórico */
@@ -21388,9 +23473,10 @@ if(isWorker){
   var isTabela = function () { return state.kind === 'tabela'; };
   var isBanco = function () { return state.kind === 'banco'; };
   var isKanban = function () { return state.kind === 'kanban'; };
+  var isProdutos = function () { return state.kind === 'produtos'; };
   /* Abas que tomam a tela inteira: não têm lista lateral nem formulário. */
   var telaCheia = function () {
-    return isResumo() || isFluxos() || isConversa() || isTabela() || isBanco() || isKanban();
+    return isResumo() || isFluxos() || isConversa() || isTabela() || isBanco() || isKanban() || isProdutos();
   };
   /** Lista de itens da aba ativa — o vetor de verdade, para alterar. */
   var items = function () {
@@ -21632,6 +23718,7 @@ if(isWorker){
     if (isFluxos()) renderFluxos();
     if (isTabela()) renderTabela();
     if (isBanco()) renderBanco(); if (isKanban()) renderKanban();
+    if (isProdutos()) renderProdutos();
     if (isConversa()) renderCanais();
     markSaved();
   }
@@ -21665,6 +23752,7 @@ if(isWorker){
     $('#sidebarConversa').hidden = !isConversa();
     $('#sidebarBanco').hidden = !isBanco();
     $('#sidebarKanban').hidden = !isKanban();
+    $('#sidebarProdutos').hidden = !isProdutos();
     $('#editorScroll').hidden = telaCheia();
     $('#editorScroll').setAttribute('aria-labelledby', isDev() ? 'tabDev' : 'tabNcr');
     $('#summaryScroll').hidden = !isResumo();
@@ -21673,6 +23761,7 @@ if(isWorker){
     $('#conversaScroll').hidden = !isConversa();
     $('#bancoScroll').hidden = !isBanco();
     $('#kanbanScroll').hidden = !isKanban();
+    $('#produtosScroll').hidden = !isProdutos();
     $('#previewBtn').hidden = telaCheia();
     renderAoLado();     /* o item ao lado só existe onde há editor ao lado dele */
     renderSeletorGlobal();
@@ -21738,6 +23827,7 @@ if(isWorker){
     if (isTabela()) { renderTabela(); return; }
     if (isBanco()) { renderBanco(); return; }
     if (isKanban()) { renderKanban(); return; }
+    if (isProdutos()) { renderProdutos(); return; }
     if (isConversa()) { abrirCanal(canalAberto); return; }
     renderNcrList();
     renderEditor();
@@ -26467,6 +28557,15 @@ if(isWorker){
     comunicar: function (rec) { abrirComunicar(Comunicados.daNcr(rec), { rec: rec }); },
     adicionar: function (rec, project) { return adicionarAoWaiver(rec, project); },
     abrir: function (project, item) { abrirItemDoWaiver(project, item); },
+    /* da ficha da NCR para a ficha do produto, na aba Produtos */
+    abrirProduto: function (id) {
+      var d = $('#ncrDialog');
+      if (d && d.open) d.close();
+      flushSave().then(function () {
+        switchKind('produtos');
+        ProdView.abrirDetalhe(id);
+      });
+    },
     importar: function (tipo) { importarNcr(tipo); },
     backup: function () { exportBackup(true); },
     desfazer: function () { desfazerImportacaoNcr(); },
@@ -26508,6 +28607,7 @@ if(isWorker){
     if (isFluxos()) renderFluxos(true);
     if (isBanco()) renderBanco(true);
     if (isKanban()) renderKanban();
+    if (isProdutos()) renderProdutos(true);
     NcrView.redesenharFicha();
     Admin.redesenhar();
     /* a linha "Banco NCR" do editor, trocada no lugar */
@@ -26790,6 +28890,102 @@ if(isWorker){
     Kanban.render($('#kanbanScroll'), ctxKanban);
   }
 
+  /* --- aba Produtos ----------------------------------------------------------- */
+
+  /* O que a aba precisa do editor. A tela (produtosview.js) só desenha; ler a
+     planilha, gravar e falar com a pasta passa por aqui. */
+  var ctxProdutos = {
+    leitura: Leitura.ativo(),
+    importar: function () { importarProdutos(); },
+    exportar: function (tipo, dados) { exportarProdutos(tipo, dados); },
+    abrirFicha: function (key) {
+      flushSave().then(function () {
+        switchKind('banco');
+        NcrView.abrirFicha(key);
+      });
+    },
+    copiar: function (txt) {
+      copiarTexto(txt, function () { toast('Copiado: ' + txt, 2500); }, function () { toast('Não foi possível copiar.'); });
+    }
+  };
+
+  function renderProdutos(manterRolagem) {
+    var box = $('#produtosScroll');
+    var topo = box.scrollTop;
+    var buscando = document.activeElement && document.activeElement.id === 'pr2Busca';
+    ProdView.render(box, ctxProdutos);
+    box.scrollTop = manterRolagem ? topo : 0;
+    if (buscando) {
+      var b = $('#pr2Busca');
+      if (b) { b.focus(); b.setSelectionRange(b.value.length, b.value.length); }
+    }
+  }
+
+  /** A planilha dos produtos: o que está à vista, mais a aba "Recorte". */
+  function exportarProdutos(tipo, d) {
+    var nome = 'Produtos_' + new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    var m = Produtos.meta();
+    var recorte = [
+      ['Gerado em', new Date().toLocaleString('pt-BR')],
+      ['Gerado por', Store.getUser() || '(sem nome)'],
+      ['Produtos nesta planilha', d.linhas.length],
+      ['Produtos no banco', d.total],
+      ['Recorte', d.recorte || 'sem filtro — todos os produtos'],
+      ['Banco de produtos atualizado em', m.importadoEm ? Ncrs.data(m.importadoEm) : '—']
+    ];
+    if (tipo === 'csv') {
+      var linhas = [d.colunas.map(function (c) { return c.titulo; })].concat(d.linhas);
+      var csv = '\ufeff' + linhas.map(function (l) {
+        return l.map(SummaryView.csvCampo).join(';');
+      }).join('\r\n') + '\r\n\r\n' + recorte.map(function (l) {
+        return l.map(SummaryView.csvCampo).join(';');
+      }).join('\r\n');
+      download(new Blob([csv], { type: 'text/csv;charset=utf-8' }), nome + '.csv');
+      toast('CSV salvo em Downloads: ' + d.linhas.length + ' produto(s).', 4000);
+      return;
+    }
+    try {
+      download(Xlsx.blob([
+        { nome: 'Produtos', colunas: d.colunas, linhas: d.linhas },
+        { nome: 'Recorte', colunas: [{ titulo: 'Campo', larg: 30 }, { titulo: 'Valor', larg: 80 }],
+          linhas: recorte, filtros: false }
+      ]), nome + '.xlsx');
+      toast('Planilha salva em Downloads: ' + d.linhas.length + ' produto(s).', 4000);
+    } catch (e) {
+      markError(e);
+      toast('Não foi possível gerar a planilha.');
+    }
+  }
+
+  /** O botão discreto da aba: escolhe a planilha. A importação só acrescenta e atualiza. */
+  function importarProdutos() {
+    if (Leitura.ativo()) return;
+    var inp = $('#prodFileInput');
+    inp.value = '';
+    inp.click();
+  }
+
+  function processarArquivoProdutos(file) {
+    if (Leitura.ativo()) return;
+    var quem = Store.getUser();
+    toast('Lendo ' + file.name + '…');
+    lerArquivoNcr(file).then(function (dados) {
+      var r = Produtos.importar(dados, file.name, quem);
+      return Produtos.salvar().then(function () { return r; });
+    }).then(function (r) {
+      Log.ok('produtos', r.resumo.titulo, { numeros: r.resumo.numeros.length });
+      agendarGravacaoPasta();
+      agendarPublicacao();
+      renderProdutos(true);
+      mostrarResumoImportacao(r.resumo);
+    }).catch(function (e) {
+      /* arquivo recusado é situação normal: quem usa recebe o aviso abaixo */
+      console.warn('Importação do banco de produtos recusada:', e);
+      Produtos.carregar().then(function () { if (isProdutos()) renderProdutos(true); });
+      alert('Não foi possível importar o banco de produtos: ' + ((e && e.message) || e));
+    });
+  }
+
   /**
    * Monta as folhas do Kanban no #printRoot, com layout emprestado enquanto
    * mede (Report.abrirMedida). `soMedir` é a prévia da janela de escolhas:
@@ -27050,6 +29246,10 @@ if(isWorker){
     body.innerHTML = '';
     $('#ncrResumoTitulo').textContent = res.titulo;
     $('#ncrResumoArquivo').textContent = res.arquivo ? 'Arquivo: ' + res.arquivo : '';
+    /* a cópia de antes e o "desfazer" são do banco NCR; a importação de produtos só acrescenta e atualiza */
+    $('#ncrResumoUndoBtn').hidden = !!res.semDesfazer;
+    $('#ncrResumoCopyBtn').hidden = !!res.semDesfazer;
+    $('#ncrResumoDica').hidden = !!res.semDesfazer;
 
     var nums = el('dl', 'nb-res-nums');
     res.numeros.forEach(function (n) {
@@ -27151,7 +29351,8 @@ if(isWorker){
     return Promise.all([
       Pasta.lerArquivo(Pasta.ARQ_NCR_BANCO),
       Pasta.lerArquivo(Pasta.ARQ_NCR_WAIVER),
-      Pasta.lerArquivo(Correcoes.ARQUIVO)
+      Pasta.lerArquivo(Correcoes.ARQUIVO),
+      Pasta.lerArquivo(Produtos.ARQUIVO)
     ]).then(function (r) {
       var lista = Ncrs.lista();
       var temBanco = lista.some(function (x) { return x.fonte.importadoEm || x.historico.length; });
@@ -27170,8 +29371,13 @@ if(isWorker){
            arquivo próprio, e só a pasta decide a senha */
         var rc = r[2].dados ? Correcoes.juntar(r[2].dados, { senha: true })
           : { mudou: false, localMaisNovo: Correcoes.listaSubstituicoes().length > 0 || Correcoes.auditoria().length > 0 || Correcoes.temSenha() };
+        /* o banco de produtos: arquivo próprio, só muda quando alguém importa a planilha */
+        var rp = r[3].dados ? Produtos.juntar(r[3].dados)
+          : { mudou: false, localMaisNovo: Produtos.total() > 0 };
         var alterados = rb.alterados.concat(rw.alterados);
         var passos = [];
+        if (rp.mudou) passos.push(Produtos.salvar());
+        if (rp.localMaisNovo) passos.push(Pasta.gravarArquivo(Produtos.ARQUIVO, Produtos.arquivo(quem)));
         if (alterados.length || rw.atualizados) passos.push(Ncrs.salvar(alterados), Ncrs.salvarMeta());
         if (rc.mudou) passos.push(Correcoes.salvarLocal());
         if (rb.localMaisNovo) passos.push(Pasta.gravarArquivo(Pasta.ARQ_NCR_BANCO, Ncrs.arquivoBanco(quem)));
@@ -27180,7 +29386,8 @@ if(isWorker){
           passos.push(Pasta.gravarArquivo(Correcoes.ARQUIVO, Correcoes.arquivo(quem)).then(function () { Correcoes.gravado(); }));
         }
         return Promise.all(passos).then(function () {
-          return { entraram: rb.entraram + rw.entraram, atualizados: rb.atualizados + rw.atualizados, correcoes: rc.mudou };
+          return { entraram: rb.entraram + rw.entraram, atualizados: rb.atualizados + rw.atualizados, correcoes: rc.mudou,
+            produtos: rp.mudou };
         });
       });
     });
@@ -27189,11 +29396,13 @@ if(isWorker){
   /** Banco NCR que veio dentro de um arquivo aberto à mão: junta, sem apagar nada. */
   function juntarBancoNcrDoArquivo(nb) {
     var r = Ncrs.juntarBackup(nb);
-    if (!r.alterados.length && !r.correcoes) return Promise.resolve(r);
-    return Promise.all([Ncrs.salvar(r.alterados), Ncrs.salvarMeta(), r.correcoes ? Correcoes.salvarLocal() : null]).then(function () {
+    if (!r.alterados.length && !r.correcoes && !r.produtos) return Promise.resolve(r);
+    return Promise.all([Ncrs.salvar(r.alterados), Ncrs.salvarMeta(), r.correcoes ? Correcoes.salvarLocal() : null,
+      r.produtos ? Produtos.salvar() : null]).then(function () {
       agendarGravacaoPasta();
       renderTabs();
       if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
+      if (isProdutos()) renderProdutos(true);
       return r;
     });
   }
@@ -27773,8 +29982,14 @@ if(isWorker){
          ajuste do administrador): redesenha quem lê NCR, sem aviso */
       redesenharNcrs();
     }
+    if (rn && rn.produtos) {
+      /* o banco de produtos mudou lá fora: a aba, a ficha do produto e o bloco da ficha da NCR se refazem */
+      ProdView.redesenhar();
+      NcrView.redesenharFicha();
+    }
     if (rn && (rn.entraram || rn.atualizados)) {
       if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
+      if (isProdutos()) renderProdutos(true);
       var ficha = NcrView.aposMudancaExterna();
       if (ficha) {
         toast('A NCR ' + ficha.numero + ' foi atualizada por ' + (ficha.waiver.editedBy || 'outra pessoa') +
@@ -27905,9 +30120,10 @@ if(isWorker){
       Pasta.mudouArquivo(Pasta.ARQ_NCR_BANCO),
       Pasta.mudouArquivo(Pasta.ARQ_NCR_WAIVER),
       Pasta.mudouArquivo(Comunicados.ARQUIVO),
-      Pasta.mudouArquivo(Correcoes.ARQUIVO)
+      Pasta.mudouArquivo(Correcoes.ARQUIVO),
+      Pasta.mudouArquivo(Produtos.ARQUIVO)
     ]).then(function (r) {
-      if (r[0] || r[1] || r[2] || r[4]) sincronizar({ semRedesenhar: true });
+      if (r[0] || r[1] || r[2] || r[4] || r[5]) sincronizar({ semRedesenhar: true });
       /* só os comunicados mudaram: troca só eles, sem regravar os dados */
       else if (r[3]) sincronizarComunicados();
     });
@@ -29702,6 +31918,10 @@ if(isWorker){
       if (this.files && this.files[0]) processarArquivoNcr(this.files[0]);
       this.value = '';
     });
+    $('#prodFileInput').addEventListener('change', function () {
+      if (this.files && this.files[0]) processarArquivoProdutos(this.files[0]);
+      this.value = '';
+    });
     $('#ncrCorrCancelBtn').addEventListener('click', function () { $('#ncrCorrDialog').close(); });
     $('#ncrCorrGoBtn').addEventListener('click', function () {
       ncrImport.substituir = $('#ncrCorrSubst').checked;
@@ -30107,6 +32327,14 @@ if(isWorker){
     }, function (e) {
       Log.aviso('abertura', 'não consegui ler o banco NCR deste navegador',
         'os relatórios abrem normalmente; a aba Banco NCR fica vazia até recarregar.', { erro: e && e.name });
+    }).then(function () {
+      /* o banco de produtos, no mesmo passo: se falhar, só a aba fica vazia */
+      return Produtos.carregar().then(function (n) {
+        if (n) Log.detalhe('abertura', 'banco de produtos carregado', { produtos: n });
+      }, function (e) {
+        Log.aviso('abertura', 'não consegui ler o banco de produtos deste navegador',
+          'os relatórios abrem normalmente; a aba Produtos fica vazia até recarregar.', { erro: e && e.name });
+      });
     }).then(function () { return Store.list(); }).then(function (list) {
       state.projects = list;
       if (!list.length) {

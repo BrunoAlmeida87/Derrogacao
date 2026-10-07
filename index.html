@@ -238,6 +238,11 @@
               title="Fluxos — o caminho dos waivers de cada item, lido do Waiver Historic">
         Fluxos
       </button>
+      <button class="tab" role="tab" id="tabProdutos" data-kind="produtos"
+              aria-selected="false" aria-controls="produtosScroll" tabindex="-1"
+              title="Produtos — o banco de produtos: Product Mark, Functional Mark, marcos de segurança e funções vitais">
+        Produtos
+      </button>
       <button data-so-editor class="tab" role="tab" id="tabConversa" data-kind="conversa"
               aria-selected="false" aria-controls="conversaScroll" tabindex="-1" hidden
               title="Recados da equipe, pela pasta da rede">
@@ -314,6 +319,10 @@
       <strong>Banco NCR</strong> — as NCRs do SBR4.
     </div>
 
+    <div class="sidebar-note" id="sidebarProdutos" hidden>
+      <strong>Produtos</strong> — marcos de segurança e funções vitais de cada produto.
+    </div>
+
     <div class="sidebar-note" id="sidebarKanban" hidden>
       <strong>Kanban</strong> — as NCRs de um marco, por situação do waiver.
     </div>
@@ -340,6 +349,8 @@
          aria-labelledby="tabBanco" tabindex="0" hidden></div>
     <div class="editor-scroll kanban-scroll" id="kanbanScroll" role="tabpanel"
          aria-labelledby="tabKanban" tabindex="0" hidden></div>
+    <div class="editor-scroll banco-scroll produtos-scroll" id="produtosScroll" role="tabpanel"
+         aria-labelledby="tabProdutos" tabindex="0" hidden></div>
   </main>
 
   <!-- o item preso ao lado: só leitura, para escrever um olhando o outro -->
@@ -686,6 +697,14 @@
 
 <!-- ====================== banco NCR ====================== -->
 <input type="file" id="ncrFileInput" hidden>
+<!-- banco de produtos: a planilha (Product Mark, Functional Mark, Designation, marcos, funções vitais) -->
+<input data-so-editor type="file" id="prodFileInput" accept=".xlsx,.xlsm" hidden>
+
+<!-- ficha de um produto: montada por produtosview.js -->
+<dialog id="prodDialog" class="nb-dlg nb-ficha pr-ficha" aria-label="Ficha do produto">
+  <div class="nb-ficha-cab"></div>
+  <div class="nb-ficha-corpo"></div>
+</dialog>
 
 <!-- ficha da NCR: quase a tela inteira; o conteúdo é montado por ncrview.js -->
 <dialog id="ncrDialog" class="nb-dlg nb-ficha" aria-label="Ficha da NCR">
@@ -740,7 +759,7 @@
     <h3 id="ncrResumoTitulo">Importação concluída</h3>
     <p class="mg-origin" id="ncrResumoArquivo"></p>
     <div id="ncrResumoBody"></div>
-    <p class="hint">Antes de importar, o estado anterior do banco NCR foi guardado:
+    <p class="hint" id="ncrResumoDica">Antes de importar, o estado anterior do banco NCR foi guardado:
       dá para baixar essa cópia ou desfazer a importação.</p>
   </div>
   <div class="dlg-actions">
@@ -925,6 +944,7 @@
 <script src="assets/js/xlsxler.js"></script>
 <script src="assets/js/ncrs.js"></script>
 <script src="assets/js/correcoes.js"></script>
+<script src="assets/js/produtos.js"></script>
 <script src="assets/js/ncrfluxo.js"></script>
 <script src="assets/js/report.js"></script>
 <script src="assets/js/fluxo.js"></script>
@@ -936,6 +956,7 @@
 <script src="assets/js/chat.js"></script>
 <script src="assets/js/comunicados.js"></script>
 <script src="assets/js/lado.js"></script>
+<script src="assets/js/produtosview.js"></script>
 <script src="assets/js/ncrview.js"></script>
 <script src="assets/js/kanban.js"></script>
 <script src="assets/js/admin.js"></script>

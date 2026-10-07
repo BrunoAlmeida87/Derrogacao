@@ -28,9 +28,10 @@
   var isTabela = function () { return state.kind === 'tabela'; };
   var isBanco = function () { return state.kind === 'banco'; };
   var isKanban = function () { return state.kind === 'kanban'; };
+  var isProdutos = function () { return state.kind === 'produtos'; };
   /* Abas que tomam a tela inteira: não têm lista lateral nem formulário. */
   var telaCheia = function () {
-    return isResumo() || isFluxos() || isConversa() || isTabela() || isBanco() || isKanban();
+    return isResumo() || isFluxos() || isConversa() || isTabela() || isBanco() || isKanban() || isProdutos();
   };
   /** Lista de itens da aba ativa — o vetor de verdade, para alterar. */
   var items = function () {
@@ -272,6 +273,7 @@
     if (isFluxos()) renderFluxos();
     if (isTabela()) renderTabela();
     if (isBanco()) renderBanco(); if (isKanban()) renderKanban();
+    if (isProdutos()) renderProdutos();
     if (isConversa()) renderCanais();
     markSaved();
   }
@@ -305,6 +307,7 @@
     $('#sidebarConversa').hidden = !isConversa();
     $('#sidebarBanco').hidden = !isBanco();
     $('#sidebarKanban').hidden = !isKanban();
+    $('#sidebarProdutos').hidden = !isProdutos();
     $('#editorScroll').hidden = telaCheia();
     $('#editorScroll').setAttribute('aria-labelledby', isDev() ? 'tabDev' : 'tabNcr');
     $('#summaryScroll').hidden = !isResumo();
@@ -313,6 +316,7 @@
     $('#conversaScroll').hidden = !isConversa();
     $('#bancoScroll').hidden = !isBanco();
     $('#kanbanScroll').hidden = !isKanban();
+    $('#produtosScroll').hidden = !isProdutos();
     $('#previewBtn').hidden = telaCheia();
     renderAoLado();     /* o item ao lado só existe onde há editor ao lado dele */
     renderSeletorGlobal();
@@ -378,6 +382,7 @@
     if (isTabela()) { renderTabela(); return; }
     if (isBanco()) { renderBanco(); return; }
     if (isKanban()) { renderKanban(); return; }
+    if (isProdutos()) { renderProdutos(); return; }
     if (isConversa()) { abrirCanal(canalAberto); return; }
     renderNcrList();
     renderEditor();
@@ -5107,6 +5112,15 @@
     comunicar: function (rec) { abrirComunicar(Comunicados.daNcr(rec), { rec: rec }); },
     adicionar: function (rec, project) { return adicionarAoWaiver(rec, project); },
     abrir: function (project, item) { abrirItemDoWaiver(project, item); },
+    /* da ficha da NCR para a ficha do produto, na aba Produtos */
+    abrirProduto: function (id) {
+      var d = $('#ncrDialog');
+      if (d && d.open) d.close();
+      flushSave().then(function () {
+        switchKind('produtos');
+        ProdView.abrirDetalhe(id);
+      });
+    },
     importar: function (tipo) { importarNcr(tipo); },
     backup: function () { exportBackup(true); },
     desfazer: function () { desfazerImportacaoNcr(); },
@@ -5148,6 +5162,7 @@
     if (isFluxos()) renderFluxos(true);
     if (isBanco()) renderBanco(true);
     if (isKanban()) renderKanban();
+    if (isProdutos()) renderProdutos(true);
     NcrView.redesenharFicha();
     Admin.redesenhar();
     /* a linha "Banco NCR" do editor, trocada no lugar */
@@ -5430,6 +5445,102 @@
     Kanban.render($('#kanbanScroll'), ctxKanban);
   }
 
+  /* --- aba Produtos ----------------------------------------------------------- */
+
+  /* O que a aba precisa do editor. A tela (produtosview.js) só desenha; ler a
+     planilha, gravar e falar com a pasta passa por aqui. */
+  var ctxProdutos = {
+    leitura: Leitura.ativo(),
+    importar: function () { importarProdutos(); },
+    exportar: function (tipo, dados) { exportarProdutos(tipo, dados); },
+    abrirFicha: function (key) {
+      flushSave().then(function () {
+        switchKind('banco');
+        NcrView.abrirFicha(key);
+      });
+    },
+    copiar: function (txt) {
+      copiarTexto(txt, function () { toast('Copiado: ' + txt, 2500); }, function () { toast('Não foi possível copiar.'); });
+    }
+  };
+
+  function renderProdutos(manterRolagem) {
+    var box = $('#produtosScroll');
+    var topo = box.scrollTop;
+    var buscando = document.activeElement && document.activeElement.id === 'pr2Busca';
+    ProdView.render(box, ctxProdutos);
+    box.scrollTop = manterRolagem ? topo : 0;
+    if (buscando) {
+      var b = $('#pr2Busca');
+      if (b) { b.focus(); b.setSelectionRange(b.value.length, b.value.length); }
+    }
+  }
+
+  /** A planilha dos produtos: o que está à vista, mais a aba "Recorte". */
+  function exportarProdutos(tipo, d) {
+    var nome = 'Produtos_' + new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    var m = Produtos.meta();
+    var recorte = [
+      ['Gerado em', new Date().toLocaleString('pt-BR')],
+      ['Gerado por', Store.getUser() || '(sem nome)'],
+      ['Produtos nesta planilha', d.linhas.length],
+      ['Produtos no banco', d.total],
+      ['Recorte', d.recorte || 'sem filtro — todos os produtos'],
+      ['Banco de produtos atualizado em', m.importadoEm ? Ncrs.data(m.importadoEm) : '—']
+    ];
+    if (tipo === 'csv') {
+      var linhas = [d.colunas.map(function (c) { return c.titulo; })].concat(d.linhas);
+      var csv = '\ufeff' + linhas.map(function (l) {
+        return l.map(SummaryView.csvCampo).join(';');
+      }).join('\r\n') + '\r\n\r\n' + recorte.map(function (l) {
+        return l.map(SummaryView.csvCampo).join(';');
+      }).join('\r\n');
+      download(new Blob([csv], { type: 'text/csv;charset=utf-8' }), nome + '.csv');
+      toast('CSV salvo em Downloads: ' + d.linhas.length + ' produto(s).', 4000);
+      return;
+    }
+    try {
+      download(Xlsx.blob([
+        { nome: 'Produtos', colunas: d.colunas, linhas: d.linhas },
+        { nome: 'Recorte', colunas: [{ titulo: 'Campo', larg: 30 }, { titulo: 'Valor', larg: 80 }],
+          linhas: recorte, filtros: false }
+      ]), nome + '.xlsx');
+      toast('Planilha salva em Downloads: ' + d.linhas.length + ' produto(s).', 4000);
+    } catch (e) {
+      markError(e);
+      toast('Não foi possível gerar a planilha.');
+    }
+  }
+
+  /** O botão discreto da aba: escolhe a planilha. A importação só acrescenta e atualiza. */
+  function importarProdutos() {
+    if (Leitura.ativo()) return;
+    var inp = $('#prodFileInput');
+    inp.value = '';
+    inp.click();
+  }
+
+  function processarArquivoProdutos(file) {
+    if (Leitura.ativo()) return;
+    var quem = Store.getUser();
+    toast('Lendo ' + file.name + '…');
+    lerArquivoNcr(file).then(function (dados) {
+      var r = Produtos.importar(dados, file.name, quem);
+      return Produtos.salvar().then(function () { return r; });
+    }).then(function (r) {
+      Log.ok('produtos', r.resumo.titulo, { numeros: r.resumo.numeros.length });
+      agendarGravacaoPasta();
+      agendarPublicacao();
+      renderProdutos(true);
+      mostrarResumoImportacao(r.resumo);
+    }).catch(function (e) {
+      /* arquivo recusado é situação normal: quem usa recebe o aviso abaixo */
+      console.warn('Importação do banco de produtos recusada:', e);
+      Produtos.carregar().then(function () { if (isProdutos()) renderProdutos(true); });
+      alert('Não foi possível importar o banco de produtos: ' + ((e && e.message) || e));
+    });
+  }
+
   /**
    * Monta as folhas do Kanban no #printRoot, com layout emprestado enquanto
    * mede (Report.abrirMedida). `soMedir` é a prévia da janela de escolhas:
@@ -5690,6 +5801,10 @@
     body.innerHTML = '';
     $('#ncrResumoTitulo').textContent = res.titulo;
     $('#ncrResumoArquivo').textContent = res.arquivo ? 'Arquivo: ' + res.arquivo : '';
+    /* a cópia de antes e o "desfazer" são do banco NCR; a importação de produtos só acrescenta e atualiza */
+    $('#ncrResumoUndoBtn').hidden = !!res.semDesfazer;
+    $('#ncrResumoCopyBtn').hidden = !!res.semDesfazer;
+    $('#ncrResumoDica').hidden = !!res.semDesfazer;
 
     var nums = el('dl', 'nb-res-nums');
     res.numeros.forEach(function (n) {
@@ -5791,7 +5906,8 @@
     return Promise.all([
       Pasta.lerArquivo(Pasta.ARQ_NCR_BANCO),
       Pasta.lerArquivo(Pasta.ARQ_NCR_WAIVER),
-      Pasta.lerArquivo(Correcoes.ARQUIVO)
+      Pasta.lerArquivo(Correcoes.ARQUIVO),
+      Pasta.lerArquivo(Produtos.ARQUIVO)
     ]).then(function (r) {
       var lista = Ncrs.lista();
       var temBanco = lista.some(function (x) { return x.fonte.importadoEm || x.historico.length; });
@@ -5810,8 +5926,13 @@
            arquivo próprio, e só a pasta decide a senha */
         var rc = r[2].dados ? Correcoes.juntar(r[2].dados, { senha: true })
           : { mudou: false, localMaisNovo: Correcoes.listaSubstituicoes().length > 0 || Correcoes.auditoria().length > 0 || Correcoes.temSenha() };
+        /* o banco de produtos: arquivo próprio, só muda quando alguém importa a planilha */
+        var rp = r[3].dados ? Produtos.juntar(r[3].dados)
+          : { mudou: false, localMaisNovo: Produtos.total() > 0 };
         var alterados = rb.alterados.concat(rw.alterados);
         var passos = [];
+        if (rp.mudou) passos.push(Produtos.salvar());
+        if (rp.localMaisNovo) passos.push(Pasta.gravarArquivo(Produtos.ARQUIVO, Produtos.arquivo(quem)));
         if (alterados.length || rw.atualizados) passos.push(Ncrs.salvar(alterados), Ncrs.salvarMeta());
         if (rc.mudou) passos.push(Correcoes.salvarLocal());
         if (rb.localMaisNovo) passos.push(Pasta.gravarArquivo(Pasta.ARQ_NCR_BANCO, Ncrs.arquivoBanco(quem)));
@@ -5820,7 +5941,8 @@
           passos.push(Pasta.gravarArquivo(Correcoes.ARQUIVO, Correcoes.arquivo(quem)).then(function () { Correcoes.gravado(); }));
         }
         return Promise.all(passos).then(function () {
-          return { entraram: rb.entraram + rw.entraram, atualizados: rb.atualizados + rw.atualizados, correcoes: rc.mudou };
+          return { entraram: rb.entraram + rw.entraram, atualizados: rb.atualizados + rw.atualizados, correcoes: rc.mudou,
+            produtos: rp.mudou };
         });
       });
     });
@@ -5829,11 +5951,13 @@
   /** Banco NCR que veio dentro de um arquivo aberto à mão: junta, sem apagar nada. */
   function juntarBancoNcrDoArquivo(nb) {
     var r = Ncrs.juntarBackup(nb);
-    if (!r.alterados.length && !r.correcoes) return Promise.resolve(r);
-    return Promise.all([Ncrs.salvar(r.alterados), Ncrs.salvarMeta(), r.correcoes ? Correcoes.salvarLocal() : null]).then(function () {
+    if (!r.alterados.length && !r.correcoes && !r.produtos) return Promise.resolve(r);
+    return Promise.all([Ncrs.salvar(r.alterados), Ncrs.salvarMeta(), r.correcoes ? Correcoes.salvarLocal() : null,
+      r.produtos ? Produtos.salvar() : null]).then(function () {
       agendarGravacaoPasta();
       renderTabs();
       if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
+      if (isProdutos()) renderProdutos(true);
       return r;
     });
   }
@@ -6413,8 +6537,14 @@
          ajuste do administrador): redesenha quem lê NCR, sem aviso */
       redesenharNcrs();
     }
+    if (rn && rn.produtos) {
+      /* o banco de produtos mudou lá fora: a aba, a ficha do produto e o bloco da ficha da NCR se refazem */
+      ProdView.redesenhar();
+      NcrView.redesenharFicha();
+    }
     if (rn && (rn.entraram || rn.atualizados)) {
       if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
+      if (isProdutos()) renderProdutos(true);
       var ficha = NcrView.aposMudancaExterna();
       if (ficha) {
         toast('A NCR ' + ficha.numero + ' foi atualizada por ' + (ficha.waiver.editedBy || 'outra pessoa') +
@@ -6545,9 +6675,10 @@
       Pasta.mudouArquivo(Pasta.ARQ_NCR_BANCO),
       Pasta.mudouArquivo(Pasta.ARQ_NCR_WAIVER),
       Pasta.mudouArquivo(Comunicados.ARQUIVO),
-      Pasta.mudouArquivo(Correcoes.ARQUIVO)
+      Pasta.mudouArquivo(Correcoes.ARQUIVO),
+      Pasta.mudouArquivo(Produtos.ARQUIVO)
     ]).then(function (r) {
-      if (r[0] || r[1] || r[2] || r[4]) sincronizar({ semRedesenhar: true });
+      if (r[0] || r[1] || r[2] || r[4] || r[5]) sincronizar({ semRedesenhar: true });
       /* só os comunicados mudaram: troca só eles, sem regravar os dados */
       else if (r[3]) sincronizarComunicados();
     });
@@ -8342,6 +8473,10 @@
       if (this.files && this.files[0]) processarArquivoNcr(this.files[0]);
       this.value = '';
     });
+    $('#prodFileInput').addEventListener('change', function () {
+      if (this.files && this.files[0]) processarArquivoProdutos(this.files[0]);
+      this.value = '';
+    });
     $('#ncrCorrCancelBtn').addEventListener('click', function () { $('#ncrCorrDialog').close(); });
     $('#ncrCorrGoBtn').addEventListener('click', function () {
       ncrImport.substituir = $('#ncrCorrSubst').checked;
@@ -8747,6 +8882,14 @@
     }, function (e) {
       Log.aviso('abertura', 'não consegui ler o banco NCR deste navegador',
         'os relatórios abrem normalmente; a aba Banco NCR fica vazia até recarregar.', { erro: e && e.name });
+    }).then(function () {
+      /* o banco de produtos, no mesmo passo: se falhar, só a aba fica vazia */
+      return Produtos.carregar().then(function (n) {
+        if (n) Log.detalhe('abertura', 'banco de produtos carregado', { produtos: n });
+      }, function (e) {
+        Log.aviso('abertura', 'não consegui ler o banco de produtos deste navegador',
+          'os relatórios abrem normalmente; a aba Produtos fica vazia até recarregar.', { erro: e && e.name });
+      });
     }).then(function () { return Store.list(); }).then(function (list) {
       state.projects = list;
       if (!list.length) {

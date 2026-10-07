@@ -53,6 +53,7 @@ body[data-kind="conversa"] { --kind: #7a4b0f; --kind-sf: #f7efe6; --kind-br: #e2
 body[data-kind="tabela"] { --kind: #1a4fa0; --kind-sf: #e8eefb; --kind-br: #bdcdec; }
 body[data-kind="banco"]  { --kind: #34506b; --kind-sf: #e9eef4; --kind-br: #c3d0de; }
 body[data-kind="kanban"] { --kind: #8b1e5b; --kind-sf: #fbeef5; --kind-br: #eac3d7; }
+body[data-kind="produtos"] { --kind: #5f6e08; --kind-sf: #f3f6df; --kind-br: #d3dd9c; }
 
 * { box-sizing: border-box; }
 
@@ -358,6 +359,7 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
 .tab[data-kind="conversa"] { --tab: #7a4b0f; --tab-sf: #f7efe6; }
 .tab[data-kind="banco"]  { --tab: #34506b; --tab-sf: #e9eef4; }
 .tab[data-kind="kanban"] { --tab: #8b1e5b; --tab-sf: #fbeef5; }
+.tab[data-kind="produtos"] { --tab: #5f6e08; --tab-sf: #f3f6df; }
 .tab:hover { background: var(--tab-sf); color: var(--tab); }
 .tab[aria-selected="true"] {
   color: var(--tab);
@@ -2882,21 +2884,26 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 @media (min-width: 901px) {
   body[data-kind="banco"] .sidebar,
   body[data-kind="tabela"] .sidebar,
+  body[data-kind="produtos"] .sidebar,
   body[data-kind="kanban"] .sidebar { width: 118px; flex: 0 0 118px; }
   body[data-kind="banco"] .tabs,
   body[data-kind="tabela"] .tabs,
+  body[data-kind="produtos"] .tabs,
   body[data-kind="kanban"] .tabs { flex-direction: column; flex-wrap: nowrap; border-bottom: 0; }
   body[data-kind="banco"] .tab,
   body[data-kind="tabela"] .tab,
+  body[data-kind="produtos"] .tab,
   body[data-kind="kanban"] .tab {
     flex: 0 0 auto; justify-content: flex-start; padding: 10px 12px;
     border-bottom: 0; border-left: 3px solid transparent;
   }
   body[data-kind="banco"] .tab[aria-selected="true"],
   body[data-kind="tabela"] .tab[aria-selected="true"],
+  body[data-kind="produtos"] .tab[aria-selected="true"],
   body[data-kind="kanban"] .tab[aria-selected="true"] { border-left-color: var(--tab); }
   body[data-kind="banco"] #sidebarBanco,
   body[data-kind="tabela"] #sidebarTabela,
+  body[data-kind="produtos"] #sidebarProdutos,
   body[data-kind="kanban"] #sidebarKanban { display: none; }
 }
 /* a Tabela com pouca margem dos lados: a largura é das colunas */
@@ -3907,3 +3914,118 @@ dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
 }
 .adm-nota { font-size: 12px; color: var(--muted); margin-top: 10px; }
 .adm-aud-caixa { max-height: 50vh; overflow: auto; }
+
+
+/* ==========================================================================
+   Produtos — o banco de produtos (produtosview.js)
+   A aba reaproveita a barra, o painel, os filtros e a tabela do Banco NCR
+   (.nb2-*); aqui só o que é dela.
+   ========================================================================== */
+.pr-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.pr-chip {
+  display: inline-block; padding: 1px 8px; border-radius: 10px;
+  font-size: 11.5px; font-weight: 700; line-height: 1.5; white-space: nowrap;
+}
+.pr-chip--marco { background: #e8eefb; color: #1a4fa0; }
+.pr-chip--fv { background: #f3f6df; color: #4a5906; }
+/* produto que não está atrelado a nada: existe, só não se aplica */
+.pr-na {
+  display: inline-block; padding: 1px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 700; letter-spacing: .03em;
+  background: #eceef2; color: #6d7383;
+}
+/* 2.400 linhas: com a largura das colunas decidida de antemão o navegador não
+   mede o texto de cada célula para acertá-la (era mais de um segundo) */
+.pr2-table { table-layout: fixed; }
+.pr2-table th:nth-child(1) { width: 118px; }
+.pr2-table th:nth-child(2) { width: 130px; }
+.pr2-table th:nth-child(3) { width: auto; }
+.pr2-table th:nth-child(4) { width: 76px; }
+.pr2-table th:nth-child(5) { width: 19%; }
+.pr2-table th:nth-child(6) { width: 15%; }
+.pr2-table th:nth-child(7) { width: 70px; }
+.pr2-table td.is-longo { max-width: none; min-width: 0; }
+.pr2-table tr.is-na td { color: var(--muted); }
+.pr2-table td { vertical-align: middle; }
+.pr2-linha { cursor: pointer; }
+.pr-marca { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; white-space: nowrap; }
+.pr-sist { font-weight: 700; color: var(--ink-2); }
+.pr-nncr { text-align: center; white-space: nowrap; }
+.pr-zero { color: var(--muted); }
+.pr-contador {
+  font: inherit; font-weight: 700; min-width: 26px; padding: 1px 8px; cursor: pointer;
+  border: 1px solid var(--kind-br); border-radius: 10px; background: var(--kind-sf); color: var(--kind);
+}
+.pr-contador:hover { background: var(--kind); color: #fff; }
+.pr-num { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+
+.pr2-vistas { display: flex; gap: 4px; }
+.pr2-mais {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; margin-top: 8px; font-size: 12.5px; color: var(--muted);
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.pr2-recorte { justify-content: space-between; }
+
+/* o grau do casamento com a NCR: exato, variação ou parecido */
+.pr-nivel {
+  display: inline-block; padding: 1px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.pr-nivel--exato { background: #e7f4ec; color: #1d6b45; }
+.pr-nivel--variacao { background: #fff4d6; color: #8a5a00; }
+.pr-nivel--parecido { background: #fff; color: #6d7383; border: 1px dashed #aab0bd; }
+.pr-tab-ncr td { vertical-align: middle; }
+.pr-possiveis { margin-top: 10px; }
+.pr-possiveis > summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--muted); }
+.pr-resumo {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+  margin: 0 0 12px; padding: 8px 12px; background: #f7f9fb; border-radius: 6px;
+}
+.nb-sec--produtos { border-left: 4px solid #5f6e08; }
+
+/* a ficha do produto é menor que a da NCR */
+dialog.pr-ficha { width: min(1100px, 96vw); height: auto; max-height: 92vh; border-top-color: #5f6e08; }
+.pr-ficha .nb-ficha-tit h3 { color: #5f6e08; font-family: ui-monospace, Consolas, monospace; }
+.pr-bloco { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 8px; }
+.pr-fv-nomes { margin: 4px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-2); }
+.pr-copiar { margin-left: 8px; }
+.nb-hist td.pr-nowrap { white-space: nowrap; word-break: normal; }
+
+/* o mapa: marco × função vital */
+.pr-sec { margin-bottom: 14px; }
+.pr-matriz-caixa { overflow: auto; max-height: 70vh; }
+.pr-matriz { border-collapse: separate; border-spacing: 2px; font-size: 12.5px; }
+.pr-matriz th, .pr-matriz td { padding: 0; text-align: center; }
+.pr-mz-canto { font-size: 10px; text-transform: uppercase; color: var(--muted); text-align: left; padding: 4px 8px; white-space: nowrap; }
+.pr-mz-col, .pr-mz-lin { background: #eef1f5; }
+.pr-mz-lin { text-align: left; position: sticky; left: 0; z-index: 1; }
+.pr-mz-cab {
+  font: inherit; font-weight: 700; font-size: 12px; width: 100%; min-width: 46px;
+  padding: 5px 8px; border: 0; background: none; color: var(--ink-2); cursor: pointer; white-space: nowrap;
+}
+.pr-mz-cab:hover { color: var(--kind); text-decoration: underline; }
+.pr-mz-cel { min-width: 46px; height: 30px; border-radius: 3px; }
+.pr-mz-cel.is-zero { color: #c3c8d2; background: #fafbfc; }
+.pr-mz-n {
+  font: inherit; font-weight: 700; width: 100%; height: 100%; min-height: 30px;
+  border: 0; background: none; color: inherit; cursor: pointer;
+}
+.pr-mz-n:hover { text-decoration: underline; }
+.pr-mz-tot { font-weight: 700; color: var(--ink-2); padding: 0 8px; background: #f5f7fa; border-radius: 3px; white-space: nowrap; }
+.pr-mz-rodape th { position: static; }
+
+/* o mapa: por sistema */
+.pr-sist-lista { display: flex; flex-direction: column; gap: 3px; max-width: 760px; }
+.pr-sist-linha {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 3px 6px;
+  font: inherit; text-align: left; background: none; border: 0; border-radius: 4px; cursor: pointer;
+}
+.pr-sist-linha:hover { background: var(--kind-sf); }
+.pr-sist-nome { width: 74px; flex: 0 0 74px; font-weight: 700; color: var(--ink-2); }
+.pr-sist-barra { flex: 1; display: flex; height: 14px; background: #f1f3f6; border-radius: 3px; overflow: hidden; }
+.pr-sist-com { background: #6b7a0a; }
+.pr-sist-na { background: #c3c8d2; }
+.pr-sist-n { width: 52px; flex: 0 0 52px; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.pr-sist-leg { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+.pr-sist-chave { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; }

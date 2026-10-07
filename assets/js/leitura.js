@@ -108,6 +108,8 @@
         Pasta.publicacao.retomar = nada;
       }
     }
+    /* o banco de produtos no visualizador é o retrato publicado */
+    if (global.Produtos && Produtos.salvar) Produtos.salvar = nada;
     if (global.Revisoes && Revisoes.gravarLocais) Revisoes.gravarLocais = function () {};
     if (global.Chat && Chat.gravarLocais) Chat.gravarLocais = function () {};
     if (global.Chat && Chat.ligado) Chat.ligado = function () { return false; };

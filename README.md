@@ -205,6 +205,7 @@ nunca mudam.
 | **Waiver NCR** | o relatório de waiver das NCRs do marco aberto (lista e formulário) |
 | **Waiver DEV** | o mesmo, para os desvios (DEV) |
 | **Resumo** · **Fluxos** | números e gráficos; o caminho dos waivers |
+| **Produtos** | o banco de produtos: Product Mark, Functional Mark, marcos de segurança e funções vitais |
 
 Cada área tem a sua cor — um ponto antes do nome, e a aba aberta com o fundo e
 a barra na cor. A cor ajuda a reconhecer de relance, mas nunca é o único sinal:
@@ -212,7 +213,7 @@ o nome está escrito e a aba aberta tem barra e fundo.
 
 O seletor **Relatório** (e o campo **Marco**) da barra de cima escolhe o
 relatório aberto nas abas **Waiver NCR** e **Waiver DEV**. No **Banco NCR**,
-no **Kanban**, na **Tabela** e no **Resumo** ele não mudava nada — cada uma
+no **Kanban**, na **Tabela**, no **Resumo** e nos **Produtos** ele não mudava nada — cada uma
 tem o próprio recorte (as pastilhas de marco, os filtros) — e por isso some
 ali. Na aba **Fluxos** ele fica, e vale quando a vista olha "este relatório";
 com "todos os marcos" (ou no painel) ele aparece desabilitado, dizendo que não
@@ -502,7 +503,7 @@ programa em modo leitura**, num arquivo único à parte —
 mesmo programa, ele tem tudo o que o editor mostra e exporta, e cada melhoria
 do editor chega a ele sozinha:
 
-- abas **NCR, DEV, Resumo, Fluxos, Tabela, Banco NCR e Kanban**, com as
+- abas **NCR, DEV, Resumo, Fluxos, Tabela, Banco NCR, Kanban e Produtos**, com as
   ligações temporária → definitiva e as correções do administrador;
 - cada item com todos os campos, o fluxo, as evidências, a **situação** e
   **quem editou e quando**;
@@ -1018,6 +1019,9 @@ extenso:
   etapa, retornos e reincidências) e **Mapa do fluxo** (todas as etapas, as
   percorridas e as não percorridas). Sai do histórico importado; sem histórico,
   mostra só o status atual e diz isso.
+- os **produtos, marcos de segurança e funções vitais** da NCR — vem do banco
+  de produtos (aba **Produtos**, abaixo): os produtos que a NCR cita, cada um
+  com os marcos e as funções vitais dele;
 - o **histórico** completo, em tabela.
 
 ### As três importações
@@ -1100,7 +1104,8 @@ preenchido). Vale a edição mais recente, NCR a NCR, e nada é apagado. Antes d
 juntar uma mudança de fora, a sua versão dos campos do Waiver é guardada em
 `historico-ncr\`. As ligações entre NCR temporária e definitiva, as correções
 do administrador e a auditoria vão num terceiro arquivo,
-`derrogacao-ncr-correcoes.json`.
+`derrogacao-ncr-correcoes.json`. O banco de produtos tem arquivo próprio
+(`derrogacao-produtos.json`, abaixo).
 
 ### Quando a NCR é fechada
 
@@ -1185,6 +1190,95 @@ administrativa.
 
 Nenhum número é reescrito, e **Desfazer** (na ficha ou na área
 administrativa) desliga as duas. Ligar e desfazer ficam na auditoria.
+
+## Aba Produtos: marcos de segurança e funções vitais
+
+O banco de produtos liga cada **produto** à **marca funcional** dele (a
+*Industrial Mark*, ou *Functional Mark*), aos **marcos de segurança** que o
+alcançam e às **funções vitais** que dependem dele. Ele nasce de uma planilha
+de cinco colunas:
+
+| Coluna | Exemplo |
+| --- | --- |
+| Product Mark | `P0104501` |
+| Functional Mark | `BC22714F` |
+| Designation | `BATTERY CHARGING EXTERNAL SUPPLY CABLE EB+` |
+| Safety Milestones | `J05;J07` |
+| Vital Functions # | `20` (ou `10;24`) |
+
+Vários marcos ou funções na mesma célula ficam separados por `;` — cada um
+vira um item (chip) próprio. **Produto sem marco e sem função vital entra no
+banco do mesmo jeito e aparece como `N/A`** (não se aplica): ele existe, só
+não está atrelado a nenhum.
+
+### Importar a planilha
+
+A planilha quase não muda, então o botão é discreto: fica no **painel** da
+aba (**▼ Mostrar painel**), que abre sozinho enquanto o banco está vazio.
+**Importar planilha de produtos…** lê o `.xlsx` (o cabeçalho pode estar em
+qualquer das primeiras linhas; os nomes das colunas são reconhecidos em inglês
+e em português, e, sem cabeçalho conhecido, valem as colunas A a E).
+
+- **Acrescenta e atualiza, nunca apaga.** O produto novo entra; o que já está
+  no banco e mudou na planilha é atualizado (pelo *Product Mark*); o que está
+  no banco e não está na planilha continua como está.
+- Ao fim, o resumo diz quantos são novos, atualizados, iguais e mantidos, **o
+  que mudou em cada atualizado**, e quantos ficaram `N/A`.
+- Coluna que a planilha não tem não apaga o que o banco já sabe.
+- Vale para o dia em que a planilha for atualizada: é só importar a nova.
+
+### A aba
+
+Uma barra com a **busca** (vale para Product Mark, Functional Mark,
+descrição, marco, função vital — `fv 28` —, o número de uma NCR que cite o
+produto e `n/a` para o que a tabela mostra como N/A; `BH-00004` acha
+`BH00004`), os números clicáveis no painel (**Produtos · Com marco · Com função
+vital · N/A · Citados em NCR**) e os **filtros**: sistema (as duas primeiras
+letras da Functional Mark, o *bigrama*), marco, função vital, marco e função
+vital, e citado em NCR — todos com **Marcar todos** e a contagem de cada
+opção. Duas vistas do mesmo recorte:
+
+- **Tabela** — um produto por linha, com os marcos e as funções vitais em
+  chips, quantas NCRs citam o produto e a ordem por qualquer coluna. Mostra os
+  primeiros 300 e deixa pedir mais.
+- **Mapa** — o que a tabela não mostra: a **matriz marco × função vital**
+  (quantos produtos há em cada cruzamento) e a divisão **por sistema**. Clicar
+  numa célula, num marco, numa função ou numa barra leva à tabela já filtrada.
+
+Clicar num produto abre a **ficha do produto**: a identificação, os marcos e as
+funções vitais (com o nome que o banco NCR dá a cada número), as **NCRs que o
+citam** (cada uma abre a ficha dela) e a **família** da marca — os produtos
+com a mesma base (`BH00004`) e outro sufixo. **Excel** e **CSV** exportam o que
+está à vista, com a aba **Recorte** dizendo qual filtro valia.
+
+### Na ficha da NCR
+
+A ficha da NCR ganha a seção **Produtos, marcos de segurança e funções
+vitais**: os produtos do banco que a NCR cita, cada um com os marcos e as
+funções vitais, e um resumo no alto com a soma de todos. A marca é procurada
+em **todo o texto da NCR** — as colunas do export, o título, a descrição e as
+tabelas de produtos e deliberações —, pelas duas portas: o **Product Mark** e
+a **Functional Mark**. E com tolerância, porque a NCR nem sempre escreve a marca
+como o banco: cada produto vem com o grau do casamento.
+
+| Grau | O que quer dizer | Exemplo |
+| --- | --- | --- |
+| **exato** | a mesma marca (ou o mesmo Product Mark) | `BH00004M` na NCR e no banco |
+| **variação** | a NCR escreve a marca do banco com 1 ou 2 caracteres a mais no fim | `BH00004M5` na NCR, `BH00004M` no banco |
+| **parecido — conferir** | mesma base (duas letras e cinco dígitos), sufixo diferente | `BH00037` na NCR, `BH00037A` no banco |
+
+O **parecido** nunca entra no resumo de cima e fica num grupo recolhido
+(*Parecidos, a conferir*): serve para lembrar de olhar, não para afirmar. Hífens,
+espaços e maiúsculas não atrapalham (`bh-00004-m5`). Só aparece o que o banco
+de produtos conhece.
+
+### Na pasta, no backup e no visualizador
+
+O banco de produtos tem arquivo próprio na pasta, `derrogacao-produtos.json`,
+junto dos outros: produto a produto vale a importação mais recente, e nada é
+apagado — uma importação feita por outra pessoa chega sozinha. Vai também no
+**backup de tudo** e na **publicação**: o visualizador tem a aba Produtos (sem
+o botão de importar) e a seção na ficha da NCR.
 
 ## Área administrativa
 
@@ -1745,7 +1839,9 @@ assets/js/chat.js        a conversa da equipe, dentro da pasta da rede
 assets/js/comunicados.js os comunicados para o visualizador: formato, junção e lidos
 assets/js/xlsxler.js     LÊ planilhas .xlsx (o motor do NCR Control)
 assets/js/ncrs.js        banco NCR: importações, correlação, histórico, junção
+assets/js/produtos.js    banco de produtos: importação, casamento com a NCR, pasta
 assets/js/ncrfluxo.js    o desenho do fluxo da NCR, igual ao do NCR Control
+assets/js/produtosview.js aba Produtos, ficha do produto e o bloco da ficha da NCR
 assets/js/ncrview.js     aba Banco NCR: tabela, filtros e ficha
 assets/js/kanban.js      aba Kanban: as NCRs de um marco, por situação
 assets/js/app.js         lógica do editor

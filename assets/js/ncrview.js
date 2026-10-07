@@ -1506,6 +1506,12 @@
       if (Object.keys(ajustadas).length) sb.appendChild(el('p', 'nb2-mini', '✎ Campos corrigidos pelo administrador (o valor do banco fica ao lado).'));
     }
 
+    /* os produtos do banco de produtos que esta NCR cita (pela marca funcional
+       ou pelo Product Mark, com tolerância), com os marcos de segurança e as
+       funções vitais de cada um — produtosview.js */
+    var blocoProdutos = global.ProdView ? ProdView.blocoDaNcr(rec, { abrirProduto: ctx.abrirProduto }) : null;
+    if (blocoProdutos) body.appendChild(blocoProdutos);
+
     /* o que o export traz em várias linhas: produtos, deliberações… — cada
        grupo numa tabela, no mesmo padrão do histórico */
     (f.detalhes || []).forEach(function (g) {
