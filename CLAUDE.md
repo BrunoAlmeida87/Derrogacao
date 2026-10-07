@@ -1190,8 +1190,8 @@ passar os dados, e a planilha quase não muda (uma vez, talvez uma atualização
   0,62× se falta; sem caber, o chamador corta (campos, produtos) e tenta de novo
   (`baixarImagemDoProduto`, `NcrView` `baixarImagem`). Desenhada de novo, não
   foto do pop-up (que rola e muda com a janela). Os botões levam `data-mostra`.
-- **Mapa de marcas** (`mapaMarcas`): Functional Mark × função vital ou marco,
-  120 linhas por vez.
+- **Mapa de sistemas** (`mapaMarcas`): bigrama × função vital ou marco, com a
+  contagem de produtos (pedido do Bruno: só as duas letras, não a marca inteira).
 - **Armadilha.** `NcrView.abrirFicha` usa o `ctx` que o `NcrView.render` guarda:
   de fora da aba Banco é preciso `switchKind('banco')` antes (os caminhos do
   Kanban e da aba Produtos já fazem). Sem isso, `ctx` é nulo.

@@ -434,24 +434,26 @@ function lerDaPasta(pg, nome) {
       const r = Array.from(document.querySelectorAll('#pr2Table tbody tr')).filter(x => x.cells[0].textContent === 'P0100004')[0];
       return { ab: r.querySelectorAll('.pr-pil--aberta').length, fe: r.querySelectorAll('.pr-pil--fechada').length, txt: r.cells[6].textContent };
     });
-    L.ok(ind.ab + ind.fe > 0 && /\d/.test(ind.txt), 'a coluna NCRs mostra pastilhas de abertas (●) e fechadas (✓) com a conta de cada uma: ' + ind.txt);
+    L.ok(ind.ab + ind.fe > 0 && /\d/.test(ind.txt), 'a coluna NCR mostra pastilhas de abertas (●) e fechadas (✓) com a conta de cada uma: ' + ind.txt);
     await pg.click('.pr2-vistas [data-vista="mapa"]');
     await pg.waitForSelector('#pr2MapaMarcasTab');
     const mm = await pg.evaluate(() => {
       const t = document.getElementById('pr2MapaMarcasTab');
       const cab = Array.from(t.tHead.rows[0].cells).map(c => c.textContent);
-      const lin = Array.from(t.tBodies[0].rows).filter(r => r.cells[0].textContent === 'BH00004M')[0];
-      return { cab: cab, pontos: Array.from(lin.cells).map((c, i) => c.classList.contains('is-on') ? cab[i] : null).filter(Boolean) };
+      const lin = Array.from(t.tBodies[0].rows).filter(r => r.cells[0].textContent === 'BH')[0];
+      const cel = (f) => lin.cells[cab.indexOf(f)].textContent;
+      return { linhas: Array.from(t.tBodies[0].rows).map(r => r.cells[0].textContent), fv2: cel('FV 2'), fv10: cel('FV 10'), total: lin.cells[lin.cells.length - 1].textContent };
     });
-    L.ok(mm.cab.indexOf('FV 2') > 0 && mm.pontos.join() === 'FV 2,FV 10', 'mapa da marca funcional por função vital: BH00004M em FV 2 e FV 10');
+    L.ok(mm.linhas.every(x => /^[A-Z]{2}$|^sem sistema$/.test(x)), 'o mapa por função vital tem uma linha por bigrama (duas letras), não por marca inteira: ' + mm.linhas.join(','));
+    L.ok(mm.fv2 === '2' && mm.fv10 === '1', 'BH: dois produtos em FV 2 (BH00004M e BH00004) e um em FV 10');
     await pg.click('#pr2MapaMarcas .pr2-vistas .btn:nth-child(2)');
     const mm2 = await pg.evaluate(() => {
       const t = document.getElementById('pr2MapaMarcasTab');
       const cab = Array.from(t.tHead.rows[0].cells).map(c => c.textContent);
-      const lin = Array.from(t.tBodies[0].rows).filter(r => r.cells[0].textContent === 'BH00004M')[0];
-      return Array.from(lin.cells).map((c, i) => c.classList.contains('is-on') ? cab[i] : null).filter(Boolean).join();
+      const lin = Array.from(t.tBodies[0].rows).filter(r => r.cells[0].textContent === 'BH')[0];
+      return cab.filter((c, i) => /^J\d/.test(c) && lin.cells[i].textContent !== '·').join();
     });
-    L.igual(mm2, 'J06,J09', 'e por marco: BH00004M em J06 e J09');
+    L.ok(/J06/.test(mm2) && /J09/.test(mm2), 'e por marco: o BH aparece em J06 e J09 (' + mm2 + ')');
     await pg.click('.pr2-vistas [data-vista="tabela"]');
     const png = (buf) => ({ w: buf.readUInt32BE(16), h: buf.readUInt32BE(20), ok: buf.slice(1, 4).toString() === 'PNG' });
     await pg.click('#pr2Table tbody tr:has-text("P0100004") .pr-num');

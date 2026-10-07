@@ -19327,7 +19327,7 @@ if(isWorker){
       if (x === null || y === null) return x === y ? 0 : (x === null ? 1 : -1);
       return Produtos.cmpFuncao(x, y);
     } },
-    { id: 'ncrs', nome: 'NCRs', cmp: function (a, b) { return (a.abertas - b.abertas) || (a.fechadas - b.fechadas); } }
+    { id: 'ncrs', nome: 'NCR', cmp: function (a, b) { return (a.abertas - b.abertas) || (a.fechadas - b.fechadas); } }
   ];
 
   function aVista() {
@@ -19666,7 +19666,6 @@ if(isWorker){
   /** A busca, um filtro ou a ordem mudaram: a lista recomeça do alto. */
   function mudouRecorte() {
     st.limite = LOTE;
-    st.limiteMapa = LOTE_MAPA;
     renderConteudo();
   }
 
@@ -19871,27 +19870,26 @@ if(isWorker){
   }
 
   /**
-   * A marca funcional (Industrial Mark) em cada função vital, ou em cada marco:
-   * uma linha por marca, uma coluna por função (ou marco), um ponto onde o
-   * produto está. É o "quem depende de quê" produto a produto, que a matriz
-   * de cima só conta. Respeita a busca e os filtros, então dá para recortar
-   * por sistema antes de olhar.
+   * O sistema (o bigrama, as duas primeiras letras da Functional Mark) em cada
+   * função vital, ou em cada marco: uma linha por bigrama, uma coluna por
+   * função (ou marco), e em cada cruzamento quantos produtos. Respeita a busca
+   * e os filtros. (Era uma linha por marca inteira — pedido do Bruno: só o
+   * bigrama.)
    */
-  var LOTE_MAPA = 120;
   function mapaMarcas(ls) {
     var eixo = pref('eixoMarcas', 'funcao');
+    var chave = eixo === 'funcao' ? 'funcoes' : 'marcos';
     var sec = el('section', 'nb-sec pr-sec');
     sec.id = 'pr2MapaMarcas';
     var topo = el('div', 'pr-mm-topo');
     var tit = el('div');
-    tit.appendChild(el('h4', null, 'Marca funcional por ' + (eixo === 'funcao' ? 'função vital' : 'marco de segurança')));
-    tit.appendChild(el('p', 'nb-sec-sub', 'Um ponto onde o produto está ligado. Clique na coluna para filtrar; na marca, para abrir a ficha.'));
+    tit.appendChild(el('h4', null, 'Sistema (bigrama) por ' + (eixo === 'funcao' ? 'função vital' : 'marco de segurança')));
+    tit.appendChild(el('p', 'nb-sec-sub', 'Quantos produtos de cada sistema há em cada ' + (eixo === 'funcao' ? 'função vital' : 'marco') + '. Clique numa célula para ver os produtos.'));
     topo.appendChild(tit);
     var alt = el('div', 'pr2-vistas');
     [['funcao', 'Por função vital'], ['marco', 'Por marco']].forEach(function (o) {
       var b = botao(o[1], 'btn--sm nb2-toggle' + (eixo === o[0] ? ' is-on' : ''), function () {
         setPref('eixoMarcas', o[0]);
-        st.limiteMapa = LOTE_MAPA;
         renderConteudo();
       });
       b.setAttribute('aria-pressed', eixo === o[0] ? 'true' : 'false');
@@ -19900,24 +19898,31 @@ if(isWorker){
     topo.appendChild(alt);
     sec.appendChild(topo);
 
-    var comMarca = ls.filter(function (l) { return l.it.marca; });
-    var chave = eixo === 'funcao' ? 'funcoes' : 'marcos';
-    var cols = [], vistos = {}, semAlgum = false;
-    comMarca.forEach(function (l) {
+    var cols = [], vistos = {}, semAlgum = false, sists = [], sv = {};
+    var cel = {}, tot = {}, max = 0;
+    ls.forEach(function (l) {
+      var sg = l.sistema || '__na';
+      if (!sv[sg]) { sv[sg] = 1; sists.push(sg); }
+      var vals = l.it[chave].length ? l.it[chave] : ['__na'];
       if (!l.it[chave].length) semAlgum = true;
-      l.it[chave].forEach(function (v) { if (!vistos[v]) { vistos[v] = 1; cols.push(v); } });
+      tot[sg] = (tot[sg] || 0) + 1;
+      vals.forEach(function (v) {
+        if (!vistos[v]) { vistos[v] = 1; cols.push(v); }
+        var k = sg + '\u0001' + v;
+        cel[k] = (cel[k] || 0) + 1;
+        if (cel[k] > max) max = cel[k];
+      });
     });
+    cols = cols.filter(function (c) { return c !== '__na'; });
     cols.sort(eixo === 'funcao' ? Produtos.cmpFuncao : function (a, b) { return Fluxo.cmpMarco(a, b); });
     if (semAlgum) cols.push('__na');
-    if (!comMarca.length) { sec.appendChild(el('p', 'nb2-nada', 'Nenhum produto com Functional Mark neste recorte.')); return sec; }
-    var linhasOrd = comMarca.slice().sort(function (a, b) { return Store.cmpTexto(a.it.marca, b.it.marca) || Store.cmpTexto(a.it.produto, b.it.produto); });
-    var limite = st.limiteMapa || LOTE_MAPA;
+    sists.sort(function (a, b) { return ((a === '__na') - (b === '__na')) || Store.cmpTexto(a, b); });
 
     var caixa = el('div', 'pr-matriz-caixa');
     var t = el('table', 'pr-matriz pr-mm');
     t.id = 'pr2MapaMarcasTab';
     var trh = el('tr');
-    trh.appendChild(el('th', 'pr-mz-canto', 'Functional Mark'));
+    trh.appendChild(el('th', 'pr-mz-canto', 'Sistema'));
     cols.forEach(function (c) {
       var th = el('th', 'pr-mz-col');
       var b = el('button', 'pr-mz-cab', c === '__na' ? Produtos.NA : (eixo === 'funcao' ? 'FV ' + c : c));
@@ -19930,35 +19935,41 @@ if(isWorker){
       th.appendChild(b);
       trh.appendChild(th);
     });
+    trh.appendChild(el('th', 'pr-mz-tot', 'Total'));
     var thead = el('thead'); thead.appendChild(trh); t.appendChild(thead);
     var tb = el('tbody');
-    linhasOrd.slice(0, limite).forEach(function (l) {
+    sists.forEach(function (sg) {
       var tr = el('tr');
-      var rh = el('th', 'pr-mz-lin pr-mm-marca');
-      var b = el('button', 'pr-mz-cab pr-marca', l.it.marca);
+      var rh = el('th', 'pr-mz-lin');
+      var b = el('button', 'pr-mz-cab', sg === '__na' ? 'sem sistema' : sg);
       b.type = 'button';
-      b.title = (l.it.produto ? l.it.produto + ' — ' : '') + l.it.descricao;
-      b.addEventListener('click', function () { abrirDetalhe(l.it.id); });
+      b.title = 'Sistema ' + (sg === '__na' ? '(sem bigrama)' : sg) + ' — ver os produtos';
+      b.addEventListener('click', function () { irParaTabela({ sistema: [sg] }); });
       rh.appendChild(b);
       tr.appendChild(rh);
       cols.forEach(function (c) {
-        var tem = c === '__na' ? !l.it[chave].length : l.it[chave].indexOf(c) >= 0;
-        var td = el('td', 'pr-mm-cel' + (tem ? ' is-on' : '') + (tem && c === '__na' ? ' is-na' : ''));
-        if (tem) td.textContent = '●';
+        var n = cel[sg + '\u0001' + c] || 0;
+        var td = el('td', 'pr-mz-cel' + (n ? '' : ' is-zero'));
+        if (n) {
+          var a = 0.12 + 0.78 * (n / max);
+          td.style.background = 'rgba(107, 122, 10, ' + a.toFixed(2) + ')';
+          if (a > 0.5) td.style.color = '#fff';
+          var bc = el('button', 'pr-mz-n', String(n));
+          bc.type = 'button';
+          bc.title = n + ' produto(s) do sistema ' + (sg === '__na' ? '(sem bigrama)' : sg);
+          bc.addEventListener('click', function () {
+            var f = { sistema: [sg] }; f[eixo === 'funcao' ? 'funcao' : 'marco'] = [c]; irParaTabela(f);
+          });
+          td.appendChild(bc);
+        } else td.textContent = '·';
         tr.appendChild(td);
       });
+      tr.appendChild(el('td', 'pr-mz-tot', String(tot[sg])));
       tb.appendChild(tr);
     });
     t.appendChild(tb);
     caixa.appendChild(t);
     sec.appendChild(caixa);
-    if (linhasOrd.length > limite) {
-      var mais = el('div', 'pr2-mais');
-      mais.appendChild(el('span', null, 'Mostrando ' + limite + ' de ' + linhasOrd.length + ' marcas'));
-      mais.appendChild(botao('Mostrar mais ' + LOTE_MAPA, 'btn--sm', function () { st.limiteMapa = limite + LOTE_MAPA; renderConteudo(); }));
-      mais.appendChild(botao('Mostrar todas (' + linhasOrd.length + ')', 'btn--sm', function () { st.limiteMapa = linhasOrd.length; renderConteudo(); }));
-      sec.appendChild(mais);
-    }
     return sec;
   }
 

@@ -1251,9 +1251,9 @@ cheia e quente `● 2` para as **abertas**, uma vazada e verde `✓ 1` para as
 fechada fica calmo; o número "Com NCR aberta" e o filtro *Citado em NCR*
 (com aberta · só fechadas · sem NCR) acham o que ainda dá trabalho.
 
-O **Mapa** tem ainda a **marca funcional por função vital** (ou **por marco**):
-uma linha por Functional Mark, uma coluna por função, um ponto onde o produto
-está ligado. Respeita a busca e os filtros.
+O **Mapa** tem ainda o **sistema (bigrama) por função vital** (ou **por marco**):
+uma linha por bigrama — só as duas letras, não a marca inteira —, uma coluna por
+função, e em cada cruzamento quantos produtos. Respeita a busca e os filtros.
 
 As fichas saem em **imagem**: **⤓ Imagem (A4)**, na ficha do produto e na da
 NCR, baixa um PNG de uma folha A4 a 300 dpi (2480 × 3508), redesenhado para o
