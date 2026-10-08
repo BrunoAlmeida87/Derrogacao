@@ -6323,7 +6323,17 @@
 
     /** Salva a junção neste navegador e põe na tela. */
     function adotar(resumo) {
-      return Promise.all(state.projects.map(function (p) { return Store.save(p); }))
+      /* Rodada em que a junção não trouxe nada de novo: o que está na memória é
+         o que já está gravado aqui (o autosave e o flushSave cuidam do que se
+         escreve). Regravar TODOS os relatórios com as imagens — dezenas de MB —
+         a cada rodada travava a tela por segundos (visto no Performance: o
+         `put` do IndexedDB era metade do tempo). */
+      var semNovidade = resumo && !(resumo.entraram || resumo.atualizados || resumo.removidos ||
+        resumo.novosRelatorios || resumo.relatoriosRemovidos || resumo.conflitos ||
+        (resumo.substituidos && resumo.substituidos.length));
+      var gravacao = semNovidade ? Promise.resolve()
+        : Promise.all(state.projects.map(function (p) { return Store.save(p); }));
+      return gravacao
         .then(function () {
           opts.aberto = { id: idAberto, assinatura: assinaturaAntes };
           aplicarMudancasNaTela(resumo, opts);
