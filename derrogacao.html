@@ -29626,6 +29626,7 @@ if(isWorker){
     toast('Lendo ' + file.name + '…');
     lerArquivoNcr(file).then(function (dados) {
       var r = Produtos.importar(dados, file.name, quem);
+      produtosPendente = true;
       return Produtos.salvar().then(function () { return r; });
     }).then(function (r) {
       Log.ok('produtos', r.resumo.titulo, { numeros: r.resumo.numeros.length });
@@ -30001,13 +30002,24 @@ if(isWorker){
    * banco (grande, muda nas importações) e o dos campos do Waiver (pequeno,
    * muda a cada campo preenchido). Só grava o que este lado tem de novo.
    */
+  /* O banco de produtos é grande (~1 MB) e quase nunca muda: a rodada só o relê
+     quando a data dele mudou lá fora, ou quando há algo daqui para mandar.
+     Antes era lido e interpretado em toda rodada, na pasta de rede. */
+  var produtosLido = false, produtosPendente = false;
+  function lerProdutosDaPasta() {
+    if (!produtosLido || produtosPendente) return Pasta.lerArquivo(Produtos.ARQUIVO);
+    return Pasta.mudouArquivo(Produtos.ARQUIVO).then(function (mudou) {
+      return mudou ? Pasta.lerArquivo(Produtos.ARQUIVO) : { dados: null, semMudanca: true };
+    });
+  }
+
   function sincronizarNcrs() {
     var quem = Store.getUser();
     return Promise.all([
       Pasta.lerArquivo(Pasta.ARQ_NCR_BANCO),
       Pasta.lerArquivo(Pasta.ARQ_NCR_WAIVER),
       Pasta.lerArquivo(Correcoes.ARQUIVO),
-      Pasta.lerArquivo(Produtos.ARQUIVO)
+      lerProdutosDaPasta()
     ]).then(function (r) {
       var lista = Ncrs.lista();
       var temBanco = lista.some(function (x) { return x.fonte.importadoEm || x.historico.length; });
@@ -30028,11 +30040,15 @@ if(isWorker){
           : { mudou: false, localMaisNovo: Correcoes.listaSubstituicoes().length > 0 || Correcoes.auditoria().length > 0 || Correcoes.temSenha() };
         /* o banco de produtos: arquivo próprio, só muda quando alguém importa a planilha */
         var rp = r[3].dados ? Produtos.juntar(r[3].dados)
-          : { mudou: false, localMaisNovo: Produtos.total() > 0 };
+          : (r[3].semMudanca ? { mudou: false, localMaisNovo: false }
+            : { mudou: false, localMaisNovo: Produtos.total() > 0 });
+        produtosLido = true;
         var alterados = rb.alterados.concat(rw.alterados);
         var passos = [];
         if (rp.mudou) passos.push(Produtos.salvar());
-        if (rp.localMaisNovo) passos.push(Pasta.gravarArquivo(Produtos.ARQUIVO, Produtos.arquivo(quem)));
+        if (rp.localMaisNovo) {
+          passos.push(Pasta.gravarArquivo(Produtos.ARQUIVO, Produtos.arquivo(quem)).then(function () { produtosPendente = false; }));
+        } else produtosPendente = false;
         if (alterados.length || rw.atualizados) passos.push(Ncrs.salvar(alterados), Ncrs.salvarMeta());
         if (rc.mudou) passos.push(Correcoes.salvarLocal());
         if (rb.localMaisNovo) passos.push(Pasta.gravarArquivo(Pasta.ARQ_NCR_BANCO, Ncrs.arquivoBanco(quem)));
@@ -30054,6 +30070,7 @@ if(isWorker){
     if (!r.alterados.length && !r.correcoes && !r.produtos) return Promise.resolve(r);
     return Promise.all([Ncrs.salvar(r.alterados), Ncrs.salvarMeta(), r.correcoes ? Correcoes.salvarLocal() : null,
       r.produtos ? Produtos.salvar() : null]).then(function () {
+      if (r.produtos) produtosPendente = true;
       agendarGravacaoPasta();
       renderTabs();
       if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
