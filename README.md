@@ -8,7 +8,54 @@ login e nenhum dado sai do computador.
 
 ## O que faz
 
-- **Duas abas: NCR e DEV.** As duas categorias seguem o mesmo layout e são
+- **As áreas, nesta ordem** (as abas do canto de cima, cada uma com a sua
+  cor): **Banco NCR**, **Kanban**, **Tabela**, **Waiver NCR**, **Waiver DEV**
+  — e depois **Resumo** e **Fluxos**. As setas do teclado andam entre elas;
+  Home e End vão às pontas. O seletor **Relatório** da barra de cima só
+  aparece onde o relatório aberto decide o que está na tela (as duas abas
+  Waiver e a aba Fluxos, quando ela olha "este relatório"); nas outras cada
+  aba tem o próprio recorte. Ver [As áreas e o seletor de relatório](#as-áreas-e-o-seletor-de-relatório).
+- **Abre no marco da vez.** Hoje o **J09**: o relatório dele vem aberto, o
+  Kanban e o Resumo nascem nele. Sem o J09, abre o relatório mexido por último,
+  como sempre foi. Ver [O marco que abre primeiro](#o-marco-que-abre-primeiro).
+- **Atualização automática.** No visualizador, a publicação é relida a cada
+  **5 minutos** (o contador fica em ⋯ Mais); no editor com a pasta, o
+  trabalho dos colegas chega a cada 20 segundos. **⟳ Atualizar** lê na hora. Ver
+  [Atualização automática](#atualização-automática).
+- **Visualizador somente leitura.** Para quem só acompanha: o mesmo
+  programa, num arquivo à parte (`derrogacao-visualizador.html`), com todas
+  as abas e exportações — e nada que grave. Os dados chegam por publicação a
+  partir do editor. Ver [Visualizador](#visualizador-somente-leitura).
+- **Comunicados para o visualizador.** Um waiver novo no J09, uma NCR nova no
+  J09, um waiver do J09 aceito: quem está editando decide se vale avisar, com
+  o botão **📣 Comunicar**, e quem usa o visualizador recebe um pop-up
+  discreto. Ver [Comunicados](#comunicados-avisos-para-quem-usa-o-visualizador).
+
+- **Aba Banco NCR.** As NCRs do **SBR4** importadas do banco NCR (o mesmo
+  export que o NCR Control lê), com **Marco Original**, **Marco Atual**,
+  **Função Vital** e **Observação** preenchidos aqui, o **fluxo de cada NCR**
+  desenhado como no NCR Control e o botão que leva a NCR ao relatório de
+  Waiver do marco. Ver [Aba Banco NCR](#aba-banco-ncr).
+
+- **NCR temporária → definitiva.** A NCR aberta com número provisório
+  (quando o sistema interno estava fora do ar) é ligada à definitiva que a
+  substituiu, e as duas passam a ser o mesmo caso nos relatórios, no fluxo,
+  no Kanban e nas contagens — sem reescrever número nenhum. Ver
+  [NCR temporária e definitiva](#ncr-temporária-e-definitiva).
+- **Ficha da NCR completa.** O que o export traz em várias linhas para a
+  mesma NCR — os produtos e a deliberação de cada um — aparece na ficha, em
+  tabela. Ver [Tudo o que o banco traz, na ficha](#tudo-o-que-o-banco-traz-na-ficha).
+- **Área administrativa.** Correção manual de um dado do banco NCR (o status,
+  por exemplo), com auditoria de cada mudança, atrás de uma senha. Ver
+  [Área administrativa](#área-administrativa).
+
+- **Aba Kanban.** As NCRs de um marco (J09, por exemplo) em cartões
+  compactos, uma coluna por situação do waiver, com as cores de sempre; as já
+  fechadas no banco NCR (*Closed*, *CEDOC Closure*, *7.2 - TA Unfounded*…) numa área à parte. Arrastar o cartão muda a
+  situação. Exporta em **PDF para imprimir (A4 ou A3)** e em **Excel**. Ver
+  [Aba Kanban](#aba-kanban).
+
+- **Duas abas: Waiver NCR e Waiver DEV.** As duas categorias seguem o mesmo layout e são
   preenchidas ao mesmo tempo, cada uma com o seu marco, e **exportadas como
   dois PDFs independentes**. As diferenças da DEV, conforme o relatório
   original: capa com prefixo `DEV:`, número e descrição num campo só
@@ -34,22 +81,63 @@ login e nenhum dado sai do computador.
   em retrato, à sua escolha.
 - **Reaproveitamento entre marcos.** **Copiar de…** traz NCRs já escritas de
   outro relatório, com ou sem as imagens, como cópias independentes.
+- **Duplicar.** O botão **Duplicar** cria, ao lado do item aberto, uma cópia
+  independente dele — anexos incluídos — com o número marcado como `(cópia)`
+  para você trocar. É o caminho mais curto quando várias NCRs do mesmo sistema
+  se repetem quase iguais.
+- **O caminho do waiver, em fluxo.** Cada item tem, embaixo do *Waiver
+  Historic*, o desenho do que aquelas linhas dizem: `J04 To: J06` mais
+  `J06 To: J08` viram **J04 → J06 → J08**. Os cards aparecem conforme o campo
+  é preenchido, e o botão **⤳ Ver fluxo** abre o desenho em tamanho grande. A
+  aba **Fluxos** reúne todos os itens do relatório aberto, NCR e DEV, e sai em
+  PDF.
+- **O que o marco anterior respondeu.** Se a mesma NCR (ou DEV) também está no
+  relatório de um marco que aparece no fluxo, aquele card ganha um ponto:
+  passe o mouse e leia o *Arch Answer* de lá, sem sair do que está fazendo.
+  Clicando, o item de lá abre.
+- **Ver outra NCR ao lado enquanto escreve.** Uma coluna à direita mostra
+  qualquer item — deste relatório ou de outro marco — em **só leitura**,
+  enquanto você preenche o da esquerda normalmente. Cada bloco tem
+  **copiar**.
+- **Busca em todo o texto.** O campo da lista lateral procura no número, no
+  sistema e na função, mas também dentro das descrições, do *Arch Status*, dos
+  certificados e até nas legendas das fotos.
+- **Item aceito abre travado.** Quem chegou em *Waiver accepted* é documento
+  fechado: os campos ficam em somente leitura até você clicar em **Editar
+  mesmo assim**. Evita que um clique distraído sobrescreva — e se espalhe para
+  todo mundo pela pasta compartilhada.
+- **Desfazer a exclusão.** Excluiu sem querer? O aviso que aparece no pé da
+  tela traz **↩ Desfazer** por alguns segundos, e o item volta inteiro.
 - **Conferência antes de exportar.** A janela de exportação lista as NCRs com
   campos essenciais em branco, com link direto para corrigir.
 - **Exportação em PDF** no mesmo padrão do relatório original: capa com o índice
   de NCRs (`NCR-…|HP|FV09 - …|WAIVER ACCEPTED`), páginas A4 retrato para as
   NCRs, páginas A4 paisagem para as evidências, mesmas cores de faixa e mesmo
   rodapé.
+- **Texto que não cabe na folha continua na seguinte.** O layout é de uma
+  folha por item, mas quando o texto passa disso a página continua numa folha
+  de continuação de verdade — com as mesmas margens, o mesmo rodapé e o
+  título repetido com `(cont.)`. A janela de exportação diz, antes de gerar,
+  quantas folhas sairão e quais itens passaram de uma.
 - **Backup e restauração** em arquivo `.json`, para levar o trabalho a outro
   computador ou passar para outra pessoa.
+- **Instalar como aplicativo e usar sem rede.** No Edge ou no Chrome, o menu do
+  navegador oferece **Instalar**: o programa ganha ícone próprio, abre em
+  janela separada, funciona com a rede fora do ar e — o que mais importa no
+  dia a dia — o navegador passa a guardar a permissão da pasta compartilhada,
+  em vez de pedir a cada sessão.
 - **Uma pasta da rede como banco de dados**: o programa lê e grava direto nela,
   e quem abrir apontando para a mesma pasta vê o trabalho de todos, sem importar
-  nada. Com histórico automático de versões.
+  nada. Com histórico automático de versões. O caminho combinado pela equipe já
+  vem preenchido — escolher a pasta é uma vez por computador.
+- **Uma tabela com tudo** (aba **Tabela**): uma linha por item de todos os
+  marcos, com busca geral, filtros, colunas que você escolhe e ordena, e
+  exportação em **Excel (.xlsx)**, CSV ou PDF.
 
 ## Como usar
 
-1. Escolha a aba **NCR** ou **DEV** e preencha o **Marco** no topo (cada aba
-   tem o seu; a DEV usa o marco da NCR se ficar em branco).
+1. Escolha a aba **Waiver NCR** ou **Waiver DEV** e preencha o **Marco** no
+   topo (cada aba tem o seu; a DEV usa o marco da NCR se ficar em branco).
 2. **+ Nova NCR** / **+ Nova DEV** na lateral esquerda e preencha os campos de
    identificação. O título da página é montado como `NCR-...|RM|FV 01 - ...`
    ou `DEV-78154|BQ - ...`, igual ao original.
@@ -107,6 +195,90 @@ Os títulos de capa, o rodapé, a data de emissão e o marco alternativo da capa
 da DEV ficam em **⋯ Mais → Ajustes de capa e rodapé** — textos fixos que quase
 nunca mudam.
 
+## As áreas e o seletor de relatório
+
+| Área | Para quê |
+| --- | --- |
+| **Banco NCR** | as NCRs do SBR4 importadas do banco NCR |
+| **Kanban** | as NCRs de um marco, por situação do waiver |
+| **Tabela** | todos os itens de todos os marcos, com busca e exportação |
+| **Waiver NCR** | o relatório de waiver das NCRs do marco aberto (lista e formulário) |
+| **Waiver DEV** | o mesmo, para os desvios (DEV) |
+| **Resumo** · **Fluxos** | números e gráficos; o caminho dos waivers |
+| **Produtos** | o banco de produtos: Product Mark, Functional Mark, marcos de segurança e funções vitais |
+
+Cada área tem a sua cor — um ponto antes do nome, e a aba aberta com o fundo e
+a barra na cor. A cor ajuda a reconhecer de relance, mas nunca é o único sinal:
+o nome está escrito e a aba aberta tem barra e fundo.
+
+O seletor **Relatório** (e o campo **Marco**) da barra de cima escolhe o
+relatório aberto nas abas **Waiver NCR** e **Waiver DEV**. No **Banco NCR**,
+no **Kanban**, na **Tabela**, no **Resumo** e nos **Produtos** ele não mudava nada — cada uma
+tem o próprio recorte (as pastilhas de marco, os filtros) — e por isso some
+ali. Na aba **Fluxos** ele fica, e vale quando a vista olha "este relatório";
+com "todos os marcos" (ou no painel) ele aparece desabilitado, dizendo que não
+se aplica. Nas abas com exportação própria, o botão de cima passa a se chamar
+**PDF dos relatórios…** — é o PDF do Waiver Request, não o da tela.
+
+## O marco que abre primeiro
+
+Ao abrir, o programa vai direto ao relatório do **J09** (o editor e o
+visualizador), e o Kanban e o Resumo nascem nele. A comparação ignora
+maiúsculas, espaços e zero à esquerda (`j 9` é o `J09`) e aceita o prefixo
+`RANAE` (`RANAE J09`), mas não confunde com outro marco: `J09 Ind`, `J09Cer` e
+`J19` não são o J09. Sem o J09 neste navegador, abre o relatório mexido por
+último, como sempre foi — nada é criado para cumprir a regra. Se o J09 só
+chegar pela pasta da equipe, ele passa a estar aberto na primeira troca com a
+pasta, desde que você ainda não tenha escolhido nem escrito nada.
+
+O marco da vez fica num lugar só (`assets/js/config.js`, `MARCO_INICIAL`):
+quando for outro, é uma linha.
+
+## Atualização automática
+
+**No visualizador**, o programa relê a publicação sozinho a cada **5 minutos**.
+Na barra de cima fica só o botão **⟳ Atualizar** (confere na hora, e a
+contagem recomeça); quanto falta para a próxima leitura está em **⋯ Mais →
+⟳ Atualização automática** ("próxima em 04:32").
+
+- Nada é recarregado: o que chegou entra na tela, e o que você está vendo
+  (relatório, aba, item) continua.
+- Com uma janela aberta, a leitura espera alguns segundos.
+- Trocar de aba do navegador **não recomeça a contagem**: com a janela em
+  segundo plano nada é lido, e ao voltar a contagem continua de onde estava.
+  Se o prazo venceu enquanto você estava fora, confere na hora.
+- Se a leitura falhar, os dados à vista ficam como estão: o botão fica em
+  destaque, o aviso de cima aparece, e o ⋯ Mais diz "falhou · de novo em …".
+
+**No editor não há relógio de 5 minutos**, porque seria repetido: com a
+**pasta da equipe** ligada, o programa já confere a cada **20 segundos** se um
+colega gravou algo, e traz na hora. Essa conferência também confere assim que
+você volta para a janela e, se a pasta parou de responder, tenta religar
+sozinha (no máximo uma vez por minuto). O botão **⟳ Atualizar** continua lá
+para forçar a leitura: ele grava o que está aqui antes de ler, e a junção é
+campo a campo, como sempre. Sem a pasta, nada muda por fora — e o botão nem
+aparece.
+
+## Anotação do item
+
+Cada NCR e cada DEV tem um bloco **Observação interna**, logo abaixo da
+identificação, com cara de papel de recado. Serve para o caso mais comum: o
+preenchimento está parado e o motivo precisa ficar escrito em algum lugar —
+*“esperando o certificado do fornecedor, cobrar na reunião de quinta”*.
+
+- **Não sai no relatório em PDF.** É recado interno, como a Situação do item.
+- **Vale mesmo no item aceito**, que abre travado: anotar não é editar o
+  documento. É onde se escreve “conferir o certificado na próxima revisão”.
+- **O item anotado ganha um 📝 na lista**, então dá para varrer a lateral e ver
+  onde alguém parou sem abrir um por um.
+- **A busca alcança o texto da anotação** — tanto a da lista quanto a da aba
+  Tabela, onde ela também é uma coluna (desligada por padrão) e um filtro
+  (*📝 só com observação*).
+- **Apagar anotação** limpa o campo, com **Desfazer** no aviso que aparece.
+
+A anotação viaja com o item: vai no backup, vai para a pasta da equipe e segue
+a mesma regra dos outros campos (vale a edição mais recente).
+
 ## Situação do item (controle interno)
 
 Cada NCR e cada DEV tem uma **situação de acompanhamento**, escolhida ao pé do
@@ -119,11 +291,22 @@ formulário:
 | **Improve justification** | voltou pedindo justificativa melhor |
 | **Waiver accepted** | aceito |
 
-Ela é **só para controle interno e não sai em nenhuma página do PDF do
-relatório** — aparece na lista lateral (a cor da barra à esquerda de cada item),
-na aba **Resumo** e na planilha CSV. O campo **Arch Status Waiver**, que é o que
-vai impresso no relatório, continua existindo e é independente desta situação:
-um serve para o documento, o outro para você saber onde o trabalho está.
+Ela aparece na lista lateral (a cor da barra à esquerda de cada item), na aba
+**Resumo**, na aba **Tabela** e na planilha. E, no PDF, **é ela que fecha a
+linha de cada item no índice da capa**:
+
+```
+NCR-ICN-ESC-13-1098-2023|RM|Sea water circuit integrity|Waiver accepted
+```
+
+Antes ali ia o *Arch Status Waiver*. Mudou porque o Arch Status é texto livre e
+muitas vezes está em branco, enquanto a situação é sempre uma das quatro. Na
+capa ela sai **em inglês**, porque o documento é em inglês — *Em preenchimento*
+vira *Under preparation*; as outras três já são inglês.
+
+O campo **Arch Status Waiver** continua existindo, continua independente e
+continua **impresso na página do item**, no bloco de status à direita, junto com
+as datas e o Waiver Historic. Nada mais mudou no relatório.
 
 **Um item só conta como concluído quando chega em "Waiver accepted".** É isso
 que acende o ✓ verde na lista, alimenta o contador de progresso e o filtro
@@ -132,9 +315,124 @@ que acende o ✓ verde na lista, alimenta o contador de progresso e o filtro
 Ao **copiar NCRs de outro relatório**, a cópia recomeça em *Em preenchimento*:
 o waiver é concedido por marco, não viaja junto com o texto.
 
+## Levar um waiver aceito para o marco seguinte
+
+Waiver aceito não acaba: ele vale até um marco à frente, e o item vai ter de
+ser reescrito lá. O programa faz essa cópia.
+
+Com o item em **Waiver accepted** e o marco escrito em **Waiver Approved
+Expiry (before)** — `J09`, por exemplo —, aparece ao pé do formulário o botão
+**⤵ Levar para o J09**. Um clique e a NCR vira uma cópia no relatório do J09:
+
+- **em *Em preenchimento***, não aceita: o waiver do J08 foi aceito, o do J09
+  ainda nem foi pedido;
+- **com o Waiver Historic já preenchido**, no formato do relatório — a linha
+  `J08 To: J09` entra sozinha, embaixo do que já estava escrito;
+- **com o mesmo número**, que é o que liga a NCR-001 do J08 à do J09 no fluxo;
+- **com o texto do pedido inteiro** (Description, Current Situation, Why is not
+  possible, Arguments, sistemas, função, certificados e anexos);
+- **com o Arch Answer, o Arch Status e as duas datas em branco** — eram a
+  resposta do J08, e o J09 ainda não respondeu nada;
+- **marcada como herdada**: um `⤵` na lista e uma faixa roxa no alto do editor
+  lembrando que há coisa para revisar. Quando você terminar de conferir, clique
+  em **Já conferi** e a marca sai.
+
+**A NCR do marco de origem não muda em nada.** Ela continua sendo o registro do
+que aconteceu no J08 — inclusive para o ponto no card do fluxo, que lê o Arch
+Answer do marco anterior direto de lá.
+
+Duas coisas que o programa recusa, e por quê:
+
+- **O relatório do marco de destino tem de existir** neste navegador. O botão
+  fica apagado e explica o que falta. Criar um marco sozinho, a partir de um
+  campo de texto, encheria a lista de marcos escritos com erro de digitação — e
+  cada um deles viajaria para a pasta da equipe.
+- **Levar duas vezes.** Se o J09 já tiver uma NCR com esse número, o botão diz
+  isso. Dois itens com o mesmo número no mesmo marco viram um só na
+  sincronização do colega.
+
 Backups gravados antes desta versão continuam abrindo normalmente — o que
 estava marcado como concluído entra como *Waiver accepted*, e o resto como
 *Em preenchimento*.
+
+## Exportar em PDF: escolher os relatórios e recortar por situação
+
+Em **Exportar PDF…** a janela tem duas escolhas:
+
+- **Relatórios** — marque um, vários, ou clique em **Marcar todos** para gerar
+  um arquivo único com todos em sequência. **Limpar** desmarca tudo.
+- **Situação dos itens** — clique nas pastilhas para imprimir **só** os itens
+  numa situação (por exemplo, só os *Waiver requested*, para mandar ao
+  arquiteto o que está pendente). Dá para marcar mais de uma. **Todas as
+  situações** volta ao relatório inteiro, que é como a janela sempre abre.
+- **Escolher itens** — em cada relatório, o botão abre a lista das NCRs (ou
+  DEVs) dele, todas marcadas; desmarque as que não quer (**Todos** / **Nenhum**
+  ajudam). Só as marcadas saem no índice e nas páginas, e a capa diz
+  *Partial list — 2 of 31 items selected.* Vale junto com a situação: entra
+  quem passa nas duas escolhas.
+- **Só o item aberto** — um clique: o relatório da aba em que você está, e
+  nele só o item que está aberto na tela.
+
+Cada pastilha mostra quantos itens existem naquela situação, e cada relatório
+passa a dizer quantos itens dele entram no recorte. Relatório que fica sem
+nenhum é desmarcado sozinho — ele não geraria folha.
+
+**Quando há recorte, a capa avisa**, em inglês, logo abaixo do subtítulo:
+
+```
+Partial list — filtered by status: Waiver accepted.
+```
+
+Isso é de propósito: um *Waiver Request* parcial que não diz que é parcial
+acaba lido como o pedido inteiro. Sem filtro, a capa sai exatamente como
+sempre saiu.
+
+**O recorte não fica guardado**: fechou a janela, na próxima vez ela abre
+outra vez com o relatório inteiro. Assim ninguém exporta meio relatório sem
+perceber.
+
+## Ver o que o programa está fazendo (console)
+
+Aperte **F12** e abra a aba **Console**. O programa escreve ali, em português,
+cada etapa do que está acontecendo: a abertura, cada conversa com a pasta da
+equipe, o que a mesclagem trouxe, a exportação em PDF. Quando algo dá errado,
+a linha vem em três partes — **o que falhou**, **o que isso significa** e **o
+que fazer**.
+
+**Não precisa decorar nada.** Em **⋯ Mais → 🩺 Diagnóstico e diário do
+console** há uma janela com tudo isso em botões, e cada um explica o que faz
+antes de você clicar:
+
+- **Quanto detalhe você quer ver** — *Só problemas*, *Normal* (o padrão) ou
+  *Tudo*. Problema aparece em qualquer nível, inclusive no silêncio: o nível
+  cala o que deu certo, nunca o que deu errado.
+- **Ver o diagnóstico** — o retrato de agora: quantos relatórios e itens
+  existem aqui, qual está aberto, como está a pasta, quantos avisos e erros
+  houve nesta sessão.
+- **Ver as últimas linhas** — o que o programa registrou desde que você abriu.
+- **Copiar para um e-mail** — junta os dois e põe na área de transferência.
+
+A mesma janela mostra ali embaixo o que foi registrado, sem precisar do F12.
+
+Quem preferir digitar, os comandos continuam valendo (e estão escritos ao lado
+de cada botão):
+
+| Comando | O que faz |
+| --- | --- |
+| `Derrogacao.ajuda()` | esta lista, dentro do console |
+| `Derrogacao.tudo()` | mostra também o miúdo: cada gravação, cada tempo |
+| `Derrogacao.normal()` | o padrão: abertura, pasta, mesclagem, problemas |
+| `Derrogacao.silencio()` | só o que der errado |
+| `Derrogacao.diagnostico()` | retrato de agora: quantos relatórios, itens, a pasta |
+| `Derrogacao.diario()` | as últimas linhas, de uma vez |
+| `Derrogacao.copiar()` | copia o diagnóstico + as linhas, para colar num e-mail |
+
+A escolha do nível fica **neste navegador**. **Nada disso sai do computador** —
+é console e só. E **o texto das NCRs nunca é registrado**: vão nomes de campo,
+contagens e números, nunca o que está escrito dentro do campo.
+
+Quando algo estiver estranho, o caminho mais curto é: `Derrogacao.copiar()` e
+colar num e-mail. Vem tudo o que se precisaria perguntar.
 
 ## Backup, cache e trabalho compartilhado
 
@@ -178,6 +476,9 @@ JavaScript embutidos:
 **https://brunoalmeida87.github.io/Derrogacao/derrogacao.html**
 (ou pelo menu **⋯ Mais → ⤓ Baixar para usar sem internet**)
 
+O mesmo arquivo está no repositório, na raiz — `derrogacao.html`. Quem baixa
+o projeto inteiro já leva o programa pronto, sem precisar publicar nada.
+
 Salve o arquivo e abra com dois cliques. Não precisa de servidor, instalação
 nem conexão — funciona inclusive numa pasta de rede, onde cada pessoa abre a
 sua cópia.
@@ -188,26 +489,919 @@ sua cópia.
 > máquina. Para levar o trabalho de um para o outro, use **★ Salvar backup de
 > tudo** de um lado e **Abrir arquivo…** do outro.
 
-O arquivo é gerado a cada publicação por `tools/build-standalone.py`, então
-acompanha sempre a versão do site.
+O arquivo é gerado por `tools/build-standalone.py`: a publicação o refaz a
+cada commit, carimbado com a versão do site, e a cópia versionada na raiz é
+conferida a cada envio (`--conferir`), para não envelhecer em silêncio. O
+mesmo vale para o [visualizador](#visualizador-somente-leitura),
+`derrogacao-visualizador.html`.
+
+## Visualizador (somente leitura)
+
+Para quem precisa **acompanhar** as derrogações sem editar. É **este mesmo
+programa em modo leitura**, num arquivo único à parte —
+**`derrogacao-visualizador.html`** —, que se abre com dois cliques. Por ser o
+mesmo programa, ele tem tudo o que o editor mostra e exporta, e cada melhoria
+do editor chega a ele sozinha:
+
+- abas **NCR, DEV, Resumo, Fluxos, Tabela, Banco NCR, Kanban e Produtos**, com as
+  ligações temporária → definitiva e as correções do administrador;
+- cada item com todos os campos, o fluxo, as evidências, a **situação** e
+  **quem editou e quando**;
+- **PDF do relatório** (idêntico ao do editor, com o recorte por situação),
+  pré-visualização, resumo em PDF, painel e fluxos em PDF, planilhas
+  (.xlsx e CSV).
+
+O que **não** tem: nenhum campo editável, nenhum botão que crie, exclua,
+mude situação, importe ou faça backup; o Kanban não arrasta; a aba Conversa
+não existe. Trocar a *Ordem* da lista vale só para aquela tela (e para o PDF
+gerado dali). O visualizador **nunca grava nada** — nem no navegador, nem
+em pasta nenhuma.
+
+**Guia rápido em imagem:** [`docs/visualizador-guia.png`](docs/visualizador-guia.png) — como
+acessar, o que ver em cada aba e como exportar, numa folha só (para mandar a
+quem vai usar). A fonte é o `docs/visualizador-guia.html`; depois de editá-lo,
+`node tools/guia-png.js` regera a imagem.
+
+**Baixar:** está na raiz do repositório e no site
+(https://brunoalmeida87.github.io/Derrogacao/derrogacao-visualizador.html),
+e o editor tem o link em **⋯ Mais → 👁 Publicar para visualizadores**.
+
+### Publicar a partir do editor
+
+**⋯ Mais → 👁 Publicar para visualizadores**:
+
+1. **Escolher a pasta…** — a pasta onde os dados do visualizador vão ficar
+   (pode ser a mesma do visualizador, ou outra). O editor grava ali o
+   arquivo **`visualizador-dados.js`** e passa a dizer "os visualizadores
+   estão vendo a publicação de …".
+2. **Publicar agora** — com a pasta do banco ligada, sincroniza antes: o que
+   vai é o trabalho de todos, não só o deste navegador.
+3. **Publicar sozinho** — republica depois de cada gravação, no máximo a cada
+   2 minutos e só se algo mudou.
+4. **Baixar o arquivo** — sem Edge/Chrome, ou sem acesso de gravação àquela
+   pasta: baixa o `visualizador-dados.js` para copiar à mão.
+
+O que vai: todos os relatórios com marco ou com itens, todos os itens
+(inclusive os **em preenchimento** — a situação aparece na tela), as imagens,
+quem editou cada item e quando, e o **banco NCR**. O que **não** vai: o
+histórico de sessões, o histórico do texto, as lápides de exclusão, os campos
+de controle da mesclagem e a **Observação interna** do item (a tela promete
+que ela fica "só aqui e na pasta da equipe").
+
+### As pastas combinadas
+
+```
+X:\36.GTO - RELATÓRIOS GTO\NCR_MILESTONE\                      ← derrogacao-visualizador.html
+X:\36.GTO - RELATÓRIOS GTO\NCR_MILESTONE\00_BD_VISUALIZADOR\   ← visualizador-dados.js
+```
+
+O caminho da pasta dos dados está gravado no programa
+(`PASTA_VISUALIZADOR`, em `assets/js/config.js`): o visualizador lê de lá
+sem ninguém configurar nada. No **editor**, enquanto ele não estiver ligado a
+essa pasta, fica no alto um aviso com o caminho e o botão **Escolher a
+pasta…** (na primeira vez) ou **Conectar agora** (quando a permissão caiu ou
+a pasta parou de responder). O navegador não abre pasta por caminho — por
+isso a escolha é na janela do Windows, uma vez; depois ele só pede a sua
+confirmação a cada sessão. **Agora não** cala o aviso só até a próxima queda.
+
+### Onde o visualizador procura os dados
+
+Sem pedir clique, nesta ordem:
+
+1. na **pasta dos dados** informada neste navegador (etiqueta 📄 na barra →
+   *Pasta dos dados*);
+2. na **pasta padrão gravada no próprio arquivo** do visualizador — a linha
+   `PASTA_DADOS_VISUALIZADOR` do `tools/build-standalone.py`, que vira
+   `<meta name="derrogacao-pasta-dados">` no arquivo gerado. **Hoje está em
+   branco**; quando a pasta definitiva existir, ela entra ali e ninguém mais
+   precisa configurar nada;
+3. **ao lado** do próprio visualizador.
+
+Vale caminho de rede (`\\servidor\Projetos\…`), unidade mapeada (`G:\…`), a
+pasta ou o próprio `.js`. Se nada der certo, a tela mostra o motivo provável e
+**um botão só: ⟳ Tentar de novo**. Se os dados já estavam à vista e a
+releitura falha (rede fora do ar), eles continuam na tela, com um aviso de que
+podem estar desatualizados e o botão **⟳ Atualizar**. Sozinho, o visualizador
+relê a cada 5 minutos (e ao voltar para a janela, se o prazo venceu enquanto
+ela estava escondida).
+
+Também dá para **abrir um arquivo** à mão (a publicação, o banco da pasta ou
+um backup do editor): vale até fechar a página. O arquivo é lido como texto —
+nada nele é executado.
+
+### Por que um `.js` e não o `.json` do banco
+
+Aberto com dois cliques (de `file://`), o navegador **não deixa** a página ler
+um `.json` — é uma proteção do Chrome e do Edge (e a CSP do programa ainda
+fecha `connect-src`). Mas deixa carregar um `<script>`, ao lado da página ou
+noutra pasta pelo caminho, sem permissão nenhuma — conferido no Chromium, com
+espaço, acento e `#` no nome da pasta. Por isso a publicação é um `.js`
+(`window.DERROGACAO_VISUALIZADOR = {…};`).
+
+> **"Somente leitura" é do programa, não da rede.** O visualizador não altera
+> nada, mas quem garante que ninguém edita é a **permissão da pasta**: os
+> visualizadores com acesso **só de leitura** à pasta dos dados deles e **sem
+> acesso** à pasta do banco de dados. O `visualizador-dados.js` tem os dados
+> completos dos relatórios publicados e do banco NCR — trate-o com o mesmo
+> cuidado dos backups.
+
+## Comunicados: avisos para quem usa o visualizador
+
+Nem toda edição merece aviso. Três acontecimentos podem virar **comunicado**,
+e só nos marcos escolhidos (hoje o **J09**):
+
+| Acontecimento | O que o visualizador lê |
+| --- | --- |
+| **Novo waiver** — um item no relatório Waiver do J09 | "Um novo waiver foi adicionado ao marco J09: NCR-1234." |
+| **Nova NCR** — uma NCR do banco com Marco Atual J09 | "Uma nova NCR foi adicionada ao marco J09: NCR-5678." |
+| **Waiver accepted** — um item do J09 em "Waiver accepted" | "O waiver da NCR-1234, no marco J09, foi aceito." |
+
+**No editor.** Salvar continua automático, como sempre. O comunicado é uma
+ação **a mais**, que só acontece com o seu clique:
+
+- logo depois de uma mudança que pode ser comunicada (aceitar o waiver, levar
+  a NCR para o relatório do J09, trocar o Marco Atual para J09), o aviso do pé
+  da tela traz o botão **📣 Comunicar**;
+- o mesmo botão fica na **barra de situação** de todo item do J09 e na
+  **ficha** da NCR com Marco Atual J09 — para comunicar depois;
+- **⋯ Mais → 📣 Comunicados** mostra os que já foram publicados.
+
+O botão abre a **prévia**: o tipo, o marco, o número, a situação nova (com a
+de antes), o título curto, o autor e a hora — e um campo para uma **mensagem
+curta opcional** (até 280 caracteres). Nada é enviado sem **📣 Publicar
+comunicado**. Se o mesmo acontecimento já foi comunicado, a janela diz
+quando e por quem, e o botão passa a dizer **Comunicar de novo**.
+
+O comunicado vai para a pasta da equipe (arquivo `comunicados.json`) e sai
+com a próxima publicação para os visualizadores. Com a pasta dos
+visualizadores ligada, é publicado **na hora**.
+
+**No visualizador.** Na abertura, a cada 5 minutos e no **⟳ Atualizar**, o
+que chegou e ainda não foi lido aparece num **pop-up no canto de baixo**, que
+não bloqueia a tela nem toma o foco. Vários de uma vez viram uma lista só.
+
+- **Abrir waiver** / **Ver NCR** leva direto ao item (e conta como lido).
+- **Marcar como lido** — ele não aparece mais neste navegador.
+- **Depois** — fecha agora; volta na próxima vez que o visualizador for aberto.
+- A etiqueta **📣** na barra de cima mostra quantos faltam ler e abre o
+  histórico.
+
+Só vira pop-up (e conta na etiqueta 📣) o comunicado **não lido de até 4
+dias**, sempre — na primeira abertura e para quem passou semanas sem abrir.
+Os mais velhos ficam no histórico. O prazo é `DIAS_COMUNICADO_NOVO`, em
+`assets/js/config.js`.
+
+**O que o comunicado leva:** o mínimo para ser lido e para achar o item —
+tipo, marco, número, título curto, situação, mensagem, autor e hora. Nada de
+imagem nem de texto longo. São guardados **os últimos 100**. O comunicado só
+nasce do clique: abrir um backup, importar o banco NCR ou juntar o trabalho
+de um colega nunca cria comunicado. O **backup de tudo** leva os comunicados;
+backups antigos continuam abrindo, com a lista vazia.
+
+> Para acompanhar outro marco, é uma linha em `assets/js/config.js`:
+> `MARCOS_COMUNICADOS = ['J09', 'J10']`. A comparação é a mesma da abertura:
+> "J09 Ind", "J09Cer" e "J19" não contam como J09.
+
+## O caminho do waiver (aba Fluxos)
+
+O campo **Waiver Historic** é escrito à mão, uma entrada por linha, no formato
+do relatório. Cada linha é uma seta:
+
+```
+J01 & J03 To: J02 & J04
+J02 & J04 To: J06
+J06Cer To: J06
+```
+
+Juntando as setas aparece o caminho: **J01 & J03 → J02 & J04 → J06**, com o
+`J06Cer` desembocando no mesmo J06. Nada é inventado — um marco que ninguém
+escreveu não aparece — e nada é alterado: o texto continua sendo a verdade, o
+desenho é só a leitura dele.
+
+- **`J01 & J03` é um card só.** Os números do mesmo lado da seta andam juntos,
+  como no relatório.
+- **`J1`, `J01` e `J 01` são o mesmo marco**, e `RANAE J06` também é J06.
+- **`J06Cer` é o certificado**, e fica logo antes do J06 dele.
+- **O card do marco deste relatório sai destacado**, para se achar de relance.
+- Quando as setas não dizem quem vem antes, vale a ordem do programa:
+  J01 & J03 · J02 & J04 · J05 · J06 · J07 · J08 · J09 · J10 · J11 · J12 ·
+  **RANAE** · **TRAP** — os dois últimos são os marcos depois do J12, e não têm
+  número. Escritos de qualquer jeito (`RANAE`, `Ranae`, `RANAE final`) são o
+  mesmo card. Atenção: `RANAE J06` continua sendo o **J06** — havendo número no
+  texto, é o número que manda.
+- Uma linha sem `To:` vira um card sozinho, e o pop-up avisa. Setas em círculo
+  (`J06 To: J08` com `J08 To: J06`) também viram aviso, em vez de travar.
+
+Na aba **Fluxos** está o compilado, em três leituras da mesma coisa:
+
+- **Lista** — um fluxo por item, NCR e DEV separados, na ordem do PDF.
+- **Mapa do marco** — todos os fluxos somados num desenho só. A seta engorda
+  com o número de itens que passam por ela e cada card diz quantos itens o
+  atravessam: é o desenho que responde *de onde vem o grosso do trabalho deste
+  marco*. Abaixo dele, quantos marcos cada item já atravessou — um item em
+  quatro colunas é um waiver renovado três vezes.
+- **Matriz de/para** — uma linha por seta escrita, da mais usada para a menos,
+  com o percentual sobre os itens que têm fluxo.
+- **Painel do marco** — abaixo.
+
+### Painel do marco: o que está chegando no J09
+
+As outras três leituras respondem *por onde o waiver passou*. Esta responde a
+pergunta do outro lado do balcão, que é a que se leva para a reunião: **o que
+está vindo para este marco?**
+
+Escolha o marco em **Chegando no marco** e a folha se monta:
+
+- quantos itens vêm para ele, quantos são NCR e quantos DEV, de quantos marcos
+  diferentes;
+- quantos já estão aceitos, quantos estão parados há 30+ dias;
+- **já no relatório de J09** × **aceitos, falta trazer** — o segundo é a sua
+  lista de tarefas: itens aceitos no marco anterior que ainda não foram
+  copiados para cá (veja *Levar um waiver aceito para o marco seguinte*);
+- uma rosca com a situação de todos eles, uma barra com **de onde vêm** e outra
+  com os sistemas mais atingidos;
+- e a lista, item por item, dizendo em que relatório cada um mora hoje — com um
+  ✓ nos que já foram trazidos.
+
+Duas coisas a saber:
+
+- **Entra quem já chegou ou quem está a caminho.** *Já chegou* é ter uma seta
+  terminando neste marco no *Waiver Historic*. *A caminho* é o documento dizer
+  que o waiver vale até aqui (*Approved Expiry*, ou *Request Expiry* enquanto a
+  resposta não veio) estando o item ainda em outro marco. Passar pelo marco no
+  meio do caminho não conta: quem já saiu do J08 não está indo para o J08.
+- **Por isso o painel funciona antes de o marco começar.** O Waiver Historic de
+  um item do J08 termina em J08 — ele nunca diz que vai para o J09 —, então é
+  a data de validade que põe o item no painel do J09. É o que permite planejar
+  o J09 sem ter copiado nada ainda.
+- **O painel olha todos os relatórios deste navegador e ignora os filtros da
+  aba** (busca, tipo, *Passa por*, *Itens de*) — por isso eles somem quando o
+  painel está aberto. Quem recorta o painel é o seletor de marco, e mais nada.
+
+**Esta vista em PDF** exporta o painel em duas folhas A4: os números e os
+gráficos numa, a lista na outra (que continua por quantas folhas precisar, com
+o cabeçalho repetido).
+
+Em **Itens de** escolha entre o relatório aberto e **todos os marcos** deste
+navegador; em **Passa por**, clique nos marcos para ver só os itens cujo fluxo
+passa por eles (dá para marcar mais de um). Há ainda a busca, o filtro por tipo
+e a opção de esconder quem não tem nada escrito. **Esta vista em PDF** gera em
+A4 exatamente o que está na tela, com o recorte escrito na folha e a paginação
+de sempre.
+
+### O card com um ponto: a resposta do marco anterior
+
+Cada marco é um relatório à parte, e o mesmo item costuma atravessar vários — a
+`NCR-001` do J06 vira a `NCR-001` do J08. Quando o card de um marco do fluxo
+tem, **neste navegador**, um relatório daquele marco com o mesmo número, o card
+ganha um **ponto no canto**:
+
+- **Passe o mouse** (ou chegue nele pelo Tab) e aparece o que aquele relatório
+  diz sobre este item: *Arch Answer*, *Arch Status*, *Approved Expiry*, quem
+  escreveu e quando. Um texto muito comprido vem cortado, com o aviso.
+- **Clique no card** e o item de lá abre — o relatório troca junto, e o que
+  você estava escrevendo é gravado antes.
+- **Sem ponto, não há nada a ver**: ou aquele marco não tem relatório neste
+  computador, ou o relatório dele não tem este número. Nada é adivinhado.
+
+O pareamento é o mesmo do resto do programa: o marco pelo texto (`RANAE J06`,
+`J06` e `J 6` são o mesmo; `J06Cer` não é o J06) e o item pelo número, sem
+ligar para maiúsculas e espaços. É leitura, só leitura: abrir o balão não
+escreve nada no outro relatório.
+
+Como a busca só enxerga o que está neste navegador, ela funciona melhor com a
+**pasta da rede ligada** — é ela que traz os relatórios dos outros marcos para
+cá.
+
+## Ver uma NCR ao lado da outra
+
+Escrever a `NCR-001` do J08 olhando a do J06 é o caso mais comum — e trocar de
+relatório para consultar, e voltar, perde o fio. O botão **⇥ Ver outra ao
+lado**, no alto do cartão *Identificação*, abre uma coluna à direita com o item
+que você escolher: **deste relatório ou de qualquer outro marco** que esteja
+neste navegador.
+
+- A coluna mostra o item **inteiro**: as cinco seções nas cores do relatório, o
+  bloco do waiver (com o fluxo desenhado), certificados e evidências, mais a
+  situação interna e quem editou por último.
+- **É só leitura, e a tela diz isso.** Para escrever no item de lá, clique em
+  **abrir** no alto da coluna — aí ele passa a ser o item aberto. Para trazer
+  um texto para cá, use **copiar** no bloco e cole no campo.
+- **Atalho pelo fluxo**: no card com ponto (acima), **Shift+clique** deixa
+  aquele item na coluna em vez de trocar de tela.
+- **trocar** escolhe outro item, **✕** fecha a coluna. A escolha fica guardada
+  neste navegador: ao reabrir o programa, a coluna volta como estava.
+- Nas abas **Resumo**, **Fluxos** e **Conversa** a coluna se recolhe — ali não
+  há editor ao lado de quê —, e volta ao entrar na NCR ou na DEV.
+- Ela não sai no PDF nem no backup: é uma janela de consulta, não parte do
+  documento.
+
+> **Por que não dois editores?** Porque hoje cada campo do formulário escreve
+> no item *selecionado*: dois formulários abertos gravariam os dois no mesmo
+> item. Enquanto isso não mudar, a coluna ao lado mostra e não escreve — é a
+> diferença entre consultar com segurança e perder trabalho sem perceber.
+
+## Tudo em tabela (aba Tabela)
+
+As outras abas olham para o relatório aberto. A **Tabela** olha para o conjunto:
+uma linha por item de **todos os marcos deste navegador**, NCR e DEV juntos.
+Serve para a pergunta que não tem resposta em nenhuma outra tela — *onde está a
+NCR-018?* — sem abrir marco por marco.
+
+- **Busca geral**: varre todo o texto do item, não só o número. Procurar pelo
+  certificado, por um trecho do *Arch Answer* ou pela legenda de uma foto
+  funciona igual.
+- **Marcos, em pastilhas**: clique para recortar, e **dá para marcar vários** —
+  J08 e J09 juntos, por exemplo. *todos os marcos* limpa. O número na pastilha
+  é quantos itens aquele relatório tem.
+- **Filtros**: tipo, situação, sistema, *Arch Status*, com ou sem anexo, e só
+  os parados há 30+ dias. São os mesmos do Resumo, para os dois contarem a
+  mesma coisa.
+- **A trajetória, em três colunas** — já vêm ligadas, e lidas ao lado de
+  *Marco* contam a linha inteira:
+
+  | Veio de | Marco | Vai para | Já levada? |
+  | --- | --- | --- | --- |
+  | J06 | J08 | J09 | não |
+
+  **Veio de** sai do *Waiver Historic* (a última seta do texto é a chegada
+  neste marco). **Vai para** sai do documento — *Waiver Approved Expiry*, e na
+  falta dele o *Waiver Request Expiry* —, porque o histórico não sabe do
+  futuro: no relatório do J08 ele termina em J08. **Já levada?** diz se a cópia
+  já existe no relatório do destino, e só cobra ("não") depois que o waiver foi
+  aceito.
+
+  Ordenar por **Vai para** e filtrar por *Waiver accepted* dá a lista do que
+  falta levar para o próximo marco.
+- **Caminho do waiver**: as duas pontas numa coluna só. O que está entre
+  parênteses ainda não aconteceu:
+
+  ```
+  J04 → J06 → J08 → (J09)    ainda não foi levada para o J09
+  J06 → J08 → J09            a cópia já está no J09
+  ```
+- **Colunas**: em **Colunas** você marca o que quer ver (são 30 no total, do
+  número ao *Why not possible*) e usa as setas ↑ ↓ para mudar a ordem delas —
+  na tela, no Excel e no PDF. A escolha fica guardada **neste navegador**.
+- **Ordenar**: clique no título da coluna. Isso **não altera** a ordem dos itens
+  no relatório nem no PDF — a tabela é leitura.
+- **Clique numa linha** e o item abre no editor, trocando de relatório se for
+  preciso.
+
+### Levar o waiver inteiro para o Excel
+
+Em **Colunas → Mostrar todas** a tabela passa a trazer **todo o texto do
+waiver**, uma coluna por campo: Description, Current Situation, Why not
+possible, Arguments, Arch Answer, Waiver Historic, as datas, o Arch Status, os
+certificados, a observação interna, o caminho do waiver — e também **o que está
+escrito dentro dos anexos**: a referência de cada um, a observação de cada um e
+a legenda de cada imagem, separados por ` | ` na ordem em que estão no item.
+
+Nada é cortado na exportação: um *Description* de mil caracteres sai inteiro na
+célula. O que **não** vai é a foto em si — a planilha leva o texto dela, não a
+imagem; para as imagens o caminho é o PDF do relatório ou o backup `.json`.
+
+Isso vale para o Excel e para o CSV. Para o **PDF**, acima de umas dez colunas
+a folha fica apertada mesmo deitada: ali é melhor escolher as colunas que
+interessam.
+
+### Exportar
+
+- **⤓ Exportar Excel** gera um `.xlsx` de verdade — filtros já armados no
+  cabeçalho, primeira linha congelada, número saindo como número. Vai com uma
+  segunda aba, *Recorte*, dizendo quando foi gerado, por quem, quantos itens e
+  qual filtro estava aplicado: planilha que anda pela empresa sem dizer de que
+  recorte veio acaba lida como se fosse o total.
+- **CSV** para quem prefere o texto cru.
+- **PDF** com a mesma tabela em folhas A4 — deitadas quando há muita coluna,
+  com o cabeçalho repetido em cada folha.
+
+> O Excel sai com o que está **à vista**: as colunas escolhidas, o recorte dos
+> filtros e a ordem da tela. Para o total, limpe os filtros antes.
+
+## Aba Kanban
+
+O quadro de **um marco**: escolha o marco nas pastilhas do alto (na ordem da
+fila, cada uma com quantas NCRs tem) e veja cada NCR num cartão.
+
+| Coluna | O que entra |
+| --- | --- |
+| **NCR to be closed** | toda NCR do marco que **não está no Waiver dele**: as do banco com **Marco Atual** igual ao marco (o cartão diz se ela está no Waiver de outro marco ou em nenhum, e tem o botão **+ J09 Waiver**) e os itens de **outros marcos** cujo waiver vale até este (*Approved Expiry*, ou *Request Expiry*) e ainda não foram levados. Sem waiver, a NCR precisa ser fechada até o marco: aqui a NCR aberta aparece em âmbar e o alto da coluna conta "77 a fechar" — as já fechadas vão para a área **Encerradas**, abaixo do quadro |
+| **Em preenchimento · Waiver requested · Improve justification · Waiver accepted** | os itens NCR do relatório do marco, pela situação |
+| **Encerradas** (abaixo do quadro) | as NCRs do marco fora do Waiver que já estão **fechadas** no banco NCR (*Closed*, *CEDOC Closure*, *7.2 - TA Unfounded*… — a lista da seção "NCR fechada"): saem de "NCR to be closed", que fica só com o que ainda falta fechar. A área recolhe (a escolha fica neste navegador), mas o título mostra sempre quantas são; a primeira coluna e a faixa de números também avisam |
+
+- **Incluir as DEVs.** O botão **Incluir as DEVs (n)** do alto faz a vista
+  geral: as DEVs do marco (o relatório *Waiver DEV* com o mesmo marco) entram
+  nas colunas pela situação delas, com a etiqueta **DEV**. Elas mudam de
+  situação como as NCRs (arrastando ou pelo seletor), o número abre a aba
+  *Waiver DEV*, e a planilha ganha a coluna *Tipo*. DEV não tem NCR no banco:
+  não há "to be closed" nem alerta para ela. De saída o botão está desligado
+  e o quadro é o de sempre.
+- **Cartões compactos.** Recolhido, o cartão é quase uma linha de lista: o
+  número, o status da NCR no banco, a função vital em poucas letras (`FV03`),
+  os bigramas, o caminho e as ações. O **+** abre a descrição inteira, a
+  origem, o alerta por extenso e quem mexeu por último; o **−** recolhe.
+  **＋ Abrir todos os cartões** faz o mesmo com todos. Abrir e recolher é só
+  tela: não grava nada nem muda a coluna.
+- O marco casa com o relatório pelo **texto igual**, a mesma regra do Banco
+  NCR: **nada de *J09 Ind* entra no quadro do J09** — nem a NCR com Marco
+  Atual *J09 Ind*, nem o item cujo waiver vale até *J09 Ind*. Os marcos
+  industriais (*Ind*) nem aparecem no seletor, a não ser que você ligue
+  **Marcos industriais (Ind)**.
+- NCR fechada com waiver pendente sobe para o alto da coluna, em vermelho, com
+  **⚠**; **⚠ Só com alerta** mostra só essas.
+- **Arrastar o cartão para outra coluna muda a situação** do item (grava com
+  autoria e vai para a pasta como qualquer edição). Sem arrastar: a lista
+  de situação em cada cartão. Tirar um item de *Waiver accepted* pede
+  confirmação. Arrastar um cartão do banco para uma coluna adiciona a NCR ao
+  relatório já nessa situação.
+- Clicar no número abre o item no editor (ou a ficha, para a NCR que ainda
+  não está no relatório).
+
+### Exportar o Kanban
+
+As duas exportações levam **o que está à vista**: o marco escolhido e os
+filtros ligados (a busca, "só com alerta", "as que vêm de outros marcos").
+
+| Botão | O que sai |
+| --- | --- |
+| **🖨 Exportar visual para impressão…** | o quadro em PDF, pela janela de impressão do navegador: papel **A4 ou A3**, **retrato ou paisagem**; escala "caber na largura" (quantas folhas precisar, sem cortar coluna nem cartão, com o cabeçalho das colunas repetido) ou "caber numa folha só" (a letra diminui); com ou sem a descrição nos cartões e a lista das encerradas no fim. A folha diz o marco, os filtros, a data e a hora; a janela avisa antes quantas folhas sairão e com que tamanho de letra. Na impressão: **Salvar como PDF** e margens **Nenhuma** — o papel já vai certo |
+| **⤓ Excel** | uma linha por NCR, com número, marco, coluna do Kanban, situação do waiver, origem, sistema, função vital, status da NCR, se está fechada, alerta, caminho, descrição completa, responsável, quem alterou por último e quando — e a aba **Recorte** dizendo de que marco e de que filtro a planilha saiu |
+
+O Kanban continua sem tocar no **PDF do relatório**.
+
+## Aba Banco NCR
+
+Uma tabela das **NCRs do SBR4**, trazidas do banco NCR, para acompanhar e
+correlacionar cada uma com os relatórios de Waiver. Ela não substitui nada: os
+relatórios continuam onde estavam e **nenhuma importação do banco NCR os
+altera**.
+
+### Duas partes em cada NCR
+
+| Parte | O que tem | Quem escreve |
+| --- | --- | --- |
+| **Dados do banco NCR** | número, título, descrição, status, sistema, datas, responsável e **todas** as colunas do export | a importação — substituídos a cada nova foto do banco |
+| **Dados do Waiver** | Marco Original, Marco Atual, Função Vital, Waiver Historic, Observação, Obs Ship Manager e o registro de cada vez que a NCR foi levada a um relatório | você, aqui — **nenhuma importação apaga ou sobrescreve** |
+
+A NCR é identificada pelo **número** (`NCR-ICN-ESC-14-0832-2025`), normalizado
+como o NCR Control faz (maiúsculas, sem espaços). É o que o banco, a planilha
+de correlação e os relatórios têm em comum.
+
+### A tela
+
+- **Filtros de múltipla escolha** têm **Marcar todos** (para depois tirar só os
+  que você não quer — o status, por exemplo), **Limpar** e **Pronto**.
+- **A tabela é a página inteira** e mostra **todas** as NCRs, rolando para
+  baixo; o cabeçalho fica grudado no alto. A barra lateral vira um trilho
+  estreito, só com as abas.
+- **Linhas alternadas** em dois tons bem próximos e separadores um pouco mais
+  fortes, para o olho seguir a linha de uma ponta à outra. A alternância
+  acompanha o filtro e a ordem; passar o mouse, a linha com o foco do teclado,
+  a linha presa depois de editar (amarela) e as fechadas em destaque
+  (vermelhas) continuam com cor própria.
+- **Barra de cima** (sempre à vista): busca em qualquer campo, **● Destacar
+  fechadas** (pinta de vermelho as NCRs com status *Closed*, *CEDOC
+  Closure*…), **Só abertas**, **Colunas…**, **Excel**, **CSV** e **Recolher
+  painel**.
+- **Painel recolhível**: as importações, os números do banco (que também
+  filtram, com um clique) e os **filtros de múltipla escolha** — Status,
+  Sistema, Marco Original, Marco Atual, Função Vital, Correlação, Waiver,
+  **Relatório Waiver** (em que relatório a NCR está: J06, J09…), **Situação do
+  Waiver**, **Alerta** e presença no último export. Marque quantas opções quiser em cada um; o
+  recorte ativo aparece numa faixa acima da tabela, com **Limpar**.
+- **Marco Original, Marco Atual e Função Vital** são escolhidos direto na
+  tabela. A célula mostra o valor; o clique abre a lista. **A tela não pula
+  para o topo** ao gravar, e a linha que deixou de atender ao filtro **fica à
+  vista, marcada em amarelo**, até você mudar o filtro — ela não some no meio
+  da edição.
+- As opções das listas vêm da aba *Possibilidades da Mascara* e podem ser
+  editadas em **Listas…**. Os marcos aparecem sempre **na ordem da fila**
+  (J01 & J03 · J02 & J04 · J05 · J06Cer · J06 · … · J12 · RANAE · TRAP), nas
+  listas, nos filtros e ao ordenar a coluna — não em ordem alfabética.
+- **Coluna Waiver = o caminho da NCR pelos relatórios**, na ordem dos marcos,
+  como a coluna *Caminho do waiver* da aba Tabela: `J06 → J08 → (J09)`. Cada
+  etiqueta tem a **cor da situação do item** naquele relatório (cinza *Em
+  preenchimento*, azul *Waiver requested*, laranja *Improve justification*,
+  verde *Waiver accepted*); o que está entre parênteses é para onde o waiver
+  aponta (*Approved Expiry*, ou *Request Expiry* na falta) e ainda não foi
+  levado. Clicar numa etiqueta abre o item.
+- **⚠ NCR fechada com waiver pendente**: a NCR está fechada no banco, mas o
+  item ainda não está em *Waiver accepted*. Aparece na etiqueta, no número
+  do painel (que filtra com um clique), na ficha, no editor e na lista de
+  itens. *Waiver accepted* não gera aviso.
+- **Colunas…** escolhe **e reordena** as colunas: à esquerda a ordem, com
+  ↑ ↓ ou arrastando; à direita o que marcar. Dá também para **arrastar o
+  título da coluna** na própria tabela. A escolha fica guardada neste
+  navegador. O padrão: Marco Original, Marco Atual, Função Vital, Waiver,
+  Waiver Historic, Obs Ship Manager, Descrição, Status, Bigramas, Data
+  Criação e CEDOC Closure Data.
+- **Obs Ship Manager** — as observações que o Ship Manager manda para a
+  equipe, digitadas à mão. Funciona como a Observação: escreve-se na ficha
+  da NCR (*Dados do Waiver*), nenhuma importação do banco apaga, a busca
+  alcança, e a planilha de correlação pode trazê-la (coluna *Obs Ship
+  Manager*). A coluna entrou sozinha também para quem já tinha escolhido as
+  colunas, logo depois do *Waiver Historic*; dá para tirá-la em
+  **Colunas…**.
+- **Excel e CSV** saem com o que está à vista (colunas e filtro), e o Excel
+  leva uma aba **Recorte** dizendo qual filtro produziu a planilha.
+
+### A ficha da NCR
+
+Clicar no número abre a ficha, **quase na tela inteira**, com tudo por
+extenso:
+
+- **Dados do Waiver** (editáveis) e os **relatórios** em que a NCR está;
+- **Dados do banco NCR**, todas as colunas, com os campos que mudaram na
+  última importação em destaque;
+- **Fluxo da NCR — o mesmo desenho do NCR Control**, nas duas leituras:
+  **Trajetória** (um passo por linha, na ordem do tempo, com dias em cada
+  etapa, retornos e reincidências) e **Mapa do fluxo** (todas as etapas, as
+  percorridas e as não percorridas). Sai do histórico importado; sem histórico,
+  mostra só o status atual e diz isso.
+- os **produtos, marcos de segurança e funções vitais** da NCR — vem do banco
+  de produtos (aba **Produtos**, abaixo): os produtos que a NCR cita, cada um
+  com os marcos e as funções vitais dele;
+- o **histórico** completo, em tabela.
+
+### As três importações
+
+Todas terminam numa **tela de resumo**: quantas NCRs vieram, quantas são
+novas, quantas mudaram, quantas ficaram de fora e por quê, e a lista dos
+registros com problema.
+
+- **Importar / Atualizar Banco NCR** — o **export do Excel** (o mesmo arquivo
+  que vai para `imports/` do NCR Control; as colunas são reconhecidas pelo
+  cabeçalho) ou o **`ncr.json`** da pasta `BD/` do NCR Control. Só as NCRs do
+  **SBR4** entram: vale a coluna *SBR* do export e, se ela estiver vazia, o
+  número (`NCR-…-14-…` é o SBR4). NCR existente tem os dados do banco
+  atualizados; NCR nova é acrescentada; NCR que sumiu do export **fica**,
+  marcada como "fora do último export".
+- **Importar correlação** — o JSON de correlação ou a própria planilha (aba
+  *Correlação NCR*; a aba *Possibilidades da Mascara* alimenta as listas). Por
+  padrão **só completa o que está em branco**: reimportar não desfaz o que foi
+  corrigido à mão. NCR que ainda não está no banco fica guardada e entra
+  sozinha quando aparecer numa importação do banco.
+- **Importar histórico NCR** — o `historico.json` do NCR Control (serve como
+  está). Os eventos são associados pela NCR e só se acrescentam.
+
+O JSON de correlação tem dados do programa: guarde-o na pasta da equipe,
+**não no repositório** (que é público).
+
+### Proteção antes de cada importação
+
+O estado do banco NCR é guardado antes de qualquer importação. Na tela de
+resumo dá para **baixar essa cópia** ou **desfazer a importação**; o botão
+*Desfazer última importação* também fica no painel. Com a pasta da rede
+ligada, uma cópia vai para `historico-ncr\`. **Exportar backup** (e o
+*Salvar backup de tudo* do menu) leva os relatórios **e** o banco NCR num
+arquivo só; *Restaurar de um backup…* traz o banco NCR de volta.
+
+### A Função Vital é uma só: a do Banco NCR
+
+A função vital era escrita em dois lugares (no Banco NCR e no **Função** do
+Waiver NCR). Agora o **Banco NCR manda**: com a Função Vital preenchida na NCR,
+o campo **Função** do item do Waiver só mostra o que está lá (somente leitura)
+e acompanha sozinho quando ela muda — ao editar no
+banco, ao importar, ao vir da pasta e ao abrir o programa. Sem digitar de novo.
+A mudança só acontece quando o texto é **outro** (“FV 01 - Sea water…” e
+“FV01 - SEA WATER…” são a mesma função), então o que já estava certo não muda
+no PDF. NCR sem Função Vital no banco: o campo do item continua à mão, e quando
+o banco passar a ter, ela vale. Para trocar a função de um item, troque a
+Função Vital da NCR na ficha do Banco NCR.
+
+### Levar a NCR para o relatório de Waiver
+
+Quando o **Marco Atual** é igual ao marco de um relatório existente, a coluna
+*Waiver* mostra o botão **+ J09 Waiver**. Ele cria um item novo no relatório
+com:
+
+- **Description** ← a descrição do banco NCR;
+- **Observação** e **Obs Ship Manager** da NCR: **não aparecem no editor do
+  Waiver de saída**. Em **Ajustes → Observações do Banco NCR** dá para ligar
+  dois cartões, abaixo da anotação do item, que mostram (e gravam) essas duas
+  colunas da NCR no Banco NCR — **fora do PDF**, editáveis mesmo com o item
+  travado, só nos itens ligados a uma NCR do banco. A escolha vale só para
+  o seu navegador. Na tabela do Banco NCR as duas colunas se editam na própria
+  célula (*+ escrever*);
+- **Função**, **Sistema(s)** e **Waiver Historic** já preenchidos
+  (`09 - Coordinate damage control` vira `FV09 - COORDINATE DAMAGE CONTROL`).
+
+Se a NCR já estiver no relatório, nada é duplicado e aparece o aviso. A coluna
+*Waiver* mostra em quais relatórios a NCR está (`J06`, `J09`…); clicar abre o
+item. Os itens que já existiam nos relatórios são reconhecidos pelo número.
+**Mudar o Marco Atual não desfaz vínculos**: a NCR continua no relatório
+anterior e passa a oferecer também o do marco novo. Na ficha há
+*Adicionar a outro relatório…*, para escolher à mão (ex.: `J06 Ind`, que só
+casa com um relatório de marco igual).
+
+### Na pasta da rede
+
+O banco NCR vai para dois arquivos ao lado de `derrogacao-dados.json`:
+`derrogacao-ncr-banco.json` (os dados do banco; muda nas importações) e
+`derrogacao-ncr-waiver.json` (os campos do Waiver; pequeno, muda a cada campo
+preenchido). Vale a edição mais recente, NCR a NCR, e nada é apagado. Antes de
+juntar uma mudança de fora, a sua versão dos campos do Waiver é guardada em
+`historico-ncr\`. As ligações entre NCR temporária e definitiva, as correções
+do administrador e a auditoria vão num terceiro arquivo,
+`derrogacao-ncr-correcoes.json`. O banco de produtos tem arquivo próprio
+(`derrogacao-produtos.json`, abaixo).
+
+### Quando a NCR é fechada
+
+Estes status querem dizer **NCR fechada** (a lista fica em
+`assets/js/config.js`, `STATUS_NCR_FECHADA`):
+
+- CEDOC Closure/Unfounded
+- CEDOC Closure
+- 7.2 - TA Unfounded
+- Closed
+
+(e *Closed/Unfounded*, status final do NCR Control). Maiúsculas, espaços e
+pontuação não importam: *CEDOC Closure Unfounded* é o mesmo que
+*CEDOC Closure/Unfounded*. Também conta como fechada a NCR sem status com data
+de fechamento, e a NCR temporária já substituída pela definitiva.
+
+NCR fechada, venha de que etapa vier, **não conta como aberta nem pendente** e
+**não pede waiver**: não entra em *Prontas para adicionar*, não mostra o botão
+*+ J09 Waiver* (nem na tabela nem no Kanban, onde o cartão diz "fechada — sem
+waiver"), não aparece como *aceito, falta trazer* no painel do marco, e a
+coluna *Já levada?* da Tabela diz "não precisa — NCR fechada". O alerta
+**⚠ NCR fechada com waiver pendente** continua: é ele que mostra o item de
+waiver que ficou aberto para uma NCR que já acabou.
+
+### Tudo o que o banco traz, na ficha
+
+A ficha mostra todas as colunas do export e, além delas, **o que o export traz
+em mais de uma linha para a mesma NCR** — tipicamente os produtos e a
+deliberação de cada um. Cada grupo vira uma seção com uma tabela, no mesmo
+padrão das outras seções da ficha. Eles vêm de três lugares:
+
+- **a mesma NCR em várias linhas** da aba principal (um produto por linha):
+  antes valia só a última linha e as outras sumiam; agora as linhas são
+  juntadas — o que é igual em todas fica como está, e o que muda de uma linha
+  para outra (produto, deliberação, quantidade…) vira a tabela
+  **Produtos e deliberações**, linha a linha;
+- **outra aba do mesmo arquivo** com a coluna do número da NCR: cada linha vai
+  para a ficha da NCR dela, numa tabela com o nome da aba;
+- **listas dentro do `ncr.json`** do NCR Control.
+
+A busca da aba também procura dentro dessas tabelas. Os dados continuam sendo
+do banco: são trocados a cada importação.
+
+> Na primeira importação depois desta versão, as NCRs com mais de uma linha
+> aparecem como *atualizadas* — é a junção das linhas entrando.
+
+### NCR temporária e definitiva
+
+Enquanto o sistema interno estava fora do ar, algumas NCRs foram abertas com
+um número provisório. Voltando o sistema, a temporária foi encerrada e uma
+**definitiva**, com o número oficial, continuou o caso. As temporárias
+continuam nos relatórios antigos e no Waiver Historic — e é assim que deve
+ser: é o registro do que foi feito.
+
+**Ligar.** Na ficha da definitiva, em *NCR temporária ↔ definitiva*,
+escreva o número da temporária em **Esta NCR substitui a temporária** e clique
+em **Ligar** (ou, na ficha da temporária, **Esta NCR é temporária e foi
+substituída por**). Os números sugeridos vêm do banco NCR e dos relatórios — a
+temporária não precisa estar no banco. Marcado *Levar para a definitiva os
+dados do Waiver que ela ainda não tem*, os marcos, a função vital, o Waiver
+Historic e a observação da temporária completam o que a definitiva ainda não
+tem (nada é sobrescrito). A lista de todas as ligações fica também na área
+administrativa.
+
+**O que muda depois de ligar** — as duas passam a ser **o mesmo caso**:
+
+- a definitiva ganha os relatórios da temporária: a coluna *Waiver* mostra
+  `J06 ↩ → J08 → J09`, onde o `↩` diz que naquele relatório ela está com o
+  número temporário;
+- o **fluxo do waiver** acha a resposta do marco anterior mesmo com o número
+  trocado (o ponto no card), e o **painel do marco** conta o caso uma vez só;
+- o **levar adiante** (e a coluna *Já levada?*) reconhece a definitiva no
+  marco seguinte como a cópia do item temporário;
+- no **Kanban**, o caso é um cartão só;
+- a temporária conta como **fechada**, sai da contagem de NCRs do SBR4
+  ("x temporária(s) substituída(s)") e não gera alerta — quem responde pelo
+  caso é a definitiva;
+- no **editor**, o item com o número temporário mostra
+  `NCR-TEMP (temporária) → NCR-DEF` e o status da definitiva; a Tabela tem a
+  coluna *NCR anterior / sucessora*; a ficha e o filtro *Temporária /
+  definitiva* dizem quem substitui quem.
+
+Nenhum número é reescrito, e **Desfazer** (na ficha ou na área
+administrativa) desliga as duas. Ligar e desfazer ficam na auditoria.
+
+## Aba Produtos: marcos de segurança e funções vitais
+
+O banco de produtos liga cada **produto** à **marca funcional** dele (a
+*Industrial Mark*, ou *Functional Mark*), aos **marcos de segurança** que o
+alcançam e às **funções vitais** que dependem dele. Ele nasce de uma planilha
+de cinco colunas:
+
+| Coluna | Exemplo |
+| --- | --- |
+| Product Mark | `P0104501` |
+| Functional Mark | `BC22714F` |
+| Designation | `BATTERY CHARGING EXTERNAL SUPPLY CABLE EB+` |
+| Safety Milestones | `J05;J07` |
+| Vital Functions # | `20` (ou `10;24`) |
+
+Vários marcos ou funções na mesma célula ficam separados por `;` — cada um
+vira um item (chip) próprio. **Produto sem marco e sem função vital entra no
+banco do mesmo jeito e aparece como `N/A`** (não se aplica): ele existe, só
+não está atrelado a nenhum.
+
+### Importar a planilha
+
+A planilha quase não muda, então o botão é discreto: fica no **painel** da
+aba (**▼ Mostrar painel**), que abre sozinho enquanto o banco está vazio.
+**Importar planilha de produtos…** lê o `.xlsx` (o cabeçalho pode estar em
+qualquer das primeiras linhas; os nomes das colunas são reconhecidos em inglês
+e em português, e, sem cabeçalho conhecido, valem as colunas A a E).
+
+- **Acrescenta e atualiza, nunca apaga.** O produto novo entra; o que já está
+  no banco e mudou na planilha é atualizado (pelo *Product Mark*); o que está
+  no banco e não está na planilha continua como está.
+- Ao fim, o resumo diz quantos são novos, atualizados, iguais e mantidos, **o
+  que mudou em cada atualizado**, e quantos ficaram `N/A`.
+- Coluna que a planilha não tem não apaga o que o banco já sabe.
+- Vale para o dia em que a planilha for atualizada: é só importar a nova.
+
+### A aba
+
+Uma barra com a **busca** (vale para Product Mark, Functional Mark,
+descrição, marco, função vital — `fv 28` —, o número de uma NCR que cite o
+produto e `n/a` para o que a tabela mostra como N/A; `BH-00004` acha
+`BH00004`), os números clicáveis no painel (**Produtos · Com marco · Com função
+vital · N/A · Citados em NCR**) e os **filtros**: sistema (as duas primeiras
+letras da Functional Mark, o *bigrama*), marco, função vital, marco e função
+vital, e citado em NCR — todos com **Marcar todos** e a contagem de cada
+opção. Duas vistas do mesmo recorte:
+
+- **Tabela** — um produto por linha, com os marcos e as funções vitais em
+  chips, quantas NCRs citam o produto e a ordem por qualquer coluna. Mostra os
+  primeiros 300 e deixa pedir mais.
+- **Mapa** — o que a tabela não mostra: a **matriz marco × função vital**
+  (quantos produtos há em cada cruzamento) e a divisão **por sistema**. Clicar
+  numa célula, num marco, numa função ou numa barra leva à tabela já filtrada.
+
+A coluna **NCRs** diz em que pé estão as NCRs de cada produto: uma pastilha
+cheia e quente `● 2` para as **abertas**, uma vazada e verde `✓ 1` para as
+**fechadas**, e uma barrinha na mesma proporção embaixo. Produto só com NCR
+fechada fica calmo; o número "Com NCR aberta" e o filtro *Citado em NCR*
+(com aberta · só fechadas · sem NCR) acham o que ainda dá trabalho.
+
+O **Mapa** tem ainda o **sistema (bigrama) por função vital** (ou **por marco**):
+uma linha por bigrama — só as duas letras, não a marca inteira —, uma coluna por
+função, e em cada cruzamento quantos produtos. Respeita a busca e os filtros.
+
+As fichas saem em **imagem**: **⤓ Imagem (A4)**, na ficha do produto e na da
+NCR, baixa um PNG de uma folha A4 a 300 dpi (2480 × 3508), redesenhado para o
+papel — a letra se ajusta ao que cabe, e o que não cabe é dito no rodapé do
+bloco. A da NCR leva os dados do Waiver, os relatórios, os produtos com marcos e
+funções vitais e os campos do banco NCR (o fluxo e o histórico ficam só na tela).
+
+Clicar num produto abre a **ficha do produto**: a identificação, os marcos e as
+funções vitais (com o nome que o banco NCR dá a cada número), as **NCRs que o
+citam** (cada uma abre a ficha dela) e a **família** da marca — os produtos
+com a mesma base (`BH00004`) e outro sufixo. **Excel** e **CSV** exportam o que
+está à vista, com a aba **Recorte** dizendo qual filtro valia.
+
+### Na ficha da NCR
+
+A ficha da NCR ganha a seção **Produtos, marcos de segurança e funções
+vitais**: os produtos do banco que a NCR cita, cada um com os marcos e as
+funções vitais, e um resumo no alto com a soma de todos. A marca é procurada
+em **todo o texto da NCR** — as colunas do export, o título, a descrição e as
+tabelas de produtos e deliberações —, pelas duas portas: o **Product Mark** e
+a **Functional Mark**. E com tolerância, porque a NCR nem sempre escreve a marca
+como o banco: cada produto vem com o grau do casamento.
+
+| Grau | O que quer dizer | Exemplo |
+| --- | --- | --- |
+| **exato** | a mesma marca (ou o mesmo Product Mark) | `BH00004M` na NCR e no banco |
+| **variação** | a NCR escreve a marca do banco com 1 ou 2 caracteres a mais no fim | `BH00004M5` na NCR, `BH00004M` no banco |
+| **parecido — conferir** | mesma base (duas letras e cinco dígitos), sufixo diferente | `BH00037` na NCR, `BH00037A` no banco |
+
+O **parecido** nunca entra no resumo de cima e fica num grupo recolhido
+(*Parecidos, a conferir*): serve para lembrar de olhar, não para afirmar. Hífens,
+espaços e maiúsculas não atrapalham (`bh-00004-m5`). Só aparece o que o banco
+de produtos conhece.
+
+### Na pasta, no backup e no visualizador
+
+O banco de produtos tem arquivo próprio na pasta, `derrogacao-produtos.json`,
+junto dos outros: produto a produto vale a importação mais recente, e nada é
+apagado — uma importação feita por outra pessoa chega sozinha. Vai também no
+**backup de tudo** e na **publicação**: o visualizador tem a aba Produtos (sem
+o botão de importar) e a seção na ficha da NCR.
+
+## Área administrativa
+
+**⋯ Mais → Ajustes de capa e rodapé → Área administrativa.** Na primeira vez,
+o botão é **Definir a senha do administrador…**: quem define passa a ser o
+administrador. Depois, **Entrar…** pede a senha. Aberta, a área fica
+disponível até recarregar a página ou até **Sair da área administrativa**.
+
+- **Corrigir dados de NCR** — escolha a NCR e corrija o Status, o Título, a
+  Descrição, o Sistema, o Responsável, as datas ou qualquer outra coluna do
+  export, com o motivo. A tabela mostra, lado a lado, o que o banco NCR diz, o
+  que está em uso e o valor novo. **A correção fica por cima do dado
+  importado, sem apagá-lo**: se uma importação futura trouxer outro valor
+  naquele campo, o banco andou e a correção deixa de valer sozinha (a área
+  avisa). **Desfazer correção** volta ao valor do banco. Com a área aberta, a
+  ficha da NCR ganha o botão **✎ Corrigir dados (administrador)**.
+- **NCRs temporárias** — as ligações temporária → definitiva, para ligar e
+  desfazer.
+- **Auditoria** — cada correção e cada ligação, feitas e desfeitas: **campo,
+  valor anterior, novo valor, data e hora e quem fez** (o nome de *⋯ Mais →
+  Definir meu nome*), mais o motivo. Com busca e exportação em Excel e CSV. A
+  auditoria de cada NCR aparece também na ficha dela, para todos.
+- **Senha** — trocar a senha (pede a atual).
+
+A correção vale para todo o programa: a tabela, os filtros, o Kanban, os
+alertas, a ficha (com a marca *status corrigido* e o valor do banco ao lado) e
+o visualizador. Na pasta da equipe, fica no arquivo
+`derrogacao-ncr-correcoes.json`, junto com a senha — **só o resumo
+criptográfico dela, nunca o texto**.
+
+> **A senha esconde, não protege.** O programa roda inteiro no navegador de
+> quem o abre; a senha tira as correções da frente de quem não é
+> administrador. Quem impede alguém de mexer nos dados é a **permissão da
+> pasta na rede**. Esqueceu a senha? Quem tem acesso à pasta apaga o bloco
+> `"senha"` do `derrogacao-ncr-correcoes.json`, e a próxima pessoa a entrar
+> define outra.
+
+## Conversa da equipe (aba opcional)
+
+Recados entre quem trabalha no mesmo marco, **sem servidor e sem nuvem**: a
+conversa é um arquivo (`conversas.json`) dentro da mesma pasta da rede que já
+guarda os dados. Cada um escreve no seu navegador, o recado vai para o arquivo
+e volta para os outros na sincronização seguinte.
+
+**Vem desligada.** Para ligar: **⋯ Mais → Ajustes de capa e rodapé →
+Conversa da equipe → Mostrar a aba Conversa**. Ligar vale só para o seu
+navegador: cada pessoa liga o seu.
+
+Na aba há dois tipos de conversa:
+
+- **Geral** — todo mundo que abre a pasta.
+- **Conversa direta** — você e mais uma pessoa. A lista de pessoas sai de quem
+  já assinou alguma coisa na pasta (editou um item, escreveu no geral).
+
+Três coisas que precisam ficar claras antes de usar:
+
+- **Sem a pasta da rede não há conversa.** O que você escrever fica só neste
+  navegador, e ninguém recebe.
+- **Não é canal seguro.** Tudo fica no mesmo arquivo, inclusive as conversas
+  diretas: quem abre a pasta pode ler o que não é endereçado a ele. Serve para
+  organizar o assunto, não para esconder. Assunto que não pode ser lido por
+  quem tem acesso à pasta não vai aqui.
+- **O nome é o que cada um digitou**, como no resto do programa. Não há senha,
+  então não há como provar quem escreveu.
+
+Detalhes de uso: **Enter** envia e **Shift+Enter** quebra a linha; o ✕ no seu
+próprio recado apaga para todo mundo; um ponto no alto da aba avisa que chegou
+coisa nova. Os recados ficam **90 dias** (ou os 1.000 últimos) e não entram no
+backup nem em nenhuma página do PDF — relatório é relatório.
 
 ## Aba Resumo
 
-A terceira aba reúne **todos os marcos deste navegador**, não só o relatório
-aberto:
+A aba reúne **todos os marcos deste navegador**, não só o relatório aberto.
+
+No alto, os **marcos em mini cards** — a mesma pastilha do Kanban e da Tabela,
+na ordem da fila: **Todos os marcos** e um card por marco, cada um com o total
+de itens, a porcentagem já aceita e a divisão NCR/DEV (com os filtros de baixo
+aplicados). Um clique (ou Tab e Enter) escolhe o marco; o escolhido tem ✓. A
+aba abre no **J09**, se ele existir; depois fica o que você escolheu, até
+fechar a página. A barra logo abaixo diz o escopo por extenso — "Marco J09" ou
+"Todos os marcos" — e traz as exportações dele.
 
 - **Números do escopo**: itens em derrogação (com a divisão NCR/DEV), em
   *waiver accepted*, em andamento e páginas de evidência.
 - **Progresso por marco** — barras empilhadas de *waiver accepted* sobre o total.
 - **Situação dos itens** — as quatro situações de acompanhamento, na ordem do
   fluxo, com a cor de cada uma.
-- **Itens por sistema** — um item que cita vários sistemas (`BX,BQ,BD`) conta em
-  cada um; acima de dez sistemas o excedente vira "Outros".
+- **Itens por sistema** — um item que cita vários sistemas conta em cada um:
+  `MB, DT` são **dois** sistemas (vírgula, ponto e vírgula, barra, `&` e `+`
+  separam; códigos curtos só com espaço, `MB DT`, também). Vale para NCR e para
+  DEV — a DEV ganhou o campo **Sistema(s)**, o mesmo da NCR, que alimenta os
+  indicadores e **não sai no PDF**. Acima de dez sistemas o excedente vira
+  "Outros".
+- **No PDF, os gráficos se partem entre as barras.** Com muitos marcos ou
+  sistemas o gráfico continua na folha seguinte, com o título e a legenda
+  repetidos — em vez de um gráfico por folha com o resto em branco. Os cinco
+  indicadores ficam numa linha só.
 - **Tabela de marcos**, com percentual aceito e quem editou por último.
+- **Parados há 30+ dias** — os itens pendentes em que ninguém toca há um mês ou
+  mais, do mais esquecido para o menos, com o número de dias e quem mexeu por
+  último. Waiver aceito não conta: está pronto, não parado. O bloco sai também
+  no **Resumo em PDF**, e o CSV ganha a coluna *Dias sem edição*.
 
 ### Filtros
 
-Abaixo do seletor de marco há uma linha de filtros, que se somam:
+Abaixo dos mini cards há uma linha de filtros, que se somam ao marco
+escolhido:
 
 | Filtro | Serve para |
 | --- | --- |
@@ -216,22 +1410,27 @@ Abaixo do seletor de marco há uma linha de filtros, que se somam:
 | **Sistema** | um sistema específico (`HP`, `EX`, `BF`…), com a contagem de cada um |
 | **Arch Status** | o texto que vai impresso no relatório, inclusive `(em branco)` |
 | **Evidência** | só itens com anexo, ou só os sem |
-| **Buscar no texto** | procura no número, sistema, função, nos blocos de texto e nos certificados |
+| **Buscar no texto** | procura em todo o texto do item: número, sistema, função, os cinco blocos, *Arch Status*, certificados e legendas das evidências |
 
 Os números, os gráficos e as tabelas passam a contar **só o que está
 filtrado** — e é isso que sai no **Resumo em PDF** (que traz uma linha dizendo
 qual foi o recorte) e na **planilha CSV**. O **Backup deste marco** é a exceção
 proposital: sai sempre inteiro, porque backup pela metade não é backup.
 
-Escolhendo um marco no seletor (ou clicando no nome dele na tabela), a aba passa
-ao detalhe daquele marco: os mesmos gráficos, a lista completa de NCRs e DEVs e a
-contagem por certificado impactado. Nesse modo aparecem três exportações:
+Escolhendo um marco nos mini cards (ou clicando no nome dele na tabela), a aba
+passa ao detalhe daquele marco: os mesmos gráficos, a lista completa de NCRs e
+DEVs e a contagem por certificado impactado. As exportações acompanham o
+escopo:
 
 | Botão | O que sai |
 | --- | --- |
-| **Resumo em PDF** | Uma folha A4 com os números, os gráficos e a tabela de itens |
-| **Planilha (CSV)** | Uma linha por NCR/DEV, com todos os campos — abre no Excel |
-| **Backup deste marco** | O `.json` só desse marco, para enviar a alguém |
+| **Resumo em PDF** / **Resumo geral em PDF** | Folhas A4 com os números, os gráficos e a lista de itens — do marco escolhido, ou de todos — com quantas folhas forem precisas, o título repetido e as mesmas margens em todas |
+| **Planilha (CSV)** | Uma linha por NCR/DEV, com todos os campos — do marco, ou de todos os marcos — abre no Excel |
+| **Backup deste marco** (com um marco escolhido) | O `.json` só desse marco, inteiro, para enviar a alguém |
+
+Um texto que comece por `=`, `+`, `-` ou `@` sai da planilha com um apóstrofo à
+frente: sem isso o Excel o trataria como fórmula. O apóstrofo não aparece na
+célula.
 
 Os gráficos são SVG escrito à mão — sem biblioteca externa, imprimem em vetor e
 funcionam com o arquivo aberto direto do disco. A paleta foi validada para
@@ -245,7 +1444,30 @@ sua cópia e trocar arquivos, o programa **lê e grava direto numa pasta
 combinada**: quem abre apontando para a mesma pasta vê o trabalho de todos, sem
 importar nada.
 
-Em **⋯ Mais → 🗄 Pasta da rede como banco de dados**.
+Em **⋯ Mais → 🗄 Pasta da rede como banco de dados** — ou no aviso que aparece
+no alto da tela enquanto a pasta não estiver ligada.
+
+### O caminho já vem preenchido
+
+O caminho combinado pela equipe é
+
+```
+G:\DOP\GTO\3_INTERNO\01_SAFE TO DIVE\10_SISTEMA DE DERROGAÇÃO\00_BD
+```
+
+e já vem escrito na janela e no aviso do alto, com um botão **Copiar o
+caminho** para colar na barra de endereço da janela do Windows. Se a pasta
+mudar de lugar, escreva o novo caminho ali — ele viaja com os dados, então
+quem abrir depois já vê o certo — e **Usar o caminho padrão** volta ao
+combinado.
+
+> **Por que ainda é preciso clicar em “Escolher a pasta…”:** nenhum navegador
+> abre uma pasta por caminho, nem com ele digitado. Quem escolhe é sempre a
+> pessoa, na janela do Windows — é uma regra de segurança do navegador, e vale
+> para qualquer site ou programa aberto nele. O que o programa guarda depois
+> disso é a autorização daquela pasta, e é ela que dispensa escolher de novo a
+> cada vez. Instalando o programa como aplicativo, some também o pedido de
+> permissão de cada sessão.
 
 ### Como funciona
 
@@ -254,10 +1476,22 @@ A pasta guarda:
 ```
 Derrogacao\
   derrogacao-dados.json     <- o banco: todos os marcos, NCRs e DEVs
+  imagens\
+    3f2a...-9c1.jpg                 <- as fotos das evidências, uma por arquivo
+    ...
   historico\
     2026-09-11_14h32_bruno.json     <- versões datadas, automáticas
     ...
 ```
+
+As **fotos ficam em arquivos próprios**, e o `derrogacao-dados.json` guarda só o
+nome de cada uma. Cada foto sobe uma vez; dali em diante o que vai e vem pela
+rede é o texto, que é pequeno. As versões do histórico apontam para os mesmos
+arquivos, em vez de carregar uma cópia das imagens cada uma. Uma foto só é
+apagada da pasta quando **nenhum item e nenhuma versão guardada** a citam mais —
+e, ainda assim, nunca antes de sete dias, para nunca competir com a gravação de
+outra pessoa. A janela **🗄 Pasta da rede…** mostra quanto a pasta está
+ocupando, dividido entre dados, imagens e histórico.
 
 - **Ao abrir**, o programa lê a pasta e junta com o que está aqui.
 - **Ao salvar** (poucos segundos depois de parar de digitar), ele relê a pasta,
@@ -267,38 +1501,136 @@ Derrogacao\
   traz. Duas pessoas com o programa aberto se enxergam sem recarregar nada.
 - Tudo continua salvo **também neste navegador**, então a pasta cair não
   interrompe o trabalho de ninguém.
+- **Se os dados tiverem sido gravados por uma versão mais nova do programa**,
+  esta página passa a só ler: ela mostra o trabalho de todos, mas não regrava a
+  pasta — senão apagaria, em silêncio, os campos que ainda não conhece. O aviso
+  aparece na tela e na janela da pasta, e basta recarregar a página (Ctrl+F5)
+  para voltar ao normal.
+
+### Duas pessoas mexendo ao mesmo tempo
+
+Isto funciona, e vale saber como — porque até esta versão havia um buraco aqui.
+
+Quando você e um colega mexem no mesmo item ao mesmo tempo:
+
+- **Campos diferentes** (você no *Arch Answer*, ele no *Current Situation*):
+  os dois textos ficam. Ninguém perde nada.
+- **O mesmo campo**: um vence pelo horário, e **o texto que saiu vai para o
+  Histórico do texto**, com um botão para pôr de volta. A tela avisa, e o
+  console também.
+- **Enquanto você digita**: a tela pode se atualizar para mostrar o que o
+  colega escreveu — mas **o cursor fica onde estava**. Antes desta versão o
+  campo era recriado e o teclado deixava de escrever nele; se você já viu isso
+  acontecer, era esse defeito.
+
+O que estava errado, e foi consertado: a pasta não tem trava de arquivo. Entre
+o programa ler a pasta e gravar nela, o colega pode gravar uma cópia que nunca
+viu o que você acabou de escrever, e o arquivo dele passa por cima. Isso, por
+si, não era grave — o seu texto continuava no seu computador. O problema é que
+o programa passava a **acreditar** que a pasta tinha o seu texto, e na rodada
+seguinte concluía "o colega apagou isso" — e apagava de vez.
+
+Agora cada gravação anota de qual versão do arquivo ela partiu, e o programa
+sabe distinguir "ele apagou" de "ele nunca viu". No segundo caso o seu texto é
+**regravado**, não apagado, e as duas máquinas voltam a convergir. Você vê no
+console: *"a cópia que chegou não viu a minha última gravação"*.
 
 ### A regra de quem vence
 
-Item a item, **vale a edição mais recente**. Não há tela de conflito aqui, ao
-contrário da importação manual de arquivo: a gravação acontece sozinha, e
-ninguém pode ficar parado esperando outra pessoa decidir.
+A junção é **campo a campo**, não item a item. O programa guarda um retrato do
+que o seu computador viu na pasta da última vez, e é com ele que compara:
+
+- campo que **só você** mexeu → fica o seu;
+- campo que **só o outro** mexeu → entra o dele;
+- campo que **ninguém** mexeu → não se toca nele;
+- campo em que **os dois escreveram** → aí sim vale a edição mais recente, e o
+  texto que saiu vai inteiro para o histórico do item, com um botão que o traz
+  de volta.
+
+É isso que resolve o caso de quem fica horas sem sincronizar: você escreveu o
+*Arch Answer*, o colega estava fora e mexeu na *Description*, ele volta — e os
+dois textos ficam. Antes o item inteiro de quem tivesse a hora mais recente
+ganhava, e o outro sumia sem aviso.
+
+Não há tela de conflito aqui, ao contrário da importação manual de arquivo: a
+gravação acontece sozinha, e ninguém pode ficar parado esperando outra pessoa
+decidir.
+
+Quando alguma coisa sua for realmente substituída, o programa não deixa passar
+em branco: o item ganha a marca **⇄** na lista e, ao abri-lo, uma faixa
+vermelha diz em quantos campos os dois escreveram ao mesmo tempo, com **Ver o
+texto que saiu**. Ele está guardado, não perdido.
 
 A regra **converge**: mesmo que duas gravações se atropelem, a sincronização
-seguinte de cada lado traz de volta o que faltou, porque cada um ainda tem os
-seus itens com a sua hora de edição. Não há trava de arquivo — o que torna isso
-seguro não é uma trava, é a mesclagem convergir.
+seguinte de cada lado traz de volta o que faltou. Não há trava de arquivo — o
+que torna isso seguro não é uma trava, é a junção convergir.
 
 Na prática:
 
 | Situação | O que acontece |
 | --- | --- |
-| Duas pessoas em **itens diferentes** (o caso comum) | nada se perde: as duas edições sobrevivem |
-| Duas pessoas no **mesmo item** | fica a edição mais recente; a outra versão está no histórico |
+| Duas pessoas em **itens diferentes** (o caso comum) | nada se perde |
+| Duas pessoas no **mesmo item**, em **campos diferentes** | nada se perde: os dois textos ficam |
+| Duas pessoas no **mesmo campo** | fica a edição mais recente; a outra fica no histórico do item, a um clique de voltar |
+| Alguém fica **horas sem sincronizar** e volta | só os campos que ele mexeu entram; o resto do seu trabalho continua |
 | O item aberto na sua tela muda por fora | a tela é redesenhada e um aviso diz quem alterou |
 | O item aberto é excluído por outra pessoa | a lista volta para o primeiro item, com aviso |
+| O **relatório** aberto é excluído por outra pessoa | a tela passa ao primeiro relatório, com aviso |
 
-O caso que realmente custa trabalho é o segundo, e ele é raro quando as NCRs
-estão divididas entre as pessoas. Mesmo assim: **antes de juntar qualquer
-mudança vinda de fora, o programa guarda o seu estado no histórico** — o texto
-substituído nunca desaparece sem deixar cópia.
+Um detalhe que continua valendo: **os anexos não se juntam pela metade**. Se os
+dois mexeram nas evidências do mesmo item, fica a lista de quem editou por
+último — e o histórico registra que a outra existiu, ainda que uma foto não
+volte por um clique.
+
+E como o relógio ainda decide o empate de um mesmo campo, o programa avisa
+quando o relógio deste computador está atrasado em relação ao de quem gravou na
+pasta. Vale acertar a hora do Windows quando esse aviso aparecer.
+
+Mesmo assim: **antes de juntar qualquer mudança vinda de fora, o programa
+guarda o seu estado no histórico** — o texto substituído nunca desaparece sem
+deixar cópia.
 
 **Exclusões deixam lápide.** Sem isso, o item apagado por uma pessoa voltaria na
 próxima sincronização, vindo do computador de quem ainda não soube. A lápide é
 sempre carimbada depois da versão que apagou, mesmo que o relógio da máquina
-esteja adiantado.
+esteja adiantado. Vale para as três formas de excluir: o botão **Excluir** da
+lateral, o grupo *Excluídos pelo colega* da tela de mesclagem e o
+**Excluir este relatório** do menu — este último deixa lápide de relatório
+inteiro, que também viaja na pasta. Restaurar uma versão do histórico desfaz
+a lápide do que voltar.
 
-### O histórico é a rede de proteção
+### Histórico do texto: quem escreveu o quê
+
+Não confunda com o **⋯ Mais → Histórico de alterações**, que lista *sessões*
+(quem mexeu em quais itens). Este aqui é o texto em si, campo a campo.
+
+No cartão de identificação de cada NCR ou DEV há o botão **🕘 Histórico do
+texto**. Ele
+abre a lista das alterações daquele item, da mais recente para a mais antiga:
+
+- **quem** escreveu, **quando** e **em qual campo**;
+- o texto que a pessoa escreveu, e **Ver como estava antes**;
+- **Pôr este texto de volta**, que escreve o texto de volta no campo (com
+  *Desfazer* logo em seguida, caso tenha sido engano).
+
+As linhas em vermelho, marcadas **escrito por cima**, são as importantes: é
+quando duas pessoas escreveram no mesmo campo e um dos textos teve de sair. O
+que saiu está ali inteiro.
+
+Dá para olhar só **este item**, **este relatório** ou **todos os relatórios**, e
+há uma busca que procura no texto, no nome do campo e em quem escreveu — é
+assim que se acha de novo um parágrafo que alguém lembra de ter escrito e não
+sabe mais onde.
+
+O histórico viaja pela pasta, num arquivo `revisoes.json` ao lado dos dados,
+então você vê também o que os outros escreveram. Ele **não entra no PDF nem no
+backup**: é registro de trabalho, não documento.
+
+Duas honestidades: ele **começa a contar a partir desta versão do programa** —
+o que foi escrito antes não tem linha — e guarda as últimas 1500 alterações de
+até um ano, que é o que cabe no armazenamento do navegador.
+
+### O histórico completo é a rede de proteção
 
 Fica **dentro da própria pasta**, numa subpasta `historico\` criada sozinha — não
 é uma segunda pasta a configurar. O motivo é o mesmo de sempre: o navegador só
@@ -318,6 +1650,16 @@ Em **🗄 Pasta da rede…** as versões aparecem listadas, com **Restaurar**.
 Restaurar **só traz de volta o que sumiu** — o que está em uso agora não é
 tocado nem substituído. A volta é registrada como uma edição sua, que é o que
 faz o item sobreviver também no computador dos outros.
+
+### Quando a pasta para de responder
+
+Se a rede cair, se a pasta for renomeada ou se o navegador perder a permissão,
+o programa **não fica calado**: aparece uma faixa vermelha no alto dizendo que
+o seu trabalho continua salvo no computador, mas que ninguém mais o está vendo
+— com **há quanto tempo** isso dura e um botão **Religar a pasta agora**.
+
+Esse aviso não some com "Agora não": ficar horas escrevendo sem saber que se
+está sozinho é justamente o que produz, depois, dois textos no mesmo campo.
 
 ### O que cada pessoa precisa fazer
 
@@ -485,16 +1827,44 @@ O site é servido pela branch `gh-pages`, publicada pelo workflow
 ## Estrutura
 
 ```
-index.html               interface
+index.html               interface (a mesma do editor e do visualizador)
+manifest.webmanifest     instalação como aplicativo
+sw.js                    service worker: abre sem rede
+assets/icons/            ícones do aplicativo instalado
 assets/css/app.css       estilos do editor
 assets/css/report.css    layout do relatório (tela e impressão A4)
+assets/js/log.js         o diário do console, em português
+assets/js/config.js      o marco que abre primeiro, o ritmo da atualização e
+                         os marcos que geram comunicados
+assets/js/atualizacao.js a atualização automática: o ciclo e o contador
+assets/js/leitura.js     o modo leitura (o visualizador): liga e blinda
 assets/js/store.js       modelo de dados, persistência (IndexedDB) e mesclagem
-assets/js/pasta.js       a pasta da rede como banco de dados
-assets/js/report.js      montagem das páginas no padrão do PDF
+assets/js/revisoes.js    o histórico do texto: quem escreveu o quê, campo a campo
+assets/js/pasta.js       a pasta da rede como banco de dados (e a da publicação)
+assets/js/publicacao.js  o arquivo publicado para o visualizador
+assets/js/report.js      montagem das páginas no padrão do PDF, com paginação
+assets/js/lado.js        o item preso ao lado, em só leitura
+assets/js/fluxo.js       leitura do Waiver Historic, desenho do fluxo e a
+                         resposta do marco anterior
+assets/js/herdar.js      leva o item aceito para o marco seguinte
 assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
-tools/build-standalone.py  gera a versão de arquivo único
+assets/js/painel.js      o painel de um marco: o que está chegando nele
+assets/js/xlsx.js        gera a planilha .xlsx (sem biblioteca)
+assets/js/tabela.js      a aba Tabela: todos os itens, filtros e exportação
+assets/js/chat.js        a conversa da equipe, dentro da pasta da rede
+assets/js/comunicados.js os comunicados para o visualizador: formato, junção e lidos
+assets/js/xlsxler.js     LÊ planilhas .xlsx (o motor do NCR Control)
+assets/js/ncrs.js        banco NCR: importações, correlação, histórico, junção
+assets/js/produtos.js    banco de produtos: importação, casamento com a NCR, pasta
+assets/js/ncrfluxo.js    o desenho do fluxo da NCR, igual ao do NCR Control
+assets/js/produtosview.js aba Produtos, ficha do produto e o bloco da ficha da NCR
+assets/js/ncrview.js     aba Banco NCR: tabela, filtros e ficha
+assets/js/kanban.js      aba Kanban: as NCRs de um marco, por situação
 assets/js/app.js         lógica do editor
-tests/                   24 suítes de ponta a ponta (Playwright)
+derrogacao.html          o programa inteiro num arquivo só (gerado)
+derrogacao-visualizador.html  o visualizador somente leitura (gerado)
+tools/build-standalone.py  gera (e confere) os dois arquivos únicos
+tests/                   testes de ponta a ponta (Playwright) — ver tests/README.md
 exemplos/                relatórios .json prontos para importar
 CLAUDE.md                notas de manutenção: decisões, armadilhas, porquês
 ```

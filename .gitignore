@@ -1,2 +1,8 @@
-# gerado pela publicação (tools/build-standalone.py); não versionar na main
-derrogacao.html
+# O derrogacao.html e o derrogacao-visualizador.html (arquivos únicos) são
+# gerados por tools/build-standalone.py e ficam versionados: quem baixa o
+# repositório leva os programas inteiros, cada um num arquivo só. Depois de
+# mexer no index.html ou nos assets, gere de novo — --conferir avisa.
+
+# a publicação para o visualizador é dado de programa: nunca entra no
+# repositório (que é público), mesmo que alguém a copie para cá
+visualizador-dados.js

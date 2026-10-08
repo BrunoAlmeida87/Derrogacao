@@ -13,7 +13,7 @@
   --panel:     #ffffff;
   --ink:       #14161c;
   --ink-2:     #3d4351;
-  --muted:     #6d7383;
+  --muted:     #5f6577;   /* 4,5:1 sobre o branco — WCAG 1.4.3 AA */
   --line:      #dcdfe5;
   --line-2:    #eceef2;
 
@@ -48,6 +48,12 @@
 /* cada categoria tem a sua cor, para não haver dúvida de onde se está */
 body[data-kind="dev"]    { --kind: #0e7490; --kind-sf: #e4f3f8; --kind-br: #b9dce8; }
 body[data-kind="resumo"] { --kind: #a15c07; --kind-sf: #fdf4e3; --kind-br: #f0d8a8; }
+body[data-kind="fluxos"] { --kind: #0f7a52; --kind-sf: #e8f6f0; --kind-br: #b6e0cf; }
+body[data-kind="conversa"] { --kind: #7a4b0f; --kind-sf: #f7efe6; --kind-br: #e2c9ad; }
+body[data-kind="tabela"] { --kind: #1a4fa0; --kind-sf: #e8eefb; --kind-br: #bdcdec; }
+body[data-kind="banco"]  { --kind: #34506b; --kind-sf: #e9eef4; --kind-br: #c3d0de; }
+body[data-kind="kanban"] { --kind: #8b1e5b; --kind-sf: #fbeef5; --kind-br: #eac3d7; }
+body[data-kind="produtos"] { --kind: #5f6e08; --kind-sf: #f3f6df; --kind-br: #d3dd9c; }
 
 * { box-sizing: border-box; }
 
@@ -122,8 +128,18 @@ body {
   color: rgba(255, 255, 255, .55);
   white-space: nowrap;
 }
-.topbar-field--grow { flex: 1 1 170px; min-width: 140px; }
+.topbar-field--grow { flex: 1 1 170px; min-width: 120px; }
 .topbar-field select { width: auto; min-width: 152px; max-width: 260px; }
+.topbar-field select:disabled { opacity: .55; cursor: not-allowed; }
+/* por que o seletor está desabilitado, dito ao lado dele (e lido pelo leitor
+   de tela: o select aponta para cá com aria-describedby) */
+.topbar-nota {
+  font-size: 11px;
+  font-style: italic;
+  color: rgba(255, 255, 255, .72);
+  max-width: 190px;
+  line-height: 1.25;
+}
 .topbar-spacer { flex: 1 1 auto; }
 
 /* ações e estado andam juntos e sempre à direita — assim, quando a barra
@@ -146,6 +162,31 @@ body {
   align-items: flex-end;
   gap: 1px;
   min-width: 118px;
+}
+/* "⟳ Atualizar": um botão simples. O contador da atualização automática
+   (só no visualizador) mora no ⋯ Mais — na barra ele mudava a cada segundo
+   e chamava a atenção à toa. A falha pinta o botão, além da faixa de aviso. */
+.topbar-atualiza { display: flex; align-items: center; }
+.topbar-atualiza-btn.is-aviso { border-color: #f2cf8a; color: #f2cf8a; }
+.topbar-atualiza-btn:disabled { opacity: .7; cursor: progress; }
+/* a linha do contador no ⋯ Mais: informação, não botão */
+.menu-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.menu-info small { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.menu-info small.is-aviso { color: var(--warn); font-weight: 600; }
+/* Com a pasta ligada, as abas Waiver NCR e DEV têm a barra mais cheia do
+   programa (relatório, marco, pasta, atualização, ações e o salvo). Abaixo
+   de uns 1760 px o subtítulo da marca sai, para ela continuar numa linha só
+   por mais tempo — o nome continua, e no visualizador o selo "somente
+   leitura" diz o que o subtítulo dizia. */
+@media (max-width: 1760px) {
+  .brand-text small { display: none; }
 }
 #saveState {
   font-size: 12px;
@@ -278,48 +319,92 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   min-height: 0;
 }
 
+/* Com cinco abas, largura igual para todas cortava o rótulo mais comprido
+   ("Conversa"). Cada uma leva a largura do seu texto e divide a sobra; se um
+   dia não couber, a fila quebra em duas linhas em vez de esconder alguma.
+   Com as sete de hoje (e "Waiver NCR"/"Waiver DEV" por extenso) a letra é
+   um pouco menor e o respiro lateral mais curto: assim elas cabem em duas
+   linhas nos 332 px — Banco NCR, Kanban, Tabela e Waiver NCR na primeira. */
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
 .tab {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
   font: inherit;
   font-weight: 700;
-  font-size: 13px;
-  letter-spacing: .02em;
+  font-size: 12px;
+  letter-spacing: .01em;
   color: var(--muted);
   background: none;
   border: none;
   border-bottom: 3px solid transparent;
-  padding: 11px 8px 9px;
+  padding: 11px 4px 9px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 4px;
   transition: background .12s, color .12s;
 }
 .tab[data-kind="ncr"]    { --tab: #4B0082; --tab-sf: #f3ecfb; }
 .tab[data-kind="dev"]    { --tab: #0e7490; --tab-sf: #e4f3f8; }
 .tab[data-kind="resumo"] { --tab: #a15c07; --tab-sf: #fdf4e3; }
+.tab[data-kind="fluxos"] { --tab: #0f7a52; --tab-sf: #e8f6f0; }
+.tab[data-kind="tabela"] { --tab: #1a4fa0; --tab-sf: #e8eefb; }
+.tab[data-kind="conversa"] { --tab: #7a4b0f; --tab-sf: #f7efe6; }
+.tab[data-kind="banco"]  { --tab: #34506b; --tab-sf: #e9eef4; }
+.tab[data-kind="kanban"] { --tab: #8b1e5b; --tab-sf: #fbeef5; }
+.tab[data-kind="produtos"] { --tab: #5f6e08; --tab-sf: #f3f6df; }
 .tab:hover { background: var(--tab-sf); color: var(--tab); }
 .tab[aria-selected="true"] {
   color: var(--tab);
   border-bottom-color: var(--tab);
   background: var(--tab-sf);
 }
+/* Cada área tem a sua cor (pedido do Bruno: saber de relance onde se está).
+   Discreta: um ponto antes do nome, sempre à vista; a aba aberta ganha o
+   fundo, o texto e a barra na cor. A cor nunca é o único sinal — o nome
+   está escrito, a aba aberta tem barra e fundo, e o leitor de tela ouve
+   "selecionada" (aria-selected). */
+.tab::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tab, var(--muted));
+}
+.tab:focus-visible { outline: 2px solid var(--tab, var(--kind)); outline-offset: -3px; }
+/* a mesma cor numa faixa fina no alto da área aberta */
+.editor { border-top: 3px solid var(--kind); }
 .tab-count {
   font-size: 11px;
   font-weight: 700;
   background: #e3e6ee;
   color: #575e6e;
   border-radius: 9px;
-  padding: 1px 7px;
-  min-width: 22px;
+  padding: 1px 5px;
+  min-width: 19px;
 }
 .tab[aria-selected="true"] .tab-count { background: var(--tab); color: #fff; }
+/* Recado não lido: um ponto no canto, fora da fila. Um número ali dentro
+   aumentaria a aba e faria a fila inteira quebrar de linha quando chegasse
+   mensagem — a contagem exata fica na dica e na lista de canais. */
+.tab { position: relative; }
+.tab-ponto {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tab);
+}
 
 .badge {
   font-size: 11px;
@@ -349,6 +434,7 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  flex-wrap: wrap;
 }
 .sidebar-head-row h2 {
   margin: 0;
@@ -368,7 +454,11 @@ body[data-kind="dev"] .btn--primary:hover { background: #0b6079; border-color: #
   border-radius: 3px;
   background: var(--kind);
 }
-.sidebar-head-actions { display: flex; gap: 5px; }
+/* Quatro botões nos 332px da barra: o respiro lateral encolhe para caberem
+   na mesma linha, e mesmo assim a fila pode quebrar — o que não pode é
+   escorrer por cima do editor e deixar o botão inalcançável. */
+.sidebar-head-actions { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.sidebar-head-actions .btn { padding-left: 8px; padding-right: 8px; }
 
 .ncr-list {
   list-style: none;
@@ -844,6 +934,27 @@ a.menu-item { text-decoration: none; }
 }
 .notice span { flex: 1; min-width: 240px; }
 
+/* O aviso da pasta de dados não é advertência: é o caminho de onde fica o
+   banco, para ser lido e colado na janela do Windows. */
+.notice--pasta {
+  background: var(--kind-sf, #eef2fb);
+  border-bottom-color: var(--kind-br, #c7d3ec);
+  border-left-color: var(--kind, #1a4fa0);
+  color: #23324d;
+}
+.notice-caminho {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font: 600 12px/1.5 Consolas, "Courier New", monospace;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 3px 7px;
+}
+.pasta-caminho-acoes { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+
 /* --- ordem das páginas ---------------------------------------------------- */
 
 .ordem-row {
@@ -1184,6 +1295,31 @@ dialog.dlg--wide { max-width: 620px; }
 }
 .pick-tag--dev { background: #e4f3f8; color: #0e7490; border-color: #b9dce8; }
 .pick-here { font-size: 11px; color: var(--muted); font-style: italic; flex: 0 0 auto; }
+.pick-itens-btn { flex: 0 0 auto; }
+
+/* a escolha de itens de um relatório: lista que abre sob a linha dele */
+.pick-itens {
+  margin: 0 0 6px 28px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  max-height: 220px;
+  overflow: auto;
+}
+.pick-itens-acoes { display: flex; gap: 6px; margin-bottom: 4px; }
+.pick-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 2px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pick-item input { accent-color: var(--accent); }
+.pick-item-nome { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.pick-item-sit { font-size: 11px; color: var(--muted); flex: 0 0 auto; }
+.pick-item.is-fora { opacity: .45; }
 
 .pick-summary { font-size: 13px; color: var(--muted); margin: 0 0 12px !important; }
 
@@ -1287,14 +1423,516 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
   box-shadow: 0 8px 26px rgba(0, 0, 0, .35);
 }
 .toast[hidden] { display: none; }
+.toast { display: flex; align-items: center; gap: 12px; }
+.toast-acao { background: #fff; color: #1c1a22; border-color: #fff; }
+
+.evid-thumb-falta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 76px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--bg-2);
+  border-radius: var(--radius-sm);
+}
+
+/* --- o item preso ao lado (lado.js) -------------------------------------- */
+
+/* Terceira coluna do .layout, à direita do editor. Não entra dentro do
+   <main>: assim o editor, com seus quatro painéis de aba, fica intocado. */
+.lado {
+  width: 420px;
+  flex: 0 0 420px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-2);
+  border-left: 1px solid #d3d7de;
+}
+.lado-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+.lado-head-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.lado-head-txt strong { font-size: 13.5px; overflow-wrap: anywhere; }
+.lado-head-txt span { font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
+.lado-head-acoes { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.lado-aviso {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #fffbe9;
+  color: #6b5a12;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.lado-body { flex: 1; overflow-y: auto; padding: 12px 12px 48px; }
+
+.lado-id {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--fx, #4B0082);
+  border-radius: 8px;
+  background: #fff;
+}
+.lado-id-num { display: flex; align-items: center; gap: 8px; }
+.lado-id-num strong { font-size: 14px; overflow-wrap: anywhere; }
+.lado-etiqueta {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--fx, #4B0082);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+.lado-id-sub { margin-top: 2px; font-size: 12px; color: var(--ink-2); overflow-wrap: anywhere; }
+.lado-id-tit { margin-top: 5px; font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
+.lado-id-pe { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.lado-chip {
+  padding: 1px 8px;
+  border: 1px solid var(--st, #9aa1ae);
+  border-radius: 999px;
+  color: var(--st, #9aa1ae);
+  font-size: 11px;
+  font-weight: 700;
+}
+.lado-quem { font-size: 11.5px; color: var(--muted); }
+
+.lado-sec {
+  margin-bottom: 10px;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--sec-color, #d3d7de);
+  border-radius: 8px;
+  background: #fff;
+}
+.lado-sec-cab { display: flex; align-items: center; gap: 4px; margin-bottom: 5px; }
+.lado-sec-nome {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.lado-copiar { margin-left: auto; flex: 0 0 auto; }
+.lado-txt {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lado-txt--vazio { color: var(--muted); font-style: italic; }
+.lado-par { display: flex; gap: 8px; margin-bottom: 4px; font-size: 12.5px; }
+.lado-par-rot { flex: 0 0 46%; color: var(--muted); font-size: 11.5px; }
+.lado-par-val { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.lado-sec--waiver .lado-sec-cab + .lado-par { margin-top: 2px; }
+.lado-lista { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.5; }
+.lado-ev { margin-bottom: 8px; }
+.lado-ev:last-child { margin-bottom: 0; }
+.lado-ev-ref { font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
+.lado-ev-nota { font-size: 12px; color: var(--ink-2); overflow-wrap: anywhere; }
+.lado-ev-tira { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.lado-ev-tira img {
+  width: 84px;
+  height: 62px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.lado-ev-falta {
+  padding: 4px 6px;
+  border: 1px dashed #9aa1ae;
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* a lista do diálogo que escolhe o item */
+.lado-escolha { max-height: 46vh; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; }
+.lado-op {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.lado-op:last-child { border-bottom: none; }
+.lado-op:hover, .lado-op:focus { background: var(--bg-2); }
+.lado-op strong { font-size: 13px; }
+.lado-op span { display: block; font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* o papel não tem coluna ao lado */
+@media print { .lado { display: none !important; } }
+
+/* --- fluxo dos waivers --------------------------------------------------- */
+
+/* O desenho é SVG escrito à mão (fluxo.js); a aparência mora aqui, para o
+   mesmo fluxo servir à tela pequena do item, ao pop-up e ao PDF. */
+.fx-svg { display: block; height: auto; max-width: 100%; overflow: visible; }
+/* sem largura própria o aviso de "nada escrito" esticaria pela linha toda */
+.fx-svg--vazio { max-width: 260px; }
+.fx-card-caixa {
+  fill: var(--fx-sf, #f3ecfb);
+  stroke: var(--fx, #4B0082);
+  stroke-width: 1.2;
+}
+.fx-card-txt { fill: var(--fx-ink, #2e0050); font-family: inherit; font-weight: 700; }
+.fx-card.is-destaque .fx-card-caixa { fill: var(--fx, #4B0082); stroke: var(--fx, #4B0082); }
+.fx-card.is-destaque .fx-card-txt { fill: #fff; }
+.fx-card.is-solto .fx-card-caixa { fill: #f2f4f7; stroke: #9aa1ae; stroke-dasharray: 3 2; }
+.fx-card.is-solto .fx-card-txt { fill: #4b515f; }
+/* card cujo marco tem relatório aqui, com o mesmo item dentro: o ponto no
+   canto avisa que há um Arch Answer para ler ao passar o mouse */
+.fx-card.is-achado { cursor: pointer; }
+.fx-card.is-achado .fx-card-caixa { stroke-width: 2; }
+.fx-card-marca { fill: var(--fx, #4B0082); stroke: #fff; stroke-width: 1.2; }
+.fx-card.is-destaque .fx-card-marca { fill: #fff; stroke: var(--fx, #4B0082); }
+.fx-card.is-achado:focus { outline: none; }
+.fx-card.is-achado:focus .fx-card-caixa { stroke: #0b57d0; stroke-width: 2.4; }
+.fx-seta { fill: none; stroke: #6d7383; stroke-width: 1.6; }
+.fx-ponta { fill: #6d7383; }
+.fx-vazio-txt { fill: var(--muted); font-family: inherit; font-size: 12px; font-style: italic; }
+
+/* o balão do card: o Arch Answer daquele marco, sem sair da tela.
+   Fica solto no body (ou dentro do <dialog>, que é camada de cima) e é
+   posicionado por JS; não recebe o mouse, para não piscar quando o ponteiro
+   passa por cima dele. */
+.fx-balao {
+  position: fixed;
+  z-index: 60;
+  width: min(380px, calc(100vw - 16px));
+  max-height: 60vh;
+  overflow: hidden;
+  padding: 10px 12px;
+  border: 1px solid var(--fx, #4B0082);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(16, 20, 32, .22);
+  pointer-events: none;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.fx-balao-cab { display: flex; flex-direction: column; gap: 1px; margin-bottom: 6px; }
+.fx-balao-cab strong { font-size: 13px; color: var(--fx, #4B0082); }
+.fx-balao-cab span { color: var(--muted); font-size: 11.5px; }
+.fx-balao-linha { margin: 0 0 3px; }
+.fx-balao-linha b { color: var(--ink); }
+.fx-balao-tit {
+  margin: 7px 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.fx-balao-txt { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fx-balao-txt--vazio { color: var(--muted); font-style: italic; }
+.fx-balao-pe {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11.5px;
+}
+/* papel não tem mouse: o balão é da tela, e o ponto só existe quando ele
+   existe (a impressão não passa `antes` para o desenho) */
+@media print { .fx-balao { display: none !important; } }
+
+.fx-palco { overflow-x: auto; padding: 2px 0; }
+.fx-palco--mini { margin-top: 8px; }
+.fx-palco--linha { flex: 1; min-width: 0; }
+
+/* bloco dentro do item, embaixo do Waiver Historic */
+.fx-bloco {
+  margin-top: 14px;
+  padding: 10px 12px 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.fx-bloco-cab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.fx-bloco-sub { color: var(--muted); font-size: 12px; flex: 1; min-width: 140px; }
+
+/* pop-up */
+.fx-item { font-size: 13px !important; font-weight: 600; color: var(--ink-2) !important; }
+.fx-caminho { font-size: 13px !important; color: var(--ink-2) !important; margin: 10px 0 0 !important; }
+.fx-avisos {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--warn-sf);
+  border-left: 3px solid #e0a03c;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 12.5px;
+  color: #6b4400;
+}
+.fx-avisos p { margin: 0 0 4px; }
+.fx-avisos p:last-child { margin-bottom: 0; }
+.fx-cru {
+  margin: 0;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  color: var(--ink-2);
+}
+
+/* aba Fluxos */
+.fx-info { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.fx-info span { color: var(--muted); }
+.fx-info .fx-achou { color: var(--ink-2); }
+.fx-check { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
+.fx-linha {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--line-2);
+}
+.fx-linha:first-of-type { border-top: none; }
+.fx-linha-id { flex: 0 0 240px; min-width: 0; }
+.fx-linha-num { font-weight: 700; font-size: 13px; }
+.fx-linha-sub { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* Na folha a linha é sempre em coluna. A media query de tela estreita vale
+   também na impressão — a folha tem 210mm —, e medir de um jeito para
+   imprimir de outro faz a paginação errar a conta de folhas. */
+.rep-page .fx-linha { flex-direction: column; align-items: flex-start; gap: 6px; }
+.rep-page .fx-linha-id { flex: 0 0 auto; }
+.rep-page .fx-palco { overflow: visible; }
+
+/* --- travas e avisos do item -------------------------------------------- */
+
+/* item aceito: fechado por padrão, aberto por um clique consciente */
+.trava,
+.mudou {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  max-width: 980px;
+  margin: 0 auto 16px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  box-shadow: var(--sh-1);
+}
+.trava {
+  background: var(--ok-sf);
+  border: 1px solid var(--ok-br);
+  border-left: 4px solid var(--ok);
+  color: #14532d;
+}
+.mudou {
+  background: var(--warn-sf);
+  border: 1px solid var(--warn-br);
+  border-left: 4px solid #e0a03c;
+  color: #6b4400;
+}
+.trava-txt,
+.mudou-txt { flex: 1; min-width: 220px; }
+
+/* marcador do item que outra pessoa mexeu */
+.fora-dot {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+/* --- o que mudou por fora, lado a lado ---------------------------------- */
+
+.dif-quem {
+  font-size: 13px !important;
+  font-weight: 600;
+  color: var(--ink-2) !important;
+}
+.dif-box { max-height: 52vh; overflow-y: auto; }
+.dif-campo { margin-bottom: 14px; }
+.dif-rotulo {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.dif-par { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dif-lado {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.dif-lado--antes  { border-left: 3px solid var(--danger); }
+.dif-lado--depois { border-left: 3px solid var(--ok); }
+.dif-cab {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  background: var(--line-2);
+  color: var(--ink-2);
+}
+.dif-txt {
+  margin: 0;
+  padding: 8px;
+  font: inherit;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* o caso grave: os dois escreveram no mesmo campo */
+.mudou--conflito {
+  background: var(--danger-sf, #fff1f0);
+  border-color: var(--danger-br, #ffccc7);
+  border-left-color: var(--danger);
+  color: #7a1c14;
+}
+.dif-campo--conflito {
+  border: 1px solid var(--danger-br, #ffccc7);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  background: var(--danger-sf, #fff1f0);
+}
+
+/* a pasta parou de responder: o aviso deixa de ser convite e vira alarme */
+.notice--parada {
+  background: var(--danger-sf, #fff1f0);
+  border-color: var(--danger-br, #ffccc7);
+  color: #7a1c14;
+}
+
+/* --- histórico de alterações -------------------------------------------- */
+
+.rev-barra {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+}
+.rev-escopo { display: flex; gap: 6px; flex-wrap: wrap; }
+.rev-escopo .is-on {
+  background: var(--accent-sf);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+.rev-busca {
+  flex: 1;
+  min-width: 200px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 13px;
+}
+.rev-box { max-height: 56vh; overflow-y: auto; }
+.rev-linha {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+.rev-linha[data-origem="substituido"] { border-left-color: var(--danger); }
+.rev-linha[data-origem="restaurou"]   { border-left-color: var(--ok); }
+.rev-linha[data-origem="criou"]       { border-left-color: var(--accent); }
+.rev-cab {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.rev-quem { font-weight: 700; color: var(--ink); }
+.rev-campo {
+  font-weight: 600;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: .04em;
+}
+.rev-item { color: var(--muted); }
+.rev-tag {
+  margin-left: auto;
+  background: var(--line-2);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.rev-linha[data-origem="substituido"] .rev-tag {
+  background: var(--danger-sf, #fff1f0);
+  color: var(--danger);
+}
+.rev-rotulo {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--danger);
+  margin-bottom: 4px;
+}
+.rev-txt {
+  margin: 0;
+  padding: 8px;
+  background: var(--line-2);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.rev-txt--antes { margin-top: 8px; opacity: .85; }
+.rev-acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
+/* --- folhas e tamanho da pasta ------------------------------------------ */
+
+.dlg-folhas { font-size: 13px; color: var(--muted); margin: 0 0 10px !important; }
+.dlg-folhas-long { color: var(--warn); font-weight: 600; }
+.pasta-tamanhos {
+  font-size: 12.5px !important;
+  color: var(--muted) !important;
+  margin: 12px 0 0 !important;
+}
 
 /* --- responsivo --------------------------------------------------------- */
 
+@media (max-width: 1400px) and (min-width: 901px) {
+  .lado { width: 340px; flex: 0 0 340px; }
+}
+
 @media (max-width: 900px) {
   .layout { flex-direction: column; }
+  .dif-par { grid-template-columns: 1fr; }
+  .fx-linha { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .fx-linha-id { flex: 0 0 auto; }
   .sidebar { width: auto; flex: 0 0 auto; max-height: 44vh; border-right: none; border-bottom: 1px solid var(--line); }
   .grid--3, .grid--2 { grid-template-columns: 1fr; }
   .editor-scroll { padding: 14px; }
+  /* com o .layout em coluna, 420px viraria altura: aqui ela empilha */
+  .lado { width: auto; flex: 0 0 auto; max-height: 50vh; border-left: none; border-top: 1px solid var(--line); }
   .brand-text small { display: none; }
   .topbar-status { min-width: 0; }
 }
@@ -1302,8 +1940,6 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 /* ==========================================================================
    aba de resumo
    ========================================================================== */
-
-.tab--wide { flex: 0 0 auto; padding-inline: 16px; }
 
 .sidebar-note {
   margin: 14px 12px;
@@ -1339,6 +1975,228 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .sm-bar-field label { font-size: 12px; font-weight: 600; color: #3f4550; }
 .sm-bar-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .sm-hint { font-size: 12px; color: var(--muted); }
+
+/* A tabela geral impressa vira paisagem quando tem coluna demais: são
+   folhas de conferência, e retrato com dez colunas parte todas as palavras.
+   A classe é a mesma das páginas de anexo, que já têm a @page nomeada. */
+.rep-page--landscape.rep-page--summary .sm-grade-cel { font-size: 9pt; }
+/* Com dez colunas, o rótulo em 8pt maiúsculo com espaçamento não cabia na
+   coluna e saía partido no meio da palavra ("SISTEM AS"). Menor e sem o
+   espaçamento, cabe — e o cabeçalho é o que menos precisa de destaque numa
+   folha que já é toda tabela. */
+.rep-page--landscape.rep-page--summary .sm-grade-linha--cab .sm-grade-cel {
+  font-size: 7pt;
+  letter-spacing: 0;
+}
+
+/* --- a anotação interna do item ------------------------------------------- */
+
+/* Cara de papel de recado, de propósito: o que está aqui não é conteúdo do
+   documento e não sai no PDF — precisa parecer diferente do resto do
+   formulário à primeira vista. */
+.card--nota {
+  background: #fffdf3;
+  border-color: #eadcae;
+}
+.card--nota > h3 { background: #fdf3d4; border-bottom-color: #eadcae; }
+.card--nota .nota-aviso { margin-top: -6px; margin-bottom: 10px; }
+.card--nota textarea {
+  background: #fffdf3;
+  border-color: #e3d4a4;
+  resize: vertical;
+}
+.card--nota textarea:focus { border-color: #d9a441; }
+.nota-acoes { display: flex; gap: 6px; }
+
+/* o 📝 na lista: item com pendência escrita */
+.nota-dot { font-size: 11px; line-height: 1; }
+
+/* na coluna ao lado, o mesmo papel */
+.lado-sec--nota { background: #fffdf3; border-radius: var(--radius-sm); }
+
+/* --- aba Tabela ----------------------------------------------------------- */
+
+/* A tabela é larga de propósito: ela existe para comparar itens de marcos
+   diferentes lado a lado. Quem rola é a caixa, não a página inteira — o
+   cabeçalho precisa ficar preso enquanto isso. */
+.tb-caixa {
+  max-width: 100%;
+  /* A caixa rola sozinha, e é isso que faz o cabeçalho ficar preso: com
+     `overflow: auto` e sem altura, quem rolava era a aba inteira e o
+     `position: sticky` do cabeçalho não tinha a que se prender (conferido no
+     navegador: o cabeçalho subia junto e sumia). */
+  max-height: calc(100vh - 330px);
+  min-height: 220px;
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--sh-1);
+}
+.tb-tabela {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: 12.5px;
+}
+.tb-tabela th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--kind-sf);
+  border-bottom: 2px solid var(--kind-br);
+  text-align: left;
+  padding: 0;
+  white-space: nowrap;
+}
+.tb-ord {
+  display: block;
+  width: 100%;
+  font: inherit;
+  font-weight: 700;
+  color: var(--kind);
+  background: none;
+  border: none;
+  padding: 9px 10px;
+  text-align: inherit;
+  cursor: pointer;
+}
+.tb-ord:hover { background: #fff; }
+.tb-ord-seta { color: var(--kind); }
+.tb-tabela th.is-num .tb-ord { text-align: right; }
+
+.tb-tabela td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+.tb-tabela td.is-num { text-align: right; white-space: nowrap; }
+/* campo comprido cortado numa linha: o texto inteiro fica na dica e no item */
+.tb-tabela td.is-longo {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tb-tabela tbody tr { cursor: pointer; }
+.tb-tabela tbody tr:hover { background: var(--kind-sf); }
+.tb-tabela tbody tr:focus { outline: 2px solid var(--kind); outline-offset: -2px; }
+.tb-tabela tbody tr.is-aceito td:first-child { border-left: 3px solid #1baf7a; }
+
+.tb-colunas {
+  max-width: 980px;
+  margin: 0 auto 12px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--sh-1);
+  font-size: 13px;
+}
+.tb-colunas > summary { cursor: pointer; font-weight: 700; color: var(--kind); }
+.tb-colunas .hint { margin: 6px 0 10px; }
+.tb-col-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 4px 14px;
+}
+.tb-col-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+}
+.tb-col-item.is-on { background: var(--kind-sf); }
+.tb-col-item label { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tb-col-setas { display: flex; gap: 2px; flex: 0 0 auto; }
+.tb-col-setas .btn { padding: 1px 6px; line-height: 1.4; }
+.tb-col-pe { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+
+/* --- fluxos: escolha da vista e filtro por marco --------------------------- */
+
+.fx-vistas {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 980px;
+  margin: 0 auto 12px;
+}
+.fx-vista {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 13px;
+  cursor: pointer;
+}
+.fx-vista:hover { border-color: var(--kind-br); color: var(--kind); }
+.fx-vista.is-on {
+  color: #fff;
+  background: var(--kind);
+  border-color: var(--kind);
+}
+.fx-vista-ajuda { font-size: 12px; color: var(--muted); flex: 1 1 220px; }
+
+.fx-marcos {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 980px;
+  margin: 0 auto 14px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--sh-1);
+}
+.fx-marcos-rot { font-size: 12px; font-weight: 700; color: #3f4550; }
+.fx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-2);
+  background: #f4f6fa;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+.fx-chip:hover { border-color: var(--kind); color: var(--kind); }
+.fx-chip.is-on { color: #fff; background: var(--kind); border-color: var(--kind); }
+.fx-chip-n {
+  font-size: 10.5px;
+  font-weight: 700;
+  background: rgba(0, 0, 0, .09);
+  border-radius: 8px;
+  padding: 0 5px;
+}
+.fx-chip.is-on .fx-chip-n { background: rgba(255, 255, 255, .28); }
+
+/* números do mapa do marco: quantos itens passam por cada card e cada seta */
+.fx-card-peso { fill: #4b515f; font-family: inherit; }
+.fx-seta-peso {
+  fill: #3f4550;
+  font-family: inherit;
+  font-weight: 700;
+  /* o número cai em cima da seta: o contorno branco é o que o mantém legível */
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
 
 /* --- filtros do resumo ---------------------------------------------------- */
 
@@ -1493,8 +2351,8 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .rep-page--summary .sm-kpis,
 .rep-page--summary .sm-card { max-width: none; margin-left: 0; margin-right: 0; }
 /* na folha A4 os quatro números cabem lado a lado */
-.rep-page--summary .sm-kpis { grid-template-columns: repeat(4, 1fr); gap: 4mm; }
-.rep-page--summary .sm-kpi { padding: 3mm 4mm; }
+.rep-page--summary .sm-kpis { grid-template-columns: repeat(5, 1fr); gap: 3mm; }
+.rep-page--summary .sm-kpi { padding: 3mm 3mm; }
 .rep-page--summary .sm-kpi-label { font-size: 8pt; }
 .rep-page--summary .sm-kpi-sub { font-size: 9pt; }
 .rep-page--summary .sm-card { border-radius: 0; box-shadow: none; break-inside: avoid; page-break-inside: avoid; }
@@ -1504,3 +2362,1704 @@ dialog::backdrop { background: rgba(24, 20, 34, .5); }
 .rep-page--summary .sm-table th, .rep-page--summary .sm-table td { padding: 3px 6px; white-space: normal; }
 .rep-page--summary .sm-table-wrap { overflow: visible; }
 .sm-print-date { font-size: 10pt; color: #6b7280; margin: 3mm 0 5mm; }
+
+/* --- lista que a paginação parte linha a linha ---------------------------
+   Tem a cara de uma tabela, mas cada linha é filha direta do bloco: é isso
+   que deixa a paginação levar as que não couberem para a folha seguinte,
+   repetindo o cabeçalho. Um <table> de verdade não permitiria — as linhas
+   ficam dentro do <tbody>, e mudar de folha exigiria partir a tabela. */
+.sm-grade-linha {
+  display: flex;
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+}
+.sm-grade-cel {
+  padding: 3px 6px;
+  min-width: 0;
+  overflow-wrap: break-word;
+  font-size: 10pt;
+}
+.sm-grade-cel.is-num { text-align: right; }
+.sm-grade-linha--cab { border-bottom-width: 2px; }
+.sm-grade-linha--cab .sm-grade-cel {
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+/* a folha já é partida pela paginação: deixar o navegador partir de novo
+   traria de volta o texto colado na borda do papel */
+.rep-page--summary .sm-grade { break-inside: auto; page-break-inside: auto; }
+/* o gráfico partido em pedaços: o título e a legenda repetem em cada folha;
+   entre um pedaço e outro não sobra espaço, para parecer um gráfico só */
+.rep-page--summary .sm-grafico .sm-chart-parte { break-inside: avoid; }
+.rep-page--summary .sm-grafico .sm-legend { margin: 0 0 6px; }
+.rep-page--summary .sm-grafico .sm-card-head { margin-bottom: 6px; }
+
+/* a lista usa a largura toda da folha — cada milímetro a mais é uma palavra
+   que deixa de ser partida ao meio numa coluna estreita */
+.rep-page--summary .sm-grade { padding-left: 4px; padding-right: 4px; }
+
+
+/* ==========================================================================
+   aba Conversa — recados da equipe, pela pasta da rede
+   Nada aqui alcança .rep-page: a conversa não entra em nenhuma folha do PDF.
+   ========================================================================== */
+
+.sidebar-conversa { display: flex; flex-direction: column; min-height: 0; overflow: auto; }
+.conv-canais { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 14px; }
+.conv-canais-tit {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  margin: 14px 2px 4px;
+}
+.conv-canal {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 7px 9px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+}
+.conv-canal:hover { background: var(--kind-sf); }
+.conv-canal.is-on {
+  background: var(--kind-sf);
+  border-color: var(--kind-br);
+  font-weight: 600;
+}
+.conv-canal-topo { display: flex; align-items: center; gap: 8px; }
+.conv-canal-nome { flex: 1 1 auto; font-size: 13.5px; }
+.conv-canal-sub { font-size: 11.5px; color: var(--muted); font-weight: 400; }
+.conv-canal-n {
+  flex: 0 0 auto;
+  min-width: 19px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--kind);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.conversa-scroll { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; }
+.conv-cab { display: flex; flex-direction: column; gap: 2px; }
+.conv-cab strong { font-size: 16px; color: var(--kind); }
+.conv-cab-sub { font-size: 12.5px; color: var(--muted); }
+
+/* O aviso fica sempre à vista, e não escondido num "saiba mais": tratar a
+   conversa direta como reservada seria um engano caro num programa de
+   defesa. */
+.conv-aviso {
+  border: 1px solid #e2c9ad;
+  background: #fdf6ee;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #6b4a1f;
+}
+.conv-sem-pasta {
+  border: 1px solid var(--line);
+  background: var(--panel-2, #f6f7f9);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.conv-lista {
+  flex: 1 1 auto;
+  min-height: 160px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 4px;
+}
+/* com poucos recados a conversa fica encostada no campo de escrever, e não
+   solta no alto de uma tela vazia; quando enche, o espaço some sozinho */
+.conv-lista::before { content: ''; margin-top: auto; }
+.conv-dia {
+  align-self: center;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--kind-sf);
+  border-radius: 10px;
+  padding: 2px 10px;
+  margin: 6px 0 2px;
+}
+.conv-msg {
+  max-width: 78%;
+  align-self: flex-start;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 11px 9px;
+}
+.conv-msg.is-minha {
+  align-self: flex-end;
+  background: var(--kind-sf);
+  border-color: var(--kind-br);
+}
+.conv-msg-cab { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.conv-msg-quem { font-size: 12px; font-weight: 700; color: var(--kind); }
+.conv-msg-quando { font-size: 11px; color: var(--muted); }
+.conv-msg-apagar {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+.conv-msg-apagar:hover { color: var(--danger, #b91c1c); }
+/* o recado sai como foi escrito, com as quebras de linha que a pessoa fez */
+.conv-msg-txt { font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: break-word; }
+
+.conv-form { display: flex; gap: 8px; align-items: flex-end; }
+.conv-form textarea {
+  flex: 1 1 auto;
+  resize: vertical;
+  min-height: 46px;
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.conv-form .btn { flex: 0 0 auto; }
+
+/* uma seção à parte dentro de um diálogo */
+.dlg-sec { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 12px; }
+.dlg-sec-tit { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+
+
+/* Alternativa a arrastar (WCAG 2.5.7): subir/descer com um clique só.
+   Alvo de 24x24, o mínimo do 2.5.8. */
+.ncr-move-box { display: flex; flex-direction: column; gap: 2px; margin-left: 4px; }
+.ncr-move {
+  width: 24px; height: 24px; padding: 0; line-height: 1;
+  border: 1px solid var(--line); border-radius: 5px;
+  background: #fff; color: var(--muted); cursor: pointer;
+  font-size: 12px; display: flex; align-items: center; justify-content: center;
+}
+.ncr-move:hover { background: var(--tab-tint, #f2f3f6); color: var(--ink); }
+.ncr-move:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ==========================================================================
+   Herdar: o item que veio do marco anterior
+   ========================================================================== */
+
+/* o ⤵ na lista, ao lado do 📝 e do ⇄ */
+.herd-dot { color: #7a5cc4; font-weight: 700; }
+
+.btn--herdar { border-color: #b9a6e6; color: #4b2f8f; background: #f4f0fd; }
+.btn--herdar:hover:not(:disabled) { background: #ebe4fb; }
+.btn--herdar:disabled { opacity: .55; cursor: not-allowed; }
+.status-herdar-aviso { margin-top: 6px; }
+
+.herd-faixa {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: #f4f0fd;
+  border: 1px solid #d7cbf3;
+  border-left: 4px solid #7a5cc4;
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.herd-faixa-txt { display: flex; flex-direction: column; gap: 3px; }
+.herd-faixa-txt strong { color: #4b2f8f; font-size: 13px; }
+.herd-faixa-txt span { font-size: 12px; color: var(--muted); line-height: 1.45; }
+.herd-faixa .btn { flex: 0 0 auto; margin-left: auto; }
+
+/* ==========================================================================
+   Painel do marco — tela e folha A4
+   --------------------------------------------------------------------------
+   As medidas em px valem na tela; na folha (.rep-page--painel) o bloco é
+   reapertado, porque 210 mm não são 980 px. As media queries de tela estreita
+   não alcançam nada aqui de propósito: a folha tem largura fixa, e uma regra
+   de telefone mudando a altura da linha faria a paginação errar a conta
+   (§6 do CLAUDE.md).
+   ========================================================================== */
+
+.pn-tela { padding-bottom: 24px; }
+
+.pn-capa {
+  max-width: 980px;
+  margin: 0 auto 16px;
+  padding: 18px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--kind);
+  background: linear-gradient(180deg, #f7f5ff 0%, var(--panel) 70%);
+  box-shadow: var(--sh-1);
+}
+.pn-capa-sobre {
+  margin: 0; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .12em; color: var(--muted);
+}
+.pn-capa-marco {
+  margin: 2px 0 6px; font-size: 34px; line-height: 1.05;
+  color: var(--kind); letter-spacing: -.01em;
+}
+.pn-capa-linha { margin: 0; font-size: 14px; color: var(--ink); }
+.pn-capa-pe { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
+.pn-vazio {
+  max-width: 980px; margin: 0 auto; padding: 16px 18px;
+  border: 1px dashed var(--line); border-radius: var(--radius);
+  color: var(--muted); font-size: 13px; line-height: 1.5;
+}
+
+.pn-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  max-width: 980px;
+  margin: 0 auto 16px;
+}
+.pn-kpi {
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--kind);
+  border-radius: var(--radius);
+  box-shadow: var(--sh-1);
+  padding: 11px 13px;
+}
+.pn-kpi-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); line-height: 1.3;
+}
+.pn-kpi-value { font-size: 26px; line-height: 1.1; font-weight: 700; color: var(--kind); }
+.pn-kpi-sub { font-size: 11px; color: var(--muted); }
+
+/* os dois gráficos lado a lado; num espaço estreito eles empilham */
+.pn-duplo {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) 1fr;
+  gap: 16px;
+  max-width: 980px;
+  margin: 0 auto 16px;
+  align-items: start;
+}
+.pn-duplo .pn-card { margin: 0; max-width: none; }
+@media (max-width: 1100px) {
+  .pn-duplo { grid-template-columns: 1fr; }
+}
+
+.pn-rosca { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.pn-rosca-svg { flex: 0 0 auto; }
+.pn-rosca-num { font: 700 30px/1 Arial, sans-serif; fill: var(--ink); }
+.pn-rosca-sub { font: 11px/1 Arial, sans-serif; fill: #6b7280; }
+
+.pn-leg { list-style: none; margin: 0; padding: 0; flex: 1 1 150px; min-width: 150px; }
+.pn-leg-item {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; padding: 3px 0;
+  border-bottom: 1px solid var(--line);
+}
+.pn-leg-item:last-child { border-bottom: 0; }
+.pn-leg-item.is-zero { color: var(--muted); opacity: .6; }
+.pn-leg-dot { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto; }
+.pn-leg-nome { flex: 1 1 auto; }
+.pn-leg-n { font-variant-numeric: tabular-nums; }
+.pn-leg-pct { color: var(--muted); font-size: 11px; width: 34px; text-align: right; }
+
+.pn-escolha select { min-width: 190px; }
+
+/* --- a mesma coisa na folha ---------------------------------------------- */
+
+.rep-page--painel .pn-capa {
+  max-width: none; margin: 0 0 5mm;
+  border-radius: 0; box-shadow: none;
+  padding: 4mm 5mm;
+}
+.rep-page--painel .pn-capa-marco { font-size: 26pt; }
+.rep-page--painel .pn-capa-linha { font-size: 11pt; }
+.rep-page--painel .pn-capa-pe { font-size: 8pt; }
+.rep-page--painel .pn-kpis,
+.rep-page--painel .pn-duplo { max-width: none; margin-left: 0; margin-right: 0; gap: 3mm; }
+.rep-page--painel .pn-kpis { grid-template-columns: repeat(3, 1fr); margin-bottom: 5mm; }
+.rep-page--painel .pn-duplo { grid-template-columns: 62mm 1fr; margin-bottom: 5mm; }
+.rep-page--painel .pn-kpi,
+.rep-page--painel .pn-card {
+  border-radius: 0; box-shadow: none;
+  break-inside: avoid; page-break-inside: avoid;
+}
+.rep-page--painel .pn-kpi { padding: 2.5mm 3mm; }
+.rep-page--painel .pn-kpi-label { font-size: 7pt; }
+.rep-page--painel .pn-kpi-value { font-size: 19pt; }
+.rep-page--painel .pn-kpi-sub { font-size: 8pt; }
+.rep-page--painel .pn-leg-item { font-size: 8pt; }
+.rep-page--painel .pn-vazio { max-width: none; font-size: 10pt; }
+.rep-page--painel .sm-card { max-width: none; margin-left: 0; margin-right: 0; }
+/* na folha os dois cartões da linha ficam do mesmo tamanho: um alto e um
+   baixo lado a lado ficam com cara de bloco faltando */
+.rep-page--painel .pn-duplo { align-items: stretch; }
+.rep-page--painel .pn-duplo .pn-card { display: flex; flex-direction: column; }
+.rep-page--painel .pn-duplo .sm-chart { margin-top: auto; margin-bottom: auto; }
+
+/* ==========================================================================
+   Janela de exportar PDF: escolher relatórios e recortar por situação
+   ========================================================================== */
+
+.pick-head {
+  display: flex; align-items: baseline; gap: 10px;
+  margin: 14px 0 6px;
+}
+.pick-head:first-of-type { margin-top: 4px; }
+.pick-head-rot {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); font-weight: 700;
+}
+.pick-head-acoes { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+
+.pick-sit { display: flex; gap: 8px; flex-wrap: wrap; }
+/* a mesma pastilha da lista e do resumo: a cor da situação é a mesma em
+   todo o programa, senão cada tela ensina uma coisa */
+.sit-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--st, var(--line));
+  border-radius: 999px;
+  background: #fff; color: var(--ink);
+  font-size: 12px; cursor: pointer;
+}
+.sit-chip:hover { background: #f6f7f9; }
+.sit-chip.is-on {
+  background: var(--st, #eef1f6);
+  border-color: var(--st, var(--line));
+  color: #fff; font-weight: 600;
+}
+.sit-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sit-chip-n {
+  font-variant-numeric: tabular-nums;
+  background: rgba(0, 0, 0, .12);
+  border-radius: 999px; padding: 0 6px; font-size: 11px;
+}
+.sit-chip.is-on .sit-chip-n { background: rgba(255, 255, 255, .28); }
+
+/* ==========================================================================
+   Janela do diário do console (⋯ Mais → Diagnóstico e diário)
+   --------------------------------------------------------------------------
+   Os comandos continuam valendo no console, mas aqui cada um é um botão que
+   faz a coisa — com o comando escrito ao lado para quem preferir digitar.
+   ========================================================================== */
+
+.log-privacidade {
+  background: #eef6f1;
+  border-left: 3px solid var(--ok, #1baf7a);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #2a4a3b;
+  margin: 0 0 4px;
+}
+
+.log-niveis { display: flex; gap: 10px; flex-wrap: wrap; }
+.log-nivel {
+  /* 150 px de base para os três caberem lado a lado na largura do diálogo:
+     com 200 o terceiro caía sozinho numa segunda linha */
+  flex: 1 1 150px;
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+  text-align: left;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff; cursor: pointer;
+}
+.log-nivel:hover { background: #f6f7f9; }
+.log-nivel.is-on { border-top-color: var(--kind); background: #f7f5ff; }
+.log-nivel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.log-nivel-nome { font-weight: 700; font-size: 13px; color: var(--ink); }
+.log-nivel.is-on .log-nivel-nome { color: var(--kind); }
+.log-nivel-ajuda { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+
+.log-acoes { display: flex; flex-direction: column; gap: 10px; }
+.log-acao { display: flex; gap: 12px; align-items: flex-start; }
+.log-acao .btn { flex: 0 0 auto; min-width: 160px; }
+.log-acao-txt { display: flex; flex-direction: column; gap: 3px; }
+.log-acao-txt span { font-size: 12px; color: var(--muted); line-height: 1.45; }
+
+.log-cmd {
+  align-self: flex-start;
+  font-family: ui-monospace, Consolas, "Courier New", monospace;
+  font-size: 11px;
+  background: #f2f3f6;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 6px;
+  color: #3f4550;
+}
+
+.log-contas { font-weight: 400; font-size: 12px; color: var(--muted); }
+.log-contas.is-ruim { color: #c2402a; font-weight: 600; }
+
+.log-saida {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  background: #1a1c20;
+  color: #e6e8ec;
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-family: ui-monospace, Consolas, "Courier New", monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log-saida:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Pastilhas de marco na aba Tabela — dá para marcar vários. A mesma cara das
+   pastilhas de situação do PDF e do "Passa por" da aba Fluxos. */
+.tb-marcos {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 0 0 10px;
+}
+.tb-marcos-rot {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); font-weight: 700;
+}
+.tb-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff; color: var(--ink);
+  font-size: 12px; cursor: pointer;
+}
+.tb-chip:hover { background: #f6f7f9; }
+.tb-chip.is-on {
+  background: var(--kind); border-color: var(--kind);
+  color: #fff; font-weight: 600;
+}
+.tb-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tb-chip-n {
+  font-variant-numeric: tabular-nums;
+  background: rgba(0, 0, 0, .10);
+  border-radius: 999px; padding: 0 6px; font-size: 11px;
+}
+.tb-chip.is-on .tb-chip-n { background: rgba(255, 255, 255, .28); }
+/* a escolha não depende só da cor: a pastilha escolhida leva um ✓ */
+.tb-chip.is-on:not(.tb-chip--card)::before,
+.tb-chip--card.is-on .tb-chip-nome::before { content: '✓'; font-weight: 700; }
+.tb-chip--card.is-on .tb-chip-nome::before { margin-right: 5px; }
+
+/* Mini cards de marco (aba Resumo): a mesma pastilha, com duas linhas — o
+   marco e o total; embaixo, discretos, os aceitos e a divisão NCR/DEV. */
+.tb-chip--card {
+  flex-direction: column; align-items: flex-start; gap: 2px;
+  min-width: 124px; min-height: 44px; padding: 6px 12px;
+  border-radius: 10px; text-align: left; line-height: 1.2;
+}
+.tb-chip-l1 { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; }
+.tb-chip-sub { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.tb-chip--card.is-on .tb-chip-sub { color: rgba(255, 255, 255, .9); }
+.tb-chip--card:not(.is-on):hover { border-color: var(--kind-br); background: var(--kind-sf); }
+/* alinhados com o resto da aba (a mesma coluna de 980 px) */
+.sm-marcos { max-width: 980px; margin: 0 auto 12px; }
+.sm-escopo strong { color: var(--kind); }
+
+/* ==========================================================================
+   aba Banco NCR
+   A tabela é a página: a barra lateral vira um trilho estreito só com as
+   abas, e a rolagem é a da página inteira (sem caixa com barra própria),
+   com o cabeçalho da tabela grudado no alto.
+   ========================================================================== */
+
+/* O mesmo trilho vale para a Tabela (pedido do Bruno: margens menores, para
+   caber tudo numa tela) e para o Kanban (as cinco colunas lado a lado). */
+@media (min-width: 901px) {
+  body[data-kind="banco"] .sidebar,
+  body[data-kind="tabela"] .sidebar,
+  body[data-kind="produtos"] .sidebar,
+  body[data-kind="kanban"] .sidebar { width: 118px; flex: 0 0 118px; }
+  body[data-kind="banco"] .tabs,
+  body[data-kind="tabela"] .tabs,
+  body[data-kind="produtos"] .tabs,
+  body[data-kind="kanban"] .tabs { flex-direction: column; flex-wrap: nowrap; border-bottom: 0; }
+  body[data-kind="banco"] .tab,
+  body[data-kind="tabela"] .tab,
+  body[data-kind="produtos"] .tab,
+  body[data-kind="kanban"] .tab {
+    flex: 0 0 auto; justify-content: flex-start; padding: 10px 12px;
+    border-bottom: 0; border-left: 3px solid transparent;
+  }
+  body[data-kind="banco"] .tab[aria-selected="true"],
+  body[data-kind="tabela"] .tab[aria-selected="true"],
+  body[data-kind="produtos"] .tab[aria-selected="true"],
+  body[data-kind="kanban"] .tab[aria-selected="true"] { border-left-color: var(--tab); }
+  body[data-kind="banco"] #sidebarBanco,
+  body[data-kind="tabela"] #sidebarTabela,
+  body[data-kind="produtos"] #sidebarProdutos,
+  body[data-kind="kanban"] #sidebarKanban { display: none; }
+}
+/* a Tabela com pouca margem dos lados: a largura é das colunas */
+#tabelaScroll { padding-left: 8px; padding-right: 8px; }
+
+.banco-scroll { overflow: auto; padding: 0 18px 60px; }
+/* sem padding em cima: o cabeçalho grudado encosta na borda da área de
+   rolagem, sem uma faixa por onde as linhas apareçam passando */
+.nb2 { padding-top: 14px; }
+
+/* --- barra de cima, sempre à vista ---------------------------------------- */
+.nb2-barra {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; margin-bottom: 10px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-left: 4px solid var(--kind); border-radius: var(--radius); box-shadow: var(--sh-1);
+}
+.nb2-titulo { display: flex; flex-direction: column; gap: 1px; min-width: 190px; }
+.nb2-titulo strong { color: var(--kind); font-size: 15px; }
+.nb2-conta { font-size: 12px; color: var(--muted); }
+.nb2-conta.is-on { color: var(--kind); font-weight: 700; }
+.nb2-busca { flex: 1 1 260px; min-width: 200px; font-size: 13px; padding: 6px 9px; }
+.nb2-toggle { white-space: nowrap; }
+.nb2-toggle.is-on { background: var(--kind); border-color: var(--kind); color: #fff; }
+.nb2-toggle--fechadas { color: #b42318; border-color: #f2c7c2; }
+.nb2-toggle--fechadas.is-on { background: #b42318; border-color: #b42318; color: #fff; }
+.nb2-exporta { display: flex; gap: 6px; }
+.nb2-painel-btn { margin-left: auto; white-space: nowrap; }
+
+/* --- painel recolhível ----------------------------------------------------- */
+.nb2-painel { margin-bottom: 10px; }
+.nb2-acoes {
+  display: flex; align-items: center; gap: 14px 22px; flex-wrap: wrap;
+  padding: 10px 14px; margin-bottom: 10px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.nb2-grupo { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.nb2-grupo-rot {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); margin-right: 2px;
+}
+.nb2-ultima { font-size: 12px; color: var(--muted); margin-left: auto; }
+.nb2-kpis { max-width: none; margin: 0 0 10px; }
+.nb2-kpi { font: inherit; text-align: left; cursor: pointer; }
+.nb2-kpi:hover { border-color: var(--kind-br); background: var(--kind-sf); }
+
+.nb2-filtros {
+  display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.nb2-limpar { margin-left: auto; }
+
+/* filtro de múltipla escolha: botão que abre uma lista de caixas */
+.nb2-ms { display: flex; flex-direction: column; gap: 4px; flex: 1 1 150px; min-width: 140px; max-width: 260px; }
+.nb2-ms-rot { font-size: 12px; font-weight: 600; color: #3f4550; }
+.nb2-ms-corpo { position: relative; }
+.nb2-ms-btn {
+  width: 100%; display: flex; align-items: center; gap: 6px;
+  font: inherit; font-size: 13px; text-align: left;
+  padding: 6px 8px; background: #fff; color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer;
+}
+.nb2-ms-btn:hover { border-color: var(--kind-br); }
+.nb2-ms-btn.is-on { border-color: var(--kind); background: var(--kind-sf); color: var(--kind); font-weight: 600; }
+.nb2-ms-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb2-ms-seta { color: var(--muted); font-size: 11px; }
+.nb2-ms-pop {
+  position: absolute; z-index: 40; top: calc(100% + 4px); left: 0;
+  min-width: 270px; max-width: 400px;
+  background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--sh-2); padding: 8px;
+}
+.nb2-ms-busca { width: 100%; font-size: 13px; padding: 5px 7px; margin-bottom: 6px; }
+.nb2-ms-lista { max-height: 300px; overflow-y: auto; }
+.nb2-ms-op {
+  display: flex; align-items: center; gap: 8px; padding: 4px 6px;
+  font-size: 13px; border-radius: 4px; cursor: pointer;
+}
+.nb2-ms-op:hover { background: var(--kind-sf); }
+.nb2-ms-op input { margin: 0; accent-color: var(--kind); }
+.nb2-ms-nome { flex: 1; min-width: 0; }
+.nb2-ms-n { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.nb2-ms-pe { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line-2); }
+
+.nb2-recorte {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 8px; padding: 7px 12px; font-size: 12px; color: #6b4400;
+  background: var(--warn-sf); border-left: 3px solid #d9a441; border-radius: 0 6px 6px 0;
+}
+
+/* --- a tabela --------------------------------------------------------------- */
+.nb2-tabela { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.nb2-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.nb2-table th {
+  position: sticky; top: 0; z-index: 2;
+  text-align: left; padding: 2px 10px; background: #eef1f5;
+  border-bottom: 2px solid #c9ced8; white-space: nowrap;
+}
+.nb2-table th.is-waiver { background: #e9eef4; }
+/* Legibilidade (pedido do Bruno): separador um pouco mais forte e linhas
+   alternadas em dois tons bem próximos — o bastante para o olho seguir a
+   linha de 13 colunas sem virar listra. A alternância é pela posição na
+   tabela (nth-child), então continua certa depois de filtrar, ordenar ou
+   trocar uma linha só (NcrView.atualizarLinha). Os estados (passar o mouse,
+   foco, fixada, fechada em destaque) vêm depois e vencem as duas cores. */
+.nb2-table td {
+  padding: 7px 10px; vertical-align: top; border-bottom: 1px solid #dde1e8;
+  line-height: 1.4;
+}
+.nb2-table td.is-waiver { background: #f7f9fb; }
+.nb2-table tbody tr:nth-child(even) td { background: #f5f7fa; }
+.nb2-table tbody tr:nth-child(even) td.is-waiver { background: #eef2f6; }
+.nb2-table td.is-longo { min-width: 150px; max-width: 420px; overflow-wrap: anywhere; }
+.nb2-table tbody tr:hover td,
+.nb2-table tbody tr:hover td.is-waiver { background: #e8eef7; }
+/* a linha em que está o foco do teclado (um botão ou uma lista dentro dela) */
+.nb2-table tbody tr:focus-within td,
+.nb2-table tbody tr:focus-within td.is-waiver { background: #e3ebf8; }
+.nb2-table tbody tr:focus-within td:first-child { box-shadow: inset 3px 0 0 var(--kind); }
+.nb2-sort {
+  font: inherit; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: #4b5261; background: none; border: none; cursor: pointer;
+  /* alvo de 24 px no mínimo (WCAG 2.5.8): o cabeçalho é clicável para ordenar */
+  display: block; min-height: 26px; padding: 6px 0; text-align: left;
+}
+.nb2-sort:hover { color: var(--kind); }
+.nb2-seta { color: var(--kind); }
+.nb2-num {
+  font: inherit; font-weight: 700; color: var(--kind); background: none; border: none;
+  padding: 0; cursor: pointer; text-align: left; white-space: nowrap;
+}
+.nb2-num:hover { text-decoration: underline; }
+.nb2-mini { display: block; font-size: 11px; color: var(--muted); white-space: normal; }
+.nb2-semrel { color: #8a5a00; }
+.nb2-fora { color: #8a5a00; font-weight: 600; }
+.nb2-tag-fechada {
+  display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 8px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  background: #eceef2; color: #6d7383;
+}
+.nb2-nada { padding: 18px; color: var(--muted); font-style: italic; }
+
+/* o valor editável parece uma lista, mas só vira <select> ao clicar */
+.nb2-dd {
+  font: inherit; font-size: 12px; text-align: left; white-space: nowrap;
+  max-width: 190px; overflow: hidden; text-overflow: ellipsis;
+  padding: 3px 22px 3px 7px; cursor: pointer; color: var(--ink);
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a90a0'/%3E%3C/svg%3E") no-repeat right 7px center;
+  border: 1px solid var(--line); border-radius: 5px;
+}
+.nb2-dd:hover { border-color: var(--kind); }
+.nb2-dd.is-vazio { color: var(--muted); }
+.nb2-sel { font-size: 12px; padding: 3px 5px; max-width: 260px; }
+/* texto livre do Waiver editado na célula (Observação, Obs Ship Manager) */
+.nb2-txt {
+  font: inherit; font-size: 12px; color: inherit; text-align: left; cursor: text;
+  background: transparent; border: 1px solid transparent; border-radius: 5px;
+  padding: 2px 4px; width: 100%; overflow-wrap: anywhere;
+}
+.nb2-txt:hover { border-color: var(--kind); }
+.nb2-txt.is-vazio { color: var(--muted); font-style: italic; }
+.nb2-ta { font: inherit; font-size: 12px; width: 100%; min-width: 220px; padding: 4px 6px; resize: vertical; }
+.nb2-waiver { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 120px; }
+.nb2-rel {
+  font: inherit; font-size: 11px; font-weight: 700; color: #fff; background: var(--accent);
+  border: none; border-radius: 10px; padding: 2px 9px; cursor: pointer; white-space: nowrap;
+}
+.nb2-rel:hover { background: var(--accent-hi); }
+.nb2-add { white-space: nowrap; }
+
+/* fechadas em vermelho, quando o botão está ligado (vence a zebra) */
+.nb2-table.is-destacando tbody tr.is-fechada td { background: #fdecec; }
+.nb2-table.is-destacando tbody tr.is-fechada:nth-child(even) td { background: #fbe3e3; }
+.nb2-table.is-destacando tbody tr.is-fechada td:first-child { box-shadow: inset 4px 0 0 #c62828; }
+.nb2-table.is-destacando tr.is-fechada .nb2-tag-fechada { background: #c62828; color: #fff; }
+.nb2-table.is-destacando tbody tr.is-fechada:hover td { background: #f8d4d4; }
+/* a linha editada que saiu do filtro continua, marcada, até o filtro mudar */
+.nb2-table tbody tr.is-fixada td,
+.nb2-table tbody tr.is-fixada:nth-child(even) td { background: #fff8e1; }
+.nb2-table tbody tr.is-fixada td:first-child { box-shadow: inset 4px 0 0 #d9a441; }
+.nb2-table tr.is-ausente td { color: var(--muted); }
+
+.nb2-vazio {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px 20px; max-width: 900px;
+}
+.nb2-vazio h3 { margin: 0 0 10px; font-size: 15px; color: var(--kind); }
+.nb2-vazio ol { margin: 0 0 12px; padding-left: 20px; line-height: 1.7; font-size: 13px; }
+.nb2-pend {
+  font-size: 13px; color: #14603f; background: var(--ok-sf);
+  border-left: 3px solid var(--ok); padding: 8px 12px; border-radius: 0 6px 6px 0;
+}
+
+/* --- ficha da NCR: quase a tela inteira, nada cortado ------------------------- */
+dialog.nb-ficha {
+  width: min(1500px, 97vw); max-width: none; height: 94vh; max-height: 94vh;
+  padding: 0; border-top-color: #34506b;
+}
+dialog.nb-ficha[open] { display: flex; flex-direction: column; }
+.nb-ficha-cab {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px 20px 12px; border-bottom: 1px solid var(--line); background: #f7f9fb;
+}
+.nb-ficha-tit { flex: 1; min-width: 0; }
+.nb-ficha-tit h3 { margin: 0 0 6px; font-size: 18px; color: #34506b; }
+.nb-ficha-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.nb-ficha-corpo { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px 28px; }
+.nb-ficha-titulo { margin: 0 0 12px; font-size: 15px; font-weight: 600; color: var(--ink); }
+.nb-ficha-grade {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 14px; align-items: start;
+}
+@media (max-width: 1000px) { .nb-ficha-grade { grid-template-columns: 1fr; } }
+.nb-ficha-col { min-width: 0; }
+.nb-ficha-campos3 { display: grid; grid-template-columns: 1fr 1fr 1.6fr; gap: 10px; margin-bottom: 10px; }
+.nb-ficha-campos3 select { width: 100%; }
+.nb-ficha .field { margin-bottom: 10px; }
+.nb-ficha textarea { width: 100%; resize: vertical; }
+.nb-chip {
+  font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+  background: #eef0f4; color: var(--ink-2);
+}
+.nb-chip--sbr { background: #e9eef4; color: #34506b; }
+.nb-chip--aviso { background: var(--warn-sf); color: #8a5a00; }
+.nb-chip--fechada { background: #fdecec; color: #b42318; }
+.nb-chip--aberta { background: #e7f4ec; color: #1d6b45; }
+.nb-sec {
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 12px 14px; margin-bottom: 14px; background: #fff;
+}
+.nb-sec h4 { margin: 0 0 2px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-2); }
+.nb-sec-sub { font-size: 12px; color: var(--muted); margin: 0 0 10px; }
+.nb-sec--waiver { border-left: 4px solid #34506b; background: #f7f9fb; }
+.nb-sec--fonte { border-left: 4px solid #9aa1ae; }
+.nb-sec--fluxo { border-left: 4px solid #4a3aa7; }
+.nb-autor { font-size: 12px; color: #34506b; margin: 0; }
+.nb-vinc { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.nb-ficha-acoes { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.nb-adicoes { margin: 10px 0 0; padding-left: 18px; font-size: 12px; color: var(--muted); }
+.nb-rot { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); }
+.nb-desc { white-space: pre-wrap; margin: 2px 0 12px; line-height: 1.5; }
+.nb-campos {
+  display: grid; grid-template-columns: minmax(150px, 34%) 1fr; gap: 4px 14px;
+  margin: 0; font-size: 12.5px;
+}
+.nb-campos dt { color: var(--muted); font-weight: 600; }
+.nb-campos dt.is-novo { color: #8a5a00; }
+.nb-campos dt.is-novo::after { content: ' ●'; }
+.nb-campos dd { margin: 0; white-space: pre-wrap; word-break: break-word; }
+.nb-fluxo-modos { display: flex; gap: 6px; margin-bottom: 10px; }
+.nb-fluxo-modo.is-on { background: #4a3aa7; border-color: #4a3aa7; color: #fff; }
+.nb-fluxo-caixa {
+  overflow: auto; max-height: 70vh; border: 1px solid var(--line-2); border-radius: 6px;
+  background: #fbfcfd; padding: 6px;
+}
+.nfx-svg { display: block; }
+.nfx-legenda { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 12px; color: var(--ink-2); }
+.nfx-legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.nfx-legenda i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; }
+.nfx-legenda i.nfx-tracejado { background: repeating-linear-gradient(90deg, #4b5261 0 3px, transparent 3px 6px); }
+.nb-hist { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.nb-hist th, .nb-hist td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line-2); vertical-align: top; }
+.nb-hist th { font-size: 11px; text-transform: uppercase; color: var(--muted); }
+.nb-hist td { white-space: pre-wrap; word-break: break-word; }
+
+.nb-cols-tit { font-size: 12px; font-weight: 700; color: var(--ink-2); margin: 10px 0 4px; }
+.nb-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 2px 10px; font-size: 13px; }
+.nb-col { display: flex; gap: 6px; align-items: center; }
+
+/* --- diálogos das importações --------------------------------------------- */
+.nb-regras { margin: 0 0 12px; padding-left: 18px; font-size: 13px; line-height: 1.6; color: var(--ink-2); }
+.nb-check { display: flex; gap: 8px; align-items: center; font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+.nb-res-nums {
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 16px;
+  margin: 0 0 12px; font-size: 13px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 14px;
+}
+.nb-res-nums dt { color: var(--ink-2); }
+.nb-res-nums dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.nb-res-nums dd.is-destaque { font-weight: 700; color: #1d6b45; }
+.nb-res-nums dd.is-erro { font-weight: 700; color: var(--danger); }
+.nb-res-aviso { font-size: 12px !important; color: var(--muted) !important; }
+.nb-res-grupo { border-top: 1px solid var(--line-2); padding: 6px 0; font-size: 13px; }
+.nb-res-grupo summary { cursor: pointer; font-weight: 600; }
+.nb-res-grupo.is-erro summary { color: var(--danger); }
+.nb-res-grupo ul { max-height: 200px; overflow-y: auto; margin: 6px 0; padding-left: 18px; font-size: 12px; }
+.nb-mini { display: block; font-size: 11px; color: var(--muted); }
+
+/* --- no editor: a ligação do item com o banco NCR, e a Observation ---------- */
+.nb-ligacao {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 10px; padding: 7px 10px; font-size: 12px;
+  background: #eef2f6; border-left: 3px solid #34506b; border-radius: 0 6px 6px 0;
+}
+.nb-ligacao-rot { font-weight: 700; color: #34506b; text-transform: uppercase; font-size: 10px; letter-spacing: .06em; }
+.nb-ligacao-txt { flex: 1; color: var(--ink-2); }
+
+/* alvos de clique com 24 px no mínimo (WCAG 2.5.8), como no resto do programa */
+.nb2-num, .nb2-rel, .nb2-dd { min-height: 24px; }
+.nb2-num { padding: 3px 0; }
+
+/* ==========================================================================
+   Cores da situação do waiver (Store.STATUS), fora do PDF
+   As mesmas quatro cores do trilho da lista e da pílula do resumo, em três
+   tons: fundo claro, borda e texto escuro — o texto escuro é o que passa no
+   contraste (a cor pura com letra branca não passa, WCAG 1.4.3).
+   ========================================================================== */
+.st-cor--preenchendo { --st-cor: #9aa1ae; --st-sf: #eef0f3; --st-tx: #454b57; }
+.st-cor--solicitado  { --st-cor: #2a78d6; --st-sf: #e2edfb; --st-tx: #164f93; }
+.st-cor--justificar  { --st-cor: #eb6834; --st-sf: #fde9df; --st-tx: #97390f; }
+.st-cor--aceito      { --st-cor: #1baf7a; --st-sf: #dff5ec; --st-tx: #0c6645; }
+.st-cor--fora        { --st-cor: #6b4f9e; --st-sf: #f2eef9; --st-tx: #4a3278; }
+/* a área das encerradas (NCRs fechadas) no Kanban: cinza, de coisa arquivada */
+.st-cor--encerrada   { --st-cor: #7b8494; --st-sf: #f1f2f4; --st-tx: #3f4654; }
+.st-cor-ponto {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--st-cor, #9aa1ae); flex: 0 0 auto;
+}
+
+/* --- coluna Waiver do Banco NCR: o caminho, com a cor da situação ------------ */
+.nb2-rel.st-cor {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--st-tx); background: var(--st-sf);
+  border: 1.5px solid var(--st-cor); border-radius: 12px; padding: 1px 8px;
+}
+.nb2-rel.st-cor:hover { background: #fff; color: var(--st-tx); box-shadow: 0 0 0 2px var(--st-sf); }
+.nb2-rel.st-cor:focus-visible { outline: 2px solid var(--st-tx); outline-offset: 1px; }
+.nb2-rel.is-alerta { border-style: dashed; }
+.nb2-rel-alerta { color: #b42318; font-size: 12px; line-height: 1; }
+.nb2-seta-caminho { color: var(--muted); font-size: 12px; }
+.nb2-rel-destino {
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  border: 1.5px dashed #b8bdc8; border-radius: 12px; padding: 2px 8px; white-space: nowrap;
+}
+.nb-vinc .nb2-rel.st-cor { font-size: 12px; padding: 3px 10px; }
+
+/* o KPI do alerta: vermelho quando há o que ver */
+.nb2-kpi--alerta:not(.is-zero) { border-color: #f2c7c2; background: #fdf2f1; }
+.nb2-kpi--alerta:not(.is-zero) .sm-kpi-value,
+.nb2-kpi--alerta:not(.is-zero) .sm-kpi-label { color: #b42318; }
+
+/* o aviso de NCR fechada com waiver pendente (ficha e editor) */
+.nb-alerta {
+  display: flex; flex-direction: column; gap: 2px;
+  margin: 0 0 10px; padding: 8px 12px; font-size: 12.5px; line-height: 1.45;
+  color: #7a1b12; background: #fdf2f1; border: 1px solid #f2c7c2;
+  border-left: 4px solid #b42318; border-radius: 0 6px 6px 0;
+}
+.nb-alerta strong { color: #b42318; }
+.nb-alerta--editor { margin: 8px 0 0; }
+.nb-ligacao-wrap { margin-top: 10px; }
+.nb-ligacao-wrap .nb-ligacao { margin-top: 0; }
+.nb-ligacao-st {
+  font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; white-space: nowrap;
+}
+.nb-ligacao-st.is-aberta { background: #e7f4ec; color: #1d6b45; }
+.nb-ligacao-st.is-fechada { background: #fdecec; color: #b42318; }
+.alerta-dot { color: #b42318; font-size: 12px; line-height: 1; }
+
+/* --- janela das colunas: a ordem à esquerda, o que marcar à direita ----------- */
+.nb-cols-dica { font-size: 13px; color: var(--ink-2); }
+.nb-cols-grade { display: grid; grid-template-columns: minmax(230px, 300px) 1fr; gap: 18px; align-items: start; }
+@media (max-width: 760px) { .nb-cols-grade { grid-template-columns: 1fr; } }
+.nb-cols-ordem { position: sticky; top: 0; }
+.nb-ordem, .dlg-body .nb-ordem {
+  list-style: none; margin: 0; padding: 4px; counter-reset: ord;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fafbfc;
+  max-height: 58vh; overflow: auto;
+}
+.nb-ordem-item {
+  display: flex; align-items: center; gap: 6px; padding: 3px 4px 3px 6px; margin: 2px 0;
+  background: #fff; border: 1px solid var(--line-2); border-radius: 5px; font-size: 13px;
+  counter-increment: ord;
+}
+.nb-ordem-item::before { content: counter(ord); font-size: 11px; color: var(--muted); min-width: 16px; text-align: right; }
+.nb-ordem-item.is-waiver { border-left: 3px solid #34506b; }
+.nb-ordem-item[draggable="true"] { cursor: grab; }
+.nb-ordem-pega { color: var(--muted); font-size: 12px; }
+.nb-ordem-nome { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-ordem-setas { display: flex; gap: 2px; }
+.nb-ordem-setas .btn { min-width: 26px; min-height: 24px; padding: 1px 6px; }
+.nb-ordem-item.is-arrastando, .nb2-table th.is-arrastando { opacity: .45; }
+.nb-ordem-item.is-alvo-antes { box-shadow: 0 -3px 0 #34506b; }
+.nb-ordem-item.is-alvo-depois { box-shadow: 0 3px 0 #34506b; }
+.nb2-table th[draggable="true"] { cursor: grab; }
+.nb2-table th.is-alvo-antes { box-shadow: inset 3px 0 0 #34506b; }
+.nb2-table th.is-alvo-depois { box-shadow: inset -3px 0 0 #34506b; }
+
+/* ==========================================================================
+   aba Kanban
+   Cinco colunas lado a lado, cada uma com a cor da situação; o cartão é a
+   NCR. Esta seção é a tela; a folha impressa do Kanban (.kbp-*, A4 ou A3)
+   fica no fim dela, em medidas de papel.
+   ========================================================================== */
+.kanban-scroll { overflow: auto; padding: 14px 14px 40px; background: #f4f5f8; }
+.kb { display: flex; flex-direction: column; gap: 12px; min-height: 100%; }
+.kb-vazio {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 18px 22px; max-width: 760px;
+}
+.kb-vazio h3 { margin: 0 0 6px; color: var(--kind); }
+
+.kb-cab {
+  display: grid; grid-template-columns: auto 1fr; gap: 10px 18px; align-items: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px 18px; box-shadow: var(--sh-1);
+  border-top: 4px solid var(--kind);
+}
+.kb-tit { display: flex; flex-direction: column; gap: 0; min-width: 180px; }
+.kb-sobre { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.kb-marco { font-size: 28px; line-height: 1.1; color: var(--kind); letter-spacing: -.01em; }
+.kb-rel { font-size: 12px; color: var(--ink-2); }
+.kb-ferr { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
+.kb-busca { flex: 1 1 260px; max-width: 420px; }
+.kb-toggle.is-on { background: var(--kind); border-color: var(--kind); color: #fff; }
+.kb-toggle--alerta.is-on { background: #b42318; border-color: #b42318; }
+.kb-marcos { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.kb-chip.is-on { background: var(--kind); border-color: var(--kind); color: #fff; }
+
+.kb-resumo {
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 18px; box-shadow: var(--sh-1);
+}
+.kb-resumo-nums { display: flex; flex-wrap: wrap; gap: 8px 28px; }
+.kb-num { display: flex; align-items: baseline; gap: 6px; }
+.kb-num strong { font-size: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.kb-num span { font-size: 12px; color: var(--muted); }
+.kb-num.is-alerta strong, .kb-num.is-alerta span { color: #b42318; }
+.kb-barra { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--line-2); }
+.kb-barra-seg { background: var(--st-cor); min-width: 3px; }
+.kb-barra-seg + .kb-barra-seg { box-shadow: inset 2px 0 0 #fff; }
+
+.kb-quadro {
+  display: grid; grid-template-columns: repeat(5, minmax(240px, 1fr)); gap: 12px;
+  align-items: start; padding-bottom: 6px;
+  /* sem overflow aqui: o cabeçalho de cada coluna gruda na rolagem da aba */
+}
+.kb-col {
+  display: flex; flex-direction: column; min-width: 0;
+  background: var(--st-sf); border: 1px solid var(--line); border-radius: 12px;
+  border-top: 4px solid var(--st-cor);
+  transition: box-shadow .12s, background .12s;
+}
+.kb-col-cab { flex-wrap: wrap; }
+.kb-col-sub { flex: 1 0 100%; margin: -2px 0 0 17px; font-size: 11.5px; color: var(--st-tx); }
+.kb-col.is-alvo { box-shadow: 0 0 0 3px var(--st-cor); background: #fff; }
+.kb-col-cab {
+  position: sticky; top: -14px; z-index: 1;
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px 8px;
+  background: inherit; border-radius: 10px 10px 0 0;
+}
+.kb-col-cab h3 { margin: 0; flex: 1; font-size: 13px; color: var(--st-tx); letter-spacing: .01em; }
+.kb-col-n {
+  font-size: 12px; font-weight: 700; color: var(--st-tx); background: #fff;
+  border: 1px solid var(--st-cor); border-radius: 999px; padding: 0 8px; font-variant-numeric: tabular-nums;
+}
+.kb-col-corpo { display: flex; flex-direction: column; gap: 8px; padding: 2px 10px 12px; min-height: 90px; }
+.kb-col-vazia { margin: 8px 2px; font-size: 12px; color: var(--muted); font-style: italic; }
+
+.kb-acoes { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kb-exporta { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+
+/* O cartão nasce recolhido, quase uma linha de lista (pedido do Bruno: ver
+   mais NCRs de uma vez): número, status da NCR, função em poucas letras,
+   sistema, caminho e as ações. O "+" abre a descrição e o resto. A altura
+   recolhida não depende do texto: nada de descrição ali. */
+.kb-card {
+  position: relative; display: flex; flex-direction: column; gap: 3px;
+  background: #fff; border: 1px solid #e3e5ea; border-radius: 8px;
+  padding: 5px 8px 5px 12px; box-shadow: 0 1px 2px rgba(20, 22, 28, .06);
+  transition: box-shadow .12s, transform .12s;
+}
+.kb-card::before {
+  content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 4px;
+  border-radius: 0 4px 4px 0; background: var(--st-cor);
+}
+.kb-card[draggable="true"] { cursor: grab; }
+.kb-card:hover { box-shadow: 0 4px 12px rgba(20, 22, 28, .12); }
+.kb-card.is-arrastando { opacity: .5; transform: rotate(1.5deg); }
+.kb-card.is-alerta { border-color: #f2c7c2; background: #fffafa; }
+.kb-card.is-alerta::before { background: #b42318; }
+.kb-card.is-aberto { box-shadow: 0 4px 14px rgba(20, 22, 28, .14); }
+.kb-card-topo { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.kb-card-num {
+  font: inherit; font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 12px; font-weight: 700; color: var(--ink);
+  background: none; border: none; padding: 1px 0; min-height: 24px; cursor: pointer; text-align: left;
+  min-width: 0; overflow-wrap: anywhere; margin-right: auto;
+}
+.kb-card-num:hover { color: var(--kind); text-decoration: underline; }
+.kb-st-ncr {
+  font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 10px;
+  background: #e7f4ec; color: #1d6b45; white-space: nowrap;
+  max-width: 62%; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto;
+}
+.kb-st-ncr.is-fechada { background: #fdecec; color: #b42318; }
+.kb-st-ncr.is-sem { background: #f1f2f5; color: var(--muted); }
+.kb-st-ncr.is-dev { background: #e4f3f8; color: #0e7490; }
+.kb-st-ncr.is-ok { background: #dff5ec; color: #0c6645; }
+.kb-st-ncr.is-falta { background: #fdf4e3; color: #8a4b00; }
+.kb-alerta-ic { color: #b42318; font-size: 13px; line-height: 1; flex: 0 0 auto; }
+.kb-card-mais {
+  flex: 0 0 auto; width: 24px; height: 24px; padding: 0;
+  font: inherit; font-size: 15px; font-weight: 700; line-height: 1;
+  color: var(--ink-2); background: #fff; border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+}
+.kb-card-mais:hover { color: var(--kind); background: var(--kind-sf); border-color: var(--kind-br); }
+.kb-card-mais[aria-expanded="true"] { color: var(--kind); background: var(--kind-sf); border-color: var(--kind); }
+.kb-card-mais:focus-visible { outline: 2px solid var(--kind); outline-offset: 1px; }
+.kb-card-linha { display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; min-width: 0; }
+.kb-card-meta {
+  display: flex; align-items: center; gap: 5px; flex: 1 1 150px; min-width: 0;
+  font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden;
+}
+.kb-fv {
+  flex: 0 0 auto; font-size: 10.5px; font-weight: 700; color: #34506b; background: #e9eef4;
+  border-radius: 4px; padding: 1px 5px;
+}
+.kb-sis { flex: 0 0 auto; background: #f1f2f5; border-radius: 4px; padding: 1px 5px; color: var(--ink-2); }
+.kb-caminho { font-weight: 700; color: var(--ink-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.kb-nota { font-size: 12px; flex: 0 0 auto; }
+.kb-card-acoes { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; margin-left: auto; }
+.kb-card-acoes .btn--sm { padding: 2px 7px; font-size: 11.5px; min-height: 24px; }
+.kb-sel {
+  font-size: 11.5px; font-weight: 700; color: var(--st-tx); background-color: var(--st-sf);
+  border: 1.5px solid var(--st-cor); border-radius: 6px; padding: 1px 3px; min-height: 24px; max-width: 158px;
+}
+.kb-sem-rel { font-size: 11px; color: var(--muted); font-style: italic; }
+/* o cartão aberto: o que dá contexto */
+.kb-card-det {
+  display: flex; flex-direction: column; gap: 5px;
+  border-top: 1px solid var(--line-2); padding-top: 6px; margin-top: 2px;
+}
+.kb-alerta {
+  font-size: 11.5px; color: #7a1b12; background: #fdecec; border-radius: 6px; padding: 4px 8px;
+}
+.kb-alerta strong { color: #b42318; }
+.kb-origem { font-size: 11.5px; color: var(--ink-2); background: #f4f5f8; border-radius: 6px; padding: 3px 8px; }
+.kb-origem--caminho { background: #f3ecfb; color: #4b1d7a; }
+.kb-fv-inteira { font-size: 11px; font-weight: 700; color: #34506b; }
+.kb-desc {
+  margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-2);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.kb-desc--vazia { color: var(--muted); font-style: italic; }
+.kb-quem { font-size: 11px; color: var(--muted); }
+.kb-col-enc {
+  display: block; margin-top: 2px; padding: 2px 0; min-height: 24px;
+  font: inherit; font-size: 11.5px; text-align: left; color: var(--st-tx);
+  background: none; border: 0; cursor: pointer; text-decoration: underline;
+}
+.kb-ir-enc { align-self: center; }
+
+/* As encerradas (fechadas): fora da coluna "NCR to be closed", numa área própria
+   abaixo do quadro. O título, com a quantidade, fica sempre à vista. */
+.kb-enc {
+  background: var(--st-sf); border: 1px solid var(--line); border-radius: 12px;
+  border-top: 4px solid var(--st-cor);
+}
+.kb-enc-tit { margin: 0; }
+.kb-enc-btn {
+  width: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 12px; min-height: 44px;
+  font: inherit; text-align: left; color: var(--st-tx);
+  background: none; border: 0; border-radius: 10px; cursor: pointer;
+}
+.kb-enc-btn:hover { background: rgba(255, 255, 255, .6); }
+.kb-enc-btn:focus-visible { outline: 2px solid var(--st-tx); outline-offset: -2px; }
+.kb-enc-seta { width: 12px; font-size: 12px; }
+.kb-enc-nome { font-size: 13px; font-weight: 700; }
+.kb-enc-btn .kb-col-n { font-size: 12px; }
+.kb-enc-dica { flex: 1 1 280px; font-size: 11.5px; font-weight: 400; color: var(--ink-2); }
+.kb-enc-corpo {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px;
+  padding: 2px 12px 12px; align-items: start;
+}
+
+/* a janela da exportação visual */
+.kb-imp-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; margin: 10px 0; }
+.kb-imp-grupo { margin: 0; padding: 8px 12px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.kb-imp-grupo legend { padding: 0 4px; font-size: 12px; font-weight: 700; color: var(--ink-2); }
+.kb-imp-op { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; cursor: pointer; }
+.kb-imp-op input { width: auto; margin: 0; accent-color: var(--kind); }
+.kb-imp-previa { margin: 6px 0 0; font-size: 13px; font-weight: 600; color: var(--kind); }
+.kb-imp-previa:empty { display: none; }
+
+@media (max-width: 900px) {
+  .kb-cab { grid-template-columns: 1fr; }
+  .kb-ferr { justify-content: flex-start; }
+  .kb-exporta { margin-left: 0; }
+  .kb-imp-grade { grid-template-columns: 1fr; }
+}
+
+/* --- o Kanban impresso (kanban.js, montarFolhas) ------------------------------
+   Folha própria, A4 ou A3, retrato ou paisagem, com as margens feitas de
+   padding como as do relatório (report.css). Tudo em mm/pt e relativo a
+   --kbp-fs, a letra que a escala automática escolhe; nada depende da
+   largura da tela — as media queries de tela estreita também valem no papel
+   (CLAUDE.md, §6), e aqui nenhuma alcança estas classes. */
+/* duas classes: .rep-page (report.css, carregado depois) fixa 11pt */
+.rep-page.rep-page--kanban { font-family: Arial, Helvetica, sans-serif; font-size: var(--kbp-fs, 8pt); line-height: 1.25; color: #111; }
+.kbp-cab { margin-bottom: 3mm; }
+.kbp-tit { font-size: 1.9em; font-weight: 700; line-height: 1.15; }
+.kbp-tit strong { color: #8b1e5b; }
+.kbp-cont { font-size: .6em; font-weight: 400; color: #555; }
+.kbp-info { margin-top: .6mm; color: #444; }
+.kbp-nums { margin-top: .8mm; font-weight: 700; color: #222; }
+.kbp-quadro { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2mm; align-items: start; }
+.kbp-col { min-width: 0; background: var(--st-sf); border-top: 1.2mm solid var(--st-cor); border-radius: 1.2mm; }
+.kbp-col-cab {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 1mm;
+  padding: 1mm 1.5mm; font-size: 1.05em; font-weight: 700; color: var(--st-tx);
+}
+.kbp-col-n { font-weight: 700; white-space: nowrap; }
+.kbp-col-corpo { padding: 0 1.2mm 1.2mm; }
+.kbp-card {
+  margin: 0 0 1.2mm; padding: .8mm 1.2mm;
+  background: #fff; border: .2mm solid #d5d8de; border-left: .9mm solid var(--st-cor); border-radius: .8mm;
+  break-inside: avoid; page-break-inside: avoid;
+}
+.kbp-card.is-alerta { border-left-color: #b42318; background: #fff7f7; }
+.kbp-num { font-weight: 700; overflow-wrap: anywhere; }
+.kbp-st { font-weight: 700; color: #1d6b45; }
+.kbp-st.is-fechada { color: #b42318; }
+.kbp-st.is-sem { color: #777; font-weight: 400; }
+.st-cor--fora .kbp-st { color: #8a4b00; }
+.st-cor--fora .kbp-st.is-fechada, .st-cor--encerrada .kbp-st.is-fechada { color: #0c6645; }
+.kbp-l2 { font-size: .92em; color: #333; overflow-wrap: anywhere; }
+.kbp-alerta { font-size: .9em; font-weight: 700; color: #b42318; }
+.kbp-origem { font-size: .88em; font-style: italic; color: #555; }
+.kbp-fv { font-size: .9em; font-weight: 700; color: #34506b; }
+.kbp-desc { margin-top: .5mm; font-size: .92em; color: #222; white-space: pre-wrap; overflow-wrap: anywhere; }
+.kbp-quem { font-size: .85em; color: #666; }
+.kbp-vazia { padding: 1mm; font-style: italic; color: #777; }
+.kbp-pe { margin-top: auto; padding-top: 2mm; font-size: .9em; color: #666; text-align: right; }
+.kbp-enc { margin-top: 4mm; }
+.kbp-enc-tit {
+  margin-bottom: 1mm; padding-bottom: .8mm; font-size: 1.1em; font-weight: 700;
+  color: #3f4654; border-bottom: .3mm solid #7b8494;
+}
+.kbp-enc-linha {
+  display: flex; gap: 2mm; padding: .6mm 0; border-bottom: .15mm solid #e1e3e8;
+  break-inside: avoid; page-break-inside: avoid;
+}
+.kbp-enc-linha .kbp-num { flex: 0 0 auto; }
+.kbp-enc-st { flex: 0 0 auto; font-weight: 700; color: #0c6645; }
+.kbp-enc-txt { flex: 1 1 auto; min-width: 0; color: #333; }
+
+/* ==========================================================================
+   publicação para os visualizadores (editor)
+   ========================================================================== */
+
+.pub-auto {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin: 12px 0 4px; font-size: 13px; line-height: 1.45; cursor: pointer;
+}
+.pub-auto input { width: auto; margin-top: 3px; accent-color: var(--accent); }
+.pub-visto { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+.pub-visto:empty { display: none; }
+
+/* ==========================================================================
+   modo leitura — o visualizador (leitura.js)
+   O mesmo programa, sem nada que grave. O que é só do editor leva
+   `data-so-editor` no index.html e some aqui; o resto (campos travados,
+   botões de edição do item) é tratado pelo app.js. Nenhuma regra desta
+   seção alcança .rep-page: o PDF sai idêntico ao do editor.
+   ========================================================================== */
+
+body.modo-leitura [data-so-editor],
+body.modo-leitura .ncr-move-box,
+body.modo-leitura .nota-aviso,
+body.modo-leitura .status-herdar-aviso,
+body.modo-leitura .leitura-esconde { display: none !important; }
+
+.leitura-selo {
+  margin-left: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: #cfd5df;
+  border: 1px solid rgba(255, 255, 255, .28);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.leitura-fonte { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.notice--leitura { border-left-color: #d9a441; }
+
+/* tela sem dados: um botão só à vista; o resto recolhido */
+.leitura-vazio {
+  flex: 1;
+  display: flex;
+  padding: 40px 16px;
+  overflow: auto;
+}
+.leitura-vazio .editor-empty { max-width: 560px; }
+.leitura-vazio .leitura-vazio-txt { font-size: 14px; font-weight: 400; color: var(--ink-2); }
+.leitura-vazio-acoes { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 16px 0 4px; }
+.leitura-btn-grande { font-size: 15px; padding: 9px 22px; }
+.leitura-vazio-mais { margin-top: 18px; text-align: left; }
+.leitura-vazio-mais summary { text-align: center; }
+
+/* diálogo "Dados deste visualizador" */
+.leitura-fonte-dados {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 14px;
+  margin: 0 0 14px;
+  font-size: 13px;
+}
+.leitura-fonte-dados:empty { display: none; }
+.leitura-fonte-dados dt { color: var(--muted); }
+.leitura-fonte-dados dd { margin: 0; font-weight: 600; word-break: break-word; }
+.leitura-caminho {
+  margin: 0 0 14px;
+  padding: 12px 13px;
+  background: #f8f9fb;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.leitura-caminho label { display: block; margin-bottom: 7px; line-height: 1.45; color: var(--ink-2); }
+.leitura-caminho-linha { display: flex; gap: 8px; }
+.leitura-caminho-linha input { flex: 1; min-width: 0; }
+.leitura-caminho .hint { margin: 8px 0 0; }
+.leitura-caminho .btn { margin-top: 8px; }
+
+/* o editor em leitura: campo travado continua selecionável (para copiar),
+   mas não parece campo à espera de texto */
+body.modo-leitura .editor-scroll input[readonly],
+body.modo-leitura .editor-scroll textarea[readonly] {
+  background: #f8f9fb;
+  border-color: var(--line-2);
+}
+/* campo que só mostra o que vem do Banco NCR (a Função Vital) */
+input.is-banco { background: #f3f5f9; border-color: var(--line-2); color: var(--ink, inherit); cursor: default; }
+body.modo-leitura .status-op:disabled { opacity: 1; cursor: default; }
+body.modo-leitura .status-op:disabled:not(.is-on) { opacity: .45; }
+.kb-sel--so { display: inline-flex; align-items: center; padding: 2px 8px; }
+
+/* ==========================================================================
+   comunicados (comunicados.js): a prévia no editor, o pop-up e o histórico
+   no visualizador. Tudo de tela: nada disto chega ao papel — o pop-up é filho
+   do body, e a impressão esconde tudo o que não é o #printRoot.
+   ========================================================================== */
+
+/* o botão na barra de situação e na ficha da NCR */
+.btn--comunicar { border-color: #c9a64a; color: #6b4400; background: #fdf6e3; }
+.btn--comunicar:hover { background: #f9ecc6; }
+
+/* a etiqueta da barra de cima (visualizador) */
+.com-chip { gap: 5px; }
+.com-chip-conta:empty { display: none; }
+.com-chip-conta {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #fff;
+  color: #3a2a00;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+.com-chip.com-chip--novo { background: #d8b877; border-color: #d8b877; color: #3a2a00; }
+
+/* o cartão de um comunicado — o mesmo na prévia, no pop-up e no histórico */
+.com-cartao { display: flex; flex-direction: column; gap: 4px; }
+/* dentro das janelas, `.dlg-body p` daria 12 px entre as linhas do cartão */
+.dlg-body .com-cartao p { margin: 0; line-height: 1.4; }
+.dlg-body .com-cartao .com-frase { color: var(--ink); }
+.dlg-body .com-cartao .com-resumo { color: var(--muted); }
+.com-topo { display: flex; align-items: center; gap: 6px; }
+.com-tipo-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  padding: 1px 7px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #f5f6fa;
+  color: var(--ink-2);
+}
+.com-tipo-tag--novo-waiver { border-color: var(--accent-br); background: var(--accent-sf); color: var(--accent-dk); }
+.com-tipo-tag--nova-ncr { border-color: #c3d0de; background: #e9eef4; color: #22384e; }
+.com-tipo-tag--waiver-aceito { border-color: var(--ok-br); background: var(--ok-sf); color: #0b5234; }
+.com-novo {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: #b42318;
+  color: #fff;
+}
+.com-frase { margin: 0; font-weight: 600; font-size: 13.5px; line-height: 1.4; color: var(--ink); }
+.com-resumo {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+/* a mensagem de quem comunicou: destacada (fundo, barra e negrito) — é o
+   que a frase padrão não diz */
+.com-msg {
+  margin: 2px 0;
+  padding: 6px 10px 7px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--accent-sf);
+}
+.com-msg-rot {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--accent);
+}
+.com-msg-texto {
+  margin: 1px 0 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--accent-dk);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.dlg-body .com-cartao .com-msg-texto { color: var(--accent-dk); margin-top: 1px; }
+.com-pe { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.com-meta { font-size: 11.5px; color: var(--muted); }
+
+/* o pop-up: canto de baixo, sem cobrir a tela e sem tomar o foco */
+.com-pop {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;                 /* abaixo da pré-visualização (50) e do aviso (100) */
+  width: 370px;
+  max-width: calc(100vw - 32px);
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #e3cf95;
+  border-top: 4px solid #c9a64a;
+  border-radius: var(--radius);
+  box-shadow: var(--sh-3);
+  color: var(--ink);
+}
+.com-pop[hidden] { display: none; }
+.com-pop-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px 7px;
+  border-bottom: 1px solid var(--line-2);
+}
+.com-pop-tit { font-size: 13.5px; }
+.com-pop-x {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  cursor: pointer;
+}
+.com-pop-x:hover { background: var(--bg); color: var(--ink); }
+.com-pop-x:focus-visible, .com-pop .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.com-pop-lista { overflow: auto; padding: 4px 12px; }
+.com-pop-lista .com-cartao { padding: 9px 0; }
+.com-pop-lista .com-cartao + .com-cartao { border-top: 1px solid var(--line-2); }
+.com-pop-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 9px 12px 11px;
+  border-top: 1px solid var(--line-2);
+}
+@media (max-width: 600px) {
+  .com-pop { right: 16px; left: 16px; width: auto; max-width: none; bottom: 16px; }
+}
+
+/* a prévia e o histórico */
+.com-dlg .dlg-body > p { margin-top: 0; }
+.com-tipos { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.com-tipos[hidden] { display: none; }
+.com-tipos legend { font-size: 12px; font-weight: 700; color: var(--ink-2); padding: 0 4px; }
+.com-tipo { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; cursor: pointer; }
+.com-previa-rot { font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.com-previa {
+  padding: 10px 12px;
+  border: 1px solid #e3cf95;
+  border-left: 4px solid #c9a64a;
+  border-radius: var(--radius-sm);
+  background: #fffdf7;
+  margin-bottom: 12px;
+}
+.com-campos {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 3px 14px;
+  margin: 0 0 12px;
+  font-size: 12.5px;
+}
+.com-campos dt { color: var(--muted); }
+.com-campos dd { margin: 0; font-weight: 600; word-break: break-word; }
+.com-msg-rot { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.com-msg-rot small { font-weight: 400; color: var(--muted); }
+#comunicarMsg { width: 100%; box-sizing: border-box; resize: vertical; }
+.com-conta { text-align: right; margin: 2px 0 8px; }
+.com-ja {
+  margin: 0 0 8px;
+  padding: 8px 11px;
+  border-left: 3px solid #d9a441;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--warn-sf);
+  color: #6b4400;
+  font-size: 12.5px;
+}
+.com-hist-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
+.com-hist-acoes:not(:has(:not([hidden]))) { display: none; }
+.com-lista { list-style: none; margin: 0; padding: 0; max-height: 58vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.com-lista > li { padding: 10px 12px; }
+.com-lista > li + li { border-top: 1px solid var(--line-2); }
+.com-hist-item.is-novo { background: #fffdf2; box-shadow: inset 3px 0 0 #c9a64a; }
+.com-vazio { color: var(--muted); font-size: 13px; }
+
+/* --- NCR temporária ↔ definitiva, correções do administrador (correcoes.js) --- */
+.nb2-tag-cont {
+  display: inline-block; margin: 2px 0 0 6px; padding: 0 6px; border-radius: 8px;
+  font: inherit; font-size: 10.5px; font-weight: 700; white-space: nowrap; cursor: pointer;
+  background: #efeafb; color: #4a3aa7; border: 1px solid #d9d0f5;
+}
+.nb2-tag-cont:hover { background: #e3dbf8; }
+.nb2-tag-cont--temp { background: #fff4e0; color: #8a5a00; border-color: #f0d7a8; }
+.nb2-tag-ajuste {
+  display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 8px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  background: #e8f1fd; color: #1a4fa0;
+}
+.nb2-table tbody tr.is-substituida td { color: var(--muted); }
+.nb2-table tbody tr.is-substituida .nb2-num { color: var(--muted); text-decoration: line-through; }
+.nb2-rel-como { margin-left: 4px; font-size: 10px; opacity: .9; }
+.nb-chip--ajuste { background: #e8f1fd; color: #1a4fa0; }
+.nb-chip--cont { background: #efeafb; color: #4a3aa7; }
+.nb-sec--cont { border-left: 4px solid #4a3aa7; }
+.nb-sec--detalhe { border-left: 4px solid #0f7a52; }
+.nb-sec--auditoria { border-left: 4px solid #1a4fa0; }
+.nb-cont-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 8px; }
+.nb-cont-linha .nb2-mini { display: inline; }
+.nb-cont-linha--temp strong { color: #8a5a00; }
+.nb-cont-num { font-weight: 700; }
+.nb-link {
+  font: inherit; font-weight: 700; color: #34506b; background: none; border: none;
+  padding: 0; cursor: pointer; text-decoration: underline;
+}
+.nb-cont-form { display: grid; gap: 8px; margin-top: 6px; }
+.nb-cont-campo label { display: block; font-size: 12px; font-weight: 600; color: var(--ink-2); margin-bottom: 3px; }
+.nb-cont-inp { display: flex; gap: 6px; }
+.nb-cont-inp input { flex: 1; min-width: 0; }
+.nb-cont-copiar { font-size: 12px; color: var(--ink-2); display: flex; gap: 6px; align-items: flex-start; }
+.nb-campos dt.is-ajustado { color: #1a4fa0; }
+.nb-campos dt.is-ajustado::after { content: ' ✎'; }
+.nb-ajuste-nota { display: block; font-size: 11px; color: #1a4fa0; }
+.nb-det-caixa { overflow-x: auto; }
+.nb-det td { white-space: pre-wrap; }
+.nb-ligacao-cont {
+  font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 10px;
+  background: #efeafb; color: #4a3aa7;
+}
+.btn--admin { border-color: #1a4fa0; color: #1a4fa0; }
+
+/* área administrativa */
+.adm-ajuste { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); }
+.adm-ajuste h4 { margin: 0 0 4px; font-size: 13px; }
+.adm-ajuste .hint { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
+dialog.adm-dlg { width: min(1100px, 96vw); max-width: none; }
+.adm-dlg .dlg-body { max-height: 78vh; overflow: auto; }
+.adm-abas { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 12px; }
+.adm-aba.is-on { background: #1a4fa0; border-color: #1a4fa0; color: #fff; }
+.adm-corpo .hint { font-size: 12px; color: var(--muted); margin: 0 0 10px; line-height: 1.45; }
+.adm-campo { margin-bottom: 10px; }
+.adm-linha { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.adm-linha input { flex: 1; min-width: 220px; }
+.adm-grade { display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 10px; }
+@media (max-width: 800px) { .adm-grade { grid-template-columns: 1fr; } }
+.adm-tit { margin: 14px 0 6px; font-size: 13px; color: var(--ink-2); }
+.adm-tabela input.adm-novo { width: 100%; min-width: 160px; }
+.adm-tabela td.adm-ajustado { color: #1a4fa0; font-weight: 600; }
+.adm-acoes { white-space: nowrap; }
+.adm-acoes .btn { margin-right: 4px; }
+.adm-msg { color: #b42318; font-weight: 600; min-height: 1.2em; margin: 4px 0; }
+.adm-aviso {
+  font-size: 12.5px; color: #8a5a00; background: var(--warn-sf);
+  border-left: 3px solid #d9a441; padding: 6px 10px; border-radius: 0 6px 6px 0;
+}
+.adm-nota { font-size: 12px; color: var(--muted); margin-top: 10px; }
+.adm-aud-caixa { max-height: 50vh; overflow: auto; }
+
+
+/* ==========================================================================
+   Produtos — o banco de produtos (produtosview.js)
+   A aba reaproveita a barra, o painel, os filtros e a tabela do Banco NCR
+   (.nb2-*); aqui só o que é dela.
+   ========================================================================== */
+.pr-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.pr-chip {
+  display: inline-block; padding: 1px 8px; border-radius: 10px;
+  font-size: 11.5px; font-weight: 700; line-height: 1.5; white-space: nowrap;
+}
+.pr-chip--marco { background: #e8eefb; color: #1a4fa0; }
+.pr-chip--fv { background: #f3f6df; color: #4a5906; }
+/* produto que não está atrelado a nada: existe, só não se aplica */
+.pr-na {
+  display: inline-block; padding: 1px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 700; letter-spacing: .03em;
+  background: #eceef2; color: #6d7383;
+}
+/* 2.400 linhas: com a largura das colunas decidida de antemão o navegador não
+   mede o texto de cada célula para acertá-la (era mais de um segundo) */
+.pr2-table { table-layout: fixed; }
+.pr2-table th:nth-child(1) { width: 118px; }
+.pr2-table th:nth-child(2) { width: 130px; }
+.pr2-table th:nth-child(3) { width: auto; }
+.pr2-table th:nth-child(4) { width: 76px; }
+.pr2-table th:nth-child(5) { width: 19%; }
+.pr2-table th:nth-child(6) { width: 15%; }
+.pr2-table th:nth-child(7) { width: 128px; }
+.pr2-table td.is-longo { max-width: none; min-width: 0; }
+.pr2-table tr.is-na td { color: var(--muted); }
+.pr2-table td { vertical-align: middle; }
+.pr2-linha { cursor: pointer; }
+.pr-marca { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; white-space: nowrap; }
+.pr-sist { font-weight: 700; color: var(--ink-2); }
+.pr-nncr { text-align: center; white-space: nowrap; }
+.pr-zero { color: var(--muted); }
+.pr-contador {
+  font: inherit; font-weight: 700; min-width: 26px; padding: 1px 8px; cursor: pointer;
+  border: 1px solid var(--kind-br); border-radius: 10px; background: var(--kind-sf); color: var(--kind);
+}
+.pr-contador:hover { background: var(--kind); color: #fff; }
+.pr-num { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+
+.pr2-vistas { display: flex; gap: 4px; }
+.pr2-mais {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; margin-top: 8px; font-size: 12.5px; color: var(--muted);
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.pr2-recorte { justify-content: space-between; }
+
+/* o grau do casamento com a NCR: exato, variação ou parecido */
+.pr-nivel {
+  display: inline-block; padding: 1px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.pr-nivel--exato { background: #e7f4ec; color: #1d6b45; }
+.pr-nivel--variacao { background: #fff4d6; color: #8a5a00; }
+.pr-nivel--parecido { background: #fff; color: #6d7383; border: 1px dashed #aab0bd; }
+.pr-tab-ncr td { vertical-align: middle; }
+.pr-possiveis { margin-top: 10px; }
+.pr-possiveis > summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--muted); }
+.pr-resumo {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+  margin: 0 0 12px; padding: 8px 12px; background: #f7f9fb; border-radius: 6px;
+}
+.nb-sec--produtos { border-left: 4px solid #5f6e08; }
+
+/* a ficha do produto é menor que a da NCR */
+dialog.pr-ficha { width: min(1100px, 96vw); height: auto; max-height: 92vh; border-top-color: #5f6e08; }
+.pr-ficha .nb-ficha-tit h3 { color: #5f6e08; font-family: ui-monospace, Consolas, monospace; }
+.pr-bloco { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 8px; }
+.pr-fv-nomes { margin: 4px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-2); }
+.pr-copiar { margin-left: 8px; }
+.nb-hist td.pr-nowrap { white-space: nowrap; word-break: normal; }
+
+/* o mapa: marco × função vital */
+.pr-sec { margin-bottom: 14px; }
+.pr-matriz-caixa { overflow: auto; max-height: 70vh; }
+.pr-matriz { border-collapse: separate; border-spacing: 2px; font-size: 12.5px; }
+.pr-matriz th, .pr-matriz td { padding: 0; text-align: center; }
+.pr-mz-canto { font-size: 10px; text-transform: uppercase; color: var(--muted); text-align: left; padding: 4px 8px; white-space: nowrap; }
+.pr-mz-col, .pr-mz-lin { background: #eef1f5; }
+.pr-mz-lin { text-align: left; position: sticky; left: 0; z-index: 1; }
+.pr-mz-cab {
+  font: inherit; font-weight: 700; font-size: 12px; width: 100%; min-width: 46px;
+  padding: 5px 8px; border: 0; background: none; color: var(--ink-2); cursor: pointer; white-space: nowrap;
+}
+.pr-mz-cab:hover { color: var(--kind); text-decoration: underline; }
+.pr-mz-cel { min-width: 46px; height: 30px; border-radius: 3px; }
+.pr-mz-cel.is-zero { color: #c3c8d2; background: #fafbfc; }
+.pr-mz-n {
+  font: inherit; font-weight: 700; width: 100%; height: 100%; min-height: 30px;
+  border: 0; background: none; color: inherit; cursor: pointer;
+}
+.pr-mz-n:hover { text-decoration: underline; }
+.pr-mz-tot { font-weight: 700; color: var(--ink-2); padding: 0 8px; background: #f5f7fa; border-radius: 3px; white-space: nowrap; }
+.pr-mz-rodape th { position: static; }
+
+/* o mapa: por sistema */
+.pr-sist-lista { display: flex; flex-direction: column; gap: 3px; max-width: 760px; }
+.pr-sist-linha {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 3px 6px;
+  font: inherit; text-align: left; background: none; border: 0; border-radius: 4px; cursor: pointer;
+}
+.pr-sist-linha:hover { background: var(--kind-sf); }
+.pr-sist-nome { width: 74px; flex: 0 0 74px; font-weight: 700; color: var(--ink-2); }
+.pr-sist-barra { flex: 1; display: flex; height: 14px; background: #f1f3f6; border-radius: 3px; overflow: hidden; }
+.pr-sist-com { background: #6b7a0a; }
+.pr-sist-na { background: #c3c8d2; }
+.pr-sist-n { width: 52px; flex: 0 0 52px; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.pr-sist-leg { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+.pr-sist-chave { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; }
+
+/* --- NCRs do produto: abertas × fechadas ------------------------------------- */
+.pr-ind { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; min-width: 64px;
+  font: inherit; background: none; border: 0; padding: 2px 4px; border-radius: 8px; }
+button.pr-ind { cursor: pointer; }
+button.pr-ind:hover { background: var(--kind-sf); }
+.pr-ind-pil { display: inline-flex; gap: 4px; }
+.pr-pil { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 700; line-height: 1.5; white-space: nowrap; }
+.pr-pil--aberta { background: #c2410c; color: #fff; }
+.pr-pil--fechada { background: #fff; color: #1d6b45; border: 1px solid #9fd0b4; }
+.pr-ind-barra { display: flex; width: 100%; min-width: 56px; height: 4px; border-radius: 2px; overflow: hidden; background: #eceef2; }
+.pr-ind-ab { background: #c2410c; }
+.pr-ind-fe { background: #3aa66f; }
+.pr-ind-txt { margin-left: 8px; font-size: 12.5px; color: var(--ink-2); }
+.nb-sec-sub .pr-ind { flex-direction: row; vertical-align: middle; min-width: 0; }
+.pr-status { margin-left: 8px; font-size: 12px; color: var(--ink-2); }
+.pr-onde { overflow-wrap: anywhere; min-width: 180px; }
+
+/* a ficha do produto: lugar de sobra para as NCRs */
+dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
+.pr-grade2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 900px) { .pr-grade2 { grid-template-columns: 1fr; } }
+.pr-tab-ncrs td, .pr-tab-ncrs th { white-space: nowrap; word-break: normal; }
+.pr-tab-ncrs td.pr-onde { white-space: normal; }
+
+/* marca funcional por função vital / por marco */
+.pr-mm-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.pr-mm .pr-mm-marca { min-width: 120px; }
+.pr-mm-cel { min-width: 46px; height: 24px; color: #6b7a0a; font-size: 14px; }
+.pr-mm-cel.is-on { background: #f3f6df; }
+.pr-mm-cel.is-na { background: #eceef2; color: #6d7383; }
+.pr-mm thead th { position: sticky; top: 0; z-index: 2; }
+.pr-mm .pr-mz-canto { position: sticky; left: 0; z-index: 3; background: #eef1f5; }
+.pr-mm .pr-mm-marca { background: #eef1f5; }
