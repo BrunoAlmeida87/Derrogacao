@@ -1261,6 +1261,8 @@
     });
   }
 
+  var IMG_PREFIXO = 'img:';
+
   function idbAll() {
     return openDb().then(function (db) {
       return new Promise(function (resolve, reject) {
@@ -1272,15 +1274,92 @@
     });
   }
 
+  /* As imagens (base64, megabytes) moram à parte no IndexedDB, uma por
+     registro (`img:<id>`, na prateleira `snapshots`): o registro do relatório
+     leva só o texto. Antes cada autossalvamento regravava o relatório inteiro
+     com todas as fotos, e digitar travava por segundos. `imgSalvas` lembra
+     id → tamanho do que já está gravado, para só gravar a imagem nova ou
+     trocada. */
+  var imgSalvas = {};
+
+  function separarImagens(project) {
+    var novas = [];
+    ['ncrs', 'devs'].forEach(function (k) {
+      (project[k] || []).forEach(function (it) {
+        (it.evidence || []).forEach(function (ev) {
+          (ev.images || []).forEach(function (im) {
+            if (!im || !im.id || !im.src) return;
+            if (imgSalvas[im.id] !== im.src.length) novas.push({ id: IMG_PREFIXO + im.id, src: im.src, n: im.src.length, imgId: im.id });
+            im.ref = true;
+            delete im.src;
+          });
+        });
+      });
+    });
+    return novas;
+  }
+
   function idbPut(project) {
+    var leve = project, novas = [];
+    try { novas = separarImagens(leve); } catch (e) { novas = []; }
     return openDb().then(function (db) {
       return new Promise(function (resolve, reject) {
-        var tx = db.transaction(STORE, 'readwrite');
-        tx.objectStore(STORE).put(project);
-        tx.oncomplete = function () { resolve(project); };
+        var tx = db.transaction([STORE, SNAP_STORE], 'readwrite');
+        tx.objectStore(STORE).put(leve);
+        var snap = tx.objectStore(SNAP_STORE);
+        novas.forEach(function (n) { snap.put({ id: n.id, src: n.src }); });
+        tx.oncomplete = function () {
+          novas.forEach(function (n) { imgSalvas[n.imgId] = n.n; });
+          resolve(project);
+        };
         tx.onerror = function () { reject(tx.error); };
         tx.onabort = function () { reject(tx.error || new Error('Gravação abortada')); };
       });
+    });
+  }
+
+  /* devolve o `src` às imagens que o registro guardou só por referência */
+  function hidratarImagensIdb(rows) {
+    var ids = {}, quer = [];
+    rows.forEach(function (p) {
+      ['ncrs', 'devs'].forEach(function (k) {
+        ((p && p[k]) || []).forEach(function (it) {
+          ((it && it.evidence) || []).forEach(function (ev) {
+            ((ev && ev.images) || []).forEach(function (im) {
+              if (im && im.ref && !im.src && im.id && !ids[im.id]) { ids[im.id] = true; quer.push(im.id); }
+            });
+          });
+        });
+      });
+    });
+    if (!quer.length) return Promise.resolve(rows);
+    return openDb().then(function (db) {
+      return new Promise(function (resolve) {
+        var achados = {};
+        var tx = db.transaction(SNAP_STORE, 'readonly');
+        var st = tx.objectStore(SNAP_STORE);
+        quer.forEach(function (id) {
+          var rq = st.get(IMG_PREFIXO + id);
+          rq.onsuccess = function () { if (rq.result && rq.result.src) achados[id] = rq.result.src; };
+        });
+        tx.oncomplete = tx.onerror = tx.onabort = function () { resolve(achados); };
+      });
+    }).then(function (achados) {
+      rows.forEach(function (p) {
+        ['ncrs', 'devs'].forEach(function (k) {
+          ((p && p[k]) || []).forEach(function (it) {
+            ((it && it.evidence) || []).forEach(function (ev) {
+              ((ev && ev.images) || []).forEach(function (im) {
+                if (im && im.ref && !im.src) {
+                  if (achados[im.id]) { im.src = achados[im.id]; imgSalvas[im.id] = im.src.length; }
+                  delete im.ref;
+                }
+              });
+            });
+          });
+        });
+      });
+      return rows;
     });
   }
 
@@ -1389,7 +1468,14 @@
    * - `diario` é o que o histórico de alterações já contou. Avança a cada
    *   captura, com ou sem pasta, para a mesma escrita não virar vinte linhas.
    */
+  var baseUltima = null;
+
   function saveBase(mapa, diario, lida, carimbo) {
+    /* mesmo conteúdo da última gravação: não há o que regravar (era um
+       `put` de megabytes a cada rodada, parada ou não) */
+    var chave = null;
+    try { chave = JSON.stringify([mapa || {}, diario || {}, lida || {}, Number(carimbo) || 0]); } catch (e) { chave = null; }
+    if (chave !== null && chave === baseUltima) return Promise.resolve(true);
     return openDb().then(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(SNAP_STORE, 'readwrite');
@@ -1402,7 +1488,7 @@
              seguinte sabe se o arquivo da pasta ainda é o meu */
           carimbo: Number(carimbo) || 0
         });
-        tx.oncomplete = function () { resolve(true); };
+        tx.oncomplete = function () { baseUltima = chave; resolve(true); };
         tx.onerror = function () { reject(tx.error); };
       });
     }).catch(function (e) {
@@ -1648,7 +1734,7 @@
     normalizeNcr: normalizeNcr,
 
     list: function () {
-      var read = useIdb ? idbAll().catch(function (e) { fallback(e); return lsAll(); }) : Promise.resolve(lsAll());
+      var read = useIdb ? idbAll().then(hidratarImagensIdb).catch(function (e) { fallback(e); return lsAll(); }) : Promise.resolve(lsAll());
       return read.then(function (rows) {
         return rows.map(normalizeProject).sort(function (a, b) {
           return String(b.updatedAt).localeCompare(String(a.updatedAt));

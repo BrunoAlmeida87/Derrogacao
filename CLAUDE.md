@@ -181,6 +181,17 @@ também só na hora.)
 Persistência: **IndexedDB** (`derrogacao`, v3, stores `projects`, `snapshots`,
 `handles`), com `localStorage` de reserva. `Store.save/list/remove`.
 
+**As imagens moram à parte no IndexedDB** (`snapshots`, chave `img:<id>`): o
+registro do relatório leva só o texto (a imagem vira `{id, ref:true}`), e
+`Store.list` devolve o `src`. Motivo: o autossalvamento regravava o relatório
+inteiro com todas as fotos (dezenas de MB) e digitar travava por segundos
+(medido no Performance do Bruno: `put` + Commit ≈ 75% do tempo). `imgSalvas`
+(id → tamanho) evita regravar foto que não mudou; `saveBase` também não grava
+conteúdo igual ao anterior. Sem apagar órfãs (custo baixo). **Risco**: versão
+anterior do programa abrindo o mesmo navegador vê relatórios salvos assim sem
+fotos — toda a equipe deve trocar de versão. O `localStorage` de reserva e o
+backup continuam com tudo embutido.
+
 **O banco NCR mora no `snapshots`**, com prefixo na chave — `ncr:<chave>` (uma
 linha por NCR) e `ncrmeta:<nome>` (listas, registro das importações, o retrato
 para desfazer). Pelo mesmo motivo da base da mesclagem: prateleira nova
