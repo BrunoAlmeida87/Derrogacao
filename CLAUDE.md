@@ -966,7 +966,14 @@ passam a ver "dados" em centenas de colunas vazias. A folha também diz a
   chave (`chaveNcr`) e o mesmo `grupoSbr`. Aceita também o `ncr.json` do NCR
   Control. **Só SBR4** (`Ncrs.SBR_ALVO`): coluna SBR; vazia, o número
   (`NCR-…-14-…`). Nunca apaga NCR — a que some do export fica com
-  `fonte.presente = false`.
+  `fonte.presente = false`, **com o `importadoEm` desta importação** (e o
+  mesmo ao voltar). Sem o carimbo a marca não viajava (na pasta vale o
+  `importadoEm` maior) e, no empate com marcas diferentes, os dois lados
+  marcavam `localMaisNovo` e regravavam o arquivo grande do banco a cada
+  rodada — foi isso que fez o computador do colega recriar o arquivo e a pasta
+  recusar a gravação do Bruno (15/10, §5 "Gravação recusada fica à vista").
+  O empate que versões anteriores deixaram é resolvido adotando a marca da
+  pasta, sem regravar (`tests/gravacao.test.js`).
 - **Correlação** só preenche o vazio (a menos de "substituir"), e a NCR que
   ainda não está no banco vai para `meta.pendentes`, aplicada quando chegar.
 - **Vínculo NCR ↔ relatório não é gravado à parte**: é lido dos relatórios

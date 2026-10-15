@@ -11659,7 +11659,9 @@ if(isWorker){
       if (igual) {
         st.iguais++;
         var voltou = !antes.presente;
-        if (voltou) antes.presente = true;
+        /* voltou ao export: a marca muda, e o carimbo junto — é o carimbo que
+           a faz viajar para a pasta (ver o "não consta mais", abaixo) */
+        if (voltou) { antes.presente = true; antes.importadoEm = agora; }
         if (voltou || historicoNovo) alterados.push(rec);
         return;
       }
@@ -11689,11 +11691,17 @@ if(isWorker){
       alterados.push(rec);
     });
 
-    /* as que não vieram neste export continuam aqui, apenas marcadas */
+    /* as que não vieram neste export continuam aqui, apenas marcadas.
+       A marca leva o carimbo desta importação: sem ele, a mudança não viajava
+       (na pasta vale o `importadoEm` maior) e os dois computadores, cada um
+       com a sua marca e o mesmo carimbo, regravavam o arquivo grande do banco
+       a cada rodada — foi assim que o arquivo passou a ser recriado pelo
+       colega e a pasta deixou de aceitar a gravação do Bruno (15/10). */
     var ausentes = [];
     lista().forEach(function (rec) {
       if (!vistos[rec.key] && rec.fonte.presente) {
         rec.fonte.presente = false;
+        rec.fonte.importadoEm = agora;
         ausentes.push(rec.numero);
         alterados.push(rec);
       }
@@ -12117,8 +12125,15 @@ if(isWorker){
       }
       if (f.importadoEm > rec.fonte.importadoEm) {
         rec.fonte = f; rec.numero = str(x.numero) || rec.numero; mexeu = true;
-      } else if (f.importadoEm < rec.fonte.importadoEm || f.presente !== rec.fonte.presente) {
+      } else if (f.importadoEm < rec.fonte.importadoEm) {
         res.localMaisNovo = true;
+      } else if (f.presente !== rec.fonte.presente) {
+        /* mesmo carimbo, marca diferente: o que versões anteriores deixaram
+           (a marca "não consta mais" mudava sem carimbo). Vale a da pasta, sem
+           regravar — antes os dois lados se achavam mais novos e regravavam o
+           arquivo a cada 20 s, para sempre. */
+        rec.fonte.presente = f.presente;
+        mexeu = true;
       } else if (rec.fonte.detalhes.length && !f.detalhes.length) {
         /* a mesma importação, sem os detalhes: foi regravada por uma versão
            anterior do programa, que não os conhece — devolve-os à pasta */

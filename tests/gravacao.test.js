@@ -90,6 +90,47 @@ async function rodada(pg) {
     L.ok(await pg.isHidden('#gravaNotice'), 'gravou: o aviso some sozinho');
     L.ok((await lerDaPasta(pg, BANCO)).indexOf(N) >= 0, 'e a NCR que faltava chegou ao arquivo da pasta');
 
+    console.log('a marca "não consta mais" viaja, e ninguém fica regravando o banco');
+    const banco = L.dadosDeExemplo().banco;
+    const SAIU = L.numero(5);
+    banco.registros = banco.registros.filter(r => r.id !== SAIU);
+    const local = await pg.evaluate(async (b) => {
+      const r = Ncrs.importarBase(b, 'export-sem-uma.json', 'Teste');
+      await Ncrs.salvar(r.alterados);
+      await Ncrs.salvarMeta();
+      return Ncrs.get(b.saiu).fonte;
+    }, Object.assign({}, banco, { saiu: SAIU }));
+    L.ok(local.presente === false, 'a NCR que saiu do export fica marcada como "não consta mais"');
+    await rodada(pg);
+    const naPasta = JSON.parse(await lerDaPasta(pg, BANCO)).ncrs.filter(x => x.numero === SAIU)[0];
+    L.ok(naPasta && naPasta.fonte.presente === false && naPasta.fonte.importadoEm === local.importadoEm,
+      'a marca chega à pasta com o carimbo da importação (é o que a faz chegar ao colega)');
+    /* o que versões anteriores deixaram: a mesma importação, com a marca
+       diferente nos dois lados */
+    const OUTRA = L.numero(7);
+    await pg.evaluate(async ({ nome, numero }) => {
+      const raiz = await navigator.storage.getDirectory();
+      const dir = await raiz.getDirectoryHandle('Derrogacao');
+      const fh = await dir.getFileHandle(nome);
+      const d = JSON.parse(await (await fh.getFile()).text());
+      d.ncrs.forEach(x => { if (x.numero === numero) x.fonte.presente = !x.fonte.presente; });
+      const w = await fh.createWritable();
+      await w.write(JSON.stringify(d));
+      await w.close();
+    }, { nome: BANCO, numero: OUTRA });
+    const dataDoArquivo = () => pg.evaluate(async (nome) => {
+      const raiz = await navigator.storage.getDirectory();
+      const dir = await raiz.getDirectoryHandle('Derrogacao');
+      return (await (await dir.getFileHandle(nome)).getFile()).lastModified;
+    }, BANCO);
+    const antesDaRodada = await dataDoArquivo();
+    await rodada(pg);
+    await rodada(pg);
+    const lado = await pg.evaluate((n) => Ncrs.get(n).fonte.presente, OUTRA);
+    const naPasta2 = JSON.parse(await lerDaPasta(pg, BANCO)).ncrs.filter(x => x.numero === OUTRA)[0].fonte.presente;
+    L.ok(lado === naPasta2, 'empate com marcas diferentes: este lado adota a da pasta');
+    L.igual(await dataDoArquivo(), antesDaRodada, 'e não regrava o arquivo do banco (era o pingue-pongue de 20 em 20 s)');
+
     console.log('visualizador');
     const vis = await s.contexto.newPage();
     await vis.goto(srv.url + 'index.html?modo=leitura');
