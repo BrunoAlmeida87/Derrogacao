@@ -2,9 +2,10 @@
    derrogacao-ncr-banco.json tinha sido recriado pelo colega e a pasta de rede
    não deixava substituí-lo (InvalidStateError a cada rodada, o .crswap
    aparecendo e sumindo). Antes, isso só aparecia no diário do console.
-   Aqui a pasta (OPFS) recusa a troca de um arquivo só; o aviso tem de
-   aparecer com o nome dele, os outros arquivos continuam gravando, e o
-   aviso some quando a gravação volta a passar. */
+   Aqui a pasta (OPFS) recusa a troca de um arquivo só. Pedido do Bruno:
+   nada na tela — a recusa vai para o diário do console (uma linha por
+   arquivo) e para o Diagnóstico, com o nome dele; os outros arquivos
+   continuam gravando, e o Diagnóstico limpa quando a gravação volta. */
 'use strict';
 const L = require('./lib');
 
@@ -48,7 +49,8 @@ async function rodada(pg) {
     await pg.waitForFunction(() => /Derrogacao/.test(document.getElementById('pastaChipLabel').textContent));
     await pg.waitForTimeout(1500);
     L.ok(!!(await lerDaPasta(pg, BANCO)), 'a pasta tem o arquivo do banco NCR');
-    L.ok(await pg.isHidden('#gravaNotice'), 'sem recusa, sem aviso');
+    const diag = () => pg.evaluate(() => Log.diagnostico());
+    L.ok(/gravações recusadas: .*nenhuma/.test(await diag()), 'sem recusa: o Diagnóstico diz que não há nenhuma');
 
     console.log('a pasta recusa substituir o arquivo do banco');
     const N = L.numero(3);
@@ -69,25 +71,23 @@ async function rodada(pg) {
       };
     }, BANCO);
     await rodada(pg);
-    L.ok(await pg.isHidden('#gravaNotice'), 'uma recusa só ainda não é aviso (pode ser o colega no mesmo segundo)');
+    L.ok(/gravações recusadas: .*nenhuma/.test(await diag()), 'uma recusa só ainda não conta (pode ser o colega no mesmo segundo)');
     await rodada(pg);
-    L.ok(await pg.isVisible('#gravaNotice'), 'na segunda recusa seguida, o aviso aparece');
-    const txt = await pg.textContent('#gravaNoticeText');
-    L.ok(txt.indexOf(BANCO) >= 0 && /banco NCR importado/.test(txt), 'o aviso diz qual arquivo, com o nome que se entende');
-    L.ok(/SUBSTITUIR/.test(txt) && /Modificar/.test(txt), 'e diz o que é (permissão de substituir) e o que pedir à TI');
-    L.ok(!/derrogacao-dados\.json/.test(txt), 'os relatórios, que gravam normalmente, não entram no aviso');
+    const txt = await diag();
+    L.ok(txt.indexOf(BANCO + '=') >= 0 && /2x desde/.test(txt), 'na segunda recusa seguida, o Diagnóstico diz qual arquivo e quantas vezes');
+    L.ok(!/derrogacao-dados\.json=/.test(txt), 'os relatórios, que gravam normalmente, não entram');
+    L.ok(await pg.evaluate(() => ![...document.querySelectorAll('.notice')].some(n => n.offsetParent && /gravar/i.test(n.textContent))),
+      'nada disso aparece na tela');
     L.ok((await lerDaPasta(pg, BANCO)).indexOf(N) < 0, 'o arquivo da pasta continua sem a NCR (a gravação não passou)');
     const diario = await pg.evaluate(() => Log.historico());
     L.igual((diario.match(/não está deixando gravar derrogacao-ncr-banco/g) || []).length, 1,
       'o diário registra a recusa uma vez, não a cada rodada');
-    L.ok(await pg.isVisible('#gravaNoticeBtn'), 'o aviso tem o botão para tentar de novo');
-    if (process.env.DERROG_FOTO) await pg.screenshot({ path: L.arquivo('aviso-gravacao.png'), clip: { x: 0, y: 0, width: 1600, height: 420 } });
 
     console.log('a gravação volta a passar');
     await pg.evaluate(() => { FileSystemFileHandle.prototype.createWritable = window.__cwOriginal; });
-    await pg.click('#gravaNoticeBtn');
-    await pg.waitForTimeout(2500);
-    L.ok(await pg.isHidden('#gravaNotice'), 'gravou: o aviso some sozinho');
+    await rodada(pg);
+    L.ok(/gravações recusadas: .*nenhuma/.test(await diag()), 'gravou: o Diagnóstico volta a dizer que não há nenhuma');
+    L.ok(/voltou a gravar derrogacao-ncr-banco/.test(await pg.evaluate(() => Log.historico())), 'e o diário registra a volta');
     L.ok((await lerDaPasta(pg, BANCO)).indexOf(N) >= 0, 'e a NCR que faltava chegou ao arquivo da pasta');
 
     console.log('a marca "não consta mais" viaja, e ninguém fica regravando o banco');
@@ -131,13 +131,11 @@ async function rodada(pg) {
     L.ok(lado === naPasta2, 'empate com marcas diferentes: este lado adota a da pasta');
     L.igual(await dataDoArquivo(), antesDaRodada, 'e não regrava o arquivo do banco (era o pingue-pongue de 20 em 20 s)');
 
-    console.log('visualizador');
-    const vis = await s.contexto.newPage();
-    await vis.goto(srv.url + 'index.html?modo=leitura');
-    await vis.waitForTimeout(1500);
-    L.ok(await vis.evaluate(() => getComputedStyle(document.getElementById('gravaNotice')).display === 'none'),
-      'no visualizador o aviso não existe');
-    await vis.close();
+    console.log('sem avisos de publicação na tela');
+    L.ok(await pg.evaluate(() => !document.getElementById('pubNotice') && !document.getElementById('gravaNotice')),
+      'o aviso "não está ligado à pasta do visualizador" não existe mais');
+    L.ok(/não está ligado à pasta do visualizador/.test(await pg.evaluate(() => Log.historico())),
+      'ele fica no diário do console');
   } catch (e) {
     L.ok(false, 'exceção: ' + (e && e.stack || e));
   } finally {

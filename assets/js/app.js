@@ -6958,7 +6958,6 @@
     var item = $('#pastaBtn');
     if (item) item.hidden = !Pasta.suportado();
     renderPastaNotice();
-    renderGravaNotice();
     ajustarAtualizacao();
     if (!chip) return;
     /* a etiqueta só existe quando há pasta: sem ela não há nada a mostrar */
@@ -7035,52 +7034,6 @@
     if (min < 60) return 'há ' + min + ' minutos';
     var h = Math.floor(min / 60);
     return 'há ' + h + (h === 1 ? ' hora' : ' horas');
-  }
-
-  /* Os nomes que a pessoa entende, para os arquivos da pasta. */
-  var NOMES_ARQUIVO = {
-    'derrogacao-dados.json': 'os relatórios de Waiver',
-    'derrogacao-ncr-banco.json': 'o banco NCR importado',
-    'derrogacao-ncr-waiver.json': 'os campos do Waiver no Banco NCR',
-    'derrogacao-ncr-correcoes.json': 'as correções e ligações de NCR',
-    'derrogacao-ncr-sistema.json': 'o histórico do NCR Integrada',
-    'derrogacao-produtos.json': 'o banco de produtos',
-    'comunicados.json': 'os comunicados',
-    'revisoes.json': 'o diário de alterações',
-    'conversas.json': 'a conversa'
-  };
-
-  function horaCurta(ms) {
-    var d = new Date(ms), p = function (n) { return (n < 10 ? '0' : '') + n; };
-    var hoje = new Date().toDateString() === d.toDateString();
-    return (hoje ? '' : p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' ') + p(d.getHours()) + ':' + p(d.getMinutes());
-  }
-
-  /**
-   * A pasta está ligada e respondendo, mas recusa gravar um arquivo (a troca
-   * do .crswap pelo arquivo antigo — ver vigiarGravacao, no pasta.js). Era
-   * isso que só aparecia no diário: o banco NCR importado não chegava ao
-   * colega, e ninguém via por quê. Some sozinho quando a gravação passa.
-   */
-  function renderGravaNotice() {
-    var box = $('#gravaNotice');
-    if (!box) return;
-    /* sem permissão da sessão o aviso é o da pasta (#pastaNotice); com a
-       pasta em erro os dois aparecem — este diz qual arquivo e por quê */
-    var rs = Leitura.ativo() || !Pasta.ligada() || pastaEstado === 'permissao' ? []
-      : Pasta.gravacoesRecusadas().filter(function (r) { return r.erro !== 'NotAllowedError'; });
-    if (!rs.length) { box.hidden = true; return; }
-    var partes = rs.map(function (r) {
-      return r.arquivo + (NOMES_ARQUIVO[r.arquivo] ? ' (' + NOMES_ARQUIVO[r.arquivo] + ')' : '') +
-        ' — desde ' + horaCurta(r.desde) + ', ' + r.vezes + ' tentativas';
-    });
-    $('#gravaNoticeText').textContent =
-      'Este computador não consegue gravar na pasta da equipe: ' + partes.join('; ') + '. ' +
-      'O que mudou aqui nesses dados não está chegando aos colegas (o resto continua normal). ' +
-      'A pasta recusa SUBSTITUIR o arquivo — quase sempre porque ele foi gravado por outra pessoa e a ' +
-      'pasta não dá a você permissão de Modificar sobre ele, ou porque está aberto noutro computador. ' +
-      'Peça à TI a permissão "Modificar" na pasta para toda a equipe (esta pasta, subpastas e arquivos).';
-    box.hidden = false;
   }
 
   function renderPastaNotice() {
@@ -7382,56 +7335,29 @@
     });
   }
 
-  /* O aviso de "pasta do visualizador desligada". Pedido do Bruno: o editor
-     fica sempre ligado a ela e, quando não está (nunca escolhida, sem
-     permissão nesta sessão, ou parou de responder), pede confirmação para
-     conectar. "Agora não" cala só esta queda: a próxima pergunta de novo. */
-  var pubAvisoCalado = '';
-
-  function renderPubNotice() {
-    var box = $('#pubNotice');
-    if (!box || Leitura.ativo()) return;
-    if (pubEstado === 'on') pubAvisoCalado = '';
-    if (!Pasta.suportado() || pubEstado === 'on' || pubAvisoCalado === pubEstado) {
-      box.hidden = true;
+  /* A pasta do visualizador desligada não vira aviso na tela (pedido do
+     Bruno: "esses avisos incomodam"). Fica no console — uma linha por troca
+     de situação, não a cada rodada — e o chip #pubChip continua sendo o
+     clique que devolve a permissão (o navegador exige um gesto). */
+  var pubDito = '';
+  function anotarPublicacao() {
+    if (Leitura.ativo() || !Pasta.suportado()) return;
+    var situacao = !Pasta.publicacao.ligada() ? 'desligada' : pubEstado;
+    if (situacao === pubDito) return;
+    var antes = pubDito;
+    pubDito = situacao;
+    if (situacao === 'on') {
+      if (antes && antes !== 'desligada') Log.ok('publicação', 'a pasta do visualizador voltou a responder');
       return;
     }
-    var caminho = String(Config.PASTA_VISUALIZADOR || '').trim();
-    var ligada = Pasta.publicacao.ligada();
-    box.hidden = false;
-    box.classList.toggle('notice--parada', ligada);
-    $('#pubNoticeText').textContent = !ligada
-      ? 'O editor não está ligado à pasta do visualizador: o que você faz aqui não chega a quem usa o ' +
-        'visualizador. Escolha a pasta uma vez' + (caminho ? ':' : '.')
-      : pubEstado === 'permissao'
-        ? 'A pasta do visualizador precisa da sua confirmação para receber as publicações nesta sessão.'
-        : 'A pasta do visualizador parou de responder. Os visualizadores continuam vendo a última publicação.';
-    $('#pubNoticePath').textContent = caminho;
-    $('#pubNoticePath').hidden = ligada || !caminho;
-    $('#pubNoticeCopy').hidden = ligada || !caminho;
-    $('#pubNoticeBtn').textContent = !ligada ? 'Escolher a pasta…' : 'Conectar agora';
-  }
-
-  /** O botão do aviso: escolher a pasta (primeira vez) ou reconectar. Vem de um clique. */
-  function conectarPelaNotice() {
-    if (!Pasta.publicacao.ligada()) {
-      Pasta.publicacao.escolher().then(function () {
-        pubEstado = 'on';
-        renderPublicar();
-        return publicar({});
-      }).catch(function (e) {
-        if (e && e.name === 'AbortError') return;
-        markError(e);
-        toast(e.message || 'Não foi possível abrir a pasta.');
-      });
-      return;
-    }
-    conectarPublicacao().then(function (ok) {
-      if (ok) {
-        toast('Pasta do visualizador conectada.');
-        publicar({ auto: true });
-      }
-    });
+    Log.aviso('publicação', situacao === 'desligada'
+      ? 'o editor não está ligado à pasta do visualizador'
+      : situacao === 'permissao'
+        ? 'a pasta do visualizador precisa de permissão nesta sessão'
+        : 'a pasta do visualizador parou de responder',
+      'o que muda aqui não chega a quem usa o visualizador até religar: ⋯ Mais → 👁 Publicar ' +
+      'para visualizadores' + (String(Config.PASTA_VISUALIZADOR || '').trim()
+        ? ' (pasta ' + String(Config.PASTA_VISUALIZADOR).trim() + ')' : '') + '.');
   }
 
   /* A pasta do visualizador caiu enquanto a janela estava fora? Ao voltar,
@@ -7445,7 +7371,7 @@
   }
 
   function renderPublicar() {
-    renderPubNotice();
+    anotarPublicacao();
     var sub = $('#publicarBtnSub');
     var chip = $('#pubChip');
     var ligada = Pasta.publicacao.ligada();
@@ -8595,7 +8521,6 @@
         function () { toast('Caminho copiado. Cole na barra de endereço da janela do Windows.', 5000); },
         function () { toast('Não foi possível copiar aqui. Selecione o texto e use Ctrl+C.'); });
     });
-    $('#gravaNoticeBtn').addEventListener('click', function () { atualizarDaPasta(); });
     $('#pastaNoticeDismiss').addEventListener('click', function () {
       pastaNoticeFechado = true;
       renderPastaNotice();
@@ -8684,16 +8609,6 @@
     /* publicação para os visualizadores */
     $('#publicarBtn').addEventListener('click', abrirPublicarDialog);
     $('#pubChip').addEventListener('click', conectarPublicacao);
-    $('#pubNoticeBtn').addEventListener('click', conectarPelaNotice);
-    $('#pubNoticeDismiss').addEventListener('click', function () {
-      pubAvisoCalado = pubEstado;
-      renderPubNotice();
-    });
-    $('#pubNoticeCopy').addEventListener('click', function () {
-      copiarTexto(String(Config.PASTA_VISUALIZADOR || ''),
-        function () { toast('Caminho copiado. Cole na barra de endereço da janela do Windows.', 5000); },
-        function () { toast('Não foi possível copiar aqui. Selecione o texto e use Ctrl+C.'); });
-    });
     $('#publicarFecharBtn').addEventListener('click', function () { $('#publicarDialog').close(); });
     $('#publicarAgoraBtn').addEventListener('click', function () { publicar({}); });
     $('#publicarBaixarBtn').addEventListener('click', baixarPublicacao);
@@ -9034,6 +8949,17 @@
                diario: baseDiario ? 'guardado' : 'ainda não' };
     });
     Log.fonte('quem', function () { return { nome: Store.getUser() || '(sem nome)' }; });
+    /* a pasta recusando gravar um arquivo (ver vigiarGravacao, no pasta.js):
+       não vai para a tela, a pedido do Bruno — fica aqui e no diário */
+    Log.fonte('gravações recusadas', function () {
+      var rs = Pasta.gravacoesRecusadas();
+      if (!rs.length) return { nenhuma: 'sim' };
+      var o = {};
+      rs.forEach(function (r) {
+        o[r.arquivo] = r.vezes + 'x desde ' + new Date(r.desde).toLocaleString('pt-BR') + ' (' + r.erro + ')';
+      });
+      return o;
+    });
   }
 
   function boot() {

@@ -568,18 +568,22 @@ em `file://`**. A pasta guarda `derrogacao-dados.json`, `imagens/` e
   diário. Antes disso, uma recusa dessas **perdia a rodada inteira**: nem os
   dados, nem a versão do histórico, nem o diário chegavam na pasta (provado no
   navegador contra a versão anterior).
-- **Gravação recusada fica à vista** (`vigiarGravacao` no `pasta.js`,
-  `#gravaNotice` no app.js). O navegador grava um `.crswap` e, no fim,
+- **Gravação recusada vai para o console** (`vigiarGravacao` e
+  `Pasta.gravacoesRecusadas` no `pasta.js`). O navegador grava um `.crswap` e, no fim,
   **substitui** o arquivo antigo — e numa pasta de rede substituir exige poder
   apagar aquele arquivo, o que é mais do que criar. Cada gravação recria o
   arquivo, então o dono vira quem gravou por último; se a pasta só deixa cada
   um mexer no que criou (ou o arquivo está aberto noutro computador), a troca
   é recusada toda vez (`InvalidStateError`, o `.crswap` aparece e some, a data
   não muda). Foi o que deixou o banco NCR do Bruno um dia sem chegar ao colega
-  (15/10), com o aviso só no diário. Hoje, a partir da segunda recusa seguida
-  do mesmo arquivo, a faixa vermelha diz qual arquivo, desde quando, quantas
-  tentativas e o que pedir à TI ("Modificar" para a equipe); um `Log.erro` por
-  arquivo, não por rodada; some sozinha quando a gravação passa. Vale para
+  (15/10) — a causa foi o pingue-pongue do "não consta mais" (§5, Banco NCR),
+  que punha os dois computadores regravando o arquivo grande ao mesmo tempo.
+  Hoje, a partir da segunda recusa seguida do mesmo arquivo, sai um
+  `Log.erro` (um por arquivo, não por rodada) e o Diagnóstico ganha a linha
+  "gravações recusadas" com o arquivo, quantas vezes e desde quando; a volta
+  sai como `Log.ok`. **Nada na tela**: houve uma faixa vermelha, e o Bruno
+  pediu para tirá-la ("não quero mais tantos avisos na tela… deixe no console
+  que eu vejo analisando depois"). Vale para
   `gravar` (dados), `gravarArquivo` (banco, waiver, correções, produtos,
   sistema, comunicados) e `escreverJson` (conversa, diário). Teste:
   `tests/gravacao.test.js`.
@@ -1565,13 +1569,12 @@ como programa separado, feita sobre uma base velha; foi refeita assim.)
   (`localStorage derrogacao:publicarAuto`; após `flushSave` e `sincronizar`,
   no máximo a cada `Publicacao.INTERVALO_MS`, e só se `Publicacao.conteudo`
   mudou — que ignora `updatedAt/lastEditedAt`, renovados a cada gravação).
-  Chip `#pubChip` quando a permissão cai. **Aviso `#pubNotice`** (pedido do
-  Bruno: "sempre linkado; se cair, peça confirmação"): com `pubEstado` fora
-  de `on` — nunca escolhida, sem permissão nesta sessão, erro ao gravar —
-  aparece no alto, com o caminho de `Config.PASTA_VISUALIZADOR` e o botão que
-  escolhe ou reconecta (o gesto que o navegador exige). "Agora não" cala só
-  aquele estado (`pubAvisoCalado`); a próxima queda pergunta de novo. Ao
-  voltar para a janela, `conferirPublicacao` relê a permissão.
+  Chip `#pubChip` quando a permissão cai (é o clique que devolve a permissão).
+  **Sem aviso na tela**: houve o `#pubNotice` no alto ("o editor não está
+  ligado à pasta do visualizador"), e o Bruno pediu para tirar ("esses avisos
+  incomodam"). A situação vai para o diário (`anotarPublicacao`, uma linha por
+  troca: desligada, sem permissão, parou, voltou). Ao voltar para a janela,
+  `conferirPublicacao` relê a permissão.
 - **Conferido no navegador** (scripts fora do repositório, que não tem mais
   suíte): o PDF do editor saiu idêntico, pixel a pixel, antes e depois da
   mudança; o visualizador não deixa nenhum campo editável, não arrasta, não
@@ -2090,7 +2093,8 @@ desta máquina às vezes bloqueia `github.io`.
 | Comunicados dentro da publicação, sem relógio próprio | o visualizador só enxerga a publicação; um segundo ciclo concorreria com o da atualização automática |
 | Retenção por contagem (100), não por prazo | o arquivo é relido a cada 5 min por todo visualizador; por contagem o tamanho tem teto |
 | Comunicado é novidade por 4 dias, sempre (`Config.DIAS_COMUNICADO_NOVO`) | pedido do Bruno: quem volta depois de semanas não deve receber a pilha inteira; eles continuam no histórico |
-| Pasta do visualizador em `Config.PASTA_VISUALIZADOR`; o editor avisa e pede para conectar a cada queda | pedido do Bruno: sempre ligado à pasta, com confirmação quando cair |
+| Pasta do visualizador em `Config.PASTA_VISUALIZADOR`; a queda vai para o console, não para a tela | o aviso no alto existiu e o Bruno pediu para tirar: "esses avisos incomodam" |
+| Gravação recusada pela pasta vai para o console e o Diagnóstico, nunca para a tela | pedido do Bruno: "não quero mais tantos avisos na tela… deixe no console que eu vejo analisando depois" |
 | O backup de tudo leva os comunicados | backup pela metade não é backup; versões antigas ignoram a chave |
 | "Novo waiver" = item do relatório Waiver do J09; "Nova NCR" = NCR do banco com Marco Atual J09 | a leitura proposta ao Bruno antes de implementar |
 | NCR fechada = a lista do Bruno em `Config.STATUS_NCR_FECHADA`, mais o critério por palavra de antes | pedido do Bruno ("7.2 - TA Unfounded" não era reconhecido); a palavra fica para não reabrir o que já era fechado |

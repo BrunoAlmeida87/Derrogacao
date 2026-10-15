@@ -557,12 +557,13 @@ X:\36.GTO - RELATÓRIOS GTO\NCR_MILESTONE\00_BD_VISUALIZADOR\   ← visualizador
 
 O caminho da pasta dos dados está gravado no programa
 (`PASTA_VISUALIZADOR`, em `assets/js/config.js`): o visualizador lê de lá
-sem ninguém configurar nada. No **editor**, enquanto ele não estiver ligado a
-essa pasta, fica no alto um aviso com o caminho e o botão **Escolher a
-pasta…** (na primeira vez) ou **Conectar agora** (quando a permissão caiu ou
-a pasta parou de responder). O navegador não abre pasta por caminho — por
-isso a escolha é na janela do Windows, uma vez; depois ele só pede a sua
-confirmação a cada sessão. **Agora não** cala o aviso só até a próxima queda.
+sem ninguém configurar nada. No **editor**, a pasta é escolhida em
+**⋯ Mais → 👁 Publicar para visualizadores** — o navegador não abre pasta por
+caminho, por isso a escolha é na janela do Windows, uma vez; depois ele só
+pede a sua confirmação a cada sessão (pelo chip da barra de cima). Quando o
+editor não está ligado a essa pasta, ou ela para de responder, **não aparece
+aviso na tela**: fica registrado no diário do console (⋯ Mais → 🩺
+Diagnóstico).
 
 ### Onde o visualizador procura os dados
 
@@ -1694,8 +1695,9 @@ está sozinho é justamente o que produz, depois, dois textos no mesmo campo.
 
 Às vezes a pasta responde, mas recusa gravar **um** arquivo — por exemplo o
 `derrogacao-ncr-banco.json`: a sua importação do banco NCR fica só no seu
-computador, e os colegas continuam vendo a anterior. Aparece então uma faixa
-vermelha dizendo **qual arquivo**, desde quando e quantas tentativas.
+computador, e os colegas continuam vendo a anterior. Isso não aparece na tela:
+fica no **diário do console** e no **⋯ Mais → 🩺 Diagnóstico**, na linha
+"gravações recusadas", com **qual arquivo**, desde quando e quantas vezes.
 
 O motivo quase sempre é permissão: o navegador grava um arquivo temporário
 (`.crswap`) e no fim **substitui** o antigo. Substituir um arquivo que outra
@@ -1704,8 +1706,8 @@ gravação recria o arquivo, o "dono" é sempre quem gravou por último. Peça �
 "Modificar" na pasta para toda a equipe, aplicada a **esta pasta, subpastas e
 arquivos**. Até lá, quem é o dono do arquivo (Propriedades → Segurança →
 Avançado) pode tirá-lo da pasta, com o programa fechado nos dois computadores;
-a próxima gravação do outro cria um novo. A faixa some sozinha quando a
-gravação volta a passar.
+a próxima gravação do outro cria um novo. Quando a gravação volta a passar, o
+diário registra e o Diagnóstico volta a dizer "nenhuma".
 
 ### O que cada pessoa precisa fazer
 
