@@ -178,16 +178,62 @@
   }
 
   /** Escreve um JSON da pasta, com a segunda chance. */
+  /* --- gravações recusadas -------------------------------------------------
+     O navegador não grava por cima: escreve um arquivo novo (.crswap) e, no
+     fim, SUBSTITUI o antigo. Numa pasta de rede, substituir é mais do que
+     criar — é preciso poder apagar aquele arquivo. Se ele foi gravado por
+     outra pessoa (cada gravação recria o arquivo, e o dono vira quem gravou
+     por último) e a pasta só deixa cada um mexer no que criou, ou se o
+     arquivo está aberto noutro computador, a troca é recusada toda vez
+     (InvalidStateError). Foi o que deixou o banco NCR do Bruno sem chegar ao
+     colega por um dia inteiro, com o aviso só no diário. Aqui cada arquivo
+     guarda as recusas seguidas, e o app.js as mostra na tela até passar. */
+  var recusas = {};
+
+  function vigiarGravacao(nomeArq, promessa) {
+    return promessa.then(function (r) {
+      if (recusas[nomeArq]) {
+        Log.ok('pasta', 'voltou a gravar ' + nomeArq + ' depois de ' + recusas[nomeArq].vezes + ' recusa(s)');
+        delete recusas[nomeArq];
+      }
+      return r;
+    }, function (e) {
+      if (handle) {
+        var r = recusas[nomeArq] || (recusas[nomeArq] = { arquivo: nomeArq, desde: Date.now(), vezes: 0, erro: '' });
+        r.vezes++;
+        r.ultima = Date.now();
+        r.erro = (e && e.name) || 'Error';
+        /* uma linha vermelha por arquivo, na segunda recusa seguida: a
+           primeira pode ser o colega gravando no mesmo segundo */
+        if (r.vezes === 2) {
+          Log.erro('pasta', 'a pasta não está deixando gravar ' + nomeArq, e,
+            'o que mudou aqui neste arquivo não está chegando aos colegas. A pasta recusa ' +
+            'SUBSTITUIR o arquivo — quase sempre porque ele foi gravado por outra pessoa e a ' +
+            'pasta não dá a você permissão de Modificar sobre ele, ou porque está aberto ' +
+            'noutro computador. Peça à TI "Modificar" na pasta para toda a equipe.');
+        }
+      }
+      throw e;
+    });
+  }
+
+  /** As gravações recusadas mais de uma vez seguida: [{arquivo, desde, vezes, erro}]. */
+  function gravacoesRecusadas() {
+    return Object.keys(recusas).map(function (k) { return recusas[k]; })
+      .filter(function (r) { return r.vezes >= 2; })
+      .sort(function (a, b) { return a.desde - b.desde; });
+  }
+
   function escreverJson(nomeArq, payload, espaco) {
     if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
     var texto = JSON.stringify(payload, null, espaco || 1);
-    return comSegundaChance(function () {
+    return vigiarGravacao(nomeArq, comSegundaChance(function () {
       return handle.getFileHandle(nomeArq, { create: true })
         .then(function (fh) { return fh.createWritable(); })
         .then(function (w) {
           return w.write(texto).then(function () { return w.close(); });
         });
-    }, nomeArq).then(function () {
+    }, nomeArq)).then(function () {
       Log.detalhe('pasta', 'gravado ' + nomeArq, { bytes: texto.length });
       return true;
     });
@@ -239,14 +285,14 @@
   function gravar(payload) {
     if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
     var texto = JSON.stringify(payload, null, 2);
-    return comSegundaChance(function () {
+    return vigiarGravacao(ARQUIVO, comSegundaChance(function () {
       return arquivoDados(true)
         .then(function (fh) {
           return fh.createWritable().then(function (w) {
             return w.write(texto).then(function () { return w.close(); });
           }).then(function () { return fh.getFile(); });
         });
-    }, ARQUIVO)
+    }, ARQUIVO))
       .then(function (file) {
         ultimaLeitura = file.lastModified;
         Log.detalhe('pasta', 'gravado ' + ARQUIVO, { bytes: texto.length });
@@ -589,14 +635,14 @@
   function gravarArquivo(nomeArq, payload) {
     if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
     var texto = JSON.stringify(payload);
-    return comSegundaChance(function () {
+    return vigiarGravacao(nomeArq, comSegundaChance(function () {
       return handle.getFileHandle(nomeArq, { create: true })
         .then(function (fh) {
           return fh.createWritable().then(function (w) {
             return w.write(texto).then(function () { return w.close(); });
           }).then(function () { return fh.getFile(); });
         });
-    }, nomeArq).then(function (file) {
+    }, nomeArq)).then(function (file) {
       leituras[nomeArq] = file.lastModified;
       Log.detalhe('pasta', 'gravado ' + nomeArq, { bytes: texto.length });
       return true;
@@ -749,6 +795,7 @@
     lerConversas: lerConversas,
     gravarConversas: gravarConversas,
     explicar: explicar,
+    gravacoesRecusadas: gravacoesRecusadas,
     carimbo: carimbo,
     lerRevisoes: lerRevisoes,
     gravarRevisoes: gravarRevisoes,

@@ -568,6 +568,21 @@ em `file://`**. A pasta guarda `derrogacao-dados.json`, `imagens/` e
   diário. Antes disso, uma recusa dessas **perdia a rodada inteira**: nem os
   dados, nem a versão do histórico, nem o diário chegavam na pasta (provado no
   navegador contra a versão anterior).
+- **Gravação recusada fica à vista** (`vigiarGravacao` no `pasta.js`,
+  `#gravaNotice` no app.js). O navegador grava um `.crswap` e, no fim,
+  **substitui** o arquivo antigo — e numa pasta de rede substituir exige poder
+  apagar aquele arquivo, o que é mais do que criar. Cada gravação recria o
+  arquivo, então o dono vira quem gravou por último; se a pasta só deixa cada
+  um mexer no que criou (ou o arquivo está aberto noutro computador), a troca
+  é recusada toda vez (`InvalidStateError`, o `.crswap` aparece e some, a data
+  não muda). Foi o que deixou o banco NCR do Bruno um dia sem chegar ao colega
+  (15/10), com o aviso só no diário. Hoje, a partir da segunda recusa seguida
+  do mesmo arquivo, a faixa vermelha diz qual arquivo, desde quando, quantas
+  tentativas e o que pedir à TI ("Modificar" para a equipe); um `Log.erro` por
+  arquivo, não por rodada; some sozinha quando a gravação passa. Vale para
+  `gravar` (dados), `gravarArquivo` (banco, waiver, correções, produtos,
+  sistema, comunicados) e `escreverJson` (conversa, diário). Teste:
+  `tests/gravacao.test.js`.
 - **Guarda de versão**: lendo dados com `schema` maior que o desta página, a
   sessão para de gravar (só lê) e avisa. Sem isso, a página velha regravaria a
   pasta sem os campos que não conhece. Ver §4.
@@ -1857,6 +1872,11 @@ permissão da pasta entre sessões.
   prateleiras de teste (`ncrs`, `ncrmeta`) para o `snapshots`. **Nunca suba o
   `DB_VERSION` sem necessidade**: a versão anterior do programa deixa de abrir
   o navegador para sempre, e isso não tem volta sem apagar o banco.
+- **Na pasta de rede, substituir não é criar.** "Todos têm permissão na pasta"
+  pode querer dizer criar e editar, e não substituir o arquivo que outra
+  pessoa gravou — e toda gravação do navegador é uma substituição. Quando a
+  sincronização de um arquivo "para" sem erro na tela, olhe o proprietário
+  dele no Windows antes de procurar bug (§5, "Gravação recusada fica à vista").
 - **Dois `function` com o mesmo nome no mesmo arquivo: vale o segundo, sem
   aviso.** O `pasta.js` tinha `carimbo()` (a última leitura, exportada) e
   `carimbo(d)` (o nome datado do histórico); o segundo apagava o primeiro, e

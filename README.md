@@ -1690,6 +1690,23 @@ o seu trabalho continua salvo no computador, mas que ninguém mais o está vendo
 Esse aviso não some com "Agora não": ficar horas escrevendo sem saber que se
 está sozinho é justamente o que produz, depois, dois textos no mesmo campo.
 
+### Quando a pasta não deixa gravar um arquivo
+
+Às vezes a pasta responde, mas recusa gravar **um** arquivo — por exemplo o
+`derrogacao-ncr-banco.json`: a sua importação do banco NCR fica só no seu
+computador, e os colegas continuam vendo a anterior. Aparece então uma faixa
+vermelha dizendo **qual arquivo**, desde quando e quantas tentativas.
+
+O motivo quase sempre é permissão: o navegador grava um arquivo temporário
+(`.crswap`) e no fim **substitui** o antigo. Substituir um arquivo que outra
+pessoa gravou exige a permissão **"Modificar"** sobre ele — e, como cada
+gravação recria o arquivo, o "dono" é sempre quem gravou por último. Peça à TI
+"Modificar" na pasta para toda a equipe, aplicada a **esta pasta, subpastas e
+arquivos**. Até lá, quem é o dono do arquivo (Propriedades → Segurança →
+Avançado) pode tirá-lo da pasta, com o programa fechado nos dois computadores;
+a próxima gravação do outro cria um novo. A faixa some sozinha quando a
+gravação volta a passar.
+
 ### O que cada pessoa precisa fazer
 
 **Uma vez, em cada computador:** abrir **⋯ Mais → 🗄 Pasta da rede…**, clicar em

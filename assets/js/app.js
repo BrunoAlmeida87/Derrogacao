@@ -6958,6 +6958,7 @@
     var item = $('#pastaBtn');
     if (item) item.hidden = !Pasta.suportado();
     renderPastaNotice();
+    renderGravaNotice();
     ajustarAtualizacao();
     if (!chip) return;
     /* a etiqueta só existe quando há pasta: sem ela não há nada a mostrar */
@@ -7034,6 +7035,52 @@
     if (min < 60) return 'há ' + min + ' minutos';
     var h = Math.floor(min / 60);
     return 'há ' + h + (h === 1 ? ' hora' : ' horas');
+  }
+
+  /* Os nomes que a pessoa entende, para os arquivos da pasta. */
+  var NOMES_ARQUIVO = {
+    'derrogacao-dados.json': 'os relatórios de Waiver',
+    'derrogacao-ncr-banco.json': 'o banco NCR importado',
+    'derrogacao-ncr-waiver.json': 'os campos do Waiver no Banco NCR',
+    'derrogacao-ncr-correcoes.json': 'as correções e ligações de NCR',
+    'derrogacao-ncr-sistema.json': 'o histórico do NCR Integrada',
+    'derrogacao-produtos.json': 'o banco de produtos',
+    'comunicados.json': 'os comunicados',
+    'revisoes.json': 'o diário de alterações',
+    'conversas.json': 'a conversa'
+  };
+
+  function horaCurta(ms) {
+    var d = new Date(ms), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    var hoje = new Date().toDateString() === d.toDateString();
+    return (hoje ? '' : p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' ') + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  /**
+   * A pasta está ligada e respondendo, mas recusa gravar um arquivo (a troca
+   * do .crswap pelo arquivo antigo — ver vigiarGravacao, no pasta.js). Era
+   * isso que só aparecia no diário: o banco NCR importado não chegava ao
+   * colega, e ninguém via por quê. Some sozinho quando a gravação passa.
+   */
+  function renderGravaNotice() {
+    var box = $('#gravaNotice');
+    if (!box) return;
+    /* sem permissão da sessão o aviso é o da pasta (#pastaNotice); com a
+       pasta em erro os dois aparecem — este diz qual arquivo e por quê */
+    var rs = Leitura.ativo() || !Pasta.ligada() || pastaEstado === 'permissao' ? []
+      : Pasta.gravacoesRecusadas().filter(function (r) { return r.erro !== 'NotAllowedError'; });
+    if (!rs.length) { box.hidden = true; return; }
+    var partes = rs.map(function (r) {
+      return r.arquivo + (NOMES_ARQUIVO[r.arquivo] ? ' (' + NOMES_ARQUIVO[r.arquivo] + ')' : '') +
+        ' — desde ' + horaCurta(r.desde) + ', ' + r.vezes + ' tentativas';
+    });
+    $('#gravaNoticeText').textContent =
+      'Este computador não consegue gravar na pasta da equipe: ' + partes.join('; ') + '. ' +
+      'O que mudou aqui nesses dados não está chegando aos colegas (o resto continua normal). ' +
+      'A pasta recusa SUBSTITUIR o arquivo — quase sempre porque ele foi gravado por outra pessoa e a ' +
+      'pasta não dá a você permissão de Modificar sobre ele, ou porque está aberto noutro computador. ' +
+      'Peça à TI a permissão "Modificar" na pasta para toda a equipe (esta pasta, subpastas e arquivos).';
+    box.hidden = false;
   }
 
   function renderPastaNotice() {
@@ -8548,6 +8595,7 @@
         function () { toast('Caminho copiado. Cole na barra de endereço da janela do Windows.', 5000); },
         function () { toast('Não foi possível copiar aqui. Selecione o texto e use Ctrl+C.'); });
     });
+    $('#gravaNoticeBtn').addEventListener('click', function () { atualizarDaPasta(); });
     $('#pastaNoticeDismiss').addEventListener('click', function () {
       pastaNoticeFechado = true;
       renderPastaNotice();

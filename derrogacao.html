@@ -4597,6 +4597,14 @@ dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
   <button class="btn btn--sm btn--quiet" id="pastaNoticeDismiss">Agora não</button>
 </div>
 
+<!-- editor: a pasta recusa gravar um arquivo (quase sempre: não deixa
+     SUBSTITUIR um arquivo gravado por outra pessoa). Sem "Agora não": some
+     sozinho quando a gravação volta a passar — ver vigiarGravacao, pasta.js. -->
+<div data-so-editor class="notice notice--pasta notice--parada" id="gravaNotice" role="alert" hidden>
+  <span id="gravaNoticeText"></span>
+  <button class="btn btn--sm btn--accent" id="gravaNoticeBtn">⟳ Tentar de novo</button>
+</div>
+
 <!-- editor: a pasta do visualizador não está ligada (nunca escolhida, sem
      permissão nesta sessão, ou parou de responder). Volta a cada queda. -->
 <div data-so-editor class="notice notice--pasta" id="pubNotice" role="status" aria-live="polite" hidden>
@@ -9202,16 +9210,62 @@ dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
   }
 
   /** Escreve um JSON da pasta, com a segunda chance. */
+  /* --- gravações recusadas -------------------------------------------------
+     O navegador não grava por cima: escreve um arquivo novo (.crswap) e, no
+     fim, SUBSTITUI o antigo. Numa pasta de rede, substituir é mais do que
+     criar — é preciso poder apagar aquele arquivo. Se ele foi gravado por
+     outra pessoa (cada gravação recria o arquivo, e o dono vira quem gravou
+     por último) e a pasta só deixa cada um mexer no que criou, ou se o
+     arquivo está aberto noutro computador, a troca é recusada toda vez
+     (InvalidStateError). Foi o que deixou o banco NCR do Bruno sem chegar ao
+     colega por um dia inteiro, com o aviso só no diário. Aqui cada arquivo
+     guarda as recusas seguidas, e o app.js as mostra na tela até passar. */
+  var recusas = {};
+
+  function vigiarGravacao(nomeArq, promessa) {
+    return promessa.then(function (r) {
+      if (recusas[nomeArq]) {
+        Log.ok('pasta', 'voltou a gravar ' + nomeArq + ' depois de ' + recusas[nomeArq].vezes + ' recusa(s)');
+        delete recusas[nomeArq];
+      }
+      return r;
+    }, function (e) {
+      if (handle) {
+        var r = recusas[nomeArq] || (recusas[nomeArq] = { arquivo: nomeArq, desde: Date.now(), vezes: 0, erro: '' });
+        r.vezes++;
+        r.ultima = Date.now();
+        r.erro = (e && e.name) || 'Error';
+        /* uma linha vermelha por arquivo, na segunda recusa seguida: a
+           primeira pode ser o colega gravando no mesmo segundo */
+        if (r.vezes === 2) {
+          Log.erro('pasta', 'a pasta não está deixando gravar ' + nomeArq, e,
+            'o que mudou aqui neste arquivo não está chegando aos colegas. A pasta recusa ' +
+            'SUBSTITUIR o arquivo — quase sempre porque ele foi gravado por outra pessoa e a ' +
+            'pasta não dá a você permissão de Modificar sobre ele, ou porque está aberto ' +
+            'noutro computador. Peça à TI "Modificar" na pasta para toda a equipe.');
+        }
+      }
+      throw e;
+    });
+  }
+
+  /** As gravações recusadas mais de uma vez seguida: [{arquivo, desde, vezes, erro}]. */
+  function gravacoesRecusadas() {
+    return Object.keys(recusas).map(function (k) { return recusas[k]; })
+      .filter(function (r) { return r.vezes >= 2; })
+      .sort(function (a, b) { return a.desde - b.desde; });
+  }
+
   function escreverJson(nomeArq, payload, espaco) {
     if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
     var texto = JSON.stringify(payload, null, espaco || 1);
-    return comSegundaChance(function () {
+    return vigiarGravacao(nomeArq, comSegundaChance(function () {
       return handle.getFileHandle(nomeArq, { create: true })
         .then(function (fh) { return fh.createWritable(); })
         .then(function (w) {
           return w.write(texto).then(function () { return w.close(); });
         });
-    }, nomeArq).then(function () {
+    }, nomeArq)).then(function () {
       Log.detalhe('pasta', 'gravado ' + nomeArq, { bytes: texto.length });
       return true;
     });
@@ -9263,14 +9317,14 @@ dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
   function gravar(payload) {
     if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
     var texto = JSON.stringify(payload, null, 2);
-    return comSegundaChance(function () {
+    return vigiarGravacao(ARQUIVO, comSegundaChance(function () {
       return arquivoDados(true)
         .then(function (fh) {
           return fh.createWritable().then(function (w) {
             return w.write(texto).then(function () { return w.close(); });
           }).then(function () { return fh.getFile(); });
         });
-    }, ARQUIVO)
+    }, ARQUIVO))
       .then(function (file) {
         ultimaLeitura = file.lastModified;
         Log.detalhe('pasta', 'gravado ' + ARQUIVO, { bytes: texto.length });
@@ -9613,14 +9667,14 @@ dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
   function gravarArquivo(nomeArq, payload) {
     if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
     var texto = JSON.stringify(payload);
-    return comSegundaChance(function () {
+    return vigiarGravacao(nomeArq, comSegundaChance(function () {
       return handle.getFileHandle(nomeArq, { create: true })
         .then(function (fh) {
           return fh.createWritable().then(function (w) {
             return w.write(texto).then(function () { return w.close(); });
           }).then(function () { return fh.getFile(); });
         });
-    }, nomeArq).then(function (file) {
+    }, nomeArq)).then(function (file) {
       leituras[nomeArq] = file.lastModified;
       Log.detalhe('pasta', 'gravado ' + nomeArq, { bytes: texto.length });
       return true;
@@ -9773,6 +9827,7 @@ dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
     lerConversas: lerConversas,
     gravarConversas: gravarConversas,
     explicar: explicar,
+    gravacoesRecusadas: gravacoesRecusadas,
     carimbo: carimbo,
     lerRevisoes: lerRevisoes,
     gravarRevisoes: gravarRevisoes,
@@ -32880,6 +32935,7 @@ if(isWorker){
     var item = $('#pastaBtn');
     if (item) item.hidden = !Pasta.suportado();
     renderPastaNotice();
+    renderGravaNotice();
     ajustarAtualizacao();
     if (!chip) return;
     /* a etiqueta só existe quando há pasta: sem ela não há nada a mostrar */
@@ -32956,6 +33012,52 @@ if(isWorker){
     if (min < 60) return 'há ' + min + ' minutos';
     var h = Math.floor(min / 60);
     return 'há ' + h + (h === 1 ? ' hora' : ' horas');
+  }
+
+  /* Os nomes que a pessoa entende, para os arquivos da pasta. */
+  var NOMES_ARQUIVO = {
+    'derrogacao-dados.json': 'os relatórios de Waiver',
+    'derrogacao-ncr-banco.json': 'o banco NCR importado',
+    'derrogacao-ncr-waiver.json': 'os campos do Waiver no Banco NCR',
+    'derrogacao-ncr-correcoes.json': 'as correções e ligações de NCR',
+    'derrogacao-ncr-sistema.json': 'o histórico do NCR Integrada',
+    'derrogacao-produtos.json': 'o banco de produtos',
+    'comunicados.json': 'os comunicados',
+    'revisoes.json': 'o diário de alterações',
+    'conversas.json': 'a conversa'
+  };
+
+  function horaCurta(ms) {
+    var d = new Date(ms), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    var hoje = new Date().toDateString() === d.toDateString();
+    return (hoje ? '' : p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' ') + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  /**
+   * A pasta está ligada e respondendo, mas recusa gravar um arquivo (a troca
+   * do .crswap pelo arquivo antigo — ver vigiarGravacao, no pasta.js). Era
+   * isso que só aparecia no diário: o banco NCR importado não chegava ao
+   * colega, e ninguém via por quê. Some sozinho quando a gravação passa.
+   */
+  function renderGravaNotice() {
+    var box = $('#gravaNotice');
+    if (!box) return;
+    /* sem permissão da sessão o aviso é o da pasta (#pastaNotice); com a
+       pasta em erro os dois aparecem — este diz qual arquivo e por quê */
+    var rs = Leitura.ativo() || !Pasta.ligada() || pastaEstado === 'permissao' ? []
+      : Pasta.gravacoesRecusadas().filter(function (r) { return r.erro !== 'NotAllowedError'; });
+    if (!rs.length) { box.hidden = true; return; }
+    var partes = rs.map(function (r) {
+      return r.arquivo + (NOMES_ARQUIVO[r.arquivo] ? ' (' + NOMES_ARQUIVO[r.arquivo] + ')' : '') +
+        ' — desde ' + horaCurta(r.desde) + ', ' + r.vezes + ' tentativas';
+    });
+    $('#gravaNoticeText').textContent =
+      'Este computador não consegue gravar na pasta da equipe: ' + partes.join('; ') + '. ' +
+      'O que mudou aqui nesses dados não está chegando aos colegas (o resto continua normal). ' +
+      'A pasta recusa SUBSTITUIR o arquivo — quase sempre porque ele foi gravado por outra pessoa e a ' +
+      'pasta não dá a você permissão de Modificar sobre ele, ou porque está aberto noutro computador. ' +
+      'Peça à TI a permissão "Modificar" na pasta para toda a equipe (esta pasta, subpastas e arquivos).';
+    box.hidden = false;
   }
 
   function renderPastaNotice() {
@@ -34470,6 +34572,7 @@ if(isWorker){
         function () { toast('Caminho copiado. Cole na barra de endereço da janela do Windows.', 5000); },
         function () { toast('Não foi possível copiar aqui. Selecione o texto e use Ctrl+C.'); });
     });
+    $('#gravaNoticeBtn').addEventListener('click', function () { atualizarDaPasta(); });
     $('#pastaNoticeDismiss').addEventListener('click', function () {
       pastaNoticeFechado = true;
       renderPastaNotice();

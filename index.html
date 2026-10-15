@@ -151,6 +151,14 @@
   <button class="btn btn--sm btn--quiet" id="pastaNoticeDismiss">Agora não</button>
 </div>
 
+<!-- editor: a pasta recusa gravar um arquivo (quase sempre: não deixa
+     SUBSTITUIR um arquivo gravado por outra pessoa). Sem "Agora não": some
+     sozinho quando a gravação volta a passar — ver vigiarGravacao, pasta.js. -->
+<div data-so-editor class="notice notice--pasta notice--parada" id="gravaNotice" role="alert" hidden>
+  <span id="gravaNoticeText"></span>
+  <button class="btn btn--sm btn--accent" id="gravaNoticeBtn">⟳ Tentar de novo</button>
+</div>
+
 <!-- editor: a pasta do visualizador não está ligada (nunca escolhida, sem
      permissão nesta sessão, ou parou de responder). Volta a cada queda. -->
 <div data-so-editor class="notice notice--pasta" id="pubNotice" role="status" aria-live="polite" hidden>
