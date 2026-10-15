@@ -1042,8 +1042,37 @@ registros com problema.
   padrão **só completa o que está em branco**: reimportar não desfaz o que foi
   corrigido à mão. NCR que ainda não está no banco fica guardada e entra
   sozinha quando aparecer numa importação do banco.
-- **Importar histórico NCR** — o `historico.json` do NCR Control (serve como
-  está). Os eventos são associados pela NCR e só se acrescentam.
+- **Histórico do NCR Integrada…** — a janela do **extrator**: o mesmo script do
+  NCR Control, que se cola no Console (F12) do NCR Integrada, já logado. Ele
+  lê a aba *Histórico* de cada NCR (data, hora e usuário de cada mudança de
+  estado, e o texto das ações) e gera um JSON; **Importar histórico extraído
+  (.json)** o traz para cá. A janela traz o passo a passo, **Copiar extrator**,
+  **Baixar extrator (.js)** e **Copiar links a recapturar** (as abertas e as
+  reabertas, para a atualização seguinte). Vale, por NCR, a captura mais
+  recente; o que já foi capturado no NCR Control continua valendo.
+- **Importar histórico NCR** — alternativa: o `historico.json` do NCR Control
+  (serve como está). Os eventos são associados pela NCR e só se acrescentam.
+
+### De onde sai a trajetória da NCR (o fluxo da ficha)
+
+O Derrogação monta o histórico sozinho, sem o NCR Control:
+
+1. **Colunas datadas do export.** Na importação do banco, colunas como
+   *Data avanço 2.1 - Especialista ICN*, *Data da rejeição 2.2 - TA Specialist*
+   ou *CEDOC Closure Data* são reconhecidas pelo cabeçalho, e a trajetória da
+   NCR entra já na primeira vez. Quando o export só data a saída de uma etapa,
+   a chegada aparece **tracejada** (data estimada).
+2. **Mudanças entre duas importações.** O status que mudou de um export para o
+   outro vira um passo, com a data da foto (deduzida de *Data de criação* +
+   *Tempo de tramitação*, que não muda ao copiar o arquivo).
+3. **O extrator do NCR Integrada** (acima). Até a data da captura vale o
+   caminho exato do sistema; depois dela, o que os exports registrarem. O passo
+   com texto da ação leva um ✎ — passe o mouse para ler.
+
+Nada do histórico é apagado: as capturas ficam num arquivo à parte na pasta
+(`derrogacao-ncr-sistema.json`). O **status** que vale para "fechada", filtros
+e Kanban continua sendo o do export; se a captura for mais nova e disser
+outro, a ficha avisa.
 
 O JSON de correlação tem dados do programa: guarde-o na pasta da equipe,
 **não no repositório** (que é público).

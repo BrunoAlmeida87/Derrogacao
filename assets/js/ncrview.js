@@ -783,8 +783,10 @@
       'Export do Excel (o mesmo do NCR Control) ou o ncr.json da pasta BD do NCR Control. Só o SBR4 entra.'));
     g1.appendChild(botao('Importar correlação', 'btn--sm', function () { ctx.importar('correlacao'); },
       'JSON de correlação ou a própria planilha (aba "Correlação NCR").'));
+    g1.appendChild(botao('Histórico do NCR Integrada…', 'btn--sm', ctx.extrator,
+      'O extrator (script para o Console do NCR Integrada) e a importação do JSON que ele gera: as datas exatas de cada mudança de estado.'));
     g1.appendChild(botao('Importar histórico NCR', 'btn--sm', function () { ctx.importar('historico'); },
-      'JSON de histórico (historico.json do NCR Control, ou gerado à parte).'));
+      'Alternativa: o historico.json do NCR Control. O export do Excel e o extrator já trazem o histórico sem ele.'));
     box.appendChild(g1);
 
     var g2 = el('div', 'nb2-grupo');
@@ -827,7 +829,7 @@
     [
       ['Importar / Atualizar Banco NCR', ' — o export do Excel (o mesmo que o NCR Control lê) ou o ncr.json da pasta BD do NCR Control. Só as NCRs do SBR4 entram.'],
       ['Importar correlação', ' — o JSON de correlação inicial (ou a própria planilha, aba "Correlação NCR"). Preenche Marco Original, Marco Atual, Função Vital, Waiver Historic e Observação.'],
-      ['Importar histórico NCR', ' — opcional: o historico.json do NCR Control. É dele que sai o desenho do fluxo na ficha.']
+      ['Histórico do NCR Integrada…', ' — opcional: o extrator lê a aba Histórico de cada NCR no sistema (datas e usuários exatos). Sem ele, a trajetória sai das colunas datadas do export e das mudanças entre uma importação e outra.']
     ].forEach(function (p) {
       var li = el('li');
       li.appendChild(el('strong', null, p[0]));
@@ -1541,12 +1543,25 @@
     var sf = secao(body, 'Fluxo da NCR', '', 'nb-sec--fluxo');
     var seq = NcrFluxo.sequencia(rec);
     var subFluxo = sf.querySelector('.nb-sec-sub');
-    if (!rec.historico.length) {
+    var cap = global.NcrHist ? NcrHist.estadoCapturado(rec.key) : null;
+    if (!rec.historico.length && !cap) {
       subFluxo.textContent = seq.length
-        ? 'Sem histórico importado: o desenho mostra só o status atual. Use "Importar histórico NCR" (o historico.json do NCR Control) para ver o caminho inteiro.'
+        ? 'Sem histórico: o desenho mostra só o status atual. A trajetória entra na próxima importação do banco ' +
+          '(colunas datadas do export) ou pelo "Histórico do NCR Integrada…".'
         : 'Sem histórico nem status para desenhar.';
     } else {
-      subFluxo.textContent = seq.length + ' passo(s), lidos do histórico importado. Passe o mouse nas caixas e nas setas para ver datas e detalhes.';
+      subFluxo.textContent = seq.length + ' passo(s)' +
+        (cap ? ', com o histórico do sistema (NCR Integrada) até ' + Ncrs.data(cap.capturadoEm) +
+          ' e o dos exports depois disso' : ', lidos do histórico') +
+        '. Passe o mouse nas caixas e nas setas para ver datas e detalhes; ✎ marca o passo com texto da ação.';
+    }
+    /* a captura mais nova que o export e com outro status: só avisa — quem
+       vale para "fechada", filtros e Kanban continua sendo o export */
+    var fAtual = Ncrs.fonte(rec);
+    if (cap && fAtual.status && Ncrs.norm(cap.status) !== Ncrs.norm(fAtual.status) &&
+        cap.capturadoEm > (fAtual.dataFoto || fAtual.importadoEm || '')) {
+      sf.appendChild(el('p', 'nb-sis-diverge', 'O sistema registra "' + cap.status + '" em ' + Ncrs.data(cap.capturadoEm) +
+        ', depois do export importado (que diz "' + fAtual.status + '"). Importe um export mais recente para atualizar o status.'));
     }
     if (seq.length) {
       var modos = el('div', 'nb-fluxo-modos');

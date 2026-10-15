@@ -4996,6 +4996,11 @@
         alert('Este arquivo é uma correlação de NCRs.\n\nAbra a aba "Banco NCR" e use "Importar correlação".');
         return;
       }
+      if (raw && raw.tipo === NcrHist.TIPO_EXTRATOR) {
+        alert('Este arquivo é o histórico gerado pelo extrator do NCR Integrada.\n\nAbra a aba "Banco NCR" e use ' +
+          '"Histórico do NCR Integrada…" → "Importar histórico extraído (.json)".');
+        return;
+      }
       if (raw && (raw.tipo === 'ncr' || raw.tipo === 'historico')) {
         alert('Este arquivo é do NCR Control.\n\nAbra a aba "Banco NCR" e use ' +
           (raw.tipo === 'ncr' ? '"Importar / Atualizar Banco NCR".' : '"Importar histórico NCR".'));
@@ -5122,6 +5127,7 @@
       });
     },
     importar: function (tipo) { importarNcr(tipo); },
+    extrator: function () { abrirExtrator(); },
     backup: function () { exportBackup(true); },
     desfazer: function () { desfazerImportacaoNcr(); },
     infoDesfazer: function (cb) {
@@ -5677,6 +5683,7 @@
     banco: 'importar o banco NCR',
     correlacao: 'importar a correlação',
     historico: 'importar o histórico',
+    sistema: 'importar o histórico do NCR Integrada',
     restaurar: 'restaurar o banco NCR de um backup'
   };
 
@@ -5693,7 +5700,7 @@
     ncrImport.tipo = tipo;
     var inp = $('#ncrFileInput');
     inp.accept = {
-      banco: '.xlsx,.xlsm,.json', correlacao: '.json,.xlsx,.xlsm', historico: '.json', restaurar: '.json'
+      banco: '.xlsx,.xlsm,.json', correlacao: '.json,.xlsx,.xlsm', historico: '.json', sistema: '.json', restaurar: '.json'
     }[tipo] || '';
     inp.value = '';
     inp.click();
@@ -5740,7 +5747,7 @@
   }
 
   function processarArquivoNcr(file) {
-    var tipo = ncrImport.tipo;
+    var tipo = ncrImport.tipo;   /* pode virar 'sistema' ao ver o arquivo */
     var quem = Store.getUser();
     toast('Lendo ' + file.name + '…');
     lerArquivoNcr(file).then(function (dados) {
@@ -5756,6 +5763,19 @@
           '• NCRs que não estão no backup ficam como estão — nada é apagado.\n' +
           '• Os relatórios de Waiver não são afetados.\n' +
           '• O estado atual é guardado antes, para poder desfazer.')) return null;
+      }
+      /* o JSON do extrator do NCR Integrada escolhido pelo botão do
+         historico.json: é o outro caminho, e não um arquivo errado */
+      if (tipo === 'historico' && dados && dados.tipo === NcrHist.TIPO_EXTRATOR) tipo = 'sistema';
+      if (tipo === 'sistema') {
+        /* as capturas ficam à parte (ncrhist.js) e não mexem nos dados das
+           NCRs: não há retrato a guardar, e o "desfazer" da última
+           importação do banco continua valendo */
+        var rs = NcrHist.importarExtrator(dados, file.name, quem);
+        return (rs.mudou ? NcrHist.salvar() : Promise.resolve()).then(function () {
+          if (rs.mudou) sistemaPendente = true;
+          return { resumo: rs.resumo, alterados: [], sistema: rs.mudou };
+        });
       }
       /* o retrato é tirado antes de tocar em qualquer coisa; só é gravado se
          o arquivo for aceito, para um arquivo errado não apagar o "desfazer"
@@ -5784,6 +5804,7 @@
       agendarGravacaoPasta();
       renderTabs();
       if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
+      if (r.sistema) { NcrView.redesenharFicha(); renderExtratorResumo(); }
       alinharFuncoes();
       mostrarResumoImportacao(r.resumo);
     }).catch(function (e) {
@@ -5791,6 +5812,7 @@
       console.warn('Importação do banco NCR recusada:', e);
       /* se algo parou no meio, volta ao que está gravado */
       Ncrs.carregar().then(function () { if (isBanco()) renderBanco(true); if (isKanban()) renderKanban(); });
+      if (tipo === 'sistema') NcrHist.carregar();
       alert('Não foi possível ' + (NOMES_IMPORTACAO[tipo] || 'importar') + ': ' + ((e && e.message) || e));
     });
   }
@@ -5913,13 +5935,24 @@
     });
   }
 
+  /* O histórico do sistema (NCR Integrada) também é grande e só muda quando
+     alguém importa o JSON do extrator: mesma regra do banco de produtos. */
+  var sistemaLido = false, sistemaPendente = false;
+  function lerSistemaDaPasta() {
+    if (!sistemaLido || sistemaPendente) return Pasta.lerArquivo(NcrHist.ARQUIVO);
+    return Pasta.mudouArquivo(NcrHist.ARQUIVO).then(function (mudou) {
+      return mudou ? Pasta.lerArquivo(NcrHist.ARQUIVO) : { dados: null, semMudanca: true };
+    });
+  }
+
   function sincronizarNcrs() {
     var quem = Store.getUser();
     return Promise.all([
       Pasta.lerArquivo(Pasta.ARQ_NCR_BANCO),
       Pasta.lerArquivo(Pasta.ARQ_NCR_WAIVER),
       Pasta.lerArquivo(Correcoes.ARQUIVO),
-      lerProdutosDaPasta()
+      lerProdutosDaPasta(),
+      lerSistemaDaPasta()
     ]).then(function (r) {
       var lista = Ncrs.lista();
       var temBanco = lista.some(function (x) { return x.fonte.importadoEm || x.historico.length; });
@@ -5943,9 +5976,18 @@
           : (r[3].semMudanca ? { mudou: false, localMaisNovo: false }
             : { mudou: false, localMaisNovo: Produtos.total() > 0 });
         produtosLido = true;
+        /* as capturas do extrator: por NCR, vale a mais recente */
+        var rs = r[4].dados ? NcrHist.juntar(r[4].dados)
+          : (r[4].semMudanca ? { mudou: false, localMaisNovo: false }
+            : { mudou: false, localMaisNovo: NcrHist.total() > 0 });
+        sistemaLido = true;
         var alterados = rb.alterados.concat(rw.alterados);
         var passos = [];
         if (rp.mudou) passos.push(Produtos.salvar());
+        if (rs.mudou) passos.push(NcrHist.salvar());
+        if (rs.localMaisNovo) {
+          passos.push(Pasta.gravarArquivo(NcrHist.ARQUIVO, NcrHist.arquivo(quem)).then(function () { sistemaPendente = false; }));
+        } else sistemaPendente = false;
         if (rp.localMaisNovo) {
           passos.push(Pasta.gravarArquivo(Produtos.ARQUIVO, Produtos.arquivo(quem)).then(function () { produtosPendente = false; }));
         } else produtosPendente = false;
@@ -5958,19 +6000,74 @@
         }
         return Promise.all(passos).then(function () {
           return { entraram: rb.entraram + rw.entraram, atualizados: rb.atualizados + rw.atualizados, correcoes: rc.mudou,
-            produtos: rp.mudou };
+            produtos: rp.mudou, sistema: rs.mudou };
         });
       });
     });
   }
 
+  /* --- o extrator do NCR Integrada (ncrhist.js) ------------------------------- */
+
+  function renderExtratorResumo() {
+    var box = $('#extratorResumo');
+    if (!box) return;
+    var r = NcrHist.resumo();
+    box.textContent = r.total
+      ? r.noBanco + ' NCR(s) do banco com a trajetória do sistema' +
+        (r.fora ? ' · ' + r.fora + ' capturada(s) aguardando entrar no banco' : '') +
+        ' · última captura em ' + Ncrs.data(r.ultima)
+      : 'Nenhum histórico do sistema importado ainda. Sem ele, a trajetória sai das colunas datadas do export ' +
+        'e das mudanças vistas entre uma importação e outra.';
+    $('#extratorRecapBtn').hidden = !r.total;
+    $('#extratorTexto').hidden = true;
+  }
+
+  function abrirExtrator() {
+    if (Leitura.ativo()) return;
+    renderExtratorResumo();
+    $('#extratorDialog').showModal();
+  }
+
+  /* sem área de transferência (raro: a reserva do execCommand cobre o
+     file://), o texto fica na janela, já selecionado, para Ctrl+C */
+  function mostrarParaCopiar(txt) {
+    var ta = $('#extratorTexto');
+    ta.value = txt;
+    ta.hidden = false;
+    ta.focus();
+    ta.select();
+  }
+
+  function copiarExtrator() {
+    var t = NcrHist.script();
+    copiarTexto(t, function () { toast('Extrator copiado. Cole no Console (F12) do NCR Integrada.', 5000); },
+      function () {
+        mostrarParaCopiar(t);
+        toast('Não consegui copiar sozinho: o texto está selecionado na janela — use Ctrl+C.', 6000);
+      });
+  }
+
+  function copiarRecaptura() {
+    var r = NcrHist.paraRecapturar();
+    if (!r.links.length) {
+      toast('Nenhuma NCR precisa de nova captura: todas estão encerradas no export e no sistema com o mesmo status.', 6000);
+      return;
+    }
+    var t = r.links.join('\n') + '\n';
+    var resumo = r.links.length + ' NCR(s): ' + r.abertas + ' aberta(s) e ' + r.divergentes +
+      ' com status diferente entre o export e a última captura (inclui reabertas)';
+    copiarTexto(t, function () { toast(resumo + '. No extrator, use "Todas da lista".', 7000); },
+      function () { mostrarParaCopiar(t); toast(resumo + '. Use Ctrl+C.', 7000); });
+  }
+
   /** Banco NCR que veio dentro de um arquivo aberto à mão: junta, sem apagar nada. */
   function juntarBancoNcrDoArquivo(nb) {
     var r = Ncrs.juntarBackup(nb);
-    if (!r.alterados.length && !r.correcoes && !r.produtos) return Promise.resolve(r);
+    if (!r.alterados.length && !r.correcoes && !r.produtos && !r.sistema) return Promise.resolve(r);
     return Promise.all([Ncrs.salvar(r.alterados), Ncrs.salvarMeta(), r.correcoes ? Correcoes.salvarLocal() : null,
-      r.produtos ? Produtos.salvar() : null]).then(function () {
+      r.produtos ? Produtos.salvar() : null, r.sistema ? NcrHist.salvar() : null]).then(function () {
       if (r.produtos) produtosPendente = true;
+      if (r.sistema) { sistemaPendente = true; NcrView.redesenharFicha(); }
       agendarGravacaoPasta();
       renderTabs();
       if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
@@ -6564,6 +6661,11 @@
          ajuste do administrador): redesenha quem lê NCR, sem aviso */
       redesenharNcrs();
     }
+    if (rn && rn.sistema) {
+      /* chegou captura nova do NCR Integrada: a trajetória da ficha se refaz */
+      NcrView.redesenharFicha();
+      if ($('#extratorDialog').open) renderExtratorResumo();
+    }
     if (rn && rn.produtos) {
       /* o banco de produtos mudou lá fora: a aba, a ficha do produto e o bloco da ficha da NCR se refazem */
       ProdView.redesenhar();
@@ -6703,9 +6805,10 @@
       Pasta.mudouArquivo(Pasta.ARQ_NCR_WAIVER),
       Pasta.mudouArquivo(Comunicados.ARQUIVO),
       Pasta.mudouArquivo(Correcoes.ARQUIVO),
-      Pasta.mudouArquivo(Produtos.ARQUIVO)
+      Pasta.mudouArquivo(Produtos.ARQUIVO),
+      Pasta.mudouArquivo(NcrHist.ARQUIVO)
     ]).then(function (r) {
-      if (r[0] || r[1] || r[2] || r[4] || r[5]) sincronizar({ semRedesenhar: true });
+      if (r[0] || r[1] || r[2] || r[4] || r[5] || r[6]) sincronizar({ semRedesenhar: true });
       /* só os comunicados mudaram: troca só eles, sem regravar os dados */
       else if (r[3]) sincronizarComunicados();
     });
@@ -8511,6 +8614,16 @@
       escolherArquivoNcr('correlacao');
     });
     $('#ncrResumoCloseBtn').addEventListener('click', function () { $('#ncrResumoDialog').close(); });
+    $('#extratorFecharBtn').addEventListener('click', function () { $('#extratorDialog').close(); });
+    $('#extratorImportarBtn').addEventListener('click', function () {
+      $('#extratorDialog').close();
+      escolherArquivoNcr('sistema');
+    });
+    $('#extratorCopiarBtn').addEventListener('click', copiarExtrator);
+    $('#extratorBaixarBtn').addEventListener('click', function () {
+      download(new Blob([NcrHist.script()], { type: 'text/javascript;charset=utf-8' }), 'extrator_historico_ncr.js');
+    });
+    $('#extratorRecapBtn').addEventListener('click', copiarRecaptura);
     $('#ncrResumoUndoBtn').addEventListener('click', desfazerImportacaoNcr);
     $('#ncrResumoCopyBtn').addEventListener('click', baixarCopiaDeAntes);
     $('#ncrListasCancelBtn').addEventListener('click', function () { $('#ncrListasDialog').close(); });
@@ -8916,6 +9029,15 @@
       }, function (e) {
         Log.aviso('abertura', 'não consegui ler o banco de produtos deste navegador',
           'os relatórios abrem normalmente; a aba Produtos fica vazia até recarregar.', { erro: e && e.name });
+      });
+    }).then(function () {
+      /* o histórico do sistema (NCR Integrada): se falhar, a trajetória
+         sai só do histórico das importações */
+      return NcrHist.carregar().then(function (n) {
+        if (n) Log.detalhe('abertura', 'histórico do sistema carregado', { ncrs: n });
+      }, function (e) {
+        Log.aviso('abertura', 'não consegui ler o histórico do sistema deste navegador',
+          'a trajetória das NCRs mostra só o histórico das importações até recarregar.', { erro: e && e.name });
       });
     }).then(function () { return Store.list(); }).then(function (list) {
       state.projects = list;

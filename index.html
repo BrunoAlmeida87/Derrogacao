@@ -769,6 +769,49 @@
   </div>
 </dialog>
 
+<dialog data-so-editor id="extratorDialog" class="dlg--wide" aria-labelledby="extratorTitulo">
+  <div class="dlg-body">
+    <h3 id="extratorTitulo">Histórico do NCR Integrada</h3>
+    <p class="ext-resumo" id="extratorResumo"></p>
+    <div class="ext-acoes">
+      <button class="btn btn--primary" id="extratorImportarBtn">Importar histórico extraído (.json)</button>
+      <button class="btn" id="extratorCopiarBtn" title="Copia o script para colar no Console (F12) do NCR Integrada">Copiar extrator</button>
+      <button class="btn" id="extratorBaixarBtn">Baixar extrator (.js)</button>
+      <button class="btn" id="extratorRecapBtn" title="Links das NCRs abertas, reabertas ou com status diferente entre o export e a última captura">Copiar links a recapturar</button>
+    </div>
+    <ol class="ext-passos">
+      <li>Clique em <strong>Copiar extrator</strong> (ou <strong>Baixar extrator</strong> e abra o arquivo num editor de texto para copiar).</li>
+      <li>No Chrome/Edge, abra o <strong>NCR Integrada</strong> e faça login normalmente. Qualquer página do sistema serve.</li>
+      <li>Pressione <strong>F12</strong> → aba <strong>Console</strong>, cole o script e tecle <strong>Enter</strong>.
+          Se o navegador pedir, digite <code>allow pasting</code> (ou <code>permitir colar</code>) e cole de novo.</li>
+      <li>No painel que aparece no canto da página, cole a lista de links das NCRs
+          (<code>…/#/ncr/65f05c…/editar</code>, um por linha; IDs soltos também servem)
+          ou use <strong>Pegar links desta página</strong> numa tela de listagem.</li>
+      <li>Teste com 2 ou 3 links, clique em <strong>Iniciar</strong> e depois em <strong>Baixar JSON</strong>. Dando certo,
+          cole a lista completa. Depois de clicar em Iniciar, <strong>feche o F12</strong>: o painel continua rodando, e o
+          Console aberto deixa o navegador lento.</li>
+      <li>Mantenha a aba aberta até o fim. Se a sessão expirar ou a aba fechar, faça login, cole o script de novo e clique
+          em <strong>Continuar</strong>: o que já foi capturado fica salvo naquele navegador.</li>
+      <li>Aqui, clique em <strong>Importar histórico extraído (.json)</strong>.</li>
+    </ol>
+    <p class="ext-nota"><strong>Para atualizar depois</strong>, não é preciso capturar tudo de novo. No mesmo navegador
+      (o extrator lembra o que já capturou): <strong>1.</strong> NCRs novas — cole a lista completa e escolha
+      <strong>Capturar: Só as novas</strong>; <strong>2.</strong> abertas e reabertas — depois de importar o export mais
+      recente, clique aqui em <strong>Copiar links a recapturar</strong>, cole no extrator e escolha
+      <strong>Todas da lista</strong>. Importe o JSON novo: a captura mais recente de cada NCR substitui a anterior.</p>
+    <p class="hint">O extrator só lê as páginas que você já consegue abrir, com a sua sessão, e não altera nada no
+      NCR Integrada; o arquivo fica no seu computador. É o mesmo extrator do NCR Control: o que já foi capturado lá
+      continua valendo, e o JSON dele é aceito aqui. Na importação, a trajetória de cada NCR passa a ser a do sistema
+      até a data da captura; o que os exports registrarem depois continua sendo somado. Nada do histórico é apagado.
+      Se aparecer "o site não permite abrir a NCR num quadro interno", troque o <strong>Modo</strong> do painel para
+      <strong>Janela</strong> e permita pop-ups para o site.</p>
+    <textarea class="ext-texto" id="extratorTexto" readonly hidden aria-label="Texto para copiar"></textarea>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn btn--primary" id="extratorFecharBtn">Fechar</button>
+  </div>
+</dialog>
+
 <dialog id="ncrListasDialog" class="dlg--wide">
   <div class="dlg-body">
     <h3>Listas dos dropdowns</h3>
@@ -933,6 +976,675 @@
 <!-- conteúdo montado apenas para impressão -->
 <div class="print-root" id="printRoot"></div>
 
+<!-- O extrator de histórico do NCR Integrada: texto para copiar e colar no
+     Console (F12) do site — não é executado aqui (type="text/plain").
+     CÓPIA LITERAL do NCR Control (repositório NCR_Dashboard, NCR_Control.html,
+     <script id="extratorSrc">): o mesmo banco do navegador e o mesmo formato
+     de arquivo, então o que foi capturado lá continua valendo aqui. Mudou lá,
+     copie de novo; não edite só aqui. Lido por NcrHist.script(). -->
+<script id="extratorSrc" type="text/plain">
+/* ==========================================================================
+   NCR Control · Extrator de histórico do NCR Integrada
+   --------------------------------------------------------------------------
+   Cole este script no Console (F12) de uma página do NCR Integrada já logada.
+   Ele abre cada NCR da lista num quadro invisível do próprio site (mesma
+   sessão, nada sai do navegador), lê a aba "Histórico" — etapas, datas e
+   usuários — e gera um arquivo JSON para importar no NCR Control
+   (tela Importações → Histórico do sistema).
+   O progresso fica guardado no navegador: se a página fechar, é só colar o
+   script de novo e clicar em Continuar.
+   ========================================================================== */
+(function(){
+  'use strict';
+  if(window.__ncrExtrator){ window.__ncrExtrator.mostrar(); return; }
+
+  const VERSAO = 1;
+  const DBNAME = 'ncrControlExtrator';
+  /* o ID interno da NCR no sistema: 24 caracteres hexadecimais, no link ou solto */
+  const RE_ID = /\b([0-9a-f]{24})\b/ig;
+  const TEMPO_LIMITE = 60000;           /* por NCR */
+  const TENTATIVAS = 2;                 /* novas tentativas para NCR que falhou */
+  /* estados em que a NCR nao muda mais: nao precisam ser recapturadas */
+  const RE_FINAL = /closure|closed|cancelad/i;
+
+  /* ---------------- armazenamento (IndexedDB do próprio site) ---------------- */
+  let dbp = null;
+  function db(){
+    if(dbp) return dbp;
+    dbp = new Promise((res, rej) => {
+      const r = indexedDB.open(DBNAME, 1);
+      r.onupgradeneeded = () => {
+        r.result.createObjectStore('ncrs', {keyPath:'sysId'});
+        r.result.createObjectStore('meta');
+      };
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+    return dbp;
+  }
+  async function tx(store, mode, fn){
+    const d = await db();
+    return new Promise((res, rej) => {
+      const t = d.transaction(store, mode);
+      const s = t.objectStore(store);
+      let out;
+      const req = fn(s);
+      if(req) req.onsuccess = () => { out = req.result; };
+      t.oncomplete = () => res(out);
+      t.onerror = () => rej(t.error);
+      /* disco cheio / cota estourada chegam como abort, nao como error */
+      t.onabort = () => rej(t.error || new Error('gravação cancelada pelo navegador'));
+    });
+  }
+  /* Gravar o progresso nunca pode derrubar a captura: se o armazenamento do
+     navegador falhar ("UnknownError: Internal error", disco cheio...), tenta
+     de novo reabrindo o banco e, persistindo o erro, segue so na memoria —
+     o "Baixar JSON" continua funcionando enquanto a aba estiver aberta. */
+  let avisoGravacao = false;
+  async function gravarSeguro(store, fn){
+    for(let tent = 0; tent < 2; tent++){
+      try{ return await tx(store, 'readwrite', fn); }
+      catch(e){
+        if(tent === 0){ try{ (await dbp).close(); }catch(x){} dbp = null; await new Promise(r => setTimeout(r, 300)); continue; }
+        st.semGravacao = true;
+        if(!avisoGravacao){
+          avisoGravacao = true;
+          log('⚠ O navegador não conseguiu salvar o progresso (' + ((e && e.name) || '') + ': ' + ((e && e.message) || e)
+            + '). A captura continua, mas só na memória: NÃO feche esta aba e clique em "Baixar JSON" ao terminar. '
+            + 'Causa comum: pouco espaço livre no disco C:.', 'err');
+        }
+        return undefined;
+      }
+    }
+  }
+  const salvar = rec => gravarSeguro('ncrs', s => s.put(rec));
+  const todos = () => tx('ncrs', 'readonly', s => s.getAll());
+  const metaGet = k => tx('meta', 'readonly', s => s.get(k));
+  const metaSet = (k, v) => gravarSeguro('meta', s => s.put(v, k));
+  const limparTudo = async () => { await tx('ncrs', 'readwrite', s => s.clear()); await tx('meta', 'readwrite', s => s.clear()); };
+
+  /* ---------------- leitura da página de uma NCR ---------------- */
+  const txt = el => el ? el.textContent.replace(/\s+/g, ' ').trim() : '';
+
+  function dataISO(s){
+    const m = /(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\D+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(s || '');
+    if(!m) return null;
+    const d = new Date(+m[3], +m[2]-1, +m[1], +(m[4]||0), +(m[5]||0), +(m[6]||0));
+    return isNaN(d) ? null : d.toISOString();
+  }
+
+  function boxPorTitulo(doc, re){
+    const hs = doc.querySelectorAll('.box-header h3, .box-header .box-title');
+    for(const h of hs) if(re.test(txt(h))) return h.closest('.box');
+    return null;
+  }
+
+  function acharTimeline(doc){
+    const box = boxPorTitulo(doc, /^hist[óo]rico/i);
+    if(box){ const ul = box.querySelector('ul.timeline'); if(ul) return ul; }
+    for(const ul of doc.querySelectorAll('ul.timeline'))
+      if(/hist[óo]rico de atividades/i.test(txt(ul))) return ul;
+    return null;
+  }
+
+  function tipoDe(texto, para){
+    if(/foi criada/i.test(texto)) return 'CRIACAO';
+    if(para) return 'STATUS';
+    if(/anexad/i.test(texto)) return 'ANEXO';
+    if(/removid/i.test(texto)) return 'REMOCAO';
+    if(/produto/i.test(texto)) return 'PRODUTO';
+    if(/respons[áa]vel/i.test(texto)) return 'RESPONSAVEL';
+    return 'OUTRO';
+  }
+
+  function lerEventos(ul){
+    const out = [];
+    ul.querySelectorAll(':scope > li').forEach(li => {
+      if(li.classList.contains('time-label')) return;
+      const item = li.querySelector('.timeline-item');
+      if(!item) return;
+      const icone = li.querySelector(':scope > i');
+      const fa = icone ? Array.from(icone.classList).find(c => /^fa-/.test(c)) || '' : '';
+      const dataTexto = txt(item.querySelector('.time'));
+      const corpo = item.querySelector('.timeline-body');
+      let statusDe = '';
+      const textos = [];
+      if(corpo){
+        corpo.querySelectorAll('p').forEach(p => {
+          const t = txt(p);
+          if(!statusDe && /^status\s*:/i.test(t)) statusDe = t.replace(/^status\s*:\s*/i, '');
+          else if(t) textos.push(t);
+        });
+        if(!textos.length && !corpo.querySelector('p')) textos.push(txt(corpo));
+      }
+      const texto = textos.join(' | ');
+      /* o estado vem so do paragrafo "foi para o estado X"; os demais (ex.: o
+         motivo de um Unfounded) sao texto a parte e nao fazem parte do nome */
+      let para = null;
+      const resto = [];
+      textos.forEach(t => {
+        const m = /foi para o estado\s+(.+?)\s*$/i.exec(t);
+        if(m && !para) para = m[1]; else resto.push(t);
+      });
+      out.push({data:dataISO(dataTexto), dataTexto, usuario:txt(item.querySelector('.timeline-header')),
+                statusDe, texto, para, motivo: para ? resto.join('\n') : '', tipo:tipoDe(texto, para), icone:fa});
+    });
+    return out;
+  }
+
+  function lerCabecalho(doc){
+    const r = {numero:null, statusAtual:null, autor:null, solicitante:null};
+    const box = boxPorTitulo(doc, /status\s*\/\s*a[çc][õo]es/i);
+    if(box){
+      box.querySelectorAll('.box-body h4').forEach(h => {
+        const t = txt(h);
+        let m;
+        if((m = /^status\s*:\s*(.*)$/i.exec(t))) r.statusAtual = m[1];
+        else if((m = /^autor\s*:\s*(.*)$/i.exec(t))) r.autor = m[1];
+        else if((m = /^solicitante\s*:\s*(.*)$/i.exec(t))) r.solicitante = m[1];
+        else if(!r.numero && /\bNCR\b/i.test(t)) r.numero = t;
+      });
+    }
+    if(!r.numero){
+      const m = /\bNCR-[A-Z0-9]+(?:-[A-Z0-9]+)*-\d{4}\b/.exec(txt(doc.body));
+      if(m) r.numero = m[0];
+    }
+    return r;
+  }
+
+  function lerMarcos(doc){
+    const out = [];
+    doc.querySelectorAll('ul.flowShart > li').forEach(li => {
+      const etapa = txt(li.querySelector('.flowShart__item-content'));
+      if(!etapa) return;
+      const dt = txt(li.querySelector('.flowShart__tooltip-item'));
+      out.push({etapa, data: dt ? dataISO(dt) : null});
+    });
+    return out;
+  }
+
+  /* "Ações e Decisões": o que a pessoa escreveu ao avançar a NCR (Ação 1.2,
+     Deliberação N1, Ação PCP, Ação CQ, Ação Final TDP...). Cada bloco tem
+     titulo, data/hora, texto e autor; a data coincide com a da mudança de
+     estado que ele acompanha. */
+  function lerAcoes(doc){
+    const out = [], vistos = new Set();
+    doc.querySelectorAll('.box').forEach(box => {
+      const bq = box.querySelector(':scope > .box-body blockquote');
+      const tm = box.querySelector(':scope > .box-header .time');
+      const h = box.querySelector(':scope > .box-header h3');
+      if(!bq || !tm || !h) return;
+      const dataTexto = txt(tm);
+      const titulo = txt(h);
+      const partes = Array.from(bq.querySelectorAll('p')).map(p => p.textContent.replace(/[ \t]+/g, ' ').trim()).filter(Boolean);
+      const texto = partes.length ? partes.join('\n') : txt(bq).replace(txt(bq.querySelector('footer')), '').trim();
+      const ch = titulo + '|' + dataTexto;
+      if(vistos.has(ch)) return;
+      vistos.add(ch);
+      out.push({titulo, data:dataISO(dataTexto), dataTexto, texto, usuario:txt(bq.querySelector('footer'))});
+    });
+    return out;
+  }
+
+  /* devolve null enquanto a página ainda não terminou de montar */
+  function lerPagina(doc){
+    const ul = acharTimeline(doc);
+    if(!ul) return null;
+    const eventos = lerEventos(ul);
+    if(!eventos.length) return null;
+    const cab = lerCabecalho(doc);
+    if(!cab.numero) return null;
+    return Object.assign(cab, {eventos, marcos:lerMarcos(doc), acoes:lerAcoes(doc)});
+  }
+
+  function pareceLogin(win){
+    try{
+      const h = String(win.location.hash || '') + String(win.location.pathname || '');
+      if(/login|signin|entrar/i.test(h)) return true;
+      return !!win.document.querySelector('input[type=password]');
+    }catch(e){ return false; }
+  }
+
+  function clicarAbaHistorico(doc){
+    for(const a of doc.querySelectorAll('[role=tab], .nav-tabs a')){
+      if(/^hist[óo]rico$/i.test(txt(a)) && !a.__ncrClicado){ a.__ncrClicado = true; a.click(); return; }
+    }
+  }
+
+  /* ---------------- quadros de trabalho (iframe ou janela) ---------------- */
+  const espera = ms => new Promise(r => setTimeout(r, ms));
+  const urlDe = id => location.origin + '/#/ncr/' + id + '/editar';
+
+  /* Memoria: recarregar o sistema inteiro para cada NCR, com o Console
+     recebendo dezenas de avisos por pagina (o moment.js do NCR Integrada),
+     prende as paginas antigas na memoria e o navegador vai ficando lento.
+     Por isso: (1) o sistema e carregado uma vez por quadro e as NCRs sao
+     abertas so trocando o endereco interno (#/ncr/<id>/editar); (2) o
+     Console do quadro e silenciado; (3) o quadro e recriado do zero a cada
+     RECICLAR NCRs, devolvendo toda a memoria acumulada pelo sistema. */
+  const RECICLAR = 40;
+  const ESPERA_ROTA = 15000;            /* troca de endereco sem recarga */
+
+  function silenciar(win){
+    try{
+      const c = win.console;
+      if(!c || c.__ncrMudo) return;
+      const nada = () => {};
+      ['log','info','warn','error','debug','trace','dir','table','group','groupCollapsed'].forEach(k => { try{ c[k] = nada; }catch(e){} });
+      c.__ncrMudo = true;
+    }catch(e){}
+  }
+
+  function novoQuadro(k){
+    const q = {k, usos:0, pronto:false, rotaRuim:0, ultimaAssinatura:null, ultimoNumero:null};
+    if(st.modo === 'janela'){
+      let w = null;
+      q.criar = () => {
+        w = window.open('about:blank', 'ncrExtrator' + k, 'width=1100,height=750');
+        if(!w) throw new Error('O navegador bloqueou a janela. Permita pop-ups para este site e tente de novo.');
+      };
+      q.win = () => w;
+      q.fechar = () => { try{ w.close(); }catch(e){} };
+      /* a janela nao pode ser reaberta sem clique (pop-up bloqueado): so esvazia */
+      q.reset = async () => { try{ w.location.replace('about:blank'); }catch(e){} await espera(300); };
+      q.ir = url => { w.location.replace(url); };
+    } else {
+      let f = null;
+      q.criar = () => {
+        f = document.createElement('iframe');
+        f.style.cssText = 'position:fixed;left:-12000px;top:0;width:1280px;height:900px;border:0;visibility:hidden';
+        f.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(f);
+      };
+      q.win = () => f.contentWindow;
+      q.fechar = () => { try{ f.src = 'about:blank'; f.remove(); }catch(e){} };
+      q.ir = url => { f.src = url; };
+      q.reset = async () => { q.fechar(); await espera(q.k * 150 + 200); q.criar(); };
+    }
+    q.criar();
+    return q;
+  }
+
+  /* recria o quadro do zero: descarta tudo o que o sistema acumulou nele */
+  async function reciclar(q){
+    await q.reset();
+    q.pronto = false; q.usos = 0; q.ultimaAssinatura = null; q.ultimoNumero = null;
+  }
+
+  const assinatura = r => r.numero + '|' + r.eventos.length + '|' + (r.eventos[0] ? r.eventos[0].dataTexto + r.eventos[0].texto : '');
+  const temId = (doc, id) => { try{ return !!doc.querySelector('[href*="' + id + '"]'); }catch(e){ return false; } };
+
+  /* espera a pagina da NCR ficar pronta e estavel; em modo rota, so aceita
+     quando ela ja nao e a NCR anterior */
+  async function aguardar(q, id, limite, rota){
+    const t0 = Date.now();
+    let ultimo = null, estavel = 0, chegou = 0;
+    while(Date.now() - t0 < limite){
+      if(st.parar) throw new Error('interrompido');
+      await espera(rota ? 250 : 500);
+      let win, doc;
+      try{ win = q.win(); doc = win.document; void win.location.href; }
+      catch(e){ throw new Error('O site não permite abrir a NCR num quadro interno. Use o modo "Janela".'); }
+      if(!doc) continue;
+      silenciar(win);
+      if(!chegou){
+        if(!String(win.location.hash).includes(id)) continue;
+        chegou = Date.now();
+      }
+      if(pareceLogin(win)) { const e = new Error('Sessão expirada: faça login de novo e clique em Continuar.'); e.login = true; throw e; }
+      const r = lerPagina(doc);
+      if(!r){
+        /* historico ainda ausente depois de alguns segundos: abre a aba, caso
+           a tela so busque os dados quando ela e exibida */
+        if(Date.now() - chegou > 4000) clicarAbaHistorico(doc);
+        continue;
+      }
+      const sig = assinatura(r);
+      if(rota){
+        /* a tela ainda pode estar mostrando a NCR anterior */
+        if(sig === q.ultimaAssinatura) continue;
+        if(!temId(doc, id) && r.numero === q.ultimoNumero) continue;
+      }
+      /* a lista de eventos as vezes chega em partes: espera ela parar de mudar */
+      if(sig === ultimo){ if(++estavel >= 2) return r; }
+      else { ultimo = sig; estavel = 0; }
+    }
+    return null;
+  }
+
+  async function capturar(q, id){
+    if(q.usos >= RECICLAR) await reciclar(q);
+    let r = null;
+    if(q.pronto && q.rotaRuim < 3){
+      /* sistema ja carregado neste quadro: so troca o endereco */
+      try{ q.win().location.hash = '#/ncr/' + id + '/editar'; }catch(e){}
+      r = await aguardar(q, id, ESPERA_ROTA, true);
+      if(r) q.rotaRuim = 0; else q.rotaRuim++;
+    }
+    if(!r){
+      /* primeira NCR do quadro, ou a troca de endereco nao funcionou: recarga completa */
+      if(q.pronto) await reciclar(q);
+      q.ir('about:blank');
+      await espera(60);
+      q.ir(urlDe(id));
+      r = await aguardar(q, id, TEMPO_LIMITE, false);
+      if(!r) throw new Error('Tempo esgotado (' + TEMPO_LIMITE/1000 + ' s) esperando a página carregar');
+      q.pronto = true;
+    }
+    q.usos++;
+    q.ultimaAssinatura = assinatura(r);
+    q.ultimoNumero = r.numero;
+    return r;
+  }
+
+  /* ---------------- estado e execução ---------------- */
+  const st = {fila:[], dados:new Map(), rodando:false, parar:false, modo:'iframe', paralelo:2, t0:0, feitosNaSessao:0};
+
+  function extrairIds(texto){
+    const ids = [], vistos = new Set();
+    const add = id => { id = id.toLowerCase(); if(!vistos.has(id)){ vistos.add(id); ids.push(id); } };
+    let m;
+    RE_ID.lastIndex = 0;
+    while((m = RE_ID.exec(texto))) add(m[1]);
+    return ids;
+  }
+
+  async function executar(){
+    if(st.rodando) return;
+    const ids = extrairIds(ui.lista.value);
+    if(!ids.length){ log('Cole a lista de links (ou IDs) das NCRs antes de iniciar.', 'err'); return; }
+    st.fila = ids;
+    await metaSet('fila', ids);
+    st.modo = ui.modo.value;
+    st.paralelo = Math.max(1, Math.min(6, +ui.paralelo.value || 1));
+    st.rodando = true; st.parar = false; st.t0 = Date.now(); st.feitosNaSessao = 0;
+    atualizarBotoes();
+    /* rodada de recaptura: o instante e marcado uma unica vez; um Continuar
+       depois nao recaptura o que ja foi atualizado nesta rodada */
+    const modo = ui.recap.value;
+    if(modo !== 'novas'){
+      if(!st.recap || st.recap.modo !== modo){ st.recap = {modo, antesDe:new Date().toISOString()}; await metaSet('recap', st.recap); }
+    } else if(st.recap){ st.recap = null; await metaSet('recap', null); }
+    const pend = ids.filter(id => precisa(st.dados.get(id)));
+    log('Iniciando: ' + pend.length + ' NCR(s) a capturar de ' + ids.length + ' (' + st.paralelo + ' em paralelo, modo ' + st.modo + ').');
+    let i = 0, parouPorLogin = false;
+    const quadros = [];
+    async function trabalhador(k){
+      let q;
+      try{ q = novoQuadro(k); quadros.push(q); }
+      catch(e){ log(e.message, 'err'); st.parar = true; return; }
+      while(!st.parar && i < pend.length){
+       try{
+        const id = pend[i++];
+        const ant = st.dados.get(id);
+        const t = Date.now();
+        try{
+          const r = await capturar(q, id);
+          const rec = Object.assign({sysId:id, url:urlDe(id), capturadoEm:new Date().toISOString()}, r);
+          st.dados.set(id, rec); await salvar(rec);
+          st.feitosNaSessao++;
+          const mud = rec.eventos.filter(e => e.tipo === 'STATUS').length;
+          log('✔ ' + rec.numero + ' · ' + mud + ' mudança(s) de estado · ' + rec.eventos.length + ' registros no histórico · '
+              + (rec.statusAtual || '?') + ' · ' + ((Date.now()-t)/1000).toFixed(1) + ' s');
+        }catch(e){
+          if(e.message === 'interrompido'){ i--; break; }
+          if(ant && !ant.erro){
+            /* falhou ao atualizar: a captura anterior continua valendo */
+            log('✖ ' + (ant.numero || id) + ' · não atualizada (mantida a captura anterior) · ' + e.message, 'err');
+          } else {
+            const rec = {sysId:id, url:urlDe(id), capturadoEm:new Date().toISOString(), erro:e.message,
+                         tentativas:((ant && ant.tentativas) || 0) + 1};
+            st.dados.set(id, rec); await salvar(rec);
+            log('✖ ' + id + ' · ' + e.message, 'err');
+          }
+          if(e.login || /quadro interno|bloqueou/.test(e.message)){ parouPorLogin = !!e.login; st.parar = true; }
+        }
+        painel();
+       }catch(e){ log('✖ erro inesperado: ' + ((e && e.message) || e), 'err'); }
+      }
+    }
+    const ws = [];
+    for(let k = 0; k < st.paralelo; k++){ ws.push(trabalhador(k)); await espera(400); }
+    await Promise.allSettled(ws);
+    quadros.forEach(q => { try{ q.fechar(); }catch(e){} });
+    st.rodando = false;
+    atualizarBotoes(); painel();
+    const c = contagem();
+    if(parouPorLogin) log('Pausado: a sessão expirou. Faça login em outra aba e clique em Continuar.', 'err');
+    else if(st.parar) log('Pausado. ' + c.ok + ' capturadas até agora; clique em Continuar para seguir.');
+    else log('Concluído: ' + c.ok + ' capturadas, ' + c.erro + ' com erro. Clique em "Baixar JSON".', 'ok');
+    if(st.semGravacao) log('⚠ O progresso não ficou salvo no navegador: baixe o JSON antes de fechar a aba.', 'err');
+  }
+
+  /* com a caixa marcada e a rodada ainda nao iniciada, "agora" serve de previa */
+  function rodadaRecap(){
+    const modo = ui.recap ? ui.recap.value : 'novas';
+    if(modo === 'novas') return null;
+    if(st.recap && st.recap.modo === modo) return st.recap;
+    return st.rodando ? null : {modo, antesDe:new Date().toISOString()};
+  }
+  /* "abertas" pula o que ja estava encerrado; "todas" recaptura tudo da lista
+     (e o caminho para NCRs reabertas: a lista vem do NCR Control) */
+  const aAtualizar = r => {
+    const rc = rodadaRecap();
+    if(!rc || !r || r.erro || !(r.capturadoEm < rc.antesDe)) return false;
+    return rc.modo === 'todas' || !RE_FINAL.test(r.statusAtual || '');
+  };
+  const precisa = r => !r || (r.erro && (r.tentativas || 0) <= TENTATIVAS) || aAtualizar(r);
+  function contagem(){
+    let ok = 0, erro = 0, atu = 0;
+    st.fila.forEach(id => { const r = st.dados.get(id); if(r){ if(r.erro) erro++; else if(aAtualizar(r)) atu++; else ok++; } });
+    return {total:st.fila.length, ok, erro, atu, pend: st.fila.length - ok - erro};
+  }
+
+  /* ---------------- exportação ---------------- */
+  function registros(){
+    const ids = st.fila.length ? st.fila : Array.from(st.dados.keys());
+    return ids.map(id => st.dados.get(id)).filter(Boolean);
+  }
+  function baixar(nome, conteudo, tipo){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([conteudo], {type:tipo}));
+    a.download = nome;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  }
+  const carimbo = () => new Date().toISOString().slice(0,16).replace(/[-:T]/g, '');
+  function baixarJSON(){
+    const regs = registros();
+    if(!regs.length){ log('Nada capturado ainda.', 'err'); return; }
+    const ok = regs.filter(r => !r.erro);
+    baixar('historico_ncr_sistema_' + carimbo() + '.json', JSON.stringify({
+      tipo:'ncr-control/historico-sistema', versao:VERSAO, origem:location.origin,
+      geradoEm:new Date().toISOString(), total:regs.length, capturadas:ok.length,
+      comErro:regs.length - ok.length, ncrs:regs}), 'application/json');
+    log('JSON gerado com ' + ok.length + ' NCR(s) capturadas.', 'ok');
+  }
+  function baixarCSV(){
+    const regs = registros().filter(r => !r.erro);
+    if(!regs.length){ log('Nada capturado ainda.', 'err'); return; }
+    const q = v => { v = v == null ? '' : String(v); return /[;"\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    const linhas = [['NCR','Status atual','Data','Usuário','Status no momento','Para o estado','Tipo','Descrição','Link'].join(';')];
+    regs.forEach(r => r.eventos.slice().reverse().forEach(e => linhas.push([
+      r.numero, r.statusAtual, e.dataTexto, e.usuario, e.statusDe, e.para || '', e.tipo, e.texto, r.url].map(q).join(';'))));
+    baixar('historico_ncr_sistema_' + carimbo() + '.csv', '﻿' + linhas.join('\r\n'), 'text/csv;charset=utf-8');
+  }
+
+  /* ---------------- painel ---------------- */
+  const ui = {};
+  function montar(){
+    const host = document.createElement('div');
+    host.id = 'ncrExtratorPainel';
+    host.innerHTML = `
+<style>
+#ncrExtratorPainel{position:fixed;right:16px;bottom:16px;width:440px;max-width:calc(100vw - 32px);z-index:2147483000;
+  background:#fff;color:#1d2330;border:1px solid #c9d1de;border-radius:10px;box-shadow:0 10px 34px rgba(0,0,0,.25);
+  font:13px/1.4 system-ui,Segoe UI,Arial,sans-serif}
+#ncrExtratorPainel *{box-sizing:border-box}
+#ncrExtratorPainel .hd{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#1f4e8c;color:#fff;border-radius:10px 10px 0 0}
+#ncrExtratorPainel .hd b{flex:1;font-size:14px}
+#ncrExtratorPainel .hd button{background:transparent;border:0;color:#fff;font-size:16px;cursor:pointer;padding:0 4px}
+#ncrExtratorPainel .bd{padding:10px 12px}
+#ncrExtratorPainel textarea{width:100%;height:84px;font:11px/1.3 Consolas,monospace;border:1px solid #c9d1de;border-radius:6px;padding:6px;resize:vertical}
+#ncrExtratorPainel .lin{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+#ncrExtratorPainel select,#ncrExtratorPainel input{font:inherit;border:1px solid #c9d1de;border-radius:6px;padding:3px 6px}
+#ncrExtratorPainel .btn{font:inherit;border:1px solid #c9d1de;background:#f4f6fa;border-radius:6px;padding:5px 10px;cursor:pointer}
+#ncrExtratorPainel .btn.pri{background:#1f4e8c;border-color:#1f4e8c;color:#fff}
+#ncrExtratorPainel .btn:disabled{opacity:.45;cursor:default}
+#ncrExtratorPainel .barra{height:8px;background:#e6eaf1;border-radius:4px;overflow:hidden;margin-top:10px}
+#ncrExtratorPainel .barra i{display:block;height:100%;width:0;background:#2e8b57;transition:width .3s}
+#ncrExtratorPainel .num{font-variant-numeric:tabular-nums;color:#4a5568;font-size:12px;margin-top:4px}
+#ncrExtratorPainel .log{height:120px;overflow:auto;background:#f7f8fb;border:1px solid #e1e6ee;border-radius:6px;margin-top:8px;padding:6px;
+  font:11px/1.35 Consolas,monospace;white-space:pre-wrap}
+#ncrExtratorPainel .log .err{color:#b42318}#ncrExtratorPainel .log .ok{color:#1b7a43}
+#ncrExtratorPainel .dica{font-size:11px;color:#5b6577;margin-top:6px}
+#ncrExtratorPainel.min .bd{display:none}
+</style>
+<div class="hd"><b>Extrator de histórico · NCR Control</b><button data-a="min" title="Minimizar">–</button><button data-a="fechar" title="Fechar">×</button></div>
+<div class="bd">
+  <div>Links ou IDs das NCRs (um por linha):</div>
+  <textarea data-r="lista" placeholder="http://.../#/ncr/65f05c75e753f10020060ca6/editar"></textarea>
+  <div class="lin">
+    <button class="btn" data-a="pegar" title="Captura os links de NCR presentes na página aberta agora">Pegar links desta página</button>
+    <span data-r="qtd" class="num"></span>
+  </div>
+  <div class="lin">
+    <label>Em paralelo <select data-r="paralelo"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></label>
+  </div>
+  <div class="lin">
+    <label title="O que fazer com as NCRs da lista que já foram capturadas antes">Capturar <select data-r="recap">
+      <option value="novas">Só as novas</option>
+      <option value="abertas">Novas + recapturar as abertas</option>
+      <option value="todas">Todas da lista (recapturar tudo)</option></select></label>
+    <label>Modo <select data-r="modo"><option value="iframe" selected>Quadro interno</option><option value="janela">Janela</option></select></label>
+  </div>
+  <div class="lin">
+    <button class="btn pri" data-a="ini">Iniciar</button>
+    <button class="btn" data-a="pausar" disabled>Pausar</button>
+    <button class="btn" data-a="json">Baixar JSON</button>
+    <button class="btn" data-a="csv">CSV</button>
+    <button class="btn" data-a="carregar" title="Retoma a partir de um JSON baixado antes: as NCRs dele contam como já capturadas">Carregar JSON</button>
+    <button class="btn" data-a="zerar" title="Apaga o progresso guardado neste navegador">Limpar</button>
+  </div>
+  <div class="barra"><i data-r="barra"></i></div>
+  <div class="num" data-r="cont"></div>
+  <div class="log" data-r="log"></div>
+  <div class="dica">Mantenha esta aba aberta. O progresso fica salvo: se fechar, cole o script de novo e clique em Continuar.
+  Teste primeiro com 2 ou 3 links.</div>
+</div>`;
+    document.body.appendChild(host);
+    ui.host = host;
+    host.querySelectorAll('[data-r]').forEach(el => { ui[el.dataset.r] = el; });
+    const bt = a => host.querySelector('[data-a="' + a + '"]');
+    ui.ini = bt('ini'); ui.pausar = bt('pausar');
+    bt('min').onclick = () => host.classList.toggle('min');
+    bt('fechar').onclick = () => { if(st.rodando && !confirm('A captura está em andamento. Parar e fechar?')) return; st.parar = true; host.remove(); delete window.__ncrExtrator; };
+    bt('pegar').onclick = () => {
+      const hrefs = Array.from(document.querySelectorAll('a[href*="#/ncr/"]')).map(a => a.href);
+      const ids = extrairIds(hrefs.join('\n'));
+      if(!ids.length){ log('Nenhum link de NCR encontrado nesta página.', 'err'); return; }
+      const atuais = extrairIds(ui.lista.value);
+      const novos = ids.filter(id => atuais.indexOf(id) < 0);
+      ui.lista.value = (ui.lista.value.trim() ? ui.lista.value.trim() + '\n' : '') + novos.map(urlDe).join('\n');
+      contarLista();
+      log(novos.length + ' link(s) adicionados.');
+    };
+    ui.ini.onclick = () => executar();
+    ui.pausar.onclick = () => { st.parar = true; log('Pausando depois das NCRs em andamento…'); };
+    bt('json').onclick = baixarJSON;
+    bt('carregar').onclick = () => {
+      if(st.rodando) return;
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = '.json,application/json';
+      inp.onchange = async () => {
+        const f = inp.files && inp.files[0];
+        if(!f) return;
+        try{
+          const obj = JSON.parse(await f.text());
+          if(!obj || !Array.isArray(obj.ncrs)) throw new Error('não é um JSON do extrator');
+          let n = 0;
+          for(const r of obj.ncrs){
+            if(!r || r.erro || !r.sysId) continue;
+            const atual = st.dados.get(r.sysId);
+            if(atual && !atual.erro && atual.capturadoEm >= r.capturadoEm) continue;
+            st.dados.set(r.sysId, r); await salvar(r); n++;
+          }
+          if(!extrairIds(ui.lista.value).length) ui.lista.value = obj.ncrs.filter(r => r && r.sysId).map(r => urlDe(r.sysId)).join('\n');
+          contarLista(); painel();
+          log(n + ' NCR(s) carregadas de ' + f.name + ' e marcadas como já capturadas.', 'ok');
+        }catch(e){ log('Não foi possível carregar ' + f.name + ': ' + e.message, 'err'); }
+      };
+      inp.click();
+    };
+    bt('csv').onclick = baixarCSV;
+    bt('zerar').onclick = async () => {
+      if(st.rodando) return;
+      if(!confirm('Apagar todo o progresso guardado neste navegador?')) return;
+      await limparTudo(); st.dados.clear(); st.fila = []; ui.lista.value = ''; contarLista(); painel();
+      log('Progresso apagado.');
+    };
+    ui.lista.oninput = () => { contarLista(); painel(); };
+    /* trocar a opcao encerra a rodada de recaptura em andamento */
+    ui.recap.onchange = async () => {
+      if(st.rodando) return;
+      if(st.recap && st.recap.modo !== ui.recap.value){ st.recap = null; await metaSet('recap', null); }
+      painel();
+    };
+  }
+  function contarLista(){
+    const n = extrairIds(ui.lista.value).length;
+    ui.qtd.textContent = n ? n + ' NCR(s) na lista' : '';
+    if(!st.rodando) st.fila = extrairIds(ui.lista.value);
+  }
+  function atualizarBotoes(){
+    ui.pausar.disabled = !st.rodando;
+    ui.ini.disabled = st.rodando;
+    const c = contagem();
+    ui.ini.textContent = (c.ok || c.erro) && c.pend > 0 ? 'Continuar' : 'Iniciar';
+  }
+  function painel(){
+    const c = contagem();
+    ui.barra.style.width = (c.total ? (c.ok + c.erro) / c.total * 100 : 0) + '%';
+    let eta = '';
+    if(st.rodando && st.feitosNaSessao > 2){
+      const porNcr = (Date.now() - st.t0) / st.feitosNaSessao;
+      const min = Math.round(porNcr * c.pend / 60000);
+      eta = ' · faltam ~' + (min < 1 ? '<1' : min) + ' min';
+    }
+    ui.cont.textContent = c.total ? (c.ok + ' capturadas · ' + c.erro + ' com erro · ' + c.pend + ' pendentes de ' + c.total
+      + (c.atu ? ' (' + c.atu + ' a recapturar)' : '') + eta) : '';
+    if(!st.rodando) atualizarBotoes();
+  }
+  function log(msg, cls){
+    if(!ui.log) { console.log('[Extrator NCR] ' + msg); return; }
+    const d = document.createElement('div');
+    if(cls) d.className = cls;
+    d.textContent = new Date().toLocaleTimeString() + '  ' + msg;
+    ui.log.appendChild(d);
+    while(ui.log.childNodes.length > 400) ui.log.removeChild(ui.log.firstChild);
+    ui.log.scrollTop = ui.log.scrollHeight;
+  }
+
+  async function iniciar(){
+    montar();
+    try{
+      const [regs, fila, recap] = await Promise.all([todos(), metaGet('fila'), metaGet('recap')]);
+      st.recap = recap || null;
+      if(st.recap) ui.recap.value = st.recap.modo;
+      (regs || []).forEach(r => st.dados.set(r.sysId, r));
+      if(fila && fila.length){ ui.lista.value = fila.map(urlDe).join('\n'); }
+      contarLista(); painel(); atualizarBotoes();
+      if(regs && regs.length) log('Progresso anterior recuperado: ' + regs.filter(r => !r.erro).length + ' NCR(s) já capturadas.');
+      else log('Pronto. Cole a lista de links e clique em Iniciar.');
+    }catch(e){ log('Não foi possível ler o progresso salvo: ' + e.message, 'err'); }
+  }
+
+  window.__ncrExtrator = {mostrar(){ if(ui.host){ ui.host.classList.remove('min'); if(!ui.host.isConnected) document.body.appendChild(ui.host); } },
+                          lerPagina, dados:st.dados};
+  iniciar();
+})();
+</script>
+
 <script src="assets/js/log.js"></script>
 <script src="assets/js/config.js"></script>
 <script src="assets/js/atualizacao.js"></script>
@@ -946,6 +1658,7 @@
 <script src="assets/js/correcoes.js"></script>
 <script src="assets/js/produtos.js"></script>
 <script src="assets/js/ncrfluxo.js"></script>
+<script src="assets/js/ncrhist.js"></script>
 <script src="assets/js/report.js"></script>
 <script src="assets/js/fluxo.js"></script>
 <script src="assets/js/herdar.js"></script>

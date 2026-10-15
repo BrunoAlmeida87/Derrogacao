@@ -258,7 +258,10 @@
     return {
       campos: {}, titulo: '', descricao: '', status: '', sistema: '', sbr: '', sbrPor: '',
       criadoEm: '', responsavel: '', fechamento: '',
-      arquivo: '', importadoEm: '', presente: false, alterados: [], detalhes: []
+      arquivo: '', importadoEm: '', presente: false, alterados: [], detalhes: [],
+      /* a data da foto: deduzida do conteúdo do export (criação + dias de
+         tramitação) ou, na falta, a da importação — ncrhist.js */
+      dataFoto: ''
     };
   }
 
@@ -863,6 +866,31 @@
   }
 
   /**
+   * Acrescenta ao histórico da NCR os eventos que a linha do export trouxe
+   * (ncrhist.js), sem repetir o que já está lá. Devolve se entrou algum.
+   */
+  function acrescentarHistorico(rec, h, st) {
+    if (!h || !h.eventos.length) return false;
+    var tem = {};
+    rec.historico.forEach(function (e) { tem[assinaturaEvento(e)] = 1; });
+    var novos = h.eventos.map(normalizarEvento).filter(function (e) {
+      var sig = assinaturaEvento(e);
+      if (tem[sig]) return false;
+      tem[sig] = 1;
+      return true;
+    });
+    if (!novos.length) return false;
+    rec.historico = rec.historico.concat(novos);
+    rec.historico.sort(function (a, b) { return str(a.data).localeCompare(str(b.data)); });
+    st.eventos += novos.length;
+    if (h.reconstruida) {
+      st.reconstruidas++;
+      st.movReconstruidos += Math.max(0, novos.length - 1);
+    }
+    return true;
+  }
+
+  /**
    * Junta o banco lido ao que já existe. Só mexe na parte "fonte": a parte do
    * Waiver (marcos, função vital, observação, vínculos) nunca é tocada.
    * Nenhuma NCR é apagada — a que sumiu do export fica marcada como ausente.
@@ -872,7 +900,11 @@
     var papeis = papeisDe(lido.cols);
     var agora = nowIso();
     var res = novoResumo('Banco NCR importado', arquivo);
-    var st = { linhas: 0, sbr4: 0, novas: 0, atualizadas: 0, iguais: 0, outrosSbr: 0, semSbr: 0, dup: 0, correl: 0 };
+    var st = { linhas: 0, sbr4: 0, novas: 0, atualizadas: 0, iguais: 0, outrosSbr: 0, semSbr: 0, dup: 0, correl: 0,
+      reconstruidas: 0, movReconstruidos: 0, eventos: 0 };
+    /* o histórico que o próprio export traz (colunas datadas, data da foto):
+       ncrhist.js, a porta do NCR Control */
+    var hctx = global.NcrHist ? NcrHist.prepararImportacao(lido.cols, lido.linhas, papeis, arquivo) : null;
     var listas = { novas: [], atualizadas: [], outros: {}, semSbr: [], dup: [] };
     var vistos = {}, alterados = [];
 
@@ -920,10 +952,19 @@
       var mesmosDetalhes = JSON.stringify(antes.detalhes || []) === JSON.stringify(detalhes);
       var igual = !nova && antes.importadoEm && mesmosDetalhes &&
         assinaturaCampos(antes.campos) === assinaturaCampos(comb.campos);
+      /* a trajetória: reconstruída pelas colunas datadas (NCR ainda sem
+         trajetória) ou o que mudou desde a foto anterior */
+      var historicoNovo = hctx ? acrescentarHistorico(rec, NcrHist.historicoDaLinha(hctx, {
+        rec: rec, antes: nova ? {} : antes, campos: comb.campos,
+        status: papeis.status ? str(comb.papel[papeis.status]) : '',
+        criadoEm: papeis.criadoEm ? comb.papel[papeis.criadoEm] : ''
+      }), st) : false;
 
       if (igual) {
         st.iguais++;
-        if (!antes.presente) { antes.presente = true; alterados.push(rec); }
+        var voltou = !antes.presente;
+        if (voltou) antes.presente = true;
+        if (voltou || historicoNovo) alterados.push(rec);
         return;
       }
       var f = fonteVazia();
@@ -932,6 +973,7 @@
       f.detalhes = detalhes;
       f.sbr = s.sbr; f.sbrPor = s.por;
       f.arquivo = str(arquivo); f.importadoEm = agora; f.presente = true;
+      f.dataFoto = hctx ? hctx.dataFoto : agora;
       if (!nova) {
         var ks = {};
         Object.keys(antes.campos).concat(Object.keys(comb.campos)).forEach(function (k) { ks[k] = 1; });
@@ -976,8 +1018,12 @@
       ['Ignoradas — SBR não identificado', st.semSbr],
       ['NCRs em mais de uma linha (juntadas)', st.dup],
       ['Não constam mais no export (mantidas)', ausentes.length],
+      ['Trajetórias reconstruídas pelas colunas datadas', st.reconstruidas, true],
+      ['Movimentos reconstruídos', st.movReconstruidos],
+      ['Eventos novos no histórico', st.eventos, true],
       ['Erros', res.erros.length]
     ];
+    if (hctx) hctx.avisos.forEach(function (a) { res.avisos.push(a); });
     grupo(res, 'Novas NCRs', listas.novas);
     grupo(res, 'NCRs atualizadas (campos que mudaram)', listas.atualizadas);
     Object.keys(listas.outros).sort().forEach(function (k) {
@@ -1276,6 +1322,8 @@
     if (correcoes()) correcoes().adotar(nb && nb.correcoes);
     /* o banco de produtos (produtos.js) vai junto, no retrato publicado */
     if (global.Produtos) global.Produtos.adotar(nb && nb.produtos);
+    /* e o histórico do sistema (NCR Integrada), que corrige a trajetória */
+    if (global.NcrHist) global.NcrHist.adotar(nb && nb.sistema);
     mudou();
     return lista().length;
   }
@@ -1288,6 +1336,9 @@
     /* o banco de produtos, também em chave própria (versões anteriores a ignoram) */
     var pr = global.Produtos ? global.Produtos.paraBackup() : null;
     if (pr) out.produtos = pr;
+    /* o histórico do sistema (NCR Integrada), também em chave própria */
+    var si = global.NcrHist ? global.NcrHist.paraBackup() : null;
+    if (si) out.sistema = si;
     return out;
   }
 
@@ -1462,8 +1513,10 @@
     var cj = (correcoes() && nb && nb.correcoes) ? correcoes().juntar(nb.correcoes) : { mudou: false };
     /* o banco de produtos do backup entra pelas mesmas regras da pasta */
     var pj = (global.Produtos && nb && nb.produtos) ? global.Produtos.juntar(nb.produtos) : { mudou: false };
+    /* o histórico do sistema do backup: por NCR, vale a captura mais recente */
+    var sj = (global.NcrHist && nb && nb.sistema) ? global.NcrHist.juntar(nb.sistema) : { mudou: false };
     return { entraram: a.entraram + b.entraram, atualizados: a.atualizados + b.atualizados,
-             alterados: a.alterados.concat(b.alterados), correcoes: cj.mudou, produtos: pj.mudou };
+             alterados: a.alterados.concat(b.alterados), correcoes: cj.mudou, produtos: pj.mudou, sistema: sj.mudou };
   }
 
   /* --- utilidades para a tela ------------------------------------------------ */

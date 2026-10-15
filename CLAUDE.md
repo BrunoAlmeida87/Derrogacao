@@ -107,6 +107,10 @@ assets/js/correcoes.js     NCR temporária → definitiva, ajustes do administra
                            auditoria e a senha (dados; a tela é o admin.js)
 assets/js/produtos.js      banco de produtos: planilha, casamento com a NCR, pasta
 assets/js/ncrfluxo.js      o fluxo da NCR (trajetória e mapa) do NCR Control
+assets/js/ncrhist.js       o histórico da NCR extraído aqui: colunas datadas do
+                           export, mudanças entre importações e as capturas do
+                           extrator do NCR Integrada (o texto do extrator mora
+                           no index.html, <script id="extratorSrc" type="text/plain">)
 assets/js/cartao.js        a ficha em imagem PNG, numa folha A4 (canvas)
 assets/js/produtosview.js  aba Produtos, ficha do produto, bloco da ficha da NCR
 assets/js/ncrview.js       aba Banco NCR: tabela, filtros, ficha
@@ -125,11 +129,14 @@ exemplos/                  .json prontos para importar
 
 Ordem de carga dos scripts (importa: cada um usa o anterior):
 `log.js → config.js → atualizacao.js → leitura.js → store.js → revisoes.js → pasta.js → publicacao.js → xlsxler.js → ncrs.js →
-correcoes.js → produtos.js → ncrfluxo.js → report.js → fluxo.js → herdar.js → summary.js → painel.js →
+correcoes.js → produtos.js → ncrfluxo.js → ncrhist.js → report.js → fluxo.js → herdar.js → summary.js → painel.js →
 xlsx.js → tabela.js → chat.js → comunicados.js → lado.js → cartao.js → produtosview.js → ncrview.js → kanban.js → admin.js → app.js`.
 (`produtos.js` não usa ninguém ao carregar: `Store`, `Ncrs`, `Correcoes` e `Fluxo`
 só na hora da chamada — e `ncrs.js` o chama no backup, na publicação e na
 junção; `produtosview.js` não conhece `NcrView`: a ficha da NCR é que o chama.)
+(`ncrhist.js` usa `Ncrs`, `NcrFluxo` e `Store` só na hora da chamada; `ncrs.js`
+o chama na importação do banco, no backup, na publicação e na junção, e
+`ncrfluxo.js` o chama para montar a sequência.)
 (`ncrs.js` e `correcoes.js` se usam um ao outro só na hora da chamada;
 `fluxo.js`, `herdar.js`, `painel.js` e `kanban.js` usam `Ncrs.chaveCaso` /
 `Ncrs.recDoItem`, que olham as substituições.)
@@ -965,6 +972,43 @@ passam a ver "dados" em centenas de colunas vazias. A folha também diz a
   de lá. Usa o `cls` do evento quando vem do NCR Control e refaz a
   classificação quando não vem. Cores escritas por extenso (o desenho não
   depende das variáveis CSS de lá); SVG com `width`/`height` (§6).
+- **Histórico extraído aqui** (`ncrhist.js`, pedido do Bruno: "fazer isso
+  diretamente pelo sistema de derrogação"). As três fontes do NCR Control
+  (repositório NCR_Dashboard, branch `…history-extraction-macro…`), portadas:
+  `Marcos` (colunas datadas do export, reconhecidas pelo padrão do
+  cabeçalho), os eventos entre duas fotos do `Importer` e o `SistemaHist`
+  (o JSON do extrator do NCR Integrada).
+  - A reconstrução só roda na NCR **sem trajetória** (nova, ou importada antes
+    desta versão) e sem captura — como lá. Depois disso, só o que mudou: o
+    status (evento `STATUS` na data da foto) e os marcos que ganharam data.
+    Foto mais antiga que a anterior (`fonte.dataFoto`) não gera evento.
+  - **Os eventos gerados pelo export levam `campo` começando por
+    `Status · export`** (`CAMPO_EXPORT`). É a marca da fonte, e vai no
+    `campo` porque ele está na assinatura do evento e nenhuma versão o
+    descarta. `NcrHist.trajetoria` usa a marca: um histórico de fora (o
+    `historico.json` do NCR Control) vale até o último evento dele, e os do
+    export só depois — senão a chegada estimada de uma reconstrução se
+    intercalava, por data, no caminho que o NCR Control registrou (um teste
+    pegou isso). O caminho fecha no status do export quando o export é mais
+    novo que o último passo.
+  - **A captura do sistema não apaga nada.** No NCR Control ela substitui os
+    eventos até a data dela. Aqui o histórico é união na pasta, e o evento
+    apagado voltaria pela cópia do colega. Então as capturas ficam à parte
+    (`ncrmeta:sistema` no `snapshots` e `derrogacao-ncr-sistema.json` na
+    pasta; por NCR vale o `capturadoEm` maior), e a troca é feita **na
+    leitura** (`comCaptura`), dentro de `NcrFluxo.sequencia`.
+  - O **status** do export continua mandando ("fechada", filtros, Kanban). A
+    captura mais nova que diverge só aparece na ficha (`.nb-sis-diverge`).
+  - O extrator é **cópia literal** do NCR Control, em
+    `<script id="extratorSrc" type="text/plain">` no `index.html`: não é
+    executado aqui (por isso o ES2017 dele não fere o §2), e o mesmo banco do
+    navegador (`ncrControlExtrator`) e o mesmo formato
+    (`ncr-control/historico-sistema`) fazem valer o que já foi capturado lá.
+    Mudou lá, copie de novo — não edite só aqui.
+  - A importação das capturas não tem "desfazer": só acrescenta, e o desfazer
+    da última importação do banco continua sendo o dela.
+  - Capturas viajam no backup e na publicação em `ncrBase.sistema`; a
+    publicação republica quando muda a captura mais recente ou a contagem.
 - **A tela** (pedidos do Bruno depois de usar): a tabela é a página, com
   todas as NCRs e cabeçalho `sticky` — **sem `overflow` em caixa
   intermediária**, senão o sticky morre (§6); a lateral vira trilho estreito
@@ -1861,7 +1905,7 @@ permissão da pasta entre sessões.
 A suíte voltou, menor e em Node (`tests/`, ver `tests/README.md`): o Bruno
 pediu testes automatizados para os comportamentos novos. `node tests/rodar.js`
 roda todas (navegação, abertura no marco da vez, Kanban e suas exportações,
-Resumo, atualização automática, Banco NCR, banco de produtos, comunicados — do editor ao pop-up
+Resumo, atualização automática, Banco NCR, banco de produtos, histórico da NCR (export, extrator do NCR Integrada), comunicados — do editor ao pop-up
 do visualizador —, compatibilidade e os arquivos únicos de `file://`). Elas abrem o programa de verdade, semeiam pela API do
 programa, conferem arquivos baixados e o número de folhas e o papel dos PDFs.
 Não é o programa: nada ali entra no `derrogacao.html`, e o programa continua
@@ -2041,3 +2085,8 @@ desta máquina às vezes bloqueia `github.io`.
 | O banco de produtos viaja em `ncrBase.produtos` (backup, publicação) e tem arquivo próprio na pasta, junção produto a produto pelo `em` | a versão anterior ignora a chave; arquivo próprio pelo motivo das correções e dos comunicados |
 | Produtos na ordem das abas: depois de Fluxos | a ordem do Bruno (Banco NCR … Waiver DEV) não muda; é dado de consulta, como o Resumo e os Fluxos |
 | A tabela de produtos mostra 300 e pede mais | 2.400 linhas custavam mais de um segundo só de layout |
+| Histórico da NCR extraído pelo próprio Derrogação (colunas datadas, mudanças entre importações, extrator do NCR Integrada); o `historico.json` do NCR Control fica como alternativa | pedido do Bruno; ele escolheu as três fontes e manter a importação antiga |
+| A captura do NCR Integrada fica à parte e substitui o histórico só na leitura | o histórico da pasta é união: apagar eventos, como faz o NCR Control, não sobreviveria à cópia do colega |
+| O status do export continua valendo; a captura divergente só é avisada na ficha | "fechada", filtros e Kanban leem uma fonte só; trocar o status por uma captura poderia esconder o export mais novo |
+| Eventos gerados pelo export marcados no `campo` (`Status · export`) | é o único lugar do evento que entra na assinatura e que nenhuma versão descarta |
+| O extrator mora no `index.html` como texto, cópia literal do NCR Control | não executa aqui; mesmo banco do navegador e mesmo formato, para valer o que já foi capturado |

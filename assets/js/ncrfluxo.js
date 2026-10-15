@@ -5,12 +5,15 @@
    gráfico" do NCR Control (Detalhe.trajSVG e Detalhe.flowSVG), com o mesmo
    fluxo de status, as mesmas etapas e a mesma classificação de movimento.
 
-   A fonte é o histórico importado (Importar histórico NCR): os eventos de
-   status do NCR Control já vêm com a classificação (cls) e, quando não vêm,
-   ela é refeita aqui pela mesma regra (`classificar`). Sem histórico, o
-   desenho mostra só o status atual — e diz isso.
+   A fonte é o histórico da NCR: o que o próprio export trouxe (colunas
+   datadas, mudanças entre importações), o historico.json do NCR Control e,
+   por cima, a captura do extrator do NCR Integrada — cada um no seu trecho,
+   pelo ncrhist.js. Os eventos que já vêm com a classificação (cls) a
+   mantêm; os outros são classificados aqui pela mesma regra
+   (`classificar`). Sem histórico, o desenho mostra só o status atual — e
+   diz isso.
 
-   Não depende de nada além de Ncrs (norm, data).
+   Usa Ncrs (norm, data) e, se carregado, NcrHist.
    ========================================================================== */
 (function (global) {
   'use strict';
@@ -127,10 +130,20 @@
   /** Os passos da NCR, na ordem em que aconteceram. */
   function sequencia(rec) {
     var out = [];
-    (rec.historico || []).filter(eventoDeFluxo).forEach(function (e) {
+    var evs = (rec.historico || []).filter(eventoDeFluxo);
+    /* cada fonte no seu trecho (ncrhist.js): o histórico de fora antes do
+       que o export gerou, e a captura do NCR Integrada por cima de tudo até
+       a data dela */
+    if (global.NcrHist) evs = NcrHist.trajetoria(rec, evs);
+    evs.forEach(function (e) {
       var cls = str(e.cls).toUpperCase();
-      if (!LABEL[cls]) cls = classificar(e.de || (out.length ? out[out.length - 1].status : ''), e.para);
-      out.push({ status: e.para, data: e.data, cls: cls, de: e.de, estimado: !!e.estimado, obs: e.obs });
+      var ant = out.length ? out[out.length - 1].status : '';
+      /* o mesmo status de novo não é passo (o "estado inicial conhecido" de
+         uma importação, somado ao histórico que veio de outra fonte) */
+      if (ant && norm(ant) === norm(e.para)) return;
+      if (!LABEL[cls] || (cls === 'INICIAL' && ant)) cls = classificar(e.de || ant, e.para);
+      out.push({ status: e.para, data: e.data, cls: cls, de: e.de, estimado: !!e.estimado, obs: e.obs,
+        acao: e.acao || '', texto: e.texto || '', sistema: !!e.sistema });
     });
     var f = Ncrs.fonte(rec);
     if (!out.length && f && f.status) {
@@ -291,11 +304,12 @@
       var v = vis[str(s.status)];
       g += '<g><title>' + esc(s.status + ' — passo ' + (i + 1) + ' de ' + seq.length + (s.data ? ', ' + Ncrs.data(s.data) : '') +
         (n > 1 ? '\n' + n + 'ª passagem por esta etapa' : '') + (v && v.n > 1 ? '\n' + v.n + ' passagens no total' : '') +
-        (desc ? '\netapa registrada apenas nas colunas datadas do export (ordem inferida)' : '') + (s.obs ? '\n' + s.obs : '')) + '</title>';
+        (desc ? '\netapa registrada apenas nas colunas datadas do export (ordem inferida)' : '') + (s.obs ? '\n' + s.obs : '') +
+        (s.texto ? '\n\n✎ ' + (s.acao ? s.acao + ':\n' : '') + cortar(s.texto, 1200) : '')) + '</title>';
       g += '<rect x="' + x + '" y="' + y + '" width="' + NW + '" height="' + NH + '" rx="7" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' +
         (ehAtual ? 2 : 1.4) + '"' + (desc ? ' stroke-dasharray="4 3"' : '') + '/>';
       g += '<text x="' + (x + 10) + '" y="' + (y + NH / 2 + 4) + '" fill="' + TINTA + '" font-size="11"' + (ehAtual ? ' font-weight="600"' : '') + '>' +
-        esc(cortar(s.status, 21)) + '</text>';
+        esc(cortar(s.status, s.texto ? 19 : 21) + (s.texto ? ' ✎' : '')) + '</text>';
       if (n > 1) {
         g += '<circle cx="' + (x + NW - 14) + '" cy="' + (y + NH / 2) + '" r="9" fill="' + REPETE + '"/>' +
           '<text x="' + (x + NW - 14) + '" y="' + (y + NH / 2 + 3.5) + '" text-anchor="middle" fill="#fff" font-size="9" font-weight="700">' + n + 'ª</text>';
@@ -433,6 +447,9 @@
     classificar: classificar,
     etapa: etapa,
     ordemInferida: ordemInferida,
-    LABEL: LABEL
+    LABEL: LABEL,
+    isFinal: isFinal,
+    /* o fluxo como lista {status, ordem}, para o casamento de rótulos do ncrhist.js */
+    FLUXO_LISTA: FLUXO.map(function (f) { return { status: f[1], ordem: f[0] }; })
   };
 })(window);

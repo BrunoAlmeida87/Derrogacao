@@ -70,7 +70,17 @@
       delete c.updatedAt;
       delete c.lastEditedAt;
       return c;
-    }), ncrBase ? ncrBase.ncrs : null, idsDe(comunicados), carimboProdutos(ncrBase)]);
+    }), ncrBase ? ncrBase.ncrs : null, idsDe(comunicados), carimboProdutos(ncrBase), carimboSistema(ncrBase)]);
+  }
+
+  /* o histórico do sistema (NCR Integrada): a captura mais recente e quantas
+     são dizem se há trajetória nova para publicar */
+  function carimboSistema(ncrBase) {
+    var si = ncrBase && ncrBase.sistema;
+    if (!si || !si.capturas) return null;
+    var ks = Object.keys(si.capturas), ultima = '';
+    ks.forEach(function (k) { var c = str(si.capturas[k].capturadoEm); if (c > ultima) ultima = c; });
+    return [ultima, ks.length];
   }
 
   /* o banco de produtos muda por importação: o carimbo e a contagem bastam
@@ -147,7 +157,8 @@
       quem: str(d.publishedBy || d.updatedBy || d.exportedBy),
       /* o conteúdo como veio, antes de normalizar (a normalização preenche
          carimbos ausentes com "agora"): é o que diz se a releitura mudou algo */
-      assinatura: JSON.stringify([d.projects || d, d.ncrBase ? d.ncrBase.ncrs : null, carimboProdutos(d.ncrBase)])
+      assinatura: JSON.stringify([d.projects || d, d.ncrBase ? d.ncrBase.ncrs : null, carimboProdutos(d.ncrBase),
+        carimboSistema(d.ncrBase)])
     };
   }
 
