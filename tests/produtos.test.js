@@ -466,7 +466,10 @@ function lerDaPasta(pg, nome) {
     await pg.waitForSelector('#nb2Table tbody tr');
     await pg.evaluate((n) => NcrView.abrirFicha(n), N(3));
     await pg.waitForSelector('#ncrDialog[open] .nb-sec--produtos');
-    const inr = await L.baixar(pg, () => pg.click('#ncrDialog .nb-ficha-cab .btn:has-text("Imagem")'));
+    await pg.click('#ncrDialog .nb-ficha-cab .btn:has-text("Imagem")');
+    await pg.waitForSelector('#ncrImgDialog[open]');
+    L.ok(await pg.isChecked('input[name="nbImg-produtos"]'), 'na janela da imagem, os produtos vêm marcados');
+    const inr = await L.baixar(pg, () => pg.click('#nbImgBaixar'));
     const dn = png(inr.buffer);
     L.ok(dn.ok && dn.w === 2480 && dn.h === 3508 && /^NCR_.*\.png$/.test(inr.nome), 'a ficha da NCR também: ' + inr.nome);
     await pg.keyboard.press('Escape');

@@ -1343,8 +1343,8 @@
         ctx.admin.corrigir(rec.key);
       }, 'Correção manual dos dados do banco NCR, com registro de auditoria'));
     }
-    var imagem = botao('⤓ Imagem (A4)', 'btn--sm', function () { baixarImagem(rec); },
-      'Baixa esta ficha como imagem PNG em boa resolução, do tamanho de uma folha A4');
+    var imagem = botao('⤓ Imagem (A4)…', 'btn--sm', function () { baixarImagem(rec); },
+      'Baixa esta ficha como imagem PNG em alta resolução, do tamanho de uma folha A4 — você escolhe o que entra (o fluxo, o histórico…)');
     imagem.setAttribute('data-mostra', '');
     cab.appendChild(imagem);
     var fechar = botao('Fechar ✕', 'btn--sm', function () { dlg.close(); });
@@ -1615,61 +1615,305 @@
     body.scrollTop = rolagem;
   }
 
+  /* --- a ficha como imagem A4 (cartao.js) --------------------------------------- */
+
+  /* Pedido do Bruno: escolher o que entra na imagem — o fluxo, por exemplo,
+     não entrava. As seções são as da ficha, na mesma ordem; as escolhas ficam
+     neste navegador (preferência de tela, como a impressão do Kanban). */
+  var CHAVE_IMAGEM = 'derrogacao:fichaImagem';
+  var SECOES_IMAGEM = [
+    { id: 'waiver', rot: 'Dados do Waiver', dica: 'marcos, função vital, Waiver Historic, Observação, Obs Ship Manager', padrao: true },
+    { id: 'relatorios', rot: 'Relatórios de Waiver', dica: 'em que relatórios a NCR está, e a situação', padrao: true },
+    { id: 'produtos', rot: 'Produtos, marcos e funções vitais', dica: 'do banco de produtos', padrao: true },
+    { id: 'banco', rot: 'Dados do banco NCR', dica: 'descrição e campos do export', padrao: true },
+    { id: 'detalhes', rot: 'Tabelas do export', dica: 'produtos, deliberações… (o que vem em várias linhas)', padrao: false },
+    { id: 'fluxo', rot: 'Fluxo da NCR', dica: 'o desenho, com a legenda', padrao: false },
+    { id: 'historico', rot: 'Histórico da NCR', dica: 'a tabela de eventos', padrao: false },
+    { id: 'auditoria', rot: 'Correções e vínculos (auditoria)', dica: '', padrao: false }
+  ];
+
+  function prefsImagem() {
+    var p = lerPref(CHAVE_IMAGEM, null) || {};
+    var sec = {};
+    SECOES_IMAGEM.forEach(function (x) { sec[x.id] = p.secoes && typeof p.secoes[x.id] === 'boolean' ? p.secoes[x.id] : x.padrao; });
+    return { secoes: sec, fluxo: p.fluxo === 'mapa' ? 'mapa' : (p.fluxo === 'traj' ? 'traj' : st.modoFluxo),
+      tamanho: p.tamanho === 'folhas' ? 'folhas' : 'uma' };
+  }
+
+  /** O que esta NCR tem em cada seção (0 = nada para pôr na imagem). */
+  function conteudoDasSecoes(rec) {
+    var f = Ncrs.fonte(rec);
+    var nDet = (f.detalhes || []).reduce(function (a, g) { return a + g.linhas.length; }, 0);
+    var temProd = !!(global.ProdView && global.Produtos && Produtos.total());
+    return {
+      waiver: 1, relatorios: 1,
+      produtos: temProd ? Math.max(1, Produtos.deNcr(rec).length) : 0,
+      banco: (f.descricao ? 1 : 0) + Object.keys(f.campos).length,
+      detalhes: nDet,
+      fluxo: NcrFluxo.sequencia(rec).length,
+      historico: rec.historico.length,
+      auditoria: global.Correcoes ? Correcoes.auditoriaDe(rec.key).length : 0
+    };
+  }
+
   /**
-   * A ficha como imagem A4 (cartao.js): o resumo do que está no pop-up — dados
-   * do Waiver, relatórios, produtos com marcos e funções vitais e os campos do
-   * banco NCR. O fluxo e o histórico ficam de fora: não cabem numa folha.
-   * Se passar da folha, corta campos e produtos até caber.
+   * Os blocos da imagem. `op`: as escolhas; `des`: o desenho do fluxo já
+   * carregado ({img, w, h}); `lim`: o que cabe de cada lista (Infinity = tudo).
+   * Devolve { blocos, cortes } — `cortes` diz o que ficou de fora.
    */
-  function baixarImagem(rec) {
+  function blocosDaImagem(rec, op, des, lim) {
     var f = Ncrs.fonte(rec), w = rec.waiver, fechada = Ncrs.fechada(rec);
-    var sub = substituicaoDe(rec);
-    var vinc = vinculosEmOrdem(Ncrs.vinculos(rec, ctx.projects()));
-    var campos = Object.keys(f.campos).filter(function (k) { return str(f.campos[k]).trim() !== ''; });
-    var ordem = Ncrs.meta().colunas || [];
-    campos.sort(function (a, b) {
-      var ia = ordem.indexOf(a), ib = ordem.indexOf(b);
-      return (ia < 0 ? 1e6 : ia) - (ib < 0 ? 1e6 : ib);
-    });
-    var nCampos = campos.length, maxProd = 12, res;
-    for (var tentativa = 0; tentativa < 10; tentativa++) {
-      var tags = [];
-      if (f.status) tags.push({ t: f.status, c: fechada ? 'erro' : 'info' });
-      tags.push({ t: fechada ? 'fechada' : 'aberta', c: fechada ? 'erro' : 'fechada' });
-      if (f.sbr) tags.push({ t: f.sbr, c: 'sbr' });
-      if (sub) tags.push({ t: 'temporária → ' + sub.paraNumero, c: 'info' });
-      var blocos = [{ t: 'cab', titulo: rec.numero, sub: f.titulo, tags: tags },
-        { t: 'sec', titulo: 'Dados do Waiver' },
-        { t: 'pares', cols: 3, itens: [['Marco Original', w.marcoOriginal || '—'], ['Marco Atual', w.marcoAtual || '—'],
-          ['Função Vital', w.funcaoVital || '—']] }];
-      if (w.waiverHistoric) blocos.push({ t: 'texto', rot: 'Waiver Historic', texto: w.waiverHistoric, linhas: 3 });
-      if (w.observacao) blocos.push({ t: 'texto', rot: 'Observação', texto: w.observacao, linhas: 4 });
-      if (w.obsShipManager) blocos.push({ t: 'texto', rot: 'Obs Ship Manager', texto: w.obsShipManager, linhas: 3 });
+    var sub = substituicaoDe(rec), sec = op.secoes, cortes = [];
+    var tags = [];
+    if (f.status) tags.push({ t: f.status, c: fechada ? 'erro' : 'info' });
+    tags.push({ t: fechada ? 'fechada' : 'aberta', c: fechada ? 'erro' : 'fechada' });
+    if (f.sbr) tags.push({ t: f.sbr, c: 'sbr' });
+    if (sub) tags.push({ t: 'temporária → ' + sub.paraNumero, c: 'info' });
+    var blocos = [{ t: 'cab', titulo: rec.numero, sub: f.titulo, tags: tags }];
+    function cortou(n, total, oque) {
+      if (n >= total) return;
+      cortes.push((total - n) + ' ' + oque);
+      blocos.push({ t: 'nota', texto: '… e mais ' + (total - n) + ' ' + oque + ' — veja a ficha na tela.' });
+    }
+    var tudo = lim.campos === Infinity;
+    if (sec.waiver) {
+      blocos.push({ t: 'sec', titulo: 'Dados do Waiver' });
+      blocos.push({ t: 'pares', cols: 3, itens: [['Marco Original', w.marcoOriginal || '—'], ['Marco Atual', w.marcoAtual || '—'],
+        ['Função Vital', w.funcaoVital || '—']] });
+      if (w.waiverHistoric) blocos.push({ t: 'texto', rot: 'Waiver Historic', texto: w.waiverHistoric, linhas: tudo ? 20 : 3 });
+      if (w.observacao) blocos.push({ t: 'texto', rot: 'Observação', texto: w.observacao, linhas: tudo ? 30 : 4 });
+      if (w.obsShipManager) blocos.push({ t: 'texto', rot: 'Obs Ship Manager', texto: w.obsShipManager, linhas: tudo ? 30 : 3 });
+    }
+    if (sec.relatorios) {
+      var vinc = vinculosEmOrdem(Ncrs.vinculos(rec, ctx.projects()));
       blocos.push({ t: 'sec', titulo: 'Relatórios de Waiver' });
       blocos.push({ t: 'chips', rot: 'Vinculada a', chips: vinc.length ? vinc.map(function (v) {
         var aceito = v.item.status === Store.STATUS_CONCLUIDO;
         return { t: nomeRel(v.project) + ' · ' + Store.statusInfo(v.item.status).nome, c: aceito ? 'fechada' : 'info' };
       }) : [{ t: 'nenhum relatório', c: 'na' }] });
-      if (global.ProdView && global.Produtos && Produtos.total()) {
-        ProdView.blocosDosProdutos(Produtos.deNcr(rec), maxProd).forEach(function (b) { blocos.push(b); });
-      }
+    }
+    if (sec.produtos && global.ProdView && global.Produtos && Produtos.total()) {
+      ProdView.blocosDosProdutos(Produtos.deNcr(rec), lim.prod).forEach(function (b) { blocos.push(b); });
+    }
+    if (sec.banco) {
+      var campos = Object.keys(f.campos).filter(function (k) { return str(f.campos[k]).trim() !== ''; });
+      var ordem = Ncrs.meta().colunas || [];
+      campos.sort(function (a, b) {
+        var ia = ordem.indexOf(a), ib = ordem.indexOf(b);
+        return (ia < 0 ? 1e6 : ia) - (ib < 0 ? 1e6 : ib);
+      });
+      var nCampos = Math.min(campos.length, lim.campos);
       blocos.push({ t: 'sec', titulo: 'Dados do banco NCR', sub: f.importadoEm ? 'importado em ' + Ncrs.data(f.importadoEm) : '' });
-      if (f.descricao) blocos.push({ t: 'texto', rot: 'Descrição', texto: f.descricao, linhas: Math.max(3, Math.min(8, nCampos > 14 ? 4 : 8)) });
-      var sel = campos.slice(0, nCampos);
-      if (sel.length) {
-        blocos.push({ t: 'pares', cols: 2, itens: sel.map(function (k) {
-          var v = Ncrs.data(f.campos[k]);
-          return [k, v.length > 220 ? v.slice(0, 220) + '…' : v, false, 2];
+      if (f.descricao) blocos.push({ t: 'texto', rot: 'Descrição', texto: f.descricao,
+        linhas: tudo ? 40 : Math.max(3, Math.min(8, nCampos > 14 ? 4 : 8)) });
+      if (nCampos) {
+        blocos.push({ t: 'pares', cols: 2, itens: campos.slice(0, nCampos).map(function (k) {
+          var v = Ncrs.data(f.campos[k]), max = tudo ? 600 : 220;
+          return [k, v.length > max ? v.slice(0, max) + '…' : v, false, tudo ? 6 : 2];
         }) });
       }
-      if (nCampos < campos.length) blocos.push({ t: 'nota', texto: '… e mais ' + (campos.length - nCampos) + ' campo(s) do banco NCR — veja a ficha na tela.' });
-      res = Cartao.gerar(blocos, { tema: { cor: '#34506b' },
-        rodape: 'Gerado em ' + new Date().toLocaleString('pt-BR') + ' por ' + (Store.getUser() || '(sem nome)') + ' · Waiver Request' });
-      if (res.coube) break;
-      nCampos = Math.max(0, Math.floor(nCampos * 0.7));
-      maxProd = Math.max(3, Math.floor(maxProd * 0.7));
+      cortou(nCampos, campos.length, 'campo(s) do banco NCR');
     }
-    Cartao.baixar(res.canvas, 'NCR_' + Cartao.nomeSeguro(rec.numero) + '.png');
+    if (sec.detalhes) {
+      (f.detalhes || []).forEach(function (g) {
+        var n = Math.min(g.linhas.length, lim.det);
+        blocos.push({ t: 'sec', titulo: g.titulo, sub: g.linhas.length + ' linha(s)' + (g.origem ? ' · de: ' + g.origem : '') });
+        blocos.push({ t: 'tab', cols: g.colunas.map(function (c) { return { t: c, w: 1 }; }),
+          rows: g.linhas.slice(0, n).map(function (l) { return l.map(function (v) { return Ncrs.data(v); }); }) });
+        cortou(n, g.linhas.length, 'linha(s) de "' + g.titulo + '"');
+      });
+    }
+    if (sec.fluxo && des) {
+      var seq = NcrFluxo.sequencia(rec);
+      blocos.push({ t: 'sec', titulo: 'Fluxo da NCR', sub: (op.fluxo === 'mapa' ? 'mapa do fluxo' : 'trajetória') + ' · ' + seq.length + ' passo(s)' });
+      blocos.push({ t: 'img', img: des.img, w: des.w, h: des.h, maxH: lim.fluxoH });
+      blocos.push({ t: 'legenda', itens: NcrFluxo.itensLegenda() });
+    }
+    if (sec.historico && rec.historico.length) {
+      var hs = rec.historico.slice().reverse(), nh = Math.min(hs.length, lim.hist);
+      blocos.push({ t: 'sec', titulo: 'Histórico da NCR', sub: hs.length + ' evento(s), do mais novo para o mais antigo' });
+      blocos.push({ t: 'tab', cols: [{ t: 'Data', w: 13 }, { t: 'Movimento', w: 12 }, { t: 'Campo', w: 14 }, { t: 'De', w: 17 },
+        { t: 'Para', w: 17 }, { t: 'Obs. / responsável', w: 27 }],
+        rows: hs.slice(0, nh).map(function (e) {
+          return [Ncrs.data(e.data) + (e.estimado ? ' (estimada)' : ''), NcrFluxo.LABEL[str(e.cls).toUpperCase()] || e.tipo,
+            e.campo, e.de, e.para, [e.obs, e.responsavel].filter(Boolean).join(' · ')].map(str);
+        }) });
+      cortou(nh, hs.length, 'evento(s) do histórico');
+    }
+    var aud = sec.auditoria && global.Correcoes ? Correcoes.auditoriaDe(rec.key) : [];
+    if (aud.length) {
+      var na = Math.min(aud.length, lim.aud);
+      blocos.push({ t: 'sec', titulo: 'Correções e vínculos (auditoria)', sub: aud.length + ' registro(s)' });
+      blocos.push({ t: 'tab', cols: [{ t: 'Data e hora', w: 14 }, { t: 'Quem', w: 12 }, { t: 'Campo', w: 14 }, { t: 'Valor anterior', w: 18 },
+        { t: 'Novo valor', w: 18 }, { t: 'Motivo', w: 24 }],
+        rows: aud.slice(0, na).map(function (e) {
+          return [Ncrs.data(e.em), e.por || '(sem nome)', e.campo, e.de || '—', e.para || '—', e.obs].map(str);
+        }) });
+      cortou(na, aud.length, 'registro(s) da auditoria');
+    }
+    return { blocos: blocos, cortes: cortes };
+  }
+
+  function rodapeDaImagem() {
+    return 'Gerado em ' + new Date().toLocaleString('pt-BR') + ' por ' + (Store.getUser() || '(sem nome)') + ' · Waiver Request';
+  }
+
+  /**
+   * Monta as imagens. "Uma folha": reduz a letra e, se ainda faltar, corta o
+   * fim de cada lista (diz o quê). "Quantas folhas": tudo, letra fixa, uma
+   * imagem por folha. Devolve { canvases, cortes, escala }.
+   */
+  function montarImagem(rec, op, des) {
+    var tema = { tema: { cor: '#34506b' }, rodape: rodapeDaImagem() };
+    if (op.tamanho === 'folhas') {
+      var tudo = { campos: Infinity, prod: Infinity, det: Infinity, hist: Infinity, aud: Infinity, fluxoH: 0 };
+      var pg = Cartao.paginas(blocosDaImagem(rec, op, des, tudo).blocos, tema);
+      return { canvases: pg.canvases, cortes: [], escala: pg.escala };
+    }
+    var lim = { campos: Infinity, prod: 12, det: 25, hist: 30, aud: 15, fluxoH: 760 }, res, b;
+    for (var tentativa = 0; tentativa < 10; tentativa++) {
+      b = blocosDaImagem(rec, op, des, lim);
+      res = Cartao.gerar(b.blocos, tema);
+      if (res.coube) break;
+      var nCampos = lim.campos === Infinity ? Object.keys(Ncrs.fonte(rec).campos).length : lim.campos;
+      lim = { campos: Math.max(0, Math.floor(nCampos * 0.7)), prod: Math.max(3, Math.floor(lim.prod * 0.7)),
+        det: Math.max(3, Math.floor(lim.det * 0.7)), hist: Math.max(4, Math.floor(lim.hist * 0.7)),
+        aud: Math.max(3, Math.floor(lim.aud * 0.7)), fluxoH: Math.max(320, Math.floor(lim.fluxoH * 0.8)) };
+    }
+    return { canvases: [res.canvas], cortes: b.cortes, escala: res.escala, coube: res.coube };
+  }
+
+  /** A janela "o que entra na imagem", aberta pelo ⤓ Imagem (A4) da ficha. */
+  function baixarImagem(rec) {
+    var dlg = document.getElementById('ncrImgDialog');
+    if (!dlg) return;
+    var op = prefsImagem();
+    var tem = conteudoDasSecoes(rec);
+    var desenhos = {};
+    var body = dlg.querySelector('.dlg-body'), ac = dlg.querySelector('.dlg-actions');
+    body.innerHTML = '';
+    ac.innerHTML = '';
+    body.appendChild(el('h3', null, 'Imagem A4 da ' + rec.numero));
+    body.appendChild(el('p', null, 'Escolha o que entra na imagem. Ela é desenhada de novo, em PNG de alta resolução ' +
+      '(2480 × 3508 px, uma folha A4 a 300 dpi), na ordem da ficha.'));
+
+    function radio(nome, valor, rotulo, atual) {
+      var lab = el('label', 'kb-imp-op');
+      var r = document.createElement('input');
+      r.type = 'radio'; r.name = nome; r.value = valor; r.checked = valor === atual;
+      r.addEventListener('change', atualizar);
+      lab.appendChild(r);
+      lab.appendChild(el('span', null, rotulo));
+      return lab;
+    }
+    var grade = el('div', 'kb-imp-grade');
+    var fsSec = el('fieldset', 'kb-imp-grupo nb-img-secoes');
+    fsSec.appendChild(el('legend', null, 'O que entra'));
+    SECOES_IMAGEM.forEach(function (x) {
+      var n = tem[x.id];
+      var lab = el('label', 'kb-imp-op');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.name = 'nbImg-' + x.id; cb.value = x.id;
+      cb.checked = !!(op.secoes[x.id] && n);
+      cb.disabled = !n;
+      cb.addEventListener('change', atualizar);
+      lab.appendChild(cb);
+      var txt = el('span', null, x.rot);
+      var detalhe = !n ? 'nada nesta NCR' : x.id === 'historico' ? n + ' evento(s)' : x.id === 'detalhes' ? n + ' linha(s)'
+        : x.id === 'fluxo' ? n + ' passo(s)' : x.id === 'auditoria' ? n + ' registro(s)' : x.dica;
+      if (detalhe) txt.appendChild(el('small', 'nb-img-dica', ' — ' + detalhe));
+      lab.appendChild(txt);
+      if (!n) lab.classList.add('is-vazio');
+      fsSec.appendChild(lab);
+      if (x.id === 'fluxo') {
+        var modos = el('div', 'nb-img-sub');
+        modos.appendChild(radio('nbImgFluxo', 'traj', 'Trajetória', op.fluxo));
+        modos.appendChild(radio('nbImgFluxo', 'mapa', 'Mapa do fluxo', op.fluxo));
+        fsSec.appendChild(modos);
+      }
+    });
+    var atalhos = el('div', 'nb-img-atalhos');
+    atalhos.appendChild(botao('Marcar tudo', 'btn--sm', function () { marcar(true); }));
+    atalhos.appendChild(botao('Limpar', 'btn--sm', function () { marcar(false); }));
+    fsSec.appendChild(atalhos);
+    grade.appendChild(fsSec);
+    var fsTam = el('fieldset', 'kb-imp-grupo');
+    fsTam.appendChild(el('legend', null, 'Tamanho'));
+    fsTam.appendChild(radio('nbImgTam', 'uma', 'Uma folha só — a letra diminui e, se ainda faltar, o fim das listas é cortado', op.tamanho));
+    fsTam.appendChild(radio('nbImgTam', 'folhas', 'Quantas folhas forem precisas — tudo, uma imagem PNG por folha', op.tamanho));
+    grade.appendChild(fsTam);
+    body.appendChild(grade);
+    var previa = el('p', 'kb-imp-previa');
+    previa.id = 'nbImgPrevia';
+    previa.setAttribute('role', 'status');
+    body.appendChild(previa);
+
+    function marcar(v) {
+      SECOES_IMAGEM.forEach(function (x) {
+        var cb = body.querySelector('input[name="nbImg-' + x.id + '"]');
+        if (!cb.disabled) cb.checked = v;
+      });
+      atualizar();
+    }
+    function lidas() {
+      var secoes = {};
+      SECOES_IMAGEM.forEach(function (x) {
+        var cb = body.querySelector('input[name="nbImg-' + x.id + '"]');
+        /* a seção vazia nesta NCR guarda a escolha de antes */
+        secoes[x.id] = cb.disabled ? op.secoes[x.id] : cb.checked;
+      });
+      var v = function (nome) { var x = body.querySelector('input[name="' + nome + '"]:checked'); return x ? x.value : ''; };
+      return { secoes: secoes, fluxo: v('nbImgFluxo') || 'traj', tamanho: v('nbImgTam') || 'uma' };
+    }
+    /* o desenho do fluxo vira imagem antes (é assíncrono) */
+    function desenho(o) {
+      if (!o.secoes.fluxo || !tem.fluxo) return Promise.resolve(null);
+      if (!desenhos[o.fluxo]) {
+        var svg = o.fluxo === 'mapa' ? NcrFluxo.mapa(rec) : NcrFluxo.trajetoria(rec);
+        desenhos[o.fluxo] = svg ? Cartao.carregarSvg(svg) : Promise.resolve(null);
+      }
+      return desenhos[o.fluxo];
+    }
+    var vez = 0;
+    function atualizar() {
+      var o = lidas(), minha = ++vez;
+      op = o;
+      gravarPref(CHAVE_IMAGEM, o);
+      previa.textContent = 'Calculando…';
+      return desenho(o).then(function (des) {
+        if (minha !== vez) return null;
+        var r = montarImagem(rec, o, des);
+        var n = r.canvases.length;
+        previa.textContent = o.tamanho === 'folhas'
+          ? 'Vai sair em ' + n + ' folha' + (n > 1 ? 's' : '') + ' A4' + (n > 1 ? ' — ' + n + ' imagens PNG (o navegador pode pedir para permitir vários downloads).' : ', uma imagem PNG.')
+          : (r.cortes.length
+            ? 'Não cabe tudo numa folha: ficam de fora ' + r.cortes.join(', ') + '. Escolha “Quantas folhas forem precisas” para levar tudo.'
+            : 'Cabe numa folha A4' + (r.escala < 0.999 ? ', com a letra a ' + Math.round(r.escala * 100) + '%' : '') + '.');
+        return r;
+      }, function (e) {
+        previa.textContent = 'O desenho do fluxo não pôde ser convertido: ' + (e && e.message || e);
+        return null;
+      });
+    }
+    ac.appendChild(botao('Cancelar', '', function () { dlg.close(); }));
+    var baixa = botao('⤓ Baixar imagem', 'btn--primary', function () {
+      baixa.disabled = true;
+      atualizar().then(function (r) {
+        baixa.disabled = false;
+        if (!r) return;
+        var nome = 'NCR_' + Cartao.nomeSeguro(rec.numero);
+        var n = r.canvases.length;
+        r.canvases.forEach(function (cv, i) {
+          /* uma de cada vez: vários downloads no mesmo instante o navegador barra */
+          setTimeout(function () { Cartao.baixar(cv, nome + (n > 1 ? '_folha' + (i + 1) + 'de' + n : '') + '.png'); }, i * 400);
+        });
+        dlg.close();
+      });
+    });
+    baixa.id = 'nbImgBaixar';
+    ac.appendChild(baixa);
+    dlg.showModal();
+    atualizar();
   }
 
   /** A tabela da auditoria — na ficha e na área administrativa. */
@@ -1886,6 +2130,7 @@
     avisoFechada: avisoFechada,
     etiquetaRel: etiquetaRel,
     tabelaAuditoria: tabelaAuditoria,
+    blocosDaImagem: blocosDaImagem,
     redesenharFicha: function () { if (st.aberto) desenharFicha(); }
   };
 })(window);

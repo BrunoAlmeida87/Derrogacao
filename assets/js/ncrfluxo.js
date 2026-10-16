@@ -439,7 +439,17 @@
       '<span><i class="nfx-tracejado"></i>Data estimada</span></div>';
   }
 
+  /* a mesma legenda, como dados: para quem desenha fora da tela (a imagem A4
+     da ficha, cartao.js) */
+  function itensLegenda() {
+    return ['AVANCO', 'RETORNO', 'LATERAL', 'FECHAMENTO', 'REABERTURA'].map(function (k) {
+      return { t: ICON[k] + ' ' + LABEL[k], cor: CORES[k] };
+    }).concat([{ t: 'Etapa percorrida', cor: EIXO }, { t: 'Não percorrida', cor: GRADE },
+      { t: 'Data estimada', cor: TINTA2, tracejado: true }]);
+  }
+
   global.NcrFluxo = {
+    itensLegenda: itensLegenda,
     sequencia: sequencia,
     trajetoria: trajetoria,
     mapa: mapaDoFluxo,

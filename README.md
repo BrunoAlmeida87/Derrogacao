@@ -1290,8 +1290,23 @@ função, e em cada cruzamento quantos produtos. Respeita a busca e os filtros.
 As fichas saem em **imagem**: **⤓ Imagem (A4)**, na ficha do produto e na da
 NCR, baixa um PNG de uma folha A4 a 300 dpi (2480 × 3508), redesenhado para o
 papel — a letra se ajusta ao que cabe, e o que não cabe é dito no rodapé do
-bloco. A da NCR leva os dados do Waiver, os relatórios, os produtos com marcos e
-funções vitais e os campos do banco NCR (o fluxo e o histórico ficam só na tela).
+bloco.
+
+Na ficha da **NCR**, o **⤓ Imagem (A4)…** abre antes uma janela para escolher
+**o que entra**, na ordem da ficha: dados do Waiver, relatórios de Waiver,
+produtos com marcos e funções vitais, dados do banco NCR, as tabelas do export
+(produtos, deliberações…), o **fluxo da NCR** (em *Trajetória* ou *Mapa do
+fluxo*, com a legenda), o **histórico** e a auditoria. O que a NCR não tem vem
+apagado. E o **tamanho**:
+
+| Tamanho | O que sai |
+| --- | --- |
+| **Uma folha só** (o de saída) | Um PNG. A letra diminui para caber; se ainda faltar, o fim das listas longas (campos, histórico…) é cortado — e a janela diz o quê antes de baixar |
+| **Quantas folhas forem precisas** | Tudo, com a letra normal: um PNG por folha (`NCR_…_folha1de3.png`), as tabelas continuando na folha seguinte com "(cont.)". O navegador pode pedir para permitir vários downloads |
+
+A janela lembra as escolhas neste navegador. Um fluxo muito longo
+(trajetória com dezenas de passos) fica pequeno, porque o desenho nunca passa
+de uma folha: nesse caso o *Mapa do fluxo* costuma ler melhor.
 
 Clicar num produto abre a **ficha do produto**: a identificação, os marcos e as
 funções vitais (com o nome que o banco NCR dá a cada número), as **NCRs que o

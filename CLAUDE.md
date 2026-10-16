@@ -1274,6 +1274,21 @@ passar os dados, e a planilha quase não muda (uma vez, talvez uma atualização
   0,62× se falta; sem caber, o chamador corta (campos, produtos) e tenta de novo
   (`baixarImagemDoProduto`, `NcrView` `baixarImagem`). Desenhada de novo, não
   foto do pop-up (que rola e muda com a janela). Os botões levam `data-mostra`.
+  **Na NCR, escolhe-se o que entra** (pedido do Bruno, 16/10: o fluxo não
+  entrava): `#ncrImgDialog` (sem `data-so-editor` — o visualizador também
+  baixa) lista `SECOES_IMAGEM` na ordem da ficha, apagando a vazia
+  (`conteudoDasSecoes`); `blocosDaImagem(rec, op, desenho, lim)` monta só o
+  marcado. O fluxo é o SVG do `ncrfluxo.js` virado imagem (`Cartao.carregarSvg`,
+  ampliado ×3 para sair nítido; assíncrono) no bloco `img`, com a legenda
+  (`NcrFluxo.itensLegenda`) no bloco `legenda`. Dois tamanhos: **uma folha**
+  (`Cartao.gerar` e o laço de corte, que agora também corta histórico,
+  tabelas do export, auditoria e a altura do fluxo — a prévia diz o que ficou
+  de fora) e **quantas folhas** (`Cartao.paginas`: letra fixa, tabela e pares
+  partidos entre as linhas, título de seção nunca sozinho no pé, "(cont.)",
+  o desenho junto da legenda e encolhendo para ocupar a sobra se ela for de
+  meia folha ou mais; um PNG por folha, baixados com 400 ms entre eles). As
+  escolhas ficam em `derrogacao:fichaImagem`. O padrão é a imagem de antes
+  (Waiver, relatórios, produtos, banco NCR; uma folha).
 - **Mapa de sistemas** (`mapaMarcas`): bigrama × função vital ou marco, com a
   contagem de produtos (pedido do Bruno: só as duas letras, não a marca inteira).
 - **Armadilha.** `NcrView.abrirFicha` usa o `ctx` que o `NcrView.render` guarda:
@@ -2160,6 +2175,7 @@ desta máquina às vezes bloqueia `github.io`.
 | O status do export continua valendo; a captura divergente só é avisada na ficha | "fechada", filtros e Kanban leem uma fonte só; trocar o status por uma captura poderia esconder o export mais novo |
 | Eventos gerados pelo export marcados no `campo` (`Status · export`) | é o único lugar do evento que entra na assinatura e que nenhuma versão descarta |
 | O extrator mora no `index.html` como texto, cópia literal do NCR Control | não executa aqui; mesmo banco do navegador e mesmo formato, para valer o que já foi capturado |
+| A imagem A4 da NCR pergunta o que entra e o tamanho (uma folha ou várias) | pedido do Bruno: o fluxo não entrava; numa folha só, tudo junto fica ilegível, então quem escolhe muito pode levar em várias folhas |
 | Kanban em três modos: NCR · NCR + DEV · Só DEV, sem guardar | pedido do Bruno; é filtro do quadro, e filtro do Kanban não é guardado |
 | Resumo na largura toda, gráficos dois a dois, só na tela | pedido do Bruno ("mais espaço"); o PDF do resumo tem layout próprio |
 | Gráficos novos do Resumo: Função vital × situação e Para onde vai o waiver | escolha do Bruno entre as opções propostas |

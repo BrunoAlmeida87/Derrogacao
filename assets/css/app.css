@@ -3538,6 +3538,11 @@ dialog.nb-ficha[open] { display: flex; flex-direction: column; }
 .kb-imp-op input { width: auto; margin: 0; accent-color: var(--kind); }
 .kb-imp-previa { margin: 6px 0 0; font-size: 13px; font-weight: 600; color: var(--kind); }
 .kb-imp-previa:empty { display: none; }
+/* a janela da imagem A4 da ficha da NCR (ncrview.js) */
+.nb-img-secoes .kb-imp-op.is-vazio { opacity: .5; cursor: default; }
+.nb-img-dica { font-size: 12px; color: var(--ink-3, #6d7383); font-weight: 400; }
+.nb-img-sub { display: flex; gap: 14px; padding: 0 0 4px 26px; }
+.nb-img-atalhos { display: flex; gap: 6px; margin-top: 6px; }
 
 @media (max-width: 900px) {
   .kb-cab { grid-template-columns: 1fr; }
