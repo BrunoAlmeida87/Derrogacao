@@ -96,6 +96,8 @@ assets/js/herdar.js        leva o item aceito para o marco em que o waiver
 assets/js/summary.js       apuração, filtros, gráficos SVG, aba Resumo
 assets/js/painel.js        o painel de um marco: tudo o que está indo para ele
 assets/js/xlsx.js          escreve a planilha .xlsx (ZIP + XML à mão)
+assets/js/imagem.js        leva um gráfico ou uma tabela do Resumo embora:
+                           PNG 3×, SVG autônomo, Excel com "Recorte"
 assets/js/tabela.js        aba Tabela: todos os itens de todos os marcos
 assets/js/chat.js          a conversa da equipe (aba opcional), pela pasta
 assets/js/comunicados.js   os comunicados para o visualizador: formato, chave
@@ -130,7 +132,7 @@ exemplos/                  .json prontos para importar
 Ordem de carga dos scripts (importa: cada um usa o anterior):
 `log.js → config.js → atualizacao.js → leitura.js → store.js → revisoes.js → pasta.js → publicacao.js → xlsxler.js → ncrs.js →
 correcoes.js → produtos.js → ncrfluxo.js → ncrhist.js → report.js → fluxo.js → herdar.js → summary.js → painel.js →
-xlsx.js → tabela.js → chat.js → comunicados.js → lado.js → cartao.js → produtosview.js → ncrview.js → kanban.js → admin.js → app.js`.
+xlsx.js → imagem.js → tabela.js → chat.js → comunicados.js → lado.js → cartao.js → produtosview.js → ncrview.js → kanban.js → admin.js → app.js`.
 (`produtos.js` não usa ninguém ao carregar: `Store`, `Ncrs`, `Correcoes` e `Fluxo`
 só na hora da chamada — e `ncrs.js` o chama no backup, na publicação e na
 junção; `produtosview.js` não conhece `NcrView`: a ficha da NCR é que o chama.)
@@ -147,6 +149,7 @@ ninguém**: ele não conhece `Store`, `Pasta` nem `app`. `config.js` e
 `revisoes.js` usa `Store.CAMPOS_MESCLA`, `valorCampo` e `rotuloCampo`;
 `herdar.js` usa `Store`, `Fluxo` e `Report`; `painel.js` usa esses três mais
 `Summary` e `SummaryView.blocoLista`; `xlsx.js` não usa ninguém;
+`imagem.js` usa `Xlsx` só na hora da chamada, e o `summary.js` o chama só no clique;
 `comunicados.js` usa `Config`, `Store` e `Report.marcoOf` só na hora da
 chamada — e `publicacao.js`, que carrega antes, usa `Comunicados.deArquivo`
 também só na hora.)
@@ -1305,12 +1308,18 @@ Deduplicado pela chave da NCR.
   e nunca somados ao marco sem Ind. Cuidado: `Fluxo.marco("J09 Ind")` é o
   J09 (ignora o Ind), então a porta "a caminho" confere o **texto** do
   Expiry (`ehInd`) — senão um waiver até "J09 Ind" cairia no quadro do J09.
-- **DEVs no quadro** (`st.devs`, botão "Incluir as DEVs"): vista geral —
-  as DEVs dos relatórios cujo **marco de DEV** (`Report.marcoOf(p,'dev')`)
+- **DEVs no quadro** (`st.tipo`: três pastilhas **NCR · NCR + DEV · Só
+  DEV**, `#kbSoNcr`/`#kbDevs`/`#kbSoDev`; era o botão "Incluir as DEVs"): as DEVs dos relatórios cujo **marco de DEV** (`Report.marcoOf(p,'dev')`)
   casa com o marco entram como `tipo: 'item', kind: 'dev'`, na coluna da
   situação, sem `rec` (logo sem "to be closed", encerrada nem alerta), com a
   etiqueta `.kb-st-ncr.is-dev`. `ctx.abrir` e `ctx.mudarSituacao` recebem o
-  `kind`. Desligado de saída; não é guardado. A planilha tem a coluna Tipo.
+  `kind`. Sai em "NCR"; não é guardado. A planilha tem a coluna Tipo.
+  **Só DEV** (pedido do Bruno, 16/10) tira as NCRs, as do banco e as que vêm
+  de outros marcos; some a coluna "NCR to be closed" e a área Encerradas (DEV
+  nunca cai nelas), "⚠ Só com alerta" e "vêm de outros marcos" ficam
+  desabilitados com o motivo na dica, e a faixa de números passa a contar as
+  DEVs. `comDevs()`/`soDevs()` são as duas perguntas; ninguém lê `st.tipo`
+  direto.
 - **Cartão compacto** (pedido do Bruno: ver mais NCRs de uma vez). Recolhido:
   número (inteiro — é ele que identifica), ⚠ e o "+" na linha 1; status da
   NCR no banco, função em poucas letras (`Kanban.funcaoCurta`: "FV03 - …" e
@@ -1398,6 +1407,36 @@ indicadores logo abaixo. `summaryFilter` nasce `null`: na primeira vez vale
 escolheu, até fechar a página. "Todos os marcos" ganhou CSV também
 (`toCsvTodos`); o backup continua só por marco, e inteiro. Os gráficos (tela e
 PDF) seguem a mesma fila dos cards.
+
+**A largura toda** (pedido do Bruno, 16/10): a aba entrou no trilho estreito
+(como a Tabela e o Kanban), o `.summary-scroll` perdeu o padding largo e os
+cards o teto de 980 px, e os gráficos ficam em `.sm-graficos`, uma grade
+`auto-fit` de no mínimo 560 px — dois a dois em tela larga, um só abaixo de
+700 px. Tudo escopado em `.summary-scroll`: o resumo em PDF não muda por isso.
+
+**Dois gráficos a mais**, escolhidos pelo Bruno, nas mesmas barras empilhadas
+por situação: **Função vital × situação** (`Summary.funcaoDe`: o número da
+função, "FV03 · nome", ordem do número, até 12 e o resto em "Outras funções",
+"Sem função vital" no fim — onde caem as DEVs) e **Para onde vai o waiver**
+(`Summary.destinoDe` = `Herdar.paraOnde(item).no.rotulo`, o Approved Expiry
+ou o Request Expiry, na fila dos marcos; "(este marco)" quando o waiver acaba
+ali; "Sem destino" no fim). O `no` do `paraOnde` é **objeto** do
+`Fluxo.marco` — use o `.rotulo`, senão sai "[object Object]". `statsDe`
+devolve `porFuncao`/`porDestino` e `compute` os soma no geral; os dois
+gráficos entram também no resumo em PDF (`blocoGrafico`, depois de "Itens por
+sistema"). O nome longo da função é abreviado no rótulo (o inteiro vai no
+`<title>`): rótulo comprido saía cortado à esquerda na imagem exportada.
+
+**Cada gráfico e cada tabela vai embora sozinho** (`imagem.js`): "⤓ PNG" e
+"⤓ SVG" no gráfico, "⤓ PNG" e "⤓ Excel" na tabela, no canto do card
+(`.sm-card-acoes`, `data-mostra` — funcionam no visualizador, só baixam). Sem
+biblioteca: o card vira um **SVG autônomo** (título, recorte, o gráfico com os
+estilos escritos por extenso — fora do programa não há `app.css` —, a
+legenda e o rodapé "Waiver Request · escopo · data"), e o PNG é esse SVG
+desenhado num canvas a 3× (3600 px de largura). A tabela é redesenhada em SVG
+(zebra, a bolinha da situação) e o Excel sai pelo `Xlsx.blob`, número como
+número e a aba "Recorte". A CSP já permite (`img-src data: blob:`); nada sai
+do computador. Nome: `resumo_<escopo>_<card>_<aaaa-mm-dd>.<ext>`.
 
 ### O caminho padrão da pasta
 `Store.CAMINHO_PADRAO` é o caminho combinado pela equipe
@@ -2121,3 +2160,7 @@ desta máquina às vezes bloqueia `github.io`.
 | O status do export continua valendo; a captura divergente só é avisada na ficha | "fechada", filtros e Kanban leem uma fonte só; trocar o status por uma captura poderia esconder o export mais novo |
 | Eventos gerados pelo export marcados no `campo` (`Status · export`) | é o único lugar do evento que entra na assinatura e que nenhuma versão descarta |
 | O extrator mora no `index.html` como texto, cópia literal do NCR Control | não executa aqui; mesmo banco do navegador e mesmo formato, para valer o que já foi capturado |
+| Kanban em três modos: NCR · NCR + DEV · Só DEV, sem guardar | pedido do Bruno; é filtro do quadro, e filtro do Kanban não é guardado |
+| Resumo na largura toda, gráficos dois a dois, só na tela | pedido do Bruno ("mais espaço"); o PDF do resumo tem layout próprio |
+| Gráficos novos do Resumo: Função vital × situação e Para onde vai o waiver | escolha do Bruno entre as opções propostas |
+| Gráfico sai em PNG 3× e SVG; tabela em PNG e Excel, desenhados aqui | "imagem de alta resolução, ou da melhor forma": o PNG cola em qualquer lugar, o SVG não perde nitidez, o Excel deixa refazer a conta; sem biblioteca (§2) |

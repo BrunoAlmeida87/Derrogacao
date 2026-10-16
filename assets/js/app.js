@@ -509,13 +509,7 @@
 
     /* Um resumo filtrado que não diga que está filtrado engana quem o lê. */
     if (Summary.algumFiltro(summaryFiltros)) {
-      var ditos = [];
-      if (summaryFiltros.tipo) ditos.push('tipo: ' + (summaryFiltros.tipo === 'dev' ? 'DEV' : 'NCR'));
-      if (summaryFiltros.situacao) ditos.push('situação: ' + summaryFiltros.situacao);
-      if (summaryFiltros.sistema) ditos.push('sistema: ' + summaryFiltros.sistema);
-      if (summaryFiltros.archStatus) ditos.push('arch status: ' + summaryFiltros.archStatus);
-      if (summaryFiltros.evidencia) ditos.push(summaryFiltros.evidencia === 'com' ? 'só com anexo' : 'só sem anexo');
-      if (summaryFiltros.busca) ditos.push('texto: “' + summaryFiltros.busca + '”');
+      var ditos = Summary.descreverFiltros(summaryFiltros);
       fluido(el('div', 'sm-print-filtro',
         'Recorte: ' + ditos.join(' · ') + ' — ' + st.total + ' de ' + st.totalSemFiltro + ' itens.'));
     }
@@ -535,6 +529,13 @@
     pg.appendChild(SummaryView.blocoGrafico('Itens por sistema', null,
       SummaryView.linhasDeSistemas(project ? dados.porMarco[0].porSistema : dados.geral.porSistema), null,
       SummaryView.VAZIO_SISTEMAS));
+    /* os dois gráficos que o Bruno escolheu (16/10), como na tela */
+    var df = SummaryView.dadosFuncao(st);
+    pg.appendChild(SummaryView.blocoGrafico('Função vital × situação', null, df.linhas, df.series,
+      SummaryView.VAZIO_FUNCAO));
+    var dd = SummaryView.dadosDestino(st, project ? st.marco : '');
+    pg.appendChild(SummaryView.blocoGrafico('Para onde vai o waiver', null, dd.linhas, dd.series,
+      SummaryView.VAZIO_DESTINO));
 
     if ((st.parados || []).length) {
       pg.appendChild(SummaryView.blocoLista(

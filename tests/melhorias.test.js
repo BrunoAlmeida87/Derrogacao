@@ -117,6 +117,20 @@ const L = require('./lib');
     }, numDev);
     L.igual(st, 'solicitado', 'a situação da ' + numDev + ' foi gravada na DEV');
     L.igual(await pg.$$eval('.kb-card[data-tipo="item"] .kb-st-ncr.is-dev', c => c.length), 3, 'e as DEVs não ganham alerta nem "fora do banco"');
+    await pg.click('#kbSoDev');
+    L.ok(await pg.$eval('#kbSoDev', b => b.getAttribute('aria-pressed') === 'true'), '"Só DEV" fica marcado (escolha única)');
+    const soDev = await pg.evaluate(() => ({
+      cartoes: document.querySelectorAll('.kb-card').length,
+      devs: document.querySelectorAll('.kb-card .kb-st-ncr.is-dev').length,
+      fora: !!document.querySelector('.kb-col[data-coluna="fora"]'),
+      enc: !!document.getElementById('kbEncerradas'),
+      nums: document.querySelector('.kb-resumo-nums').textContent
+    }));
+    L.ok(soDev.cartoes === 3 && soDev.devs === 3, 'Só DEV: o quadro tem só as 3 DEVs');
+    L.ok(!soDev.fora && !soDev.enc, 'sem a coluna "NCR to be closed" e sem a área das encerradas');
+    L.ok(/DEVs neste marco/.test(soDev.nums) && !/NCRs neste marco/.test(soDev.nums), 'os números do alto são os das DEVs');
+    L.ok(await pg.$eval('.kb-toggle--alerta', b => b.disabled), 'o filtro de alerta (de NCR) fica desligado');
+    await pg.click('#kbDevs');
     await pg.click('.kb-card:has(.kb-st-ncr.is-dev) .kb-card-num');
     await pg.waitForTimeout(500);
     L.ok(await pg.evaluate(() => document.querySelector('.tab[data-kind="dev"]').getAttribute('aria-selected') === 'true'), 'clicar no número abre a aba Waiver DEV');

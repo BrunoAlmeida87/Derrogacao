@@ -891,13 +891,15 @@ fila, cada uma com quantas NCRs tem) e veja cada NCR num cartão.
 | **Em preenchimento · Waiver requested · Improve justification · Waiver accepted** | os itens NCR do relatório do marco, pela situação |
 | **Encerradas** (abaixo do quadro) | as NCRs do marco fora do Waiver que já estão **fechadas** no banco NCR (*Closed*, *CEDOC Closure*, *7.2 - TA Unfounded*… — a lista da seção "NCR fechada"): saem de "NCR to be closed", que fica só com o que ainda falta fechar. A área recolhe (a escolha fica neste navegador), mas o título mostra sempre quantas são; a primeira coluna e a faixa de números também avisam |
 
-- **Incluir as DEVs.** O botão **Incluir as DEVs (n)** do alto faz a vista
-  geral: as DEVs do marco (o relatório *Waiver DEV* com o mesmo marco) entram
+- **NCR · NCR + DEV · Só DEV.** As três pastilhas do alto escolhem o que o
+  quadro mostra. **NCR + DEV** faz a vista geral: as DEVs do marco (o relatório *Waiver DEV* com o mesmo marco) entram
   nas colunas pela situação delas, com a etiqueta **DEV**. Elas mudam de
   situação como as NCRs (arrastando ou pelo seletor), o número abre a aba
   *Waiver DEV*, e a planilha ganha a coluna *Tipo*. DEV não tem NCR no banco:
-  não há "to be closed" nem alerta para ela. De saída o botão está desligado
-  e o quadro é o de sempre.
+  não há "to be closed" nem alerta para ela. **Só DEV** mostra só as DEVs do
+  marco: some a coluna "NCR to be closed" e a área das encerradas, os botões
+  só de NCR ficam apagados e a faixa de números conta as DEVs. A aba abre em
+  **NCR**, o quadro de sempre.
 - **Cartões compactos.** Recolhido, o cartão é quase uma linha de lista: o
   número, o status da NCR no banco, a função vital em poucas letras (`FV03`),
   os bigramas, o caminho e as ações. O **+** abre a descrição inteira, a
@@ -1397,7 +1399,9 @@ backup nem em nenhuma página do PDF — relatório é relatório.
 
 ## Aba Resumo
 
-A aba reúne **todos os marcos deste navegador**, não só o relatório aberto.
+A aba reúne **todos os marcos deste navegador**, não só o relatório aberto, e
+ocupa a largura toda da janela: a lateral vira o trilho estreito e, em tela
+larga, os gráficos ficam dois a dois.
 
 No alto, os **marcos em mini cards** — a mesma pastilha do Kanban e da Tabela,
 na ordem da fila: **Todos os marcos** e um card por marco, cada um com o total
@@ -1422,6 +1426,14 @@ fechar a página. A barra logo abaixo diz o escopo por extenso — "Marco J09" o
   sistemas o gráfico continua na folha seguinte, com o título e a legenda
   repetidos — em vez de um gráfico por folha com o resto em branco. Os cinco
   indicadores ficam numa linha só.
+- **Função vital × situação** — quantos itens de cada função vital (`FV03`,
+  `FV12`…) e em que pé estão, na ordem do número. Acima de doze funções o
+  resto vira "Outras funções"; o item sem função (as DEVs, em geral) fica em
+  "Sem função vital".
+- **Para onde vai o waiver** — o marco até onde o waiver vale (*Waiver
+  Approved Expiry*, ou o *Request Expiry* enquanto não há aprovação), na ordem
+  da fila, por situação. "(este marco)" é o waiver que termina ali; "Sem
+  destino" é o item sem nenhuma das duas datas.
 - **Tabela de marcos**, com percentual aceito e quem editou por último.
 - **Parados há 30+ dias** — os itens pendentes em que ninguém toca há um mês ou
   mais, do mais esquecido para o menos, com o número de dias e quem mexeu por
@@ -1461,6 +1473,21 @@ escopo:
 Um texto que comece por `=`, `+`, `-` ou `@` sai da planilha com um apóstrofo à
 frente: sem isso o Excel o trataria como fórmula. O apóstrofo não aparece na
 célula.
+
+### Levar um gráfico ou uma tabela embora
+
+Cada gráfico e cada tabela tem, no canto, os botões de exportar — também no
+visualizador:
+
+| Botão | O que sai |
+| --- | --- |
+| **⤓ PNG** (gráfico ou tabela) | Imagem de 3 600 px de largura, nítida no PowerPoint, no Word e impressa; com título, recorte, legenda e um rodapé dizendo o escopo e a data |
+| **⤓ SVG** (gráfico) | O mesmo desenho em vetor: aumenta sem perder nitidez e abre no Office, no navegador e no Inkscape |
+| **⤓ Excel** (tabela) | A tabela em `.xlsx`, com números que o Excel soma e a aba "Recorte" |
+
+Os filtros valem: o que sai é o que está na tela. O nome do arquivo diz o
+escopo, o gráfico e a data (`resumo_marco-j09_funcao-vital-situacao_2026-10-16.png`).
+Tudo é desenhado aqui, sem biblioteca e sem rede.
 
 Os gráficos são SVG escrito à mão — sem biblioteca externa, imprimem em vetor e
 funcionam com o arquivo aberto direto do disco. A paleta foi validada para
@@ -1898,6 +1925,7 @@ assets/js/herdar.js      leva o item aceito para o marco seguinte
 assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
 assets/js/painel.js      o painel de um marco: o que está chegando nele
 assets/js/xlsx.js        gera a planilha .xlsx (sem biblioteca)
+assets/js/imagem.js      gráfico ou tabela do Resumo em PNG, SVG ou Excel
 assets/js/tabela.js      a aba Tabela: todos os itens, filtros e exportação
 assets/js/chat.js        a conversa da equipe, dentro da pasta da rede
 assets/js/comunicados.js os comunicados para o visualizador: formato, junção e lidos
