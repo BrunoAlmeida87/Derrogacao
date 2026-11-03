@@ -150,6 +150,13 @@
     { id: 'archAnswer', titulo: 'Arch Answer', larg: 46, longo: true, valor: function (r) { return txt(r.item.archAnswer); } },
     { id: 'nota', titulo: 'Observação interna', larg: 40, longo: true, valor: function (r) { return txt(r.item.nota); } },
     { id: 'obsShipManager', titulo: 'Obs Ship Manager', larg: 40, longo: true, valor: function (r) { return txt(r.item.obsShipManager); } },
+    /* a marca "impresso e enviado aos responsáveis", do editor: "sim — data
+       por quem" ou "não", para dar para filtrar na planilha. Ordena pela
+       data (o texto guardado começa em ano-mês-dia). */
+    { id: 'impresso', titulo: 'Impresso e enviado', larg: 30, valor: function (r) {
+      var i = Store.impressoInfo(r.item);
+      return i ? 'sim — ' + i.texto : 'não';
+    }, ordenar: function (r) { return txt(r.item.impresso); } },
     { id: 'certificates', titulo: 'Certificados', larg: 26, valor: function (r) { return (r.item.certificates || []).join(' | '); } },
     { id: 'evidencias', titulo: 'Anexos', larg: 9, num: true, valor: function (r) { return (r.item.evidence || []).length; } },
     { id: 'imagens', titulo: 'Imagens', larg: 9, num: true, valor: function (r) { return contarImagens(r.item); } },
@@ -171,7 +178,7 @@
      ele está. O resto está a um clique em "Colunas" — esconder é mais fácil
      de desfazer do que uma tabela que já nasce ilegível de tão larga. */
   var PADRAO = ['marco', 'tipo', 'ncrId', 'systems', 'func',
-    'salto', 'destino', 'levada', 'situacao'];
+    'salto', 'destino', 'levada', 'situacao', 'impresso'];
 
   function colunaPorId(id) {
     return COLUNAS.filter(function (c) { return c.id === id; })[0] || null;
@@ -258,7 +265,7 @@
      filtro e voltar. Filtro guardado de versão antiga com `marco` preenchido
      continua valendo — `marcosDoFiltro` entende os dois. */
   var VAZIO = { marcos: [], tipo: '', situacao: '', sistema: '', archStatus: '',
-                evidencia: '', busca: '', parados: false, comNota: false };
+                evidencia: '', busca: '', parados: false, comNota: false, impresso: '' };
 
   function marcosDoFiltro(f) {
     if (!f) return [];
@@ -269,7 +276,7 @@
   function algumFiltro(f) {
     if (!f) return false;
     return !!(marcosDoFiltro(f).length || txt(f.tipo) || txt(f.situacao) || txt(f.sistema) ||
-      txt(f.archStatus) || txt(f.evidencia) || txt(f.busca) || f.parados || f.comNota);
+      txt(f.archStatus) || txt(f.evidencia) || txt(f.busca) || f.parados || f.comNota || txt(f.impresso));
   }
 
   function passa(r, f) {
@@ -278,6 +285,8 @@
     if (ms.length && ms.indexOf(r.projetoId) < 0) return false;
     if (f.parados && !Summary.estaParado(r.item)) return false;
     if (f.comNota && !txt(r.item.nota)) return false;
+    if (f.impresso === 'sim' && !txt(r.item.impresso)) return false;
+    if (f.impresso === 'nao' && txt(r.item.impresso)) return false;
     /* os demais são exatamente os do Resumo: um filtro com o mesmo nome tem
        de recortar a mesma coisa nas duas abas */
     return Summary.passa(r, f);
@@ -310,7 +319,7 @@
     var base = {
       colunas: PADRAO.slice(),
       ordem: { id: 'marco', dir: 'asc' },
-      novas: ['salto', 'destino', 'levada'],
+      novas: ['salto', 'destino', 'levada', 'impresso'],
       filtros: {}
     };
     try {
@@ -334,6 +343,14 @@
         var onde = base.colunas.indexOf('situacao');
         base.colunas.splice(onde < 0 ? base.colunas.length : onde, 0, id);
       });
+      /* "Impresso e enviado" entra logo depois da situação, uma vez só */
+      if (base.novas.indexOf('impresso') < 0) {
+        base.novas = base.novas.concat(['impresso']);
+        if (base.colunas.indexOf('impresso') < 0) {
+          var aposSit = base.colunas.indexOf('situacao');
+          base.colunas.splice(aposSit < 0 ? base.colunas.length : aposSit + 1, 0, 'impresso');
+        }
+      }
     } catch (e) { /* preferência ilegível não impede a aba de abrir */ }
     return base;
   }
@@ -617,6 +634,11 @@
       { valor: 'com', nome: 'só com anexo' },
       { valor: 'sem', nome: 'só sem anexo' }
     ], function (v) { f.evidencia = v; mudou(false); }));
+    fb.appendChild(campoSelect('Impresso e enviado', f.impresso || '', [
+      { valor: '', nome: 'tanto faz' },
+      { valor: 'nao', nome: 'só os que faltam' },
+      { valor: 'sim', nome: 'só os já enviados' }
+    ], function (v) { f.impresso = v; mudou(false); }));
 
     var fim = el('div', 'sm-filtros-fim');
     var par = el('label', 'fx-check');
@@ -729,6 +751,8 @@
     if (txt(f.evidencia)) ditos.push(f.evidencia === 'com' ? 'só com anexo' : 'só sem anexo');
     if (f.parados) ditos.push('parados há ' + Summary.DIAS_PARADO + '+ dias');
     if (f.comNota) ditos.push('só com observação interna');
+    if (f.impresso === 'nao') ditos.push('só os ainda não impressos/enviados');
+    if (f.impresso === 'sim') ditos.push('só os já impressos e enviados');
     if (txt(f.busca)) ditos.push('texto: “' + txt(f.busca) + '”');
     return ditos.join(' · ');
   }

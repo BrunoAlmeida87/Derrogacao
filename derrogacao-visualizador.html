@@ -1219,6 +1219,29 @@ a.menu-item { text-decoration: none; }
 }
 .status-row > .btn { margin-left: auto; }
 
+/* "Impresso e enviado aos responsáveis": controle da equipe, fora do PDF */
+.impresso-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 8px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.impresso-row.is-on {
+  border-style: solid;
+  border-color: var(--ok-br);
+  background: var(--ok-sf);
+}
+.impresso-check { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; }
+.impresso-check input { width: 16px; height: 16px; margin: 0; }
+.impresso-quando { color: var(--muted); }
+.impresso-row.is-on .impresso-quando { color: var(--ok); font-weight: 600; }
+.impresso-nota { margin-left: auto; color: var(--muted); font-size: 12px; }
+.impresso-dot { font-size: 11px; line-height: 1; }
+
 .status-pick {
   display: flex;
   flex-wrap: wrap;
@@ -6235,6 +6258,7 @@ dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
       nota: '',              // anotação interna livre; NÃO sai no PDF (§4)
       observation: '',       // Observação vinda do banco NCR; interna, NÃO sai no PDF
       obsShipManager: '',    // Obs Ship Manager, vinda do banco NCR; interna, NÃO sai no PDF
+      impresso: '',          // "AAAA-MM-DD HH:MM · Nome": impresso e enviado; NÃO sai no PDF
       ncrKey: '',            // chave da NCR do banco à qual o item foi vinculado
       herdadoDe: '',         // marco de onde este item foi trazido (§5, herdar.js)
       herdadoEm: '',         // quando foi trazido — ISO
@@ -6305,7 +6329,7 @@ dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
   var CAMPOS_ITEM = ['id', 'ncrId', 'systems', 'func', 'description', 'currentSituation',
     'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
     'approvedExpiry', 'historic', 'certificates', 'evidence', 'nota',
-    'observation', 'obsShipManager', 'ncrKey',
+    'observation', 'obsShipManager', 'impresso', 'ncrKey',
     'herdadoDe', 'herdadoEm', 'status', 'done',
     'editedBy', 'editedAt', 'syncBase'];
   var CAMPOS_PROJETO = ['id', 'schema', 'name', 'marco', 'marcoDev', 'lastEditedBy',
@@ -6380,6 +6404,7 @@ dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
       nota: str(raw.nota),
       observation: str(raw.observation),
       obsShipManager: str(raw.obsShipManager),
+      impresso: str(raw.impresso),
       ncrKey: str(raw.ncrKey),
       herdadoDe: str(raw.herdadoDe),
       herdadoEm: str(raw.herdadoEm),
@@ -6523,7 +6548,10 @@ dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
        pelo mesmo motivo está aqui e fora do SECTIONS do report.js. */
     ['observation', 'Observation (banco NCR)'],
     /* a Obs Ship Manager: o mesmo caminho da Observation */
-    ['obsShipManager', 'Obs Ship Manager']
+    ['obsShipManager', 'Obs Ship Manager'],
+    /* a marca "impresso e enviado": aqui pelo diário (quem marcou e quem
+       desmarcou) e pela faixa do que mudou; o PDF continua sem ela */
+    ['impresso', 'Impresso e enviado']
   ];
 
   function resumoEvidencia(item) {
@@ -6570,7 +6598,7 @@ dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
      um item que ninguém montou. Elas seguem o item inteiro, como antes. */
   var CAMPOS_MESCLA = ['ncrId', 'systems', 'func', 'description', 'currentSituation',
     'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
-    'approvedExpiry', 'historic', 'nota', 'observation', 'obsShipManager', 'ncrKey', 'herdadoDe',
+    'approvedExpiry', 'historic', 'nota', 'observation', 'obsShipManager', 'impresso', 'ncrKey', 'herdadoDe',
     'certificates', 'status'];
 
   function rotuloCampo(campo) {
@@ -6714,6 +6742,34 @@ dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
     return partes.join(' ').toLowerCase();
   }
 
+  /* --- "impresso e enviado" ------------------------------------------------
+     A marca que a pessoa põe à mão quando imprimiu o Waiver Request do item e
+     o mandou aos responsáveis (pedido do Bruno: "para saber se eu imprimi e
+     enviei"). Um texto só, "AAAA-MM-DD HH:MM · Nome", e não dois campos: a
+     junção da pasta é campo a campo, e com dois a data de uma pessoa poderia
+     ficar com o nome de outra. A data em ano-mês-dia ordena como texto.
+     Como a `nota`: fora do PDF, fora da `signature()`, fora da publicação, sem
+     subir o SCHEMA (`extrasDe` a preserva nas versões anteriores). */
+  function impressoInfo(item) {
+    var v = str(item && item.impresso).trim();
+    if (!v) return null;
+    var m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?[^·]*(?:·\s*(.*))?$/.exec(v);
+    if (!m) return { em: v, data: v, por: '', texto: v };
+    var data = m[3] + '/' + m[2] + '/' + m[1] + (m[4] ? ' ' + m[4] + ':' + m[5] : '');
+    var por = str(m[6]).trim();
+    return { em: v, data: data, por: por, texto: data + (por ? ' por ' + por : '') };
+  }
+
+  /** Marca (ou desmarca) o item como impresso e enviado, agora, por `quem`. */
+  function marcarImpresso(item, sim, quem) {
+    if (!sim) { item.impresso = ''; return item; }
+    var d = new Date();
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    item.impresso = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+      ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + (str(quem).trim() ? ' · ' + str(quem).trim() : '');
+    return item;
+  }
+
   /** Cópia independente de um item, pronta para virar outro número. */
   function duplicar(item) {
     var copia = normalizeNcr(JSON.parse(JSON.stringify(item)));
@@ -6727,6 +6783,8 @@ dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
       ev.images.forEach(function (im) { im.id = uid(); });
     });
     setStatus(copia, STATUS_PADRAO);
+    /* a cópia ainda não foi impressa nem enviada a ninguém */
+    copia.impresso = '';
     copia.editedBy = '';
     copia.editedAt = '';
     copia.syncBase = '';
@@ -8019,6 +8077,8 @@ dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
     baseDe: baseDe,
     retratoItem: retratoItem,
     novidadeLocal: novidadeLocal,
+    impressoInfo: impressoInfo,
+    marcarImpresso: marcarImpresso,
     editadosDesde: editadosDesde,
     CAMPOS_MESCLA: CAMPOS_MESCLA,
     rotuloCampo: rotuloCampo,
@@ -9395,6 +9455,8 @@ dialog.pr-ficha { width: min(1360px, 97vw); max-height: 94vh; }
       (c[k] || []).forEach(function (n) {
         delete n.syncBase;
         delete n.nota;
+        /* "impresso e enviado" é controle de quem edita, como a anotação */
+        delete n.impresso;
         (n.evidence || []).forEach(function (ev) {
           (ev.images || []).forEach(function (im) {
             /* a imagem viaja embutida; o nome do arquivo na pasta do banco
@@ -17583,6 +17645,13 @@ if(isWorker){
     { id: 'archAnswer', titulo: 'Arch Answer', larg: 46, longo: true, valor: function (r) { return txt(r.item.archAnswer); } },
     { id: 'nota', titulo: 'Observação interna', larg: 40, longo: true, valor: function (r) { return txt(r.item.nota); } },
     { id: 'obsShipManager', titulo: 'Obs Ship Manager', larg: 40, longo: true, valor: function (r) { return txt(r.item.obsShipManager); } },
+    /* a marca "impresso e enviado aos responsáveis", do editor: "sim — data
+       por quem" ou "não", para dar para filtrar na planilha. Ordena pela
+       data (o texto guardado começa em ano-mês-dia). */
+    { id: 'impresso', titulo: 'Impresso e enviado', larg: 30, valor: function (r) {
+      var i = Store.impressoInfo(r.item);
+      return i ? 'sim — ' + i.texto : 'não';
+    }, ordenar: function (r) { return txt(r.item.impresso); } },
     { id: 'certificates', titulo: 'Certificados', larg: 26, valor: function (r) { return (r.item.certificates || []).join(' | '); } },
     { id: 'evidencias', titulo: 'Anexos', larg: 9, num: true, valor: function (r) { return (r.item.evidence || []).length; } },
     { id: 'imagens', titulo: 'Imagens', larg: 9, num: true, valor: function (r) { return contarImagens(r.item); } },
@@ -17604,7 +17673,7 @@ if(isWorker){
      ele está. O resto está a um clique em "Colunas" — esconder é mais fácil
      de desfazer do que uma tabela que já nasce ilegível de tão larga. */
   var PADRAO = ['marco', 'tipo', 'ncrId', 'systems', 'func',
-    'salto', 'destino', 'levada', 'situacao'];
+    'salto', 'destino', 'levada', 'situacao', 'impresso'];
 
   function colunaPorId(id) {
     return COLUNAS.filter(function (c) { return c.id === id; })[0] || null;
@@ -17691,7 +17760,7 @@ if(isWorker){
      filtro e voltar. Filtro guardado de versão antiga com `marco` preenchido
      continua valendo — `marcosDoFiltro` entende os dois. */
   var VAZIO = { marcos: [], tipo: '', situacao: '', sistema: '', archStatus: '',
-                evidencia: '', busca: '', parados: false, comNota: false };
+                evidencia: '', busca: '', parados: false, comNota: false, impresso: '' };
 
   function marcosDoFiltro(f) {
     if (!f) return [];
@@ -17702,7 +17771,7 @@ if(isWorker){
   function algumFiltro(f) {
     if (!f) return false;
     return !!(marcosDoFiltro(f).length || txt(f.tipo) || txt(f.situacao) || txt(f.sistema) ||
-      txt(f.archStatus) || txt(f.evidencia) || txt(f.busca) || f.parados || f.comNota);
+      txt(f.archStatus) || txt(f.evidencia) || txt(f.busca) || f.parados || f.comNota || txt(f.impresso));
   }
 
   function passa(r, f) {
@@ -17711,6 +17780,8 @@ if(isWorker){
     if (ms.length && ms.indexOf(r.projetoId) < 0) return false;
     if (f.parados && !Summary.estaParado(r.item)) return false;
     if (f.comNota && !txt(r.item.nota)) return false;
+    if (f.impresso === 'sim' && !txt(r.item.impresso)) return false;
+    if (f.impresso === 'nao' && txt(r.item.impresso)) return false;
     /* os demais são exatamente os do Resumo: um filtro com o mesmo nome tem
        de recortar a mesma coisa nas duas abas */
     return Summary.passa(r, f);
@@ -17743,7 +17814,7 @@ if(isWorker){
     var base = {
       colunas: PADRAO.slice(),
       ordem: { id: 'marco', dir: 'asc' },
-      novas: ['salto', 'destino', 'levada'],
+      novas: ['salto', 'destino', 'levada', 'impresso'],
       filtros: {}
     };
     try {
@@ -17767,6 +17838,14 @@ if(isWorker){
         var onde = base.colunas.indexOf('situacao');
         base.colunas.splice(onde < 0 ? base.colunas.length : onde, 0, id);
       });
+      /* "Impresso e enviado" entra logo depois da situação, uma vez só */
+      if (base.novas.indexOf('impresso') < 0) {
+        base.novas = base.novas.concat(['impresso']);
+        if (base.colunas.indexOf('impresso') < 0) {
+          var aposSit = base.colunas.indexOf('situacao');
+          base.colunas.splice(aposSit < 0 ? base.colunas.length : aposSit + 1, 0, 'impresso');
+        }
+      }
     } catch (e) { /* preferência ilegível não impede a aba de abrir */ }
     return base;
   }
@@ -18050,6 +18129,11 @@ if(isWorker){
       { valor: 'com', nome: 'só com anexo' },
       { valor: 'sem', nome: 'só sem anexo' }
     ], function (v) { f.evidencia = v; mudou(false); }));
+    fb.appendChild(campoSelect('Impresso e enviado', f.impresso || '', [
+      { valor: '', nome: 'tanto faz' },
+      { valor: 'nao', nome: 'só os que faltam' },
+      { valor: 'sim', nome: 'só os já enviados' }
+    ], function (v) { f.impresso = v; mudou(false); }));
 
     var fim = el('div', 'sm-filtros-fim');
     var par = el('label', 'fx-check');
@@ -18162,6 +18246,8 @@ if(isWorker){
     if (txt(f.evidencia)) ditos.push(f.evidencia === 'com' ? 'só com anexo' : 'só sem anexo');
     if (f.parados) ditos.push('parados há ' + Summary.DIAS_PARADO + '+ dias');
     if (f.comNota) ditos.push('só com observação interna');
+    if (f.impresso === 'nao') ditos.push('só os ainda não impressos/enviados');
+    if (f.impresso === 'sim') ditos.push('só os já impressos e enviados');
     if (txt(f.busca)) ditos.push('texto: “' + txt(f.busca) + '”');
     return ditos.join(' · ');
   }
@@ -26190,6 +26276,14 @@ if(isWorker){
           badges.appendChild(ab);
         }
       }
+      /* impresso e enviado aos responsáveis: o 🖨 deixa varrer a lista e ver
+         o que ainda falta imprimir, sem abrir item por item */
+      var imp = Store.impressoInfo(ncr);
+      if (imp) {
+        var ib = el('span', 'impresso-dot', '🖨');
+        ib.title = 'Impresso e enviado em ' + imp.texto;
+        badges.appendChild(ib);
+      }
       var anot = (ncr.nota || '').trim();
       if (anot) {
         var nb = el('span', 'nota-dot', '📝');
@@ -27562,6 +27656,7 @@ if(isWorker){
       linha.appendChild(com);
     }
     bar.appendChild(linha);
+    if (!Leitura.ativo()) bar.appendChild(linhaImpresso(ncr));
     if (!av.pode && Store.statusInfo(ncr.status).id === Store.STATUS_CONCLUIDO) {
       /* aceito e mesmo assim não dá: o motivo é acionável (falta a data, ou
          falta o relatório do marco), então vai escrito e não só no title */
@@ -27569,6 +27664,47 @@ if(isWorker){
     }
 
     return bar;
+  }
+
+  /**
+   * "Impresso e enviado aos responsáveis" — a marca que a pessoa põe quando
+   * imprimiu o Waiver Request deste item e o mandou (pedido do Bruno). É da
+   * equipe: viaja pela pasta, com quem e quando, aparece na lista (🖨) e na
+   * Tabela e na planilha. Fica fora do PDF (o SECTIONS do report.js não a
+   * conhece) e da publicação do visualizador. Vale com o item travado:
+   * marcar o envio não é editar o documento — e a barra de situação não é
+   * um `.card`, que é o que a trava alcança.
+   */
+  function linhaImpresso(ncr) {
+    var info = Store.impressoInfo(ncr);
+    var linha = el('div', 'impresso-row' + (info ? ' is-on' : ''));
+    var lab = el('label', 'impresso-check');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = 'impressoCheck';
+    cb.checked = !!info;
+    cb.setAttribute('data-livre', '');
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(' 🖨 Impresso e enviado aos responsáveis'));
+    linha.appendChild(lab);
+    var quando = el('span', 'impresso-quando');
+    quando.id = 'impressoQuando';
+    function escrever(i) {
+      quando.textContent = i ? 'em ' + i.texto : 'ainda não — marque depois de imprimir e enviar';
+      linha.classList.toggle('is-on', !!i);
+    }
+    escrever(info);
+    linha.appendChild(quando);
+    linha.appendChild(el('span', 'impresso-nota', 'Controle da equipe: não sai no PDF.'));
+    cb.addEventListener('change', function () {
+      var n = currentNcr();
+      if (!n) return;
+      Store.marcarImpresso(n, cb.checked, Store.getUser());
+      touch(n);
+      escrever(Store.impressoInfo(n));
+      flushSave().then(function () { renderNcrList(); });
+    });
+    return linha;
   }
 
   /* --- certificados ------------------------------------------------------ */

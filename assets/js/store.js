@@ -107,6 +107,7 @@
       nota: '',              // anotação interna livre; NÃO sai no PDF (§4)
       observation: '',       // Observação vinda do banco NCR; interna, NÃO sai no PDF
       obsShipManager: '',    // Obs Ship Manager, vinda do banco NCR; interna, NÃO sai no PDF
+      impresso: '',          // "AAAA-MM-DD HH:MM · Nome": impresso e enviado; NÃO sai no PDF
       ncrKey: '',            // chave da NCR do banco à qual o item foi vinculado
       herdadoDe: '',         // marco de onde este item foi trazido (§5, herdar.js)
       herdadoEm: '',         // quando foi trazido — ISO
@@ -177,7 +178,7 @@
   var CAMPOS_ITEM = ['id', 'ncrId', 'systems', 'func', 'description', 'currentSituation',
     'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
     'approvedExpiry', 'historic', 'certificates', 'evidence', 'nota',
-    'observation', 'obsShipManager', 'ncrKey',
+    'observation', 'obsShipManager', 'impresso', 'ncrKey',
     'herdadoDe', 'herdadoEm', 'status', 'done',
     'editedBy', 'editedAt', 'syncBase'];
   var CAMPOS_PROJETO = ['id', 'schema', 'name', 'marco', 'marcoDev', 'lastEditedBy',
@@ -252,6 +253,7 @@
       nota: str(raw.nota),
       observation: str(raw.observation),
       obsShipManager: str(raw.obsShipManager),
+      impresso: str(raw.impresso),
       ncrKey: str(raw.ncrKey),
       herdadoDe: str(raw.herdadoDe),
       herdadoEm: str(raw.herdadoEm),
@@ -395,7 +397,10 @@
        pelo mesmo motivo está aqui e fora do SECTIONS do report.js. */
     ['observation', 'Observation (banco NCR)'],
     /* a Obs Ship Manager: o mesmo caminho da Observation */
-    ['obsShipManager', 'Obs Ship Manager']
+    ['obsShipManager', 'Obs Ship Manager'],
+    /* a marca "impresso e enviado": aqui pelo diário (quem marcou e quem
+       desmarcou) e pela faixa do que mudou; o PDF continua sem ela */
+    ['impresso', 'Impresso e enviado']
   ];
 
   function resumoEvidencia(item) {
@@ -442,7 +447,7 @@
      um item que ninguém montou. Elas seguem o item inteiro, como antes. */
   var CAMPOS_MESCLA = ['ncrId', 'systems', 'func', 'description', 'currentSituation',
     'whyNotPossible', 'arguments', 'archAnswer', 'requestExpiry', 'archStatus',
-    'approvedExpiry', 'historic', 'nota', 'observation', 'obsShipManager', 'ncrKey', 'herdadoDe',
+    'approvedExpiry', 'historic', 'nota', 'observation', 'obsShipManager', 'impresso', 'ncrKey', 'herdadoDe',
     'certificates', 'status'];
 
   function rotuloCampo(campo) {
@@ -586,6 +591,34 @@
     return partes.join(' ').toLowerCase();
   }
 
+  /* --- "impresso e enviado" ------------------------------------------------
+     A marca que a pessoa põe à mão quando imprimiu o Waiver Request do item e
+     o mandou aos responsáveis (pedido do Bruno: "para saber se eu imprimi e
+     enviei"). Um texto só, "AAAA-MM-DD HH:MM · Nome", e não dois campos: a
+     junção da pasta é campo a campo, e com dois a data de uma pessoa poderia
+     ficar com o nome de outra. A data em ano-mês-dia ordena como texto.
+     Como a `nota`: fora do PDF, fora da `signature()`, fora da publicação, sem
+     subir o SCHEMA (`extrasDe` a preserva nas versões anteriores). */
+  function impressoInfo(item) {
+    var v = str(item && item.impresso).trim();
+    if (!v) return null;
+    var m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?[^·]*(?:·\s*(.*))?$/.exec(v);
+    if (!m) return { em: v, data: v, por: '', texto: v };
+    var data = m[3] + '/' + m[2] + '/' + m[1] + (m[4] ? ' ' + m[4] + ':' + m[5] : '');
+    var por = str(m[6]).trim();
+    return { em: v, data: data, por: por, texto: data + (por ? ' por ' + por : '') };
+  }
+
+  /** Marca (ou desmarca) o item como impresso e enviado, agora, por `quem`. */
+  function marcarImpresso(item, sim, quem) {
+    if (!sim) { item.impresso = ''; return item; }
+    var d = new Date();
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    item.impresso = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+      ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + (str(quem).trim() ? ' · ' + str(quem).trim() : '');
+    return item;
+  }
+
   /** Cópia independente de um item, pronta para virar outro número. */
   function duplicar(item) {
     var copia = normalizeNcr(JSON.parse(JSON.stringify(item)));
@@ -599,6 +632,8 @@
       ev.images.forEach(function (im) { im.id = uid(); });
     });
     setStatus(copia, STATUS_PADRAO);
+    /* a cópia ainda não foi impressa nem enviada a ninguém */
+    copia.impresso = '';
     copia.editedBy = '';
     copia.editedAt = '';
     copia.syncBase = '';
@@ -1891,6 +1926,8 @@
     baseDe: baseDe,
     retratoItem: retratoItem,
     novidadeLocal: novidadeLocal,
+    impressoInfo: impressoInfo,
+    marcarImpresso: marcarImpresso,
     editadosDesde: editadosDesde,
     CAMPOS_MESCLA: CAMPOS_MESCLA,
     rotuloCampo: rotuloCampo,

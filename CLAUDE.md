@@ -173,6 +173,7 @@ também só na hora.)
   nota,                        // anotação interna livre; NÃO sai no PDF
   observation,                 // a Observação da NCR, vinda do Banco NCR; NÃO sai no PDF
   obsShipManager,              // a Obs Ship Manager da NCR, idem (mesmas regras da observation)
+  impresso,                    // "AAAA-MM-DD HH:MM · Nome": impresso e enviado; NÃO sai no PDF
   ncrKey,                      // chave da NCR do banco, quando o item veio de lá
   herdadoDe, herdadoEm,        // veio do marco tal, quando (§5, herdar.js)
   status,                      // acompanhamento; fecha a linha da capa (§4)
@@ -306,6 +307,33 @@ pendente; a `nota` diz *por quê*.
   navegador com o `derrogacao.html` anterior, e não só de memória. Subir o
   número poria toda sessão antiga em só leitura, o que seria um preço alto por
   um campo que ninguém perde.
+
+### Impresso e enviado aos responsáveis (`impresso`)
+Pedido do Bruno: "um item que eu possa ticar para dizer se eu já imprimi
+aquele arquivo e enviei aos responsáveis — só para o usuário ou numa
+extração, não no template". É uma caixa na barra de situação do editor
+(`linhaImpresso`, `#impressoCheck`), que grava **um texto só**,
+`"AAAA-MM-DD HH:MM · Nome"` (`Store.marcarImpresso`/`impressoInfo`): dois
+campos (data e nome) se mesclariam separados, e a data de uma pessoa poderia
+ficar com o nome de outra. A data em ano-mês-dia ordena como texto.
+
+- **Segue as regras da `nota`**: fora do `SECTIONS` do `report.js` (fora do
+  PDF), fora da `signature()`, em `CAMPOS_MESCLA` e `CAMPOS_VISIVEIS` (vai
+  para a pasta e para o diário: quem marcou e quem desmarcou), sem subir o
+  `SCHEMA` (`extrasDe` a preserva nas versões anteriores).
+- **Fora da publicação** (`Publicacao.limpar`) e do visualizador (a linha nem
+  é criada em leitura): "só para o usuário". Escolhido: é **da equipe** (viaja
+  pela pasta), não de cada navegador — o envio feito por um tem de aparecer
+  para os outros, senão dois mandam o mesmo papel.
+- **Vale com o item travado**: a barra de situação não é `.card`, que é o
+  que `aplicarTrava` alcança; o `data-livre` está lá por garantia.
+- **Lista**: `🖨` (`.impresso-dot`). **Tabela**: coluna `impresso` ("sim —
+  data por quem" ou "não", para filtrar no Excel), no `PADRAO` e incluída
+  uma vez na escolha já gravada (`novas`); filtro `f.impresso`
+  (`sim`/`nao`), dito na aba "Recorte".
+- `Store.duplicar` zera a marca — e por ele a cópia levada adiante
+  (`Herdar.copiaPara`) também nasce desmarcada.
+- Teste: `tests/impresso.test.js`.
 
 ### Dois campos que parecem o mesmo e não são
 
@@ -1953,8 +1981,8 @@ A suíte voltou, menor e em Node (`tests/`, ver `tests/README.md`): o Bruno
 pediu testes automatizados para os comportamentos novos. `node tests/rodar.js`
 roda todas (navegação, abertura no marco da vez, Kanban e suas exportações,
 Resumo, atualização automática, Banco NCR, banco de produtos, comunicados — do editor ao pop-up
-do visualizador —, compatibilidade, os arquivos únicos de `file://` e a pasta
-da equipe com três pessoas ao mesmo tempo). Elas abrem o programa de verdade, semeiam pela API do
+do visualizador —, compatibilidade, os arquivos únicos de `file://`, a pasta
+da equipe com três pessoas ao mesmo tempo e a marca "impresso e enviado"). Elas abrem o programa de verdade, semeiam pela API do
 programa, conferem arquivos baixados e o número de folhas e o papel dos PDFs.
 Não é o programa: nada ali entra no `derrogacao.html`, e o programa continua
 sem build e sem dependência.
@@ -2140,3 +2168,5 @@ desta máquina às vezes bloqueia `github.io`.
 | Banco NCR, Waiver e correções só relidos quando a data ou a marca daqui mudou | o arquivo do banco tem megabytes e só muda numa importação; era relido em toda rodada |
 | Histórico por tempo (40 mais novas + 1 por hora em 24 h + 1 por dia em 30 dias), cópia "antes" só com trabalho não gravado e no máximo a cada 2 min | "as últimas 40" cobriam ~10 minutos com três pessoas |
 | Limpeza de imagens a cada 12 h, lendo o histórico só se houver candidata | com o histórico por tempo, ler todas as versões a cada hora seria dezenas de MB pela rede |
+| "Impresso e enviado" é um campo do item, da equipe (pela pasta), fora do PDF e da publicação | pedido do Bruno ("só para o usuário ou numa extração, não no template"); da equipe para dois não enviarem o mesmo papel |
+| A marca guarda data e nome num texto só | a junção é campo a campo: com dois campos, a data de uma pessoa poderia ficar com o nome de outra |

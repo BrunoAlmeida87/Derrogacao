@@ -1202,6 +1202,29 @@ a.menu-item { text-decoration: none; }
 }
 .status-row > .btn { margin-left: auto; }
 
+/* "Impresso e enviado aos responsáveis": controle da equipe, fora do PDF */
+.impresso-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 8px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.impresso-row.is-on {
+  border-style: solid;
+  border-color: var(--ok-br);
+  background: var(--ok-sf);
+}
+.impresso-check { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; }
+.impresso-check input { width: 16px; height: 16px; margin: 0; }
+.impresso-quando { color: var(--muted); }
+.impresso-row.is-on .impresso-quando { color: var(--ok); font-weight: 600; }
+.impresso-nota { margin-left: auto; color: var(--muted); font-size: 12px; }
+.impresso-dot { font-size: 11px; line-height: 1; }
+
 .status-pick {
   display: flex;
   flex-wrap: wrap;

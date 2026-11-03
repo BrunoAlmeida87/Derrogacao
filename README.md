@@ -288,6 +288,27 @@ preenchimento está parado e o motivo precisa ficar escrito em algum lugar —
 A anotação viaja com o item: vai no backup, vai para a pasta da equipe e segue
 a mesma regra dos outros campos (vale a edição mais recente).
 
+## Impresso e enviado aos responsáveis
+
+Na barra **Situação deste item**, logo abaixo das situações, há uma caixa
+**🖨 Impresso e enviado aos responsáveis**. Marque depois de imprimir o Waiver
+Request daquele item e mandá-lo a quem precisa; ao lado aparece **quando e
+por quem** foi marcado (*em 03/11/2026 14:05 por Bruno*).
+
+- **Não sai no PDF**, nem no visualizador: é controle de quem edita.
+- **Vale mesmo no item aceito**, que abre travado: marcar o envio não é
+  editar o documento.
+- **O item marcado ganha um 🖨 na lista**, então dá para ver de relance o que
+  ainda falta imprimir e enviar.
+- **Na aba Tabela é uma coluna** (*Impresso e enviado*: “sim — data por
+  quem” ou “não”), que já vem à vista e vai para o Excel e o CSV. O filtro
+  **Impresso e enviado → só os que faltam** mostra o que ainda não foi; a aba
+  “Recorte” da planilha diz quando esse filtro estava ligado.
+- **É da equipe**: viaja pela pasta, como os outros campos, então todos veem
+  que o item já foi enviado — e quem enviou.
+- **Desmarcar apaga** a data e o nome. A cópia de um item (e o item levado
+  para o marco seguinte) nasce desmarcada.
+
 ## Situação do item (controle interno)
 
 Cada NCR e cada DEV tem uma **situação de acompanhamento**, escolhida ao pé do

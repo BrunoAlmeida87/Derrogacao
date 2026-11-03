@@ -47,6 +47,8 @@
       (c[k] || []).forEach(function (n) {
         delete n.syncBase;
         delete n.nota;
+        /* "impresso e enviado" é controle de quem edita, como a anotação */
+        delete n.impresso;
         (n.evidence || []).forEach(function (ev) {
           (ev.images || []).forEach(function (im) {
             /* a imagem viaja embutida; o nome do arquivo na pasta do banco

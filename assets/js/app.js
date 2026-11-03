@@ -1674,6 +1674,14 @@
           badges.appendChild(ab);
         }
       }
+      /* impresso e enviado aos responsáveis: o 🖨 deixa varrer a lista e ver
+         o que ainda falta imprimir, sem abrir item por item */
+      var imp = Store.impressoInfo(ncr);
+      if (imp) {
+        var ib = el('span', 'impresso-dot', '🖨');
+        ib.title = 'Impresso e enviado em ' + imp.texto;
+        badges.appendChild(ib);
+      }
       var anot = (ncr.nota || '').trim();
       if (anot) {
         var nb = el('span', 'nota-dot', '📝');
@@ -3046,6 +3054,7 @@
       linha.appendChild(com);
     }
     bar.appendChild(linha);
+    if (!Leitura.ativo()) bar.appendChild(linhaImpresso(ncr));
     if (!av.pode && Store.statusInfo(ncr.status).id === Store.STATUS_CONCLUIDO) {
       /* aceito e mesmo assim não dá: o motivo é acionável (falta a data, ou
          falta o relatório do marco), então vai escrito e não só no title */
@@ -3053,6 +3062,47 @@
     }
 
     return bar;
+  }
+
+  /**
+   * "Impresso e enviado aos responsáveis" — a marca que a pessoa põe quando
+   * imprimiu o Waiver Request deste item e o mandou (pedido do Bruno). É da
+   * equipe: viaja pela pasta, com quem e quando, aparece na lista (🖨) e na
+   * Tabela e na planilha. Fica fora do PDF (o SECTIONS do report.js não a
+   * conhece) e da publicação do visualizador. Vale com o item travado:
+   * marcar o envio não é editar o documento — e a barra de situação não é
+   * um `.card`, que é o que a trava alcança.
+   */
+  function linhaImpresso(ncr) {
+    var info = Store.impressoInfo(ncr);
+    var linha = el('div', 'impresso-row' + (info ? ' is-on' : ''));
+    var lab = el('label', 'impresso-check');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = 'impressoCheck';
+    cb.checked = !!info;
+    cb.setAttribute('data-livre', '');
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(' 🖨 Impresso e enviado aos responsáveis'));
+    linha.appendChild(lab);
+    var quando = el('span', 'impresso-quando');
+    quando.id = 'impressoQuando';
+    function escrever(i) {
+      quando.textContent = i ? 'em ' + i.texto : 'ainda não — marque depois de imprimir e enviar';
+      linha.classList.toggle('is-on', !!i);
+    }
+    escrever(info);
+    linha.appendChild(quando);
+    linha.appendChild(el('span', 'impresso-nota', 'Controle da equipe: não sai no PDF.'));
+    cb.addEventListener('change', function () {
+      var n = currentNcr();
+      if (!n) return;
+      Store.marcarImpresso(n, cb.checked, Store.getUser());
+      touch(n);
+      escrever(Store.impressoInfo(n));
+      flushSave().then(function () { renderNcrList(); });
+    });
+    return linha;
   }
 
   /* --- certificados ------------------------------------------------------ */
