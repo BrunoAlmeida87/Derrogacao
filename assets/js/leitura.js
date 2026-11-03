@@ -95,7 +95,7 @@
     }
     if (global.Pasta) {
       ['gravar', 'versionar', 'gravarConversas', 'gravarRevisoes', 'gravarImagem',
-       'podarImagens', 'gravarArquivo', 'guardarCopia', 'escolher', 'esquecer'].forEach(function (f) {
+       'podarImagens', 'apagarImagens', 'gravarArquivo', 'guardarCopia', 'escolher', 'esquecer'].forEach(function (f) {
         if (Pasta[f]) Pasta[f] = barrado('Pasta.' + f);
       });
       /* a pasta do banco nunca é aberta aqui */

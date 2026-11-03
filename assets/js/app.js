@@ -5913,31 +5913,62 @@
     });
   }
 
+  /* A marca do que esta máquina mandaria em cada arquivo do banco NCR, na
+     última troca que deu certo (ver Ncrs.marcaBanco). Marca igual à de agora
+     e arquivo parado na pasta: não há o que ler nem o que gravar. Antes os
+     três eram lidos em toda rodada — o do banco tem megabytes e só muda numa
+     importação. */
+  var trocaNcr = {};
+
+  function marcasNcr() {
+    return { banco: Ncrs.marcaBanco(), waiver: Ncrs.marcaWaiver(), correcoes: Correcoes.marca() };
+  }
+
+  function lerSeMudou(nomeArq, chave, marcas) {
+    if (trocaNcr[chave] !== marcas[chave]) return Pasta.lerArquivo(nomeArq);
+    return Pasta.mudouArquivo(nomeArq).then(function (mudou) {
+      return mudou ? Pasta.lerArquivo(nomeArq) : { dados: null, semMudanca: true };
+    });
+  }
+
+  var NADA_NCR = function () { return { entraram: 0, atualizados: 0, alterados: [], localMaisNovo: false }; };
+
   function sincronizarNcrs() {
     var quem = Store.getUser();
+    var marcas = marcasNcr();
+    /* trabalho daqui nos campos do Waiver que a pasta ainda não viu? (na
+       primeira rodada não se sabe: vale ter alguma coisa) */
+    var minhasNoWaiver = trocaNcr.waiver === undefined ? null : trocaNcr.waiver !== marcas.waiver;
     return Promise.all([
-      Pasta.lerArquivo(Pasta.ARQ_NCR_BANCO),
-      Pasta.lerArquivo(Pasta.ARQ_NCR_WAIVER),
-      Pasta.lerArquivo(Correcoes.ARQUIVO),
+      lerSeMudou(Pasta.ARQ_NCR_BANCO, 'banco', marcas),
+      lerSeMudou(Pasta.ARQ_NCR_WAIVER, 'waiver', marcas),
+      lerSeMudou(Correcoes.ARQUIVO, 'correcoes', marcas),
       lerProdutosDaPasta()
     ]).then(function (r) {
       var lista = Ncrs.lista();
       var temBanco = lista.some(function (x) { return x.fonte.importadoEm || x.historico.length; });
       var temWaiver = lista.some(function (x) { return x.waiver.editedAt; }) ||
         !!Ncrs.listas().editedAt || Object.keys(Ncrs.meta().pendentes).length > 0;
-      /* alguém gravou os campos do Waiver depois de mim: guarda os meus antes */
-      var antes = (r[1].dados && r[1].externo && temWaiver)
+      /* alguém gravou os campos do Waiver depois de mim: guarda os meus antes
+         — se houver o que perder */
+      var arriscado = minhasNoWaiver === null ? temWaiver : minhasNoWaiver;
+      var antes = (r[1].dados && r[1].externo && arriscado)
         ? Pasta.guardarCopia(Ncrs.arquivoWaiver(quem), (quem || 'sem-nome') + '-antes-de-juntar', 40)
         : Promise.resolve();
       return antes.then(function () {
         var rb = r[0].dados ? Ncrs.juntarBanco(r[0].dados)
-          : { entraram: 0, atualizados: 0, alterados: [], localMaisNovo: temBanco };
+          : (r[0].semMudanca ? NADA_NCR() : { entraram: 0, atualizados: 0, alterados: [], localMaisNovo: temBanco });
         var rw = r[1].dados ? Ncrs.juntarWaiver(r[1].dados)
-          : { entraram: 0, atualizados: 0, alterados: [], localMaisNovo: temWaiver };
+          : (r[1].semMudanca ? NADA_NCR() : { entraram: 0, atualizados: 0, alterados: [], localMaisNovo: temWaiver });
         /* as correções (temporária → definitiva, ajustes, auditoria, senha):
            arquivo próprio, e só a pasta decide a senha */
         var rc = r[2].dados ? Correcoes.juntar(r[2].dados, { senha: true })
-          : { mudou: false, localMaisNovo: Correcoes.listaSubstituicoes().length > 0 || Correcoes.auditoria().length > 0 || Correcoes.temSenha() };
+          : (r[2].semMudanca ? { mudou: false, localMaisNovo: false }
+            : { mudou: false, localMaisNovo: Correcoes.listaSubstituicoes().length > 0 || Correcoes.auditoria().length > 0 || Correcoes.temSenha() });
+        Log.detalhe('banco NCR', 'troca com a pasta', {
+          banco: r[0].semMudanca ? 'parado' : 'lido', waiver: r[1].semMudanca ? 'parado' : 'lido',
+          correcoes: r[2].semMudanca ? 'parado' : 'lido'
+        });
         /* o banco de produtos: arquivo próprio, só muda quando alguém importa a planilha */
         var rp = r[3].dados ? Produtos.juntar(r[3].dados)
           : (r[3].semMudanca ? { mudou: false, localMaisNovo: false }
@@ -5954,9 +5985,14 @@
         if (rb.localMaisNovo) passos.push(Pasta.gravarArquivo(Pasta.ARQ_NCR_BANCO, Ncrs.arquivoBanco(quem)));
         if (rw.localMaisNovo) passos.push(Pasta.gravarArquivo(Pasta.ARQ_NCR_WAIVER, Ncrs.arquivoWaiver(quem)));
         if (rc.localMaisNovo) {
-          passos.push(Pasta.gravarArquivo(Correcoes.ARQUIVO, Correcoes.arquivo(quem)).then(function () { Correcoes.gravado(); }));
+          passos.push(Pasta.gravarArquivo(Correcoes.ARQUIVO, Correcoes.arquivo(quem)).then(function (minha) {
+            /* a senha daqui só deixa de estar "pendente" se o arquivo que ficou lá é o meu */
+            if (minha !== false) Correcoes.gravado();
+          }));
         }
         return Promise.all(passos).then(function () {
+          /* deu certo: o que está aqui é o que foi trocado */
+          trocaNcr = marcasNcr();
           return { entraram: rb.entraram + rw.entraram, atualizados: rb.atualizados + rw.atualizados, correcoes: rc.mudou,
             produtos: rp.mudou };
         });
@@ -6017,7 +6053,13 @@
      pessoa diz que não quer resolver isso agora */
   var pedidoEmVoo = null;
   var pastaNoticeFechado = false;
-  var POLL_MS = 20000;
+  var POLL_MS = (window.Config && Config.INTERVALO_PASTA_MS) || 20000;
+  /* A cópia "antes de juntar" no histórico: no máximo uma a cada dois
+     minutos por sessão. Ela existe para quem tem trabalho ainda não gravado
+     na pasta; o texto que uma junção substitui vai, além disso, inteiro para
+     o diário de alterações (com o botão que o põe de volta). */
+  var ANTES_MS = 2 * 60 * 1000;
+  var ultimaAntes = 0;
 
   /** Todas as imagens de todos os relatórios, com o item a que pertencem. */
   function todasAsImagens(projects) {
@@ -6147,14 +6189,38 @@
 
   /**
    * Apaga as fotos que nenhum item e nenhuma versão do histórico citam mais.
-   * De hora em hora, no máximo: ler todas as versões é barato agora que elas
-   * não carregam mais o base64, mas não é de graça.
+   *
+   * Primeiro as candidatas — sem uso aqui e com mais de sete dias —, que
+   * quase nunca existem; só havendo alguma é que as versões do histórico são
+   * lidas, para ver se alguma ainda a cita. Antes eram lidas todas, sempre:
+   * com o histórico guardado por tempo (até ~94 versões) isso viraria
+   * dezenas de megabytes de leitura na rede a cada limpeza.
+   *
+   * No máximo a cada 12 horas, e a hora fica guardada no navegador: recarregar
+   * a página não faz a limpeza rodar de novo.
    */
+  var PODA_KEY = 'derrogacao:podaImagensEm';
+  var PODA_MS = 12 * 60 * 60 * 1000;
+
   function limparImagensOrfas() {
-    if (Date.now() - ultimaPoda < 60 * 60 * 1000) return Promise.resolve(0);
+    var guardada = 0;
+    try { guardada = Number(localStorage.getItem(PODA_KEY)) || 0; } catch (e) { /* sem armazenamento */ }
+    if (Date.now() - Math.max(ultimaPoda, guardada) < PODA_MS) return Promise.resolve(0);
     ultimaPoda = Date.now();
-    return imagensEmUso()
-      .then(function (usados) { return Pasta.podarImagens(usados); })
+    try { localStorage.setItem(PODA_KEY, String(ultimaPoda)); } catch (e) { /* segue */ }
+    var usados = [];
+    todasAsImagens(state.projects).forEach(function (im) { if (im.arquivo) usados.push(im.arquivo); });
+    return Pasta.imagensSemUso(usados)
+      .then(function (candidatas) {
+        if (!candidatas.length) return 0;
+        return imagensEmUso().then(function (todasUsadas) {
+          return Pasta.apagarImagens(candidatas, todasUsadas);
+        });
+      })
+      .then(function (n) {
+        if (n) Log.passo('pasta', 'imagens sem uso apagadas da pasta', { quantas: n });
+        return n;
+      })
       .catch(function () { return 0; });
   }
 
@@ -6355,7 +6421,12 @@
           Log.detalhe('pasta', 'gravando o arquivo de dados');
           return Pasta.gravar(montaPayload());
         })
-        .then(function (carimbo) { meuCarimbo = Number(carimbo) || Pasta.carimbo(); })
+        .then(function (g) {
+          meuCarimbo = Number(g && g.carimbo) || Pasta.carimbo();
+          /* outra gravação passou por cima da minha no mesmo instante: outra
+             rodada já, para o que eu escrevi ir de novo (ver Pasta.gravar) */
+          if (g && g.atropelada) gravarPendente = true;
+        })
         .then(function () {
           /* Gravou: o que está aqui é o que a pasta passa a ter, e é a base
              da junção seguinte. Isto NÃO é o erro do §6 — lá o problema era
@@ -6383,6 +6454,24 @@
         .then(function () { return resumo; });
     }
 
+    /* A pasta já tem tudo o que está aqui: só as bases andam.
+
+       A de mesclagem passa a ser o que está aqui — que é o que a pasta tem.
+       A `baseLida` e o `meuCarimbo` NÃO andam: eles descrevem a minha última
+       gravação de verdade, e é por eles que uma cópia atrasada (que partiu de
+       antes daquela gravação) é reconhecida. Avançá-los aqui faria o texto
+       que eu gravei parecer "apagado pelo colega" quando a cópia atrasada
+       chegasse — o atropelo que a regra de três bases existe para impedir. */
+    function semGravar(resumo) {
+      mesclaBase = Store.baseDe(state.projects);
+      baseDiario = mesclaBase;
+      Log.detalhe('pasta', 'a pasta já tem tudo o que está aqui — não regravo');
+      return guardarBases()
+        .then(function () { return sincronizarRevisoes(); })
+        .then(function () { return sincronizarComunicados(); })
+        .then(function () { return resumo; });
+    }
+
     return Pasta.ler()
       .then(function (r) {
         var resumo = { entraram: 0, atualizados: 0, removidos: 0, novosRelatorios: 0 };
@@ -6395,9 +6484,6 @@
           relatorios: (r.dados.projects || []).length,
           mexidoPorOutraPessoa: r.externo
         });
-        if (r.externo) {
-          Log.passo('pasta', 'alguém gravou depois de mim — guardando o meu estado antes de juntar');
-        }
 
         conferirRelogio(r.dados);
 
@@ -6411,10 +6497,23 @@
 
         /* Alguém gravou depois de mim: guarda o MEU estado antes de juntar.
            É o que garante poder recuperar um texto que a regra "vale quem
-           editou por último" vá substituir daqui a um instante. */
-        var antes = r.externo
-          ? Pasta.versionar(montaPayload(), (Store.getUser() || 'sem-nome') + '-antes')
-          : Promise.resolve();
+           editou por último" vá substituir daqui a um instante.
+
+           Só quando há o que perder — trabalho daqui que a pasta ainda não
+           tem. Antes era a cada mudança de fora, e com três pessoas as 40
+           versões do histórico cobriam uns dez minutos. */
+        var antes = Promise.resolve();
+        if (r.externo) {
+          var meus = Store.editadosDesde(state.projects, mesclaBase);
+          if (meus && Date.now() - ultimaAntes >= ANTES_MS) {
+            ultimaAntes = Date.now();
+            Log.passo('pasta', 'alguém gravou depois de mim — guardando o meu estado antes de juntar',
+              { itensMeusAindaNaoGravados: meus });
+            antes = Pasta.versionar(montaPayload(), (Store.getUser() || 'sem-nome') + '-antes');
+          } else {
+            Log.detalhe('pasta', 'alguém gravou depois de mim', { itensMeusAindaNaoGravados: meus });
+          }
+        }
 
         /* Guarda de versão: se o arquivo veio de uma página mais nova do que
            esta, tudo o que ela não conhece sumiria na regravação. */
@@ -6488,6 +6587,19 @@
                diário não deve contá-la como se fosse */
             baseDiario = Store.baseDe(state.projects);
             mesclado = resumo;
+
+            /* Nada daqui que a pasta não tenha: não regrava. Era regravar
+               sempre que fazia o pingue-pongue — a gravação de um parecia
+               novidade para os outros, que liam, juntavam e gravavam também,
+               a cada 20 s, com a equipe inteira parada. */
+            var novidade = Store.novidadeLocal(state.projects, r.dados.projects || [],
+              r.dados.relatoriosExcluidos);
+            if (!novidade && todasAsImagens(state.projects).some(function (im) { return im.src && !im.arquivo; })) {
+              novidade = 'imagem';
+            }
+            if (!novidade && pastaCaminho && r.dados.caminho !== pastaCaminho) novidade = 'caminho';
+            if (!novidade && !versaoDesatualizada) return semGravar(resumo);
+            Log.detalhe('pasta', 'tenho o que a pasta não tem — gravando', { o: novidade });
             return gravarJuncao(resumo);
           });
       })

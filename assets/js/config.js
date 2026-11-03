@@ -21,6 +21,11 @@
      pasta da equipe no editor, a publicação no visualizador. */
   var INTERVALO_ATUALIZACAO_MS = 5 * 60 * 1000;
 
+  /* De quanto em quanto tempo o editor olha a DATA dos arquivos da pasta da
+     equipe (barato: não lê o conteúdo). Só quando alguma mudou é que a
+     rodada de sincronização acontece. */
+  var INTERVALO_PASTA_MS = 20 * 1000;
+
   /* Os marcos cujos acontecimentos podem virar comunicado para o
      visualizador (comunicados.js): um waiver novo, uma NCR nova, um waiver
      aceito. Para acompanhar outro marco, acrescente-o aqui — ['J09', 'J10'].
@@ -103,6 +108,7 @@
   global.Config = {
     MARCO_INICIAL: MARCO_INICIAL,
     INTERVALO_ATUALIZACAO_MS: INTERVALO_ATUALIZACAO_MS,
+    INTERVALO_PASTA_MS: INTERVALO_PASTA_MS,
     MARCOS_COMUNICADOS: MARCOS_COMUNICADOS,
     DIAS_COMUNICADO_NOVO: DIAS_COMUNICADO_NOVO,
     PASTA_VISUALIZADOR: PASTA_VISUALIZADOR,

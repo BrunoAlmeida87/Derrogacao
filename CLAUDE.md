@@ -79,7 +79,8 @@ assets/css/report.css      layout do relatório — tela e impressão A4
 assets/js/log.js           o diário do console: o que está acontecendo, e o
                            que fazer quando dá errado (carrega primeiro)
 assets/js/config.js        o que muda com o tempo: o marco que abre primeiro
-                           (MARCO_INICIAL), o ritmo da atualização e os
+                           (MARCO_INICIAL), o ritmo da atualização e da
+                           conferência da pasta (INTERVALO_PASTA_MS) e os
                            marcos que geram comunicados (MARCOS_COMUNICADOS)
 assets/js/atualizacao.js   o ciclo único da atualização automática e o contador
 assets/js/leitura.js       o modo leitura (o visualizador): liga e blinda
@@ -118,7 +119,9 @@ derrogacao-visualizador.html  o mesmo, em modo leitura — gerado, e versionado
 tools/build-standalone.py  gera (e confere) os dois arquivos únicos
 tools/guia-png.js          gera o docs/visualizador-guia.png (Playwright global)
 docs/visualizador-guia.*   guia rápido do visualizador, em imagem (o .html é a fonte)
-tests/                     suítes de ponta a ponta (Playwright, Node) — §7
+tests/                     suítes de ponta a ponta (Playwright, Node) — §7;
+                           tests/pasta-disco.js: a mesma pasta em disco para
+                           vários navegadores (o teste de três pessoas)
 exemplos/                  .json prontos para importar
 .github/workflows/pages.yml  publicação
 ```
@@ -526,14 +529,24 @@ em `file://`**. A pasta guarda `derrogacao-dados.json`, `imagens/` e
 `historico/`.
 
 - Ao abrir: lê e junta. Ao salvar: **relê, junta, grava** (é o que evita apagar
-  o trabalho de quem salvou no meio). A cada 20 s confere se mudou lá fora.
+  o trabalho de quem salvou no meio). A cada 20 s (`Config.INTERVALO_PASTA_MS`)
+  confere a **data** dos arquivos; só se alguma mudou é que a rodada acontece.
+  **Só grava quem tem novidade** — ver "O pingue-pongue da pasta", logo abaixo.
 - Não há trava de arquivo — a API não tem. O que dá segurança é a mesclagem
   convergir: uma gravação atropelada se recupera na sincronização seguinte.
-- **Histórico**: grava o estado local em `historico/` **antes de juntar**
-  qualquer mudança externa (arquivo marcado `-antes`), mais uma versão a cada
-  10 min, guardando as últimas 40. Restaurar **só ressuscita o que sumiu**
+- **Histórico**: grava o estado local em `historico/` **antes de juntar** uma
+  mudança externa (arquivo marcado `-antes`) **quando há trabalho daqui ainda
+  não gravado** (`Store.editadosDesde` contra a base da mesclagem), no máximo
+  uma a cada 2 min; mais uma versão a cada 10 min de quem grava. O nome leva
+  os segundos (`2026-11-02_14h05m33_bruno.json`; os antigos, sem segundos,
+  continuam lidos). Fica por **tempo** (`Pasta.aApagarDoHistorico`): as 40
+  mais novas, a última de cada hora nas últimas 24 h e a última de cada dia nos
+  últimos 30 dias (no máximo ~94). Era "as últimas 40", e com três pessoas
+  elas cobriam uns dez minutos. Restaurar **só ressuscita o que sumiu**
   (`Store.reviver`), registrado como edição de quem restaurou — é isso que faz
-  o item sobreviver no computador dos outros.
+  o item sobreviver no computador dos outros. Versão anterior do programa
+  ainda poda pelas "últimas 40": a equipe toda precisa trocar de versão para o
+  histórico longo valer.
 - **Imagens em arquivos próprios** (`imagens/<id do registro>.jpg`). No JSON da
   pasta fica só `arquivo`; o `src` em base64 é removido na hora de montar o
   retrato (`montaPayload`) e devolvido na leitura (`hidratarImagens`, que
@@ -542,10 +555,14 @@ em `file://`**. A pasta guarda `derrogacao-dados.json`, `imagens/` e
   versões do histórico era outra cópia inteira. **O backup `.json` continua
   embutindo tudo** — esse precisa viajar sozinho por e-mail.
   Ordem que importa: grava-se a imagem **antes** do JSON que a cita.
-  A poda (`Pasta.podarImagens`) só apaga o que nenhum item **e nenhuma versão
-  do histórico** citam, e nunca com menos de 7 dias — entre gravar a foto e
-  gravar o JSON existe um instante em que ela parece órfã para quem estiver
-  lendo. Roda no máximo de hora em hora (`limparImagensOrfas`).
+  A poda só apaga o que nenhum item **e nenhuma versão do histórico** citam,
+  e nunca com menos de 7 dias — entre gravar a foto e gravar o JSON existe um
+  instante em que ela parece órfã para quem estiver lendo. `limparImagensOrfas`
+  roda no máximo a cada 12 h (a hora fica no `localStorage`,
+  `derrogacao:podaImagensEm`), procura primeiro as candidatas
+  (`Pasta.imagensSemUso`: sem uso aqui e velhas) e **só lê as versões do
+  histórico se houver alguma** — quase nunca há; ler todas a cada hora, com o
+  histórico por tempo, seria dezenas de MB pela rede.
 - **Toda escrita na pasta tem segunda chance** (`comSegundaChance`). O Chrome
   não grava por cima: escreve num `.crswap` ao lado e renomeia no fim. Numa
   pasta de rede esse vaivém esbarra no antivírus, no Windows e na outra pessoa
@@ -571,6 +588,66 @@ em `file://`**. A pasta guarda `derrogacao-dados.json`, `imagens/` e
   não viaja: cada pessoa escolhe a pasta uma vez, por navegador. O campo de
   caminho no diálogo é texto informativo que viaja nos dados, só para dizer ao
   próximo *onde* apontar.
+
+### O pingue-pongue da pasta (e por que quem não tem novidade não grava)
+
+Pedido do Bruno: "lentidão quando três usuários usam ao mesmo tempo".
+Medido com três navegadores numa pasta de verdade (o `tests/pasta-disco.js`,
+com 40 ms por operação e 8 MB/s): com as três janelas abertas e **ninguém
+digitando**, cada máquina fazia uma rodada completa a cada 20 s — relia os
+dados, relia o banco NCR inteiro, regravava os dados e guardava uma cópia
+`-antes`. Cerca de 40 MB por minuto pela rede, a equipe parada. O motivo: a
+rodada **sempre gravava**, e a gravação de um mudava a data do arquivo — que
+para os outros era "alguém mudou". Eles liam, juntavam, gravavam, e assim para
+sempre.
+
+- **`Store.novidadeLocal(locais, recebidos, lápides)`**, chamada depois da
+  junção: este lado tem algo que a cópia da pasta não tem? Item com outro
+  conteúdo (`retratoItem`), item que lá não existe, lápide, relatório,
+  lápide de relatório, texto de capa (pela regra da junção: só quando o daqui
+  é mais novo e não vazio). Mais imagem ainda sem arquivo e o caminho da pasta.
+  Nada disso → **`semGravar`**: só as bases andam, e diário e comunicados são
+  trocados como sempre.
+- **Compara conteúdo, nunca carimbo** — nem o `editedAt` do item nem as
+  sessões. Quem recebe uma cópia atrasada fica com o texto dela e um carimbo
+  mais novo; se isso contasse como novidade, essa pessoa regravaria a cópia
+  atrasada com `baseadoEm` novo, e o autor deixaria de reconhecê-la como
+  atrasada — o texto dele sumia de vez. Calada, ela deixa o autor pôr o texto
+  de volta (o teste de três pessoas pega isso). As sessões são união e voltam
+  ao arquivo na próxima gravação de verdade.
+- **Na rodada sem gravação, `baseLida` e `meuCarimbo` NÃO andam.** Eles
+  descrevem a minha última gravação de verdade; é por eles que a cópia
+  atrasada é reconhecida. Só a `mesclaBase` passa a ser o estado daqui (que é
+  o da pasta). Avançar os outros dois faria o meu texto parecer "apagado pelo
+  colega" quando a cópia atrasada chegasse. (Isso também deixou a proteção
+  melhor que antes: a regravação sem mudança empurrava a `baseLida` para um
+  retrato que já tinha o meu texto.)
+- **"O arquivo que está lá é o meu?"** Duas pessoas salvando no mesmo
+  instante: a segunda passa por cima da primeira entre o `close()` e o
+  `getFile()`, e a primeira anotava a data da OUTRA como a sua — não relia, e o
+  texto dela sumia na rodada seguinte de qualquer um. Defeito antigo,
+  escondido pelo pingue-pongue. Agora `Pasta.gravar` e `Pasta.gravarArquivo`
+  põem uma marca única como **última** chave do JSON (`gravacao`) e conferem
+  o tamanho e os últimos bytes do arquivo. Não sendo o meu: `atropelada`, o
+  carimbo fica logo depois da data do arquivo (a cópia do colega passa a ser
+  lida como "não viu a minha gravação"), e outra rodada já (`gravarPendente`).
+  Versões anteriores ignoram a chave.
+- **Banco NCR só lido quando muda.** `Ncrs.marcaBanco`/`marcaWaiver` e
+  `Correcoes.marca` resumem o que esta máquina mandaria em cada arquivo; a
+  marca da última troca que deu certo fica em `trocaNcr` (app.js). Marca igual
+  e arquivo parado (`Pasta.mudouArquivo`) → nem lê nem grava. A marca cobre só
+  o que `juntarBanco`/`juntarWaiver` usam para decidir; errar para "mudou" só
+  custa uma leitura. Um arquivo que existia e sumiu conta como mudança.
+- Resultado medido, mesmo cenário: parados, **zero** leituras e gravações
+  (só as conferências de data); digitando, ~8 MB lidos por pessoa em vez de
+  ~60 MB.
+
+**O limite que continua** (não foi introduzido aqui): a regra de três bases
+protege o delta da **última** gravação do autor contra uma cópia que partiu de
+antes dela. Se, entre a cópia atrasada e o autor, um TERCEIRO com novidade
+própria regravar, a cópia atrasada é "lavada" e o autor não a reconhece mais.
+Fechar isso exige que ninguém grave o arquivo do outro (cada um no seu
+arquivo de alterações) — o "Nível 2" que foi proposto ao Bruno.
 
 ### Lápides
 Excluir um item empilha `{id, kind, ncrId, at, by}` em `project.deleted`. Sem
@@ -1789,7 +1866,21 @@ permissão da pasta entre sessões.
   "um está com a pasta velha do outro", que é outro caso. Duas pessoas ao
   mesmo tempo só aparece com uma pasta de verdade entre as abas — os arquivos
   bombeados nos dois sentidos, valendo o mais recente (`rede.py`). Foi só com
-  isso que o atropelo apareceu.
+  isso que o atropelo apareceu. Hoje isso está na suíte: `tests/pasta-disco.js`
+  dá a vários navegadores (cada um com o seu IndexedDB) a mesma pasta em
+  disco, e anota cada leitura e gravação — `tests/pasta.test.js` usa três.
+- **Gravar sem novidade é o pingue-pongue.** A gravação muda a data do
+  arquivo, e data nova é "alguém mudou" para todos os outros. Toda gravação
+  nova na pasta tem de perguntar antes se este lado tem algo que lá não tem
+  (§5, "O pingue-pongue da pasta").
+- **"Tenho novidade?" compara conteúdo, não carimbo.** Contar o `editedAt` ou
+  as sessões faz quem só recebeu uma cópia atrasada regravá-la com cara de
+  nova, e o texto do autor some para sempre.
+- **Na rodada sem gravação, `baseLida` e `meuCarimbo` ficam.** Só a
+  `mesclaBase` anda.
+- **A data do arquivo logo depois de gravar pode ser a do colega.** Quem
+  grava confere a marca `gravacao` no fim do arquivo antes de anotar a data
+  como sua (`Pasta.gravar`).
 - **Redesenhar o editor rouba o teclado de quem está escrevendo.** Ver "O
   cursor sobrevive ao redesenho" no §5: o redesenho é obrigatório, devolver o
   foco também.
@@ -1862,7 +1953,8 @@ A suíte voltou, menor e em Node (`tests/`, ver `tests/README.md`): o Bruno
 pediu testes automatizados para os comportamentos novos. `node tests/rodar.js`
 roda todas (navegação, abertura no marco da vez, Kanban e suas exportações,
 Resumo, atualização automática, Banco NCR, banco de produtos, comunicados — do editor ao pop-up
-do visualizador —, compatibilidade e os arquivos únicos de `file://`). Elas abrem o programa de verdade, semeiam pela API do
+do visualizador —, compatibilidade, os arquivos únicos de `file://` e a pasta
+da equipe com três pessoas ao mesmo tempo). Elas abrem o programa de verdade, semeiam pela API do
 programa, conferem arquivos baixados e o número de folhas e o papel dos PDFs.
 Não é o programa: nada ali entra no `derrogacao.html`, e o programa continua
 sem build e sem dependência.
@@ -2041,3 +2133,10 @@ desta máquina às vezes bloqueia `github.io`.
 | O banco de produtos viaja em `ncrBase.produtos` (backup, publicação) e tem arquivo próprio na pasta, junção produto a produto pelo `em` | a versão anterior ignora a chave; arquivo próprio pelo motivo das correções e dos comunicados |
 | Produtos na ordem das abas: depois de Fluxos | a ordem do Bruno (Banco NCR … Waiver DEV) não muda; é dado de consulta, como o Resumo e os Fluxos |
 | A tabela de produtos mostra 300 e pede mais | 2.400 linhas custavam mais de um segundo só de layout |
+| Na pasta, só grava quem tem algo que a cópia de lá não tem (`Store.novidadeLocal`) | gravar sempre fazia o pingue-pongue: ~40 MB/min pela rede com três janelas abertas e ninguém digitando (medido) |
+| "Tenho novidade?" compara conteúdo, não `editedAt` nem sessões | contar carimbo faz quem recebeu uma cópia atrasada regravá-la como nova, e o autor perde o texto |
+| Rodada sem gravação não avança `baseLida` nem `meuCarimbo` | são eles que reconhecem a cópia atrasada; avançá-los apagaria o texto do autor |
+| Marca única (`gravacao`) no fim de cada arquivo gravado na pasta | sem ela, quem gravava 2 ms antes do colega anotava a data dele como sua e perdia o texto |
+| Banco NCR, Waiver e correções só relidos quando a data ou a marca daqui mudou | o arquivo do banco tem megabytes e só muda numa importação; era relido em toda rodada |
+| Histórico por tempo (40 mais novas + 1 por hora em 24 h + 1 por dia em 30 dias), cópia "antes" só com trabalho não gravado e no máximo a cada 2 min | "as últimas 40" cobriam ~10 minutos com três pessoas |
+| Limpeza de imagens a cada 12 h, lendo o histórico só se houver candidata | com o histórico por tempo, ler todas as versões a cada hora seria dezenas de MB pela rede |

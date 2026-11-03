@@ -24,7 +24,9 @@
   var REVISOES = 'revisoes.json';
   var HISTORICO = 'historico';
   var IMAGENS = 'imagens';
-  var MAX_HISTORICO = 40;
+  var MAX_HISTORICO = 40;     // as mais novas ficam sempre; ver `aApagarDoHistorico`
+  var HORAS_POR_HORA = 24;    // depois delas: a última de cada hora, por um dia
+  var DIAS_POR_DIA = 30;      // depois: a última de cada dia, por um mês
   var DIAS_ORFA = 7;          // um arquivo de imagem só é apagado depois disso
 
   var handle = null;          // pasta escolhida
@@ -236,9 +238,57 @@
       .catch(function () { return false; });
   }
 
+  /* --- "o arquivo que está lá é o meu?" -----------------------------------
+     Duas pessoas salvando no mesmo instante: a segunda gravação passa por
+     cima da primeira entre o fechar o arquivo e o olhar a data dele. Quem
+     gravou primeiro anotava a data da OUTRA como sendo a da sua gravação —
+     e daí em diante achava que a pasta tinha o texto dele, não relia, e o
+     texto sumia na rodada seguinte de qualquer um (visto no teste de três
+     pessoas, com as duas gravações a 2 ms uma da outra).
+
+     Agora cada gravação leva uma marca única como ÚLTIMA chave do JSON
+     (`gravacao`). Depois de fechar, o tamanho e o fim do arquivo dizem se o
+     que está lá é o que eu gravei — lendo só os últimos bytes. As versões
+     anteriores do programa ignoram a chave. */
+  function novaMarca() {
+    return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+
+  function bytesDoTexto(t) {
+    try { return new Blob([t]).size; } catch (e) { return -1; }
+  }
+
+  function comMarca(payload, marca) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload;
+    var out = {};
+    Object.keys(payload).forEach(function (k) { if (k !== 'gravacao') out[k] = payload[k]; });
+    out.gravacao = marca;
+    return out;
+  }
+
+  function ehMinha(file, bytes, marca) {
+    if (bytes >= 0 && file.size !== bytes) return Promise.resolve(false);
+    if (!file.slice) return Promise.resolve(true);
+    return file.slice(Math.max(0, file.size - 200)).text()
+      .then(function (fim) { return fim.indexOf(marca) >= 0; })
+      /* mudou de novo enquanto eu lia: com certeza há outra gravação lá */
+      .catch(function () { return false; });
+  }
+
+  /**
+   * Grava o arquivo de dados. Resolve com { carimbo, atropelada }:
+   * `carimbo` é a data da MINHA gravação — é com ela que a rodada seguinte
+   * sabe se o arquivo que chegou partiu da minha gravação ou de antes dela
+   * (ver `sincronizar`). Se outra gravação passou por cima no mesmo instante
+   * (`atropelada`), a minha data não é conhecida: o carimbo fica logo depois
+   * da do arquivo que está lá, o que faz a cópia do colega ser lida como "não
+   * viu a minha gravação" — e o que eu escrevi é regravado, em vez de sumir.
+   */
   function gravar(payload) {
     if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
-    var texto = JSON.stringify(payload, null, 2);
+    var marca = novaMarca();
+    var texto = JSON.stringify(comMarca(payload, marca), null, 2);
+    var bytes = bytesDoTexto(texto);
     return comSegundaChance(function () {
       return arquivoDados(true)
         .then(function (fh) {
@@ -248,11 +298,19 @@
         });
     }, ARQUIVO)
       .then(function (file) {
-        ultimaLeitura = file.lastModified;
-        Log.detalhe('pasta', 'gravado ' + ARQUIVO, { bytes: texto.length });
-        /* o carimbo da MINHA gravação: é com ele que a rodada seguinte sabe
-           se o arquivo que está lá ainda é o meu (ver `sincronizar`) */
-        return file.lastModified;
+        return ehMinha(file, bytes, marca).then(function (minha) {
+          if (minha) {
+            ultimaLeitura = file.lastModified;
+            Log.detalhe('pasta', 'gravado ' + ARQUIVO, { bytes: texto.length });
+            return { carimbo: file.lastModified, atropelada: false };
+          }
+          /* o que está lá é de outra pessoa: a próxima conferência relê */
+          ultimaLeitura = file.lastModified - 1;
+          Log.aviso('pasta', 'outra pessoa gravou ' + ARQUIVO + ' no mesmo instante que eu',
+            'a gravação dela passou por cima da minha. Nada se perdeu: o que eu escrevi ' +
+            'continua aqui e vai de novo na próxima rodada, junto com o dela.');
+          return { carimbo: file.lastModified + 1, atropelada: true };
+        });
       });
   }
 
@@ -369,20 +427,42 @@
    * impossível de dar errado.
    */
   function podarImagens(usados) {
-    if (!handle) return Promise.resolve(0);
+    return imagensSemUso(usados)
+      .then(function (candidatas) { return apagarImagens(candidatas, []); })
+      .catch(function () { return 0; });
+  }
+
+  /**
+   * As imagens da pasta que nenhum dos caminhos `usados` cita e que têm mais
+   * de sete dias: as candidatas a apagar. Separado de apagar porque quem
+   * chama ainda precisa conferir o histórico — e só precisa ler as versões
+   * guardadas quando há candidata (quase nunca), em vez de em toda limpeza.
+   */
+  function imagensSemUso(usados) {
+    if (!handle) return Promise.resolve([]);
     var vivos = {};
     (usados || []).forEach(function (c) { vivos[soNome(c)] = true; });
     var limite = Date.now() - DIAS_ORFA * 86400000;
     return pastaImagens(false)
+      .then(function (dir) { return listarArquivos(dir); })
+      .then(function (lista) {
+        return lista.filter(function (f) { return !vivos[f.nome] && f.quando < limite; });
+      })
+      .catch(function () { return []; });
+  }
+
+  /** Apaga as `candidatas` que nenhum dos caminhos `usados` cita. */
+  function apagarImagens(candidatas, usados) {
+    if (!handle || !candidatas || !candidatas.length) return Promise.resolve(0);
+    var vivos = {};
+    (usados || []).forEach(function (c) { vivos[soNome(c)] = true; });
+    var mortos = candidatas.filter(function (f) { return !vivos[f.nome]; });
+    if (!mortos.length) return Promise.resolve(0);
+    return pastaImagens(false)
       .then(function (dir) {
-        return listarArquivos(dir).then(function (lista) {
-          var mortos = lista.filter(function (f) {
-            return !vivos[f.nome] && f.quando < limite;
-          });
-          return Promise.all(mortos.map(function (f) {
-            return dir.removeEntry(f.nome).catch(function () { /* já foi */ });
-          })).then(function () { return mortos.length; });
-        });
+        return Promise.all(mortos.map(function (f) {
+          return dir.removeEntry(f.nome).catch(function () { /* já foi */ });
+        })).then(function () { return mortos.length; });
       })
       .catch(function () { return 0; });
   }
@@ -457,10 +537,63 @@
   /* Nome do arquivo datado. Chamava-se `carimbo`, o mesmo nome da função lá
      de cima que devolve a última leitura — e a segunda declaração apagava a
      primeira, deixando `Pasta.carimbo()` sem argumento a quebrar. */
+  /* Com os segundos (`_14h05m33`): só com hora e minuto, duas versões da
+     mesma pessoa no mesmo minuto tinham o mesmo nome, e a segunda apagava a
+     primeira. Os nomes antigos (`_14h05`) continuam sendo lidos. */
   function carimboDeNome(d) {
     var p = function (n) { return String(n).padStart(2, '0'); };
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
-      '_' + p(d.getHours()) + 'h' + p(d.getMinutes());
+      '_' + p(d.getHours()) + 'h' + p(d.getMinutes()) + 'm' + p(d.getSeconds());
+  }
+
+  var RE_VERSAO = /^(\d{4})-(\d{2})-(\d{2})_(\d{2})h(\d{2})(?:m(\d{2}))?_(.+)\.json$/;
+
+  /** O nome de uma versão, desmontado; null se não for um nome nosso. */
+  function lerNomeVersao(n) {
+    var m = RE_VERSAO.exec(n);
+    if (!m) return null;
+    var t = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)).getTime();
+    return { ano: m[1], mes: m[2], dia: m[3], hora: m[4], min: m[5], seg: m[6] || '',
+      quem: m[7], t: t };
+  }
+
+  /**
+   * Quais versões do histórico podem sair. Pura (recebe os nomes e a hora),
+   * para dar para conferir sem pasta.
+   *
+   * Era "as últimas 40". Com três pessoas trabalhando, as 40 cobriam uns dez
+   * minutos — a rede de proteção era bem mais curta do que todo mundo achava.
+   * Agora o que vale é o tempo:
+   *
+   *   - as 40 mais novas ficam sempre (nunca menos do que antes);
+   *   - a última de cada hora, nas últimas 24 horas;
+   *   - a última de cada dia, nos últimos 30 dias.
+   *
+   * No máximo umas 94 versões. Nome que não é de versão nunca é apagado.
+   */
+  function aApagarDoHistorico(nomes, agora) {
+    agora = agora || Date.now();
+    var datados = [];
+    (nomes || []).forEach(function (n) {
+      var d = lerNomeVersao(n);
+      if (d) datados.push({ nome: n, d: d });
+    });
+    datados.sort(function (a, b) {
+      if (a.d.t !== b.d.t) return b.d.t - a.d.t;
+      return a.nome < b.nome ? 1 : (a.nome > b.nome ? -1 : 0);
+    });
+    var horas = {}, dias = {}, apagar = [];
+    datados.forEach(function (x, i) {
+      var idade = agora - x.d.t;
+      var dia = x.d.ano + x.d.mes + x.d.dia;
+      var hora = dia + x.d.hora;
+      var fica = i < MAX_HISTORICO ||
+        (idade < HORAS_POR_HORA * 3600000 && !horas[hora]) ||
+        (idade < DIAS_POR_DIA * 86400000 && !dias[dia]);
+      if (fica) { horas[hora] = true; dias[dia] = true; }
+      else apagar.push(x.nome);
+    });
+    return apagar;
   }
 
   /**
@@ -508,8 +641,7 @@
     }
     return proximo().then(function (lista) {
       if (lista.length <= MAX_HISTORICO) return;
-      lista.sort();
-      return Promise.all(lista.slice(0, lista.length - MAX_HISTORICO).map(function (n) {
+      return Promise.all(aApagarDoHistorico(lista).map(function (n) {
         return dir.removeEntry(n).catch(function () { /* alguém já removeu */ });
       }));
     });
@@ -530,17 +662,25 @@
           });
         }
         return proximo().then(function (lista) {
-          return lista.sort().reverse().map(function (n) {
-            var m = /^(\d{4}-\d{2}-\d{2})_(\d{2})h(\d{2})_(.+)\.json$/.exec(n);
-            var quem = m ? m[4] : '';
-            var antes = /-antes$/.test(quem);
-            return {
-              arquivo: n,
-              quando: m ? m[1].split('-').reverse().join('/') + ' ' + m[2] + ':' + m[3] : n,
-              quem: antes ? quem.replace(/-antes$/, '') + ' (antes de juntar)' : quem,
-              antesDeJuntar: antes
-            };
-          });
+          return lista.map(function (n) { return { n: n, d: lerNomeVersao(n) }; })
+            .sort(function (a, b) {
+              var ta = a.d ? a.d.t : 0, tb = b.d ? b.d.t : 0;
+              if (ta !== tb) return tb - ta;
+              return a.n < b.n ? 1 : (a.n > b.n ? -1 : 0);
+            })
+            .map(function (x) {
+              var d = x.d;
+              var quem = d ? d.quem : '';
+              var antes = /-antes$/.test(quem);
+              return {
+                arquivo: x.n,
+                quando: d ? d.dia + '/' + d.mes + '/' + d.ano + ' ' + d.hora + ':' + d.min +
+                  (d.seg ? ':' + d.seg : '') : x.n,
+                em: d ? d.t : 0,
+                quem: antes ? quem.replace(/-antes$/, '') + ' (antes de juntar)' : quem,
+                antesDeJuntar: antes
+              };
+            });
         });
       })
       .catch(function () { return []; });
@@ -581,14 +721,22 @@
         });
     }, nomeArq).catch(function (e) {
       /* ainda não existe: ninguém importou o banco NCR com a pasta ligada */
-      if (e && (e.name === 'NotFoundError' || e.name === 'NotFound')) return { dados: null, lastModified: 0, externo: false };
+      if (e && (e.name === 'NotFoundError' || e.name === 'NotFound')) {
+        delete leituras[nomeArq];   /* sabido que não está lá: o poll não insiste */
+        return { dados: null, lastModified: 0, externo: false };
+      }
       throw e;
     });
   }
 
+  /** Grava um arquivo próprio da pasta. Resolve com `true` se o que ficou lá
+      é o que eu gravei, `false` se outra gravação passou por cima no mesmo
+      instante (aí a próxima conferência relê e junta de novo). */
   function gravarArquivo(nomeArq, payload) {
     if (!handle) return Promise.reject(new Error('Nenhuma pasta escolhida.'));
-    var texto = JSON.stringify(payload);
+    var marca = novaMarca();
+    var texto = JSON.stringify(comMarca(payload, marca));
+    var bytes = bytesDoTexto(texto);
     return comSegundaChance(function () {
       return handle.getFileHandle(nomeArq, { create: true })
         .then(function (fh) {
@@ -597,9 +745,15 @@
           }).then(function () { return fh.getFile(); });
         });
     }, nomeArq).then(function (file) {
-      leituras[nomeArq] = file.lastModified;
-      Log.detalhe('pasta', 'gravado ' + nomeArq, { bytes: texto.length });
-      return true;
+      return ehMinha(file, bytes, marca).then(function (minha) {
+        leituras[nomeArq] = minha ? file.lastModified : file.lastModified - 1;
+        if (minha) Log.detalhe('pasta', 'gravado ' + nomeArq, { bytes: texto.length });
+        else {
+          Log.aviso('pasta', 'outra pessoa gravou ' + nomeArq + ' no mesmo instante que eu',
+            'nada se perdeu: a próxima rodada relê o arquivo e junta de novo.');
+        }
+        return minha;
+      });
     });
   }
 
@@ -608,7 +762,11 @@
     return handle.getFileHandle(nomeArq)
       .then(function (fh) { return fh.getFile(); })
       .then(function (file) { return file.lastModified > (leituras[nomeArq] || 0); })
-      .catch(function () { return false; });
+      .catch(function (e) {
+        /* um arquivo que já esteve lá e sumiu (apagado à mão?) também é
+           mudança: a rodada seguinte o grava de novo com o que está aqui */
+        return !!(leituras[nomeArq] && e && (e.name === 'NotFoundError' || e.name === 'NotFound'));
+      });
   }
 
   /** Cópia datada em historico-ncr/ (antes de importar, antes de juntar), guardando as últimas `max`. */
@@ -745,6 +903,9 @@
     mudouLaFora: mudouLaFora,
     versionar: versionar,
     listarHistorico: listarHistorico,
+    aApagarDoHistorico: aApagarDoHistorico,
+    lerNomeVersao: lerNomeVersao,
+    carimboDeNome: carimboDeNome,
     lerHistorico: lerHistorico,
     lerConversas: lerConversas,
     gravarConversas: gravarConversas,
@@ -757,6 +918,8 @@
     gravarImagem: gravarImagem,
     lerImagem: lerImagem,
     podarImagens: podarImagens,
+    imagensSemUso: imagensSemUso,
+    apagarImagens: apagarImagens,
     tamanhos: tamanhos,
     ARQUIVO: ARQUIVO,
     HISTORICO: HISTORICO,

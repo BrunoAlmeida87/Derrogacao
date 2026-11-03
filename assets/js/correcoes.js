@@ -639,6 +639,13 @@
     if (senhaPendente) { senhaPendente = false; salvarLocal(); }
   }
 
+  /** A marca do que esta máquina mandaria para a pasta (ver Ncrs.marcaBanco):
+      igual à da última troca, e com o arquivo parado lá, não há o que ler. */
+  function marca() {
+    return [versao, senhaPendente ? 1 : 0, est.senha ? str(est.senha.em) : '',
+      est.auditoria.length].join('|');
+  }
+
   /** O visualizador: troca tudo pelo que veio publicado, só na memória. */
   function adotar(d) {
     est = normalizar(d);
@@ -689,6 +696,7 @@
     paraBackup: paraBackup,
     juntar: juntar,
     gravado: gravado,
+    marca: marca,
     adotar: adotar
   };
 })(window);

@@ -1143,6 +1143,115 @@
     return res;
   }
 
+  /**
+   * Este lado tem alguma coisa que a cópia recebida da pasta não tem?
+   *
+   * É a pergunta que faltava antes de regravar o arquivo de dados. Sem ela,
+   * toda rodada gravava — mesmo sem nada novo —, e a gravação de um fazia os
+   * outros acharem que "alguém mudou": eles liam, juntavam e gravavam também,
+   * e assim para sempre, com a equipe inteira parada (medido: três janelas
+   * abertas, ninguém digitando, cada uma relendo e regravando a pasta a cada
+   * 20 s). Agora quem não tem nada a acrescentar só lê.
+   *
+   * Chamado DEPOIS da junção, com `locais` já juntado: o que sobra de
+   * diferença é exatamente o que a pasta ainda não tem. Compara só o que a
+   * junção sabe levar de um lado para o outro — o que ela não leva (o nome do
+   * relatório, a ordem dos itens) ficaria diferente para sempre e faria
+   * regravar em toda rodada.
+   *
+   * E compara CONTEÚDO, não carimbo: nem o `editedAt` do item nem o
+   * histórico de sessões. Quando uma cópia atrasada passa por cima, quem só
+   * a recebeu fica com o texto dela e o carimbo mais novo — diferença que não
+   * leva nada a ninguém. Se isso contasse como novidade, essa pessoa
+   * regravaria a cópia atrasada com cara de recente (`baseadoEm` novo), e
+   * quem escreveu de verdade não a reconheceria mais como atrasada: o texto
+   * dele sumia para sempre. Calada, ela deixa a cópia atrasada na pasta
+   * como está, e o autor a reconhece e põe o texto de volta. As sessões
+   * (união) voltam ao arquivo na próxima gravação de verdade.
+   *
+   * Devolve '' (nada) ou uma palavra que diz o quê — para o diário do
+   * console, que nunca recebe o texto das NCRs.
+   */
+  function novidadeLocal(locais, recebidos, lapidesRecebidas) {
+    var lista = (recebidos || []).map(normalizeProject);
+    var porId = {}, porMarco = {};
+    lista.forEach(function (r) {
+      porId[r.id] = r;
+      var k = marcoChave(r);
+      if (k && !porMarco[k]) porMarco[k] = r;
+    });
+    var chaveItem = function (n) { return JSON.stringify(retratoItem(n)); };
+    var CAPA = ['marco', 'marcoDev', 'coverTitle', 'coverTitleDev', 'coverSubtitle', 'ordem'];
+    var motivo = '';
+    (locais || []).some(function (p) {
+      var r = porId[p.id] || (marcoChave(p) ? porMarco[marcoChave(p)] : null);
+      if (!r) { motivo = 'relatorio'; return true; }
+      ['ncrs', 'devs'].some(function (key) {
+        var deles = {};
+        (r[key] || []).forEach(function (n) { deles[n.id] = n; });
+        return (p[key] || []).some(function (n) {
+          var d = deles[n.id];
+          if (!d || chaveItem(n) !== chaveItem(d)) { motivo = 'item'; return true; }
+          return false;
+        });
+      });
+      if (motivo) return true;
+      var lapLa = {};
+      (r.deleted || []).forEach(function (t) { lapLa[t.id] = t; });
+      if ((p.deleted || []).some(function (t) {
+        return !lapLa[t.id] || String(t.at) > String(lapLa[t.id].at);
+      })) { motivo = 'exclusao'; return true; }
+      /* textos de capa: a junção adota os do relatório gravado por último, e
+         só quando não estão vazios — é a mesma regra, vista do outro lado */
+      var capa = false;
+      if (String(p.updatedAt || '') > String(r.updatedAt || '')) {
+        capa = CAPA.some(function (k) { return str(p[k]) && str(p[k]) !== str(r[k]); }) ||
+          (typeof p.footer === 'string' && p.footer !== str(r.footer)) ||
+          (typeof p.showCoverDate === 'boolean' && p.showCoverDate !== r.showCoverDate) ||
+          (!!str(p.lastBackupBy) && (str(p.lastBackupBy) !== str(r.lastBackupBy) ||
+            str(p.lastBackupAt) !== str(r.lastBackupAt)));
+      }
+      if (capa || (str(p.marco) && !str(r.marco))) { motivo = 'capa'; return true; }
+      return false;
+    });
+    if (motivo) return motivo;
+    var tumbasLa = {};
+    (Array.isArray(lapidesRecebidas) ? lapidesRecebidas : []).forEach(function (t) {
+      if (t && t.id) tumbasLa[t.id] = t;
+    });
+    if (lapidesProjeto().some(function (t) {
+      return !tumbasLa[t.id] || String(t.at) > String(tumbasLa[t.id].at);
+    })) return 'relatorio-excluido';
+    return '';
+  }
+
+  /**
+   * Quantos itens mudaram aqui desde o retrato `base` (o da última troca com
+   * a pasta) — incluídos os criados e os excluídos. Sem base, conta todos:
+   * na dúvida, há o que perder.
+   *
+   * É o que decide guardar a cópia "antes de juntar" no histórico: ela só
+   * serve a quem tem trabalho ainda não gravado na pasta. Antes era guardada
+   * a cada mudança de fora, e com três pessoas as 40 versões cobriam uns
+   * dez minutos.
+   */
+  function editadosDesde(projects, base) {
+    var n = 0;
+    (projects || []).forEach(function (p) {
+      var b = base ? base[p.id] : null;
+      var vistos = {};
+      ['ncrs', 'devs'].forEach(function (k) {
+        (p[k] || []).forEach(function (item) {
+          vistos[item.id] = true;
+          if (!b || !b[item.id] ||
+              JSON.stringify(retratoItem(item)) !== JSON.stringify(b[item.id])) n++;
+        });
+      });
+      if (b) Object.keys(b).forEach(function (id) { if (!vistos[id]) n++; });
+    });
+    return n;
+  }
+
   /* --- IndexedDB -------------------------------------------------------- */
 
   var dbPromise = null;
@@ -1781,6 +1890,8 @@
     getBase: getBase,
     baseDe: baseDe,
     retratoItem: retratoItem,
+    novidadeLocal: novidadeLocal,
+    editadosDesde: editadosDesde,
     CAMPOS_MESCLA: CAMPOS_MESCLA,
     rotuloCampo: rotuloCampo,
     valorCampo: valorCampo,

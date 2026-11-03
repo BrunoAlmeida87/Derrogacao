@@ -1316,6 +1316,44 @@
     };
   }
 
+  /* --- a impressão digital de cada arquivo ---------------------------------
+     A sincronização relia os dois arquivos em toda rodada — o do banco tem
+     megabytes, e quase nunca muda (só numa importação). Agora ela guarda a
+     marca do que esta máquina mandaria em cada um, na última troca que deu
+     certo: marca igual e arquivo parado na pasta = não há o que ler nem o
+     que gravar. A marca cobre só o que `juntarBanco`/`juntarWaiver` usam para
+     decidir se este lado tem novidade; um resumo de 32 bits basta, porque
+     errar para "mudou" só custa uma leitura. */
+
+  function resumoTexto(s) {
+    var h = 0x811c9dc5;
+    for (var i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return h.toString(36) + '.' + s.length;
+  }
+
+  function marcaBanco() {
+    var ult = meta.importacoes.length ? meta.importacoes[meta.importacoes.length - 1] : null;
+    var partes = [str(meta.colunasEm), meta.importacoes.length, ult ? str(ult.id) : ''];
+    lista().forEach(function (r) {
+      if (!r.fonte.importadoEm && !r.historico.length) return;
+      partes.push(r.key + '|' + r.fonte.importadoEm + '|' + (r.fonte.presente ? 1 : 0) + '|' +
+        (r.fonte.detalhes || []).length + '|' + r.historico.length);
+    });
+    return resumoTexto(partes.join(';'));
+  }
+
+  function marcaWaiver() {
+    var partes = [str(meta.listas.editedAt), Object.keys(meta.pendentes).sort().join(',')];
+    lista().forEach(function (r) {
+      if (!r.waiver.editedAt) return;
+      partes.push(r.key + '|' + r.waiver.editedAt + '|' + (r.waiver.adicoes || []).length);
+    });
+    return resumoTexto(partes.join(';'));
+  }
+
   function unirHistorico(meus, deles) {
     var tem = {}, lista = (meus || []).slice(), entraram = 0, faltavamLa = 0;
     lista.forEach(function (e) { tem[assinaturaEvento(e)] = 1; });
@@ -1566,6 +1604,8 @@
     adotarBase: adotarBase,
     arquivoBanco: arquivoBanco,
     arquivoWaiver: arquivoWaiver,
+    marcaBanco: marcaBanco,
+    marcaWaiver: marcaWaiver,
     juntarBanco: juntarBanco,
     juntarWaiver: juntarWaiver,
     juntarBackup: juntarBackup,

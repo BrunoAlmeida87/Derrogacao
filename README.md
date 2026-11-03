@@ -259,6 +259,15 @@ para forçar a leitura: ele grava o que está aqui antes de ler, e a junção é
 campo a campo, como sempre. Sem a pasta, nada muda por fora — e o botão nem
 aparece.
 
+A conferência de 20 segundos é **barata**: ela só olha a *data* dos arquivos
+da pasta, sem ler o conteúdo. A leitura de verdade só acontece quando alguém
+gravou, e **só grava quem tem algo que a pasta ainda não tem**. Antes, cada
+máquina regravava a pasta em toda rodada, mesmo sem mudança, e a gravação de
+uma fazia as outras relerem e regravarem também. Com três pessoas e ninguém
+digitando, isso passava de 2 GB por hora na rede (medido). Era a lentidão de
+quando a equipe toda está no programa. O banco NCR, que é o arquivo grande,
+também só é relido quando alguém importa ou muda alguma coisa nele.
+
 ## Anotação do item
 
 Cada NCR e cada DEV tem um bloco **Observação interna**, logo abaixo da
@@ -1637,14 +1646,22 @@ Fica **dentro da própria pasta**, numa subpasta `historico\` criada sozinha —
 libera a pasta que a pessoa escolheu, então uma segunda pasta significaria uma
 segunda permissão e uma segunda escolha, por pessoa.
 
-São guardadas as últimas 40 versões, em dois momentos:
+As versões são gravadas em dois momentos:
 
-- **Sempre que chega mudança de fora**, o seu estado atual é gravado *antes* de
-  ser juntado (o arquivo sai marcado como *antes de juntar*). É isso que garante
-  poder recuperar um texto que a regra "vale quem editou por último" vá
-  substituir no instante seguinte.
+- **Quando chega mudança de fora e você tem trabalho ainda não gravado na
+  pasta**, o seu estado atual é gravado *antes* de ser juntado (o arquivo sai
+  marcado como *antes de juntar*), no máximo uma vez a cada dois minutos. É
+  isso que garante poder recuperar um texto que a regra "vale quem editou por
+  último" vá substituir no instante seguinte.
 - **A cada dez minutos** de trabalho, uma versão comum, para haver uma linha do
   tempo e não só os momentos de encontro.
+
+E ficam guardadas **por tempo**: as 40 mais recentes, mais a última de cada
+hora do último dia e a última de cada dia do último mês (umas 94 no máximo).
+Antes ficavam só as últimas 40, e com três pessoas trabalhando elas cobriam
+uns dez minutos. O nome de cada versão leva a hora até os segundos. Para o
+histórico longo valer, **toda a equipe precisa estar na versão nova** do
+programa: a anterior ainda apaga tudo além das últimas 40.
 
 Em **🗄 Pasta da rede…** as versões aparecem listadas, com **Restaurar**.
 Restaurar **só traz de volta o que sumiu** — o que está em uso agora não é
