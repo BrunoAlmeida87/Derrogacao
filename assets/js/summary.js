@@ -13,8 +13,6 @@
   var C2 = '#eb6834';   /* laranja */
   var C3 = '#1baf7a';   /* verde-água */
   var NEUTRO = '#d4d7dd';
-  var TINTA = '#1a1c20';
-  var TINTA2 = '#6b7280';
 
   var SVGNS = 'http://www.w3.org/2000/svg';
 
@@ -42,9 +40,46 @@
   function situacao(item) { return Store.statusInfo(item.status).nome; }
   var SITUACOES = Store.STATUS.map(function (o) { return o.nome; });
 
+  /* A partir de quantos dias sem ninguém tocar um item pendente vira
+     "parado". Trinta dias é mais ou menos o ciclo de resposta do arquiteto:
+     abaixo disso ainda é espera normal. */
+  var DIAS_PARADO = 30;
+
+  /** Dias desde a última edição do item — null quando nunca foi registrado. */
+  function diasSemMexer(item) { return Store.diasDesde(item && item.editedAt); }
+
+  /** Pendente e sem ninguém tocar há muito tempo. */
+  function estaParado(item) {
+    if (item.done) return false;
+    var d = diasSemMexer(item);
+    return d !== null && d >= DIAS_PARADO;
+  }
+
+  /** Separa um texto de sistemas (bigramas) em sistemas diferentes.
+      "MB, DT" são DOIS sistemas, não um: vírgula, ponto e vírgula, barra, &, +
+      e " e " separam. Sem nenhum separador e com só códigos curtos ("MB DT"),
+      o espaço separa também; uma frase ("Sea water") continua inteira. */
+  function sistemasDoTexto(texto) {
+    var t = clean(texto);
+    if (!t) return [];
+    var partes = t.split(/\s*(?:[,;\/&+|]|\s[eE]\s)\s*/).map(clean).filter(Boolean);
+    if (partes.length === 1) {
+      var palavras = partes[0].split(/\s+/);
+      if (palavras.length > 1 && palavras.every(function (w) { return w.length <= 3; })) partes = palavras;
+    }
+    /* o mesmo sistema escrito duas vezes no mesmo item conta uma vez só */
+    var vistos = {};
+    return partes.filter(function (x) {
+      var k = x.toUpperCase();
+      if (vistos[k]) return false;
+      vistos[k] = true;
+      return true;
+    });
+  }
+
   /** Um item pode citar vários sistemas ("BX,BQ,BD"). */
   function sistemas(item) {
-    return clean(item.systems).split(/[,;/]+/).map(clean).filter(Boolean);
+    return sistemasDoTexto(item.systems);
   }
 
   /* --- filtros ------------------------------------------------------------ */
@@ -71,9 +106,8 @@
     if (f.evidencia === 'sem' && (n.evidence || []).length) return false;
     var t = clean(f.busca).toLowerCase();
     if (t) {
-      var palheiro = [n.ncrId, n.systems, n.func, n.description, n.currentSituation,
-                      n.archAnswer, (n.certificates || []).join(' ')].join(' ').toLowerCase();
-      if (palheiro.indexOf(t) < 0) return false;
+      /* a busca varre todo o texto do item, evidências incluídas */
+      if (Store.textoBusca(n).indexOf(t) < 0) return false;
     }
     return true;
   }
@@ -123,6 +157,7 @@
       porSistema: {},
       porSituacao: {},
       certificados: {},
+      parados: [],
       linhas: linhas
     };
     SITUACOES.forEach(function (s) { st.porSituacao[s] = 0; });
@@ -130,6 +165,7 @@
     linhas.forEach(function (r) {
       var n = r.item;
       if (n.done) st.concluidos++; else st.pendentes++;
+      if (estaParado(n)) st.parados.push(r);
       st.porSituacao[situacao(n)]++;
       sistemas(n).forEach(function (s) { st.porSistema[s] = (st.porSistema[s] || 0) + 1; });
       (n.certificates || []).forEach(function (c) {
@@ -140,6 +176,10 @@
         st.imagens += (ev.images || []).length;
       });
     });
+    /* o mais esquecido primeiro: é a pergunta que se faz numa reunião */
+    st.parados.sort(function (a, b) {
+      return (diasSemMexer(b.item) || 0) - (diasSemMexer(a.item) || 0);
+    });
     return st;
   }
 
@@ -149,7 +189,7 @@
       marcos: porMarco.length,
       totalSemFiltro: 0,
       ncr: 0, dev: 0, total: 0, concluidos: 0, pendentes: 0, evidencias: 0, imagens: 0,
-      porSistema: {}, porSituacao: {}
+      porSistema: {}, porSituacao: {}, parados: []
     };
     SITUACOES.forEach(function (s) { geral.porSituacao[s] = 0; });
     porMarco.forEach(function (m) {
@@ -160,6 +200,10 @@
         geral.porSistema[s] = (geral.porSistema[s] || 0) + m.porSistema[s];
       });
       SITUACOES.forEach(function (s) { geral.porSituacao[s] += m.porSituacao[s]; });
+      m.parados.forEach(function (r) { geral.parados.push(r); });
+    });
+    geral.parados.sort(function (a, b) {
+      return (diasSemMexer(b.item) || 0) - (diasSemMexer(a.item) || 0);
     });
     return { porMarco: porMarco, geral: geral };
   }
@@ -191,9 +235,15 @@
       var t = l.valores.reduce(function (a, b) { return a + b; }, 0);
       if (t > maxTotal) maxTotal = t;
     });
+    /* `opts.max`: a escala de um gráfico repartido em pedaços — todos usam o
+       total do gráfico inteiro, senão a mesma barra teria comprimentos
+       diferentes em duas folhas */
+    if (opts.max) maxTotal = opts.max;
     if (!maxTotal) return eixoVazio(opts.vazio || 'Sem dados para exibir.');
 
-    var alt = linhas.length * (ALT_BARRA + ESPACO) + 6;
+    /* pedaço de um gráfico partido: cada linha ocupa a sua altura inteira, para
+       o espaçamento não mudar de um pedaço para o outro */
+    var alt = linhas.length * (ALT_BARRA + ESPACO) + (opts.max ? 0 : 6);
     var largBarra = LARG - ROTULO - 60;
     var svg = sv('svg', {
       viewBox: '0 0 ' + LARG + ' ' + alt,
@@ -252,38 +302,50 @@
 
     var wrap = el('div', 'sm-chart');
     wrap.appendChild(svg);
-    wrap.appendChild(legenda(series));
+    if (!opts.semLegenda) wrap.appendChild(legenda(series));
     return wrap;
   }
 
-  /** Barras horizontais de uma cor só: comparação de magnitude. */
+  /**
+   * Barras horizontais de uma cor só: comparação de magnitude.
+   *
+   * `opts.larg` estreita o viewBox. Serve a quem desenha numa coluna
+   * estreita — o painel do marco: com o viewBox de 720 numa coluna de 110 mm
+   * o texto de 11 px sai com menos de meio milímetro no papel, ilegível.
+   * Menos largura de viewBox para a mesma largura em tela = letra maior.
+   */
   function barras(linhas, opts) {
     opts = opts || {};
     var max = 0;
     linhas.forEach(function (l) { if (l.valor > max) max = l.valor; });
+    if (opts.max) max = opts.max;
     if (!max) return eixoVazio(opts.vazio || 'Sem dados para exibir.');
 
-    var alt = linhas.length * (ALT_BARRA + ESPACO) + 6;
-    var largBarra = LARG - ROTULO - 60;
-    var svg = sv('svg', { viewBox: '0 0 ' + LARG + ' ' + alt, role: 'img', class: 'sm-svg' });
+    var LARGURA = opts.larg || LARG;
+    var ROT = opts.rotulo || ROTULO;
+    /* pedaço de um gráfico partido: cada linha ocupa a sua altura inteira, para
+       o espaçamento não mudar de um pedaço para o outro */
+    var alt = linhas.length * (ALT_BARRA + ESPACO) + (opts.max ? 0 : 6);
+    var largBarra = LARGURA - ROT - 60;
+    var svg = sv('svg', { viewBox: '0 0 ' + LARGURA + ' ' + alt, role: 'img', class: 'sm-svg' });
 
     linhas.forEach(function (l, i) {
       var y = i * (ALT_BARRA + ESPACO);
       var rot = sv('text', {
-        x: ROTULO - 10, y: y + ALT_BARRA / 2 + 4,
+        x: ROT - 10, y: y + ALT_BARRA / 2 + 4,
         'text-anchor': 'end', class: 'sm-axis-label'
       });
       rot.textContent = l.rotulo.length > 22 ? l.rotulo.slice(0, 21) + '…' : l.rotulo;
       svg.appendChild(rot);
 
       var w = Math.max((l.valor / max) * largBarra, 2);
-      var r = sv('rect', { x: ROTULO, y: y, width: w, height: ALT_BARRA, rx: 3, fill: C1 });
+      var r = sv('rect', { x: ROT, y: y, width: w, height: ALT_BARRA, rx: 3, fill: C1 });
       var t = sv('title');
       t.textContent = l.rotulo + ': ' + l.valor;
       r.appendChild(t);
       svg.appendChild(r);
 
-      var v = sv('text', { x: ROTULO + w + 8, y: y + ALT_BARRA / 2 + 4, class: 'sm-total-label' });
+      var v = sv('text', { x: ROT + w + 8, y: y + ALT_BARRA / 2 + 4, class: 'sm-total-label' });
       v.textContent = l.valor;
       svg.appendChild(v);
     });
@@ -307,6 +369,9 @@
   }
 
   global.Summary = {
+    DIAS_PARADO: DIAS_PARADO,
+    diasSemMexer: diasSemMexer,
+    estaParado: estaParado,
     C1: C1, C2: C2, C3: C3, NEUTRO: NEUTRO,
     SITUACOES: SITUACOES,
     situacao: situacao,
@@ -315,6 +380,7 @@
     passa: passa,
     opcoesDe: opcoesDe,
     sistemas: sistemas,
+    sistemasDoTexto: sistemasDoTexto,
     compute: compute,
     statsDe: statsDe,
     barrasEmpilhadas: barrasEmpilhadas,
@@ -354,7 +420,9 @@
       ['Itens em derrogação', st.total, st.ncr + ' NCR · ' + st.dev + ' DEV'],
       ['Waiver accepted', st.concluidos, pct(st.concluidos, st.total) + ' do total'],
       ['Em andamento', st.pendentes, pct(st.pendentes, st.total) + ' do total'],
-      ['Páginas de evidência', st.evidencias, st.imagens + ' imagens']
+      ['Páginas de evidência', st.evidencias, st.imagens + ' imagens'],
+      ['Parados há ' + S.DIAS_PARADO + '+ dias', (st.parados || []).length,
+        'pendentes sem ninguém mexer']
     ].forEach(function (k) {
       var t = el('div', 'sm-kpi');
       t.appendChild(el('span', 'sm-kpi-label', k[0]));
@@ -371,6 +439,49 @@
     var p = el('span', 'sm-pill', st.nome);
     p.style.setProperty('--st', st.cor);
     return p;
+  }
+
+  /**
+   * A mesma tabela, montada de um jeito que a paginação sabe partir: cada
+   * linha é filha direta do bloco (data-lista), e o cabeçalho é repetido em
+   * cada folha (data-cabecalho). Serve ao PDF; na tela continua valendo a
+   * tabela de verdade, que é o que o navegador rola e ordena melhor.
+   *
+   * `colunas[].larg` é a largura da coluna, em por cento da folha.
+   */
+  function blocoLista(titulo, sub, colunas, linhas, vazio) {
+    var c = el('section', 'sm-card sm-grade');
+    c.setAttribute('data-fluido', '');
+    c.setAttribute('data-lista', '');
+
+    var h = el('header', 'sm-card-head');
+    h.setAttribute('data-cabecalho', '');
+    h.appendChild(el('h3', null, titulo));
+    if (sub) h.appendChild(el('p', null, sub));
+    c.appendChild(h);
+
+    function celula(col, conteudo) {
+      var cel = el('div', 'sm-grade-cel' + (col.num ? ' is-num' : ''));
+      /* largura fixa: com '1 1' as colunas disputam espaço entre si e a
+         última acaba partindo palavra ao meio na folha */
+      cel.style.flex = '0 0 ' + (col.larg || Math.floor(100 / colunas.length)) + '%';
+      if (conteudo instanceof Node) cel.appendChild(conteudo);
+      else if (conteudo != null) cel.textContent = conteudo;
+      return cel;
+    }
+
+    var cab = el('div', 'sm-grade-linha sm-grade-linha--cab');
+    cab.setAttribute('data-cabecalho', '');
+    colunas.forEach(function (col) { cab.appendChild(celula(col, col.titulo)); });
+    c.appendChild(cab);
+
+    linhas.forEach(function (l) {
+      var linha = el('div', 'sm-grade-linha');
+      colunas.forEach(function (col) { linha.appendChild(celula(col, col.valor(l))); });
+      c.appendChild(linha);
+    });
+    if (!linhas.length) c.appendChild(el('p', 'sm-empty', vazio || 'Nada a listar.'));
+    return c;
   }
 
   function tabela(colunas, linhas, opts) {
@@ -405,38 +516,52 @@
 
   /* --- gráficos montados a partir das estatísticas ---------------------- */
 
-  function graficoProgresso(marcos) {
-    return S.barrasEmpilhadas(
-      marcos.map(function (m) {
+  var VAZIO_PROGRESSO = 'Nenhum item cadastrado ainda.';
+  var VAZIO_SITUACAO = 'Nenhum item para situar.';
+  var VAZIO_SISTEMAS = 'Nenhum sistema informado nos itens.';
+
+  /** As linhas e as séries do gráfico de progresso (tela e PDF usam as mesmas). */
+  function dadosProgresso(marcos) {
+    return {
+      linhas: marcos.map(function (m) {
         return { rotulo: m.marco, valores: [m.concluidos, m.pendentes] };
       }),
-      [{ nome: 'Waiver accepted', cor: S.C3 },
-       { nome: 'Em andamento', cor: S.NEUTRO, claro: true }],
-      { vazio: 'Nenhum item cadastrado ainda.' }
-    );
+      series: [{ nome: 'Waiver accepted', cor: S.C3 },
+               { nome: 'Em andamento', cor: S.NEUTRO, claro: true }]
+    };
+  }
+
+  function graficoProgresso(marcos) {
+    var d = dadosProgresso(marcos);
+    return S.barrasEmpilhadas(d.linhas, d.series, { vazio: VAZIO_PROGRESSO });
   }
 
   /* As barras vão do fim para o começo do fluxo: o verde à esquerda mostra
      de imediato quanto de cada marco já está aceito. */
   var ORDEM_SITUACAO = ['aceito', 'justificar', 'solicitado', 'preenchendo'];
 
-  function graficoSituacao(marcos) {
+  function dadosSituacao(marcos) {
     var faixas = ORDEM_SITUACAO.map(function (id) { return Store.statusInfo(id); });
-    return S.barrasEmpilhadas(
-      marcos.map(function (m) {
+    return {
+      linhas: marcos.map(function (m) {
         return {
           rotulo: m.marco,
           valores: faixas.map(function (f) { return m.porSituacao[f.nome] || 0; })
         };
       }),
-      faixas.map(function (f) {
+      series: faixas.map(function (f) {
         return { nome: f.nome, cor: f.cor, claro: f.id === 'preenchendo' };
-      }),
-      { vazio: 'Nenhum item para situar.' }
-    );
+      })
+    };
   }
 
-  function graficoSistemas(porSistema) {
+  function graficoSituacao(marcos) {
+    var d = dadosSituacao(marcos);
+    return S.barrasEmpilhadas(d.linhas, d.series, { vazio: VAZIO_SITUACAO });
+  }
+
+  /** As linhas do gráfico de sistemas: os dez mais citados, e o resto junto. */
+  function linhasDeSistemas(porSistema) {
     var linhas = Object.keys(porSistema)
       .map(function (s) { return { rotulo: s, valor: porSistema[s] }; })
       .sort(function (a, b) { return b.valor - a.valor; });
@@ -447,24 +572,99 @@
       linhas = linhas.slice(0, 10);
       linhas.push({ rotulo: 'Outros', valor: resto });
     }
-    return S.barras(linhas, { vazio: 'Nenhum sistema informado nos itens.' });
+    return linhas;
+  }
+
+  function graficoSistemas(porSistema) {
+    return S.barras(linhasDeSistemas(porSistema), { vazio: VAZIO_SISTEMAS });
+  }
+
+  /**
+   * O gráfico para o PDF, num bloco que a paginação sabe partir.
+   *
+   * Um gráfico inteiro como uma unidade só não cabia no que sobrava da folha:
+   * ia inteiro para a seguinte e deixava meia folha em branco — e com muitos
+   * marcos ficava uma folha por gráfico. Aqui cada pedaço de linhas é uma
+   * unidade (`data-lista`), o título e a legenda são repetidos em cada folha
+   * (`data-cabecalho`) e todos os pedaços usam a mesma escala (`max`), então
+   * o gráfico é partido entre barras, nunca no meio de uma. O que cabe numa
+   * folha sai como antes: um bloco só.
+   */
+  var LINHAS_POR_PEDACO = 3;
+
+  function blocoGrafico(titulo, sub, linhas, series, vazio) {
+    var c = el('section', 'sm-card sm-grade sm-grafico');
+    c.setAttribute('data-fluido', '');
+    c.setAttribute('data-lista', '');
+    var h = el('header', 'sm-card-head');
+    h.setAttribute('data-cabecalho', '');
+    h.appendChild(el('h3', null, titulo));
+    if (sub) h.appendChild(el('p', null, sub));
+    c.appendChild(h);
+
+    var max = 0;
+    linhas.forEach(function (l) {
+      var t = series ? l.valores.reduce(function (a, b) { return a + b; }, 0) : l.valor;
+      if (t > max) max = t;
+    });
+    if (!max) {
+      c.appendChild(el('p', 'sm-empty', vazio || 'Sem dados para exibir.'));
+      return c;
+    }
+    if (series) {
+      var lg = S.legenda(series);
+      lg.setAttribute('data-cabecalho', '');
+      c.appendChild(lg);
+    }
+    for (var i = 0; i < linhas.length; i += LINHAS_POR_PEDACO) {
+      var parte = linhas.slice(i, i + LINHAS_POR_PEDACO);
+      var u = el('div', 'sm-chart-parte');
+      u.appendChild(series
+        ? S.barrasEmpilhadas(parte, series, { max: max, semLegenda: true })
+        : S.barras(parte, { max: max }));
+      c.appendChild(u);
+    }
+    return c;
   }
 
   /* --- exportação ------------------------------------------------------- */
 
+  /* O Excel avalia como fórmula toda célula que comece por = + - @ (ou por
+     tabulação/retorno), e desfaz as aspas antes de olhar: aspas não protegem.
+     Num banco compartilhado o texto vem de outras pessoas e de .json
+     recebidos, então "=cmd|'/c calc'!A1" chegaria à planilha como DDE. Um
+     apóstrofo à frente faz o Excel tratar a célula como texto, e ele não
+     aparece na tela. */
   function csvCampo(v) {
-    v = (v == null ? '' : String(v)).replace(/"/g, '""');
-    return '"' + v + '"';
+    v = (v == null ? '' : String(v));
+    if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;
+    return '"' + v.replace(/"/g, '""') + '"';
   }
+
+  var CAB_CSV = ['Marco', 'Tipo', 'Numero', 'Sistemas', 'Funcao/Descricao',
+                 'Situacao (controle interno)',
+                 'Arch Status', 'Request Expiry', 'Approved Expiry', 'Concluido',
+                 'Certificados', 'Anexos', 'Imagens', 'Alterado por', 'Alterado em',
+                 'Dias sem edicao'];
 
   /** Planilha com uma linha por NCR/DEV, para abrir no Excel. */
   function toCsv(project, filtros) {
+    /* BOM para o Excel reconhecer os acentos */
+    return '\ufeff' + CAB_CSV.map(csvCampo).join(';') + '\n' + linhasCsv(project, filtros).join('\n');
+  }
+
+  /** A mesma planilha com todos os marcos, na fila dos marcos. */
+  function toCsvTodos(projects, filtros) {
+    var linhas = [];
+    ordenarPorMarco((projects || []).map(function (p) { return S.statsDe(p, filtros); })).forEach(function (st) {
+      linhas = linhas.concat(linhasCsv(st.project, filtros));
+    });
+    return '\ufeff' + CAB_CSV.map(csvCampo).join(';') + '\n' + linhas.join('\n');
+  }
+
+  function linhasCsv(project, filtros) {
     var st = S.statsDe(project, filtros);
-    var cab = ['Marco', 'Tipo', 'Numero', 'Sistemas', 'Funcao/Descricao',
-               'Situacao (controle interno)',
-               'Arch Status', 'Request Expiry', 'Approved Expiry', 'Concluido',
-               'Certificados', 'Anexos', 'Imagens', 'Alterado por', 'Alterado em'];
-    var linhas = st.linhas.map(function (r) {
+    return st.linhas.map(function (r) {
       var n = r.item;
       var imgs = (n.evidence || []).reduce(function (a, e) { return a + (e.images || []).length; }, 0);
       return [
@@ -475,11 +675,64 @@
         n.done ? 'Sim' : 'Nao',
         (n.certificates || []).join(' | '),
         (n.evidence || []).length, imgs,
-        n.editedBy, n.editedAt
+        n.editedBy, n.editedAt,
+        S.diasSemMexer(n) === null ? '' : S.diasSemMexer(n)
       ].map(csvCampo).join(';');
     });
-    /* BOM para o Excel reconhecer os acentos */
-    return '﻿' + cab.map(csvCampo).join(';') + '\n' + linhas.join('\n');
+  }
+
+  /** Os marcos na fila combinada (Fluxo.cmpMarco), os sem marco no fim. */
+  function ordenarPorMarco(stats) {
+    return stats.slice().sort(function (a, b) {
+      var sa = String(a.project.marco || '').trim(), sb = String(b.project.marco || '').trim();
+      if (!sa || !sb) return sa ? -1 : (sb ? 1 : 0);
+      return Fluxo.cmpMarco(sa, sb);
+    });
+  }
+
+  /**
+   * Os marcos em mini cards — a mesma pastilha (tb-chip) do filtro de marcos
+   * da Tabela e do Kanban, na mesma fila (Fluxo.cmpMarco). Cada uma diz o
+   * total de itens e quantos já estão aceitos (com os filtros aplicados, como
+   * os números logo abaixo). Escolha única: um marco, ou "Todos os marcos".
+   * Era um <select>; trocar de marco pedia abrir a lista e ler texto
+   * corrido.
+   */
+  function miniCardsDeMarco(host, dados, filtro, acoes) {
+    var box = el('div', 'tb-marcos sm-marcos');
+    box.setAttribute('role', 'group');
+    box.setAttribute('aria-label', 'Marco do resumo');
+    box.appendChild(el('span', 'tb-marcos-rot', 'Marco'));
+    function card(id, nome, st) {
+      var on = (filtro || '') === id;
+      var b = el('button', 'tb-chip tb-chip--card' + (on ? ' is-on' : ''));
+      b.type = 'button';
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.dataset.marco = id;
+      var l1 = el('span', 'tb-chip-l1');
+      l1.appendChild(el('span', 'tb-chip-nome', nome));
+      l1.appendChild(el('span', 'tb-chip-n', num(st.total)));
+      b.appendChild(l1);
+      b.appendChild(el('span', 'tb-chip-sub',
+        pct(st.concluidos, st.total) + ' aceitos · ' + st.ncr + ' NCR · ' + st.dev + ' DEV'));
+      var falar = nome + ': ' + st.total + ' ite' + (st.total === 1 ? 'm' : 'ns') + ', ' +
+        st.concluidos + ' aceito' + (st.concluidos === 1 ? '' : 's') + ' (' + pct(st.concluidos, st.total) + '), ' +
+        st.ncr + ' NCR e ' + st.dev + ' DEV';
+      b.setAttribute('aria-label', falar);
+      b.title = falar + ' · ' + st.pendentes + ' pendente' + (st.pendentes === 1 ? '' : 's') +
+        (id ? '' : '\nO resumo consolidado de todos os relatórios deste navegador.');
+      b.addEventListener('click', function () {
+        if ((filtro || '') === id) return;
+        acoes.onFiltro(id);
+        /* a aba se redesenha inteira: o foco volta para o marco escolhido */
+        var novo = host.querySelector('.sm-marcos .tb-chip.is-on');
+        if (novo) novo.focus();
+      });
+      return b;
+    }
+    box.appendChild(card('', 'Todos os marcos', dados.geral));
+    ordenarPorMarco(dados.porMarco).forEach(function (m) { box.appendChild(card(m.project.id, m.marco, m)); });
+    return box;
   }
 
   /* --- a aba inteira ---------------------------------------------------- */
@@ -488,7 +741,7 @@
    * @param host    elemento onde a aba é desenhada
    * @param projects todos os relatórios
    * @param filtro  id do relatório a detalhar, ou '' para o panorama geral
-   * @param acoes   { onFiltro, onCsv, onPdf, onBackup }
+   * @param acoes   { onFiltro, onCsv, onPdf, onBackup? } — sem onBackup, sem o botão
    */
   /** Um campo de seleção da barra de filtros. */
   function campoSelect(rotulo, valor, opcoes, aoMudar, largo) {
@@ -511,7 +764,9 @@
     filtros = filtros || {};
     var dados = S.compute(projects, filtros);
     var alvo = filtro ? dados.porMarco.filter(function (m) { return m.project.id === filtro; })[0] : null;
-    var escopo = alvo ? [alvo] : dados.porMarco;
+    /* o marco escolhido pode ter sido excluído: volta ao consolidado */
+    if (!alvo) filtro = '';
+    var escopo = alvo ? [alvo] : ordenarPorMarco(dados.porMarco);
     var opc = S.opcoesDe(projects);
     var mudar = function (campo) {
       return function (v) {
@@ -522,34 +777,35 @@
       };
     };
 
-    /* --- barra 1: escolha do marco + exportações --- */
+    /* --- os marcos (mini cards) --- */
+    host.appendChild(miniCardsDeMarco(host, dados, filtro, acoes));
+
+    /* --- barra: o escopo, dito por extenso, e as exportações dele --- */
     var barra = el('div', 'sm-bar');
-    var todosMarcos = [{ valor: '', nome: 'Todos os marcos (' + dados.porMarco.length + ')' }]
-      .concat(dados.porMarco.map(function (m) {
-        return { valor: m.project.id, nome: m.marco + ' — ' + m.total + ' itens' };
-      }));
-    barra.appendChild(campoSelect('Marco', filtro || '', todosMarcos,
-      function (v) { acoes.onFiltro(v); }, true));
+    var info = el('div', 'fx-info sm-escopo');
+    info.appendChild(el('strong', null, alvo ? 'Marco ' + alvo.marco : 'Todos os marcos'));
+    info.appendChild(el('span', null, alvo
+      ? 'Os números, os gráficos, as tabelas, a planilha e o PDF abaixo são só deste marco.'
+      : 'O consolidado de ' + dados.porMarco.length + ' relatório(s) deste navegador. Escolha um marco acima para o detalhe dele.'));
+    barra.appendChild(info);
 
     var acoesBox = el('div', 'sm-bar-actions');
-    if (alvo) {
-      [['Resumo em PDF', function () { acoes.onPdf(alvo.project); }, 'btn--primary'],
-       ['Planilha (CSV)', function () { acoes.onCsv(alvo.project); }, ''],
-       ['Backup deste marco', function () { acoes.onBackup(alvo.project); }, '']
-      ].forEach(function (a) {
-        var b = el('button', 'btn btn--sm ' + a[2], a[0]);
-        b.type = 'button';
-        b.addEventListener('click', a[1]);
-        acoesBox.appendChild(b);
-      });
-    } else {
-      acoesBox.appendChild(el('span', 'sm-hint',
-        'Escolha um marco acima para exportar o resumo dele.'));
-      var bt = el('button', 'btn btn--sm btn--primary', 'Resumo geral em PDF');
-      bt.type = 'button';
-      bt.addEventListener('click', function () { acoes.onPdf(null); });
-      acoesBox.appendChild(bt);
+    var botoes = alvo
+      ? [['Resumo em PDF', function () { acoes.onPdf(alvo.project); }, 'btn--primary'],
+         ['Planilha (CSV)', function () { acoes.onCsv(alvo.project); }, '']]
+      : [['Resumo geral em PDF', function () { acoes.onPdf(null); }, 'btn--primary'],
+         ['Planilha (CSV)', function () { acoes.onCsv(null); }, '']];
+    /* o visualizador não gera arquivo de dados: sem onBackup, sem o botão; e
+       o backup é sempre do marco inteiro — os filtros não o recortam */
+    if (alvo && acoes.onBackup) {
+      botoes.push(['Backup deste marco', function () { acoes.onBackup(alvo.project); }, '']);
     }
+    botoes.forEach(function (a) {
+      var b = el('button', 'btn btn--sm ' + a[2], a[0]);
+      b.type = 'button';
+      b.addEventListener('click', a[1]);
+      acoesBox.appendChild(b);
+    });
     barra.appendChild(acoesBox);
     host.appendChild(barra);
 
@@ -657,8 +913,13 @@
         { titulo: 'Última edição', valor: function (m) {
             return m.project.lastEditedBy || '—';
           } }
-      ], dados.porMarco, { vazio: 'Nenhum relatório neste navegador.' }));
+      ], ordenarPorMarco(dados.porMarco), { vazio: 'Nenhum relatório neste navegador.' }));
       host.appendChild(b4);
+
+      if (dados.geral.parados.length) {
+        host.appendChild(blocoParados(dados.geral.parados,
+          'De todos os marcos. Pendentes sem nenhuma edição há ' + S.DIAS_PARADO + ' dias ou mais.'));
+      }
     } else {
       var b5 = bloco('Itens de ' + alvo.marco, 'Todas as NCRs e DEVs deste marco.');
       b5.appendChild(tabela([
@@ -673,6 +934,11 @@
       ], alvo.linhas, { vazio: 'Este marco ainda não tem itens.' }));
       host.appendChild(b5);
 
+      if (alvo.parados.length) {
+        host.appendChild(blocoParados(alvo.parados,
+          'Pendentes sem nenhuma edição há ' + S.DIAS_PARADO + ' dias ou mais, do mais esquecido para o menos.'));
+      }
+
       var certs = Object.keys(alvo.certificados).sort();
       if (certs.length) {
         var b6 = bloco('Certificados impactados', 'Quantos itens citam cada certificado.');
@@ -685,14 +951,49 @@
     }
   }
 
+  /* As colunas dos parados, num lugar só: na tela é uma tabela, no PDF é a
+     lista que a paginação sabe partir — mas as colunas são as mesmas. */
+  function colunasParados(paraImpressao) {
+    return [
+      { titulo: 'Dias', num: true, larg: 7, valor: function (r) { return num(S.diasSemMexer(r.item)); } },
+      { titulo: 'Tipo', larg: 7, valor: function (r) { return r.kind === 'dev' ? 'DEV' : 'NCR'; } },
+      { titulo: 'Número', larg: 22, valor: function (r) { return r.item.ncrId || '(sem número)'; } },
+      { titulo: 'Função / descrição', larg: 28, valor: function (r) { return r.item.func || '—'; } },
+      { titulo: 'Situação', larg: 18, valor: function (r) {
+        return paraImpressao ? S.situacao(r.item) : pilulaSituacao(r.item);
+      } },
+      { titulo: 'Última edição de', larg: 18, valor: function (r) { return r.item.editedBy || '—'; } }
+    ];
+  }
+
+  /** Tabela dos itens parados, como ela aparece na tela. */
+  function blocoParados(linhas, sub) {
+    var b = bloco('Parados há ' + S.DIAS_PARADO + '+ dias', sub);
+    b.appendChild(tabela(colunasParados(false), linhas));
+    return b;
+  }
+
   global.SummaryView = {
     render: render,
+    csvCampo: csvCampo,
+    blocoParados: blocoParados,
+    blocoLista: blocoLista,
+    colunasParados: colunasParados,
     toCsv: toCsv,
+    toCsvTodos: toCsvTodos,
+    ordenarPorMarco: ordenarPorMarco,
     kpiRow: kpiRow,
     tabela: tabela,
     bloco: bloco,
     graficoProgresso: graficoProgresso,
     graficoSituacao: graficoSituacao,
-    graficoSistemas: graficoSistemas
+    graficoSistemas: graficoSistemas,
+    dadosProgresso: dadosProgresso,
+    dadosSituacao: dadosSituacao,
+    linhasDeSistemas: linhasDeSistemas,
+    blocoGrafico: blocoGrafico,
+    VAZIO_PROGRESSO: VAZIO_PROGRESSO,
+    VAZIO_SITUACAO: VAZIO_SITUACAO,
+    VAZIO_SISTEMAS: VAZIO_SISTEMAS
   };
 })(window);
