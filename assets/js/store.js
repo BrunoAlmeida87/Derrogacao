@@ -1290,6 +1290,27 @@
   /* --- IndexedDB -------------------------------------------------------- */
 
   var dbPromise = null;
+  var dbAtual = null;
+
+  /**
+   * Roda `fn(db)` no banco do navegador e, se falhar, reabre a conexão e
+   * tenta mais uma vez.
+   *
+   * Antes, UMA falha qualquer (conexão fechada pelo navegador, transação
+   * abortada) fazia o programa desistir do IndexedDB até recarregar a página
+   * e passar a gravar no localStorage — que não comporta os relatórios
+   * (QuotaExceededError). Dali em diante nenhuma gravação dava certo, e por
+   * isso nenhuma rodada da pasta terminava: a junção tenta salvar aqui antes
+   * de gravar lá.
+   */
+  function comDb(fn) {
+    return openDb().then(fn).catch(function (e1) {
+      Log.detalhe('armazenamento', 'o banco do navegador falhou — reabrindo e tentando de novo',
+        { erro: e1 && e1.name });
+      dbPromise = null; dbAtual = null;
+      return openDb().then(fn);
+    });
+  }
 
   var STORES_NECESSARIOS = [STORE, 'snapshots', 'handles'];
 
@@ -1330,7 +1351,12 @@
             return;
           }
           /* se outra aba precisar atualizar o banco, esta sai da frente */
-          db.onversionchange = function () { db.close(); dbPromise = null; };
+          db.onversionchange = function () { db.close(); if (dbAtual === db) { dbPromise = null; dbAtual = null; } };
+          /* o navegador também fecha a conexão por conta própria (disco, limpeza
+             de dados, pressão de memória): sem isto, toda gravação seguinte
+             tentava usar a conexão morta e falhava com InvalidStateError */
+          db.onclose = function () { if (dbAtual === db) { dbPromise = null; dbAtual = null; } };
+          dbAtual = db;
           migrarNcrV4(db).then(function () { resolve(db); }, function () { resolve(db); });
         };
         req.onerror = function (ev) {
@@ -1408,7 +1434,7 @@
   var IMG_PREFIXO = 'img:';
 
   function idbAll() {
-    return openDb().then(function (db) {
+    return comDb(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(STORE, 'readonly');
         var req = tx.objectStore(STORE).getAll();
@@ -1446,7 +1472,7 @@
   function idbPut(project) {
     var leve = project, novas = [];
     try { novas = separarImagens(leve); } catch (e) { novas = []; }
-    return openDb().then(function (db) {
+    return comDb(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction([STORE, SNAP_STORE], 'readwrite');
         tx.objectStore(STORE).put(leve);
@@ -1477,7 +1503,7 @@
       });
     });
     if (!quer.length) return Promise.resolve(rows);
-    return openDb().then(function (db) {
+    return comDb(function (db) {
       return new Promise(function (resolve) {
         var achados = {};
         var tx = db.transaction(SNAP_STORE, 'readonly');
@@ -1508,7 +1534,7 @@
   }
 
   function idbDelete(id) {
-    return openDb().then(function (db) {
+    return comDb(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(STORE, 'readwrite');
         tx.objectStore(STORE).delete(id);
@@ -1527,7 +1553,7 @@
   var HANDLE_STORE = 'handles';
 
   function putHandle(handle, chave) {
-    return openDb().then(function (db) {
+    return comDb(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(HANDLE_STORE, 'readwrite');
         tx.objectStore(HANDLE_STORE).put(handle, chave || 'pasta');
@@ -1538,7 +1564,7 @@
   }
 
   function getHandle(chave) {
-    return openDb().then(function (db) {
+    return comDb(function (db) {
       return new Promise(function (resolve, reject) {
         var req = db.transaction(HANDLE_STORE).objectStore(HANDLE_STORE).get(chave || 'pasta');
         req.onsuccess = function () { resolve(req.result || null); };
@@ -1548,7 +1574,7 @@
   }
 
   function clearHandle(chave) {
-    return openDb().then(function (db) {
+    return comDb(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(HANDLE_STORE, 'readwrite');
         tx.objectStore(HANDLE_STORE).delete(chave || 'pasta');
@@ -1565,7 +1591,7 @@
   /* Guarda o estado anterior à mesclagem, para que uma escolha errada possa
      ser desfeita. Só o último é mantido. */
   function saveSnapshot(projects, info) {
-    return openDb().then(function (db) {
+    return comDb(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(SNAP_STORE, 'readwrite');
         tx.objectStore(SNAP_STORE).put({
@@ -1585,7 +1611,7 @@
   }
 
   function getSnapshot() {
-    return openDb().then(function (db) {
+    return comDb(function (db) {
       return new Promise(function (resolve, reject) {
         var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).get('last');
         req.onsuccess = function () { resolve(req.result || null); };
@@ -1620,7 +1646,7 @@
     var chave = null;
     try { chave = JSON.stringify([mapa || {}, diario || {}, lida || {}, Number(carimbo) || 0]); } catch (e) { chave = null; }
     if (chave !== null && chave === baseUltima) return Promise.resolve(true);
-    return openDb().then(function (db) {
+    return comDb(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(SNAP_STORE, 'readwrite');
         tx.objectStore(SNAP_STORE).put({
@@ -1645,7 +1671,7 @@
   }
 
   function getBase() {
-    return openDb().then(function (db) {
+    return comDb(function (db) {
       return new Promise(function (resolve, reject) {
         var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).get(BASE_ID);
         req.onsuccess = function () {
@@ -1659,7 +1685,7 @@
   }
 
   function clearSnapshot() {
-    return openDb().then(function (db) {
+    return comDb(function (db) {
       return new Promise(function (resolve) {
         var tx = db.transaction(SNAP_STORE, 'readwrite');
         tx.objectStore(SNAP_STORE).delete('last');
@@ -1701,7 +1727,7 @@
 
   function ncrAll() {
     if (!useIdb) return Promise.resolve(lsLer(LS_NCRS, []));
-    return openDb().then(function (db) {
+    return comDb(function (db) {
       return new Promise(function (resolve, reject) {
         var faixa = global.IDBKeyRange.bound(NCR_PREFIXO, NCR_PREFIXO + '\uffff');
         var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).getAll(faixa);
@@ -1726,7 +1752,7 @@
       return copias.length;
     }
     if (!useIdb) return Promise.resolve(reserva());
-    return openDb().then(function (db) {
+    return comDb(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(SNAP_STORE, 'readwrite');
         var st = tx.objectStore(SNAP_STORE);
@@ -1740,7 +1766,7 @@
 
   function ncrMetaGet(nome) {
     if (!useIdb) return Promise.resolve(lsLer(LS_NCR_META, {})[nome] || null);
-    return openDb().then(function (db) {
+    return comDb(function (db) {
       return new Promise(function (resolve, reject) {
         var req = db.transaction(SNAP_STORE, 'readonly').objectStore(SNAP_STORE).get(NCR_META_PREFIXO + nome);
         req.onsuccess = function () {
@@ -1764,7 +1790,7 @@
       return copia;
     }
     if (!useIdb) return Promise.resolve(reserva());
-    return openDb().then(function (db) {
+    return comDb(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(SNAP_STORE, 'readwrite');
         var reg = JSON.parse(JSON.stringify(copia));
@@ -1847,14 +1873,20 @@
 
   /* --- API pública ------------------------------------------------------ */
 
-  var useIdb = true;
+  /* Só fica false se o navegador não tiver IndexedDB. Uma falha passageira
+     não desliga mais o banco: cada operação tenta de novo (comDb) e, se ainda
+     assim falhar, usa a reserva SÓ naquela vez. */
+  var useIdb = !!global.indexedDB;
+  var avisados = {};
 
   function fallback(err) {
-    useIdb = false;
-    Log.aviso('armazenamento', 'o banco do navegador (IndexedDB) não abriu — ' +
-      'usando o armazenamento simples',
-      'funciona, mas cabe bem menos (uns 5 MB no total). Com muitas imagens isto ' +
-      'vai encher: faça backups com mais frequência.', { erro: err && err.name });
+    var nome = (err && err.name) || 'erro';
+    if (avisados[nome]) { Log.detalhe('armazenamento', 'o banco do navegador falhou de novo', { erro: nome }); return; }
+    avisados[nome] = true;
+    Log.aviso('armazenamento', 'o banco do navegador (IndexedDB) falhou nesta operação',
+      'usei a reserva só desta vez; a próxima gravação tenta o banco de novo. Se ' +
+      'repetir, feche as outras abas do programa e recarregue (Ctrl+F5).',
+      { erro: nome, detalhe: err && err.message });
   }
 
   var Store = {
@@ -1976,9 +2008,21 @@
       var who = getUser();
       if (who) { project.lastEditedBy = who; }
       project.lastEditedAt = project.updatedAt;
-      var copy = JSON.parse(JSON.stringify(project));
-      if (!useIdb) return lsPut(copy);
-      return idbPut(copy).catch(function (e) { fallback(e); return lsPut(copy); });
+      var json = JSON.stringify(project);
+      /* a reserva nunca pode derrubar quem chamou: um throw síncrono aqui
+         deixava o "salvando…" parado e abortava a rodada da pasta */
+      function reserva(e) {
+        try { return lsPut(JSON.parse(json)); }
+        catch (e2) {
+          var err = new Error('O banco do navegador falhou (' + ((e && e.name) || 'erro') +
+            ') e a reserva está cheia (' + ((e2 && e2.name) || 'erro') + ').');
+          err.name = 'GravacaoLocalFalhou';
+          return Promise.reject(err);
+        }
+      }
+      if (!useIdb) return reserva(null);
+      return idbPut(JSON.parse(json))
+        .catch(function (e) { fallback(e); return reserva(e); });
     },
 
     remove: function (id) {

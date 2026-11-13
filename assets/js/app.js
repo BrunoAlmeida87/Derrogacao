@@ -172,7 +172,11 @@
       if (isFluxos()) renderFluxos(true);
       if (isTabela()) renderTabela(true);
       if (isBanco()) renderBanco(true); if (isKanban()) renderKanban();
-    }).catch(markError);
+    }).catch(function (e) {
+      markError(e);
+      /* sem gravar aqui, a pasta é o que guarda o trabalho: não deixa de ir */
+      agendarGravacaoPasta();
+    });
   }
 
   /**
@@ -6707,6 +6711,18 @@
           }
           return null;
         });
+      })
+      .then(null, function (e) {
+        /* Rede de segurança: qualquer exceção que escape do tratamento acima
+           não pode deixar `sincronizando` preso em true — antes, uma falha ao
+           salvar a junção aqui deixava a pasta parada até recarregar a página
+           ("já tem uma sincronização em curso", para sempre). */
+        Log.erro('pasta', 'a rodada da pasta terminou com erro', e,
+          'a próxima rodada tenta de novo sozinha; se repetir, mande Derrogacao.copiar().');
+        sincronizando = false;
+        pastaEstado = 'erro';
+        marcarPasta('erro');
+        return null;
       })
       .then(function (r) {
         if (gravarPendente) { gravarPendente = false; setTimeout(sincronizar, 50); }
