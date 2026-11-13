@@ -131,6 +131,38 @@
     return { sistemas: ordena(sist), archStatus: ordena(arch) };
   }
 
+  /* --- função vital e destino: os dois gráficos que o Bruno escolheu ---- */
+
+  /** A Função Vital do item: { chave: 'FV03', nome, ordem }; sem número, a chave vazia. */
+  function funcaoDe(item) {
+    var t = clean(item && item.func);
+    var m = /^(?:fv\s*)?(?:n\s*[°º]\s*)?(\d{1,3})\b\s*(?:[-–·:]\s*)?(.*)$/i.exec(t);
+    if (!m) return { chave: '', nome: '', ordem: 9999 };
+    var n = parseInt(m[1], 10);
+    return { chave: 'FV' + (n < 10 ? '0' : '') + n, nome: clean(m[2]), ordem: n };
+  }
+
+  /** Para onde vai o waiver (Approved Expiry, ou Request Expiry na falta — Herdar.paraOnde). */
+  function destinoDe(item) {
+    /* `no` é o marco entendido pelo Fluxo.marco ({ rotulo: 'J09', … }) */
+    var d = global.Herdar ? Herdar.paraOnde(item) : null;
+    return d && d.no ? d.no.rotulo : '';
+  }
+
+  function contar(mapa, chave, sit) {
+    var m = mapa[chave] || (mapa[chave] = {});
+    m[sit] = (m[sit] || 0) + 1;
+  }
+
+  function somarMapa(destino, origem) {
+    Object.keys(origem).forEach(function (k) {
+      Object.keys(origem[k]).forEach(function (sit) {
+        var m = destino[k] || (destino[k] = {});
+        m[sit] = (m[sit] || 0) + origem[k][sit];
+      });
+    });
+  }
+
   function statsDe(project, filtro) {
     var linhas = [], totalSemFiltro = 0;
     ['ncr', 'dev'].forEach(function (kind) {
@@ -156,6 +188,9 @@
       imagens: 0,
       porSistema: {},
       porSituacao: {},
+      porFuncao: {},          // 'FV03' -> { situação: n }; '' = sem função vital
+      nomesFuncao: {},        // 'FV03' -> o nome escrito no item
+      porDestino: {},         // 'J09' -> { situação: n }; '' = sem destino
       certificados: {},
       parados: [],
       linhas: linhas
@@ -168,6 +203,10 @@
       if (estaParado(n)) st.parados.push(r);
       st.porSituacao[situacao(n)]++;
       sistemas(n).forEach(function (s) { st.porSistema[s] = (st.porSistema[s] || 0) + 1; });
+      var fv = funcaoDe(n);
+      contar(st.porFuncao, fv.chave, situacao(n));
+      if (fv.chave && fv.nome && !st.nomesFuncao[fv.chave]) st.nomesFuncao[fv.chave] = fv.nome;
+      contar(st.porDestino, destinoDe(n), situacao(n));
       (n.certificates || []).forEach(function (c) {
         if (clean(c)) st.certificados[clean(c)] = (st.certificados[clean(c)] || 0) + 1;
       });
@@ -189,7 +228,8 @@
       marcos: porMarco.length,
       totalSemFiltro: 0,
       ncr: 0, dev: 0, total: 0, concluidos: 0, pendentes: 0, evidencias: 0, imagens: 0,
-      porSistema: {}, porSituacao: {}, parados: []
+      porSistema: {}, porSituacao: {}, parados: [],
+      porFuncao: {}, nomesFuncao: {}, porDestino: {}
     };
     SITUACOES.forEach(function (s) { geral.porSituacao[s] = 0; });
     porMarco.forEach(function (m) {
@@ -201,6 +241,11 @@
       });
       SITUACOES.forEach(function (s) { geral.porSituacao[s] += m.porSituacao[s]; });
       m.parados.forEach(function (r) { geral.parados.push(r); });
+      somarMapa(geral.porFuncao, m.porFuncao);
+      somarMapa(geral.porDestino, m.porDestino);
+      Object.keys(m.nomesFuncao).forEach(function (k) {
+        if (!geral.nomesFuncao[k]) geral.nomesFuncao[k] = m.nomesFuncao[k];
+      });
     });
     geral.parados.sort(function (a, b) {
       return (diasSemMexer(b.item) || 0) - (diasSemMexer(a.item) || 0);
@@ -260,8 +305,9 @@
         'text-anchor': 'end', class: 'sm-axis-label'
       });
       rot.textContent = l.rotulo.length > 22 ? l.rotulo.slice(0, 21) + '…' : l.rotulo;
-      if (l.rotulo.length > 22) {
-        var tt = sv('title'); tt.textContent = l.rotulo; rot.appendChild(tt);
+      /* `l.titulo`: o nome inteiro, quando o rótulo é uma abreviação */
+      if (l.rotulo.length > 22 || l.titulo) {
+        var tt = sv('title'); tt.textContent = l.titulo || l.rotulo; rot.appendChild(tt);
       }
       svg.appendChild(rot);
 
@@ -368,8 +414,24 @@
     return box;
   }
 
+  /** Os filtros ligados, em palavras (o PDF do resumo, as imagens e as planilhas dizem o mesmo). */
+  function descreverFiltros(f) {
+    f = f || {};
+    var ditos = [];
+    if (f.tipo) ditos.push('tipo: ' + (f.tipo === 'dev' ? 'DEV' : 'NCR'));
+    if (f.situacao) ditos.push('situação: ' + f.situacao);
+    if (f.sistema) ditos.push('sistema: ' + f.sistema);
+    if (f.archStatus) ditos.push('arch status: ' + f.archStatus);
+    if (f.evidencia) ditos.push(f.evidencia === 'com' ? 'só com anexo' : 'só sem anexo');
+    if (f.busca) ditos.push('texto: “' + f.busca + '”');
+    return ditos;
+  }
+
   global.Summary = {
     DIAS_PARADO: DIAS_PARADO,
+    descreverFiltros: descreverFiltros,
+    funcaoDe: funcaoDe,
+    destinoDe: destinoDe,
     diasSemMexer: diasSemMexer,
     estaParado: estaParado,
     C1: C1, C2: C2, C3: C3, NEUTRO: NEUTRO,
@@ -577,6 +639,122 @@
 
   function graficoSistemas(porSistema) {
     return S.barras(linhasDeSistemas(porSistema), { vazio: VAZIO_SISTEMAS });
+  }
+
+  /* As séries de situação, na ordem e nas cores do gráfico "Situação dos itens". */
+  function seriesSituacao() {
+    return ORDEM_SITUACAO.map(function (id) {
+      var f = Store.statusInfo(id);
+      return { nome: f.nome, cor: f.cor, claro: id === 'preenchendo' };
+    });
+  }
+  function valoresSituacao(porSit) {
+    return ORDEM_SITUACAO.map(function (id) { return (porSit || {})[Store.statusInfo(id).nome] || 0; });
+  }
+  function totalDe(porSit) {
+    return Object.keys(porSit || {}).reduce(function (a, k) { return a + porSit[k]; }, 0);
+  }
+
+  var VAZIO_FUNCAO = 'Nenhum item neste recorte.';
+  var VAZIO_DESTINO = 'Nenhum item neste recorte.';
+  var MAX_FUNCOES = 12;
+
+  /**
+   * Itens por Função Vital, cada barra dividida pela situação. Na ordem do
+   * número (FV01, FV03…); passando de doze funções, as menores viram
+   * "Outras"; "Sem função vital" fecha a lista (DEVs, itens sem o FV).
+   */
+  function dadosFuncao(st) {
+    var mapa = st.porFuncao || {};
+    var chaves = Object.keys(mapa).filter(function (k) { return k; });
+    var outras = null;
+    if (chaves.length > MAX_FUNCOES) {
+      chaves.sort(function (a, b) { return totalDe(mapa[b]) - totalDe(mapa[a]); });
+      outras = {};
+      chaves.slice(MAX_FUNCOES).forEach(function (k) {
+        Object.keys(mapa[k]).forEach(function (sit) { outras[sit] = (outras[sit] || 0) + mapa[k][sit]; });
+      });
+      chaves = chaves.slice(0, MAX_FUNCOES);
+    }
+    chaves.sort(function (a, b) { return parseInt(a.slice(2), 10) - parseInt(b.slice(2), 10); });
+    var linhas = chaves.map(function (k) {
+      var nome = (st.nomesFuncao || {})[k];
+      /* o nome inteiro não cabe na faixa do rótulo (e em maiúsculas menos
+         ainda): vai abreviado, e inteiro no balão do mouse */
+      var curto = nome && nome.length > 11 ? nome.slice(0, 10).replace(/\s+$/, '') + '…' : nome;
+      return { rotulo: k + (curto ? ' · ' + curto : ''), titulo: k + (nome ? ' · ' + nome : ''),
+        valores: valoresSituacao(mapa[k]) };
+    });
+    if (outras) linhas.push({ rotulo: 'Outras funções', valores: valoresSituacao(outras) });
+    if (mapa['']) linhas.push({ rotulo: 'Sem função vital', valores: valoresSituacao(mapa['']) });
+    return { linhas: linhas, series: seriesSituacao() };
+  }
+
+  /**
+   * Itens pelo marco para onde o waiver vai — o Approved Expiry, ou o
+   * Request Expiry na falta (a regra do painel e da Tabela) —, divididos pela
+   * situação. Na ordem da fila dos marcos; "Sem destino" no fim. Olhando um
+   * marco só, o destino igual a ele é dito: "J09 (este marco)" é o waiver que
+   * vale até aqui e acaba.
+   */
+  function dadosDestino(st, marcoAtual) {
+    var mapa = st.porDestino || {};
+    var m = marcoAtual && global.Fluxo ? Fluxo.marco(marcoAtual) : null;
+    var aqui = m ? m.rotulo : '';
+    var chaves = Object.keys(mapa).filter(function (k) { return k; });
+    chaves.sort(function (a, b) { return global.Fluxo ? Fluxo.cmpMarco(a, b) : a.localeCompare(b); });
+    var linhas = chaves.map(function (k) {
+      return { rotulo: k + (aqui && k === aqui ? ' (este marco)' : ''), valores: valoresSituacao(mapa[k]) };
+    });
+    if (mapa['']) linhas.push({ rotulo: 'Sem destino', valores: valoresSituacao(mapa['']) });
+    return { linhas: linhas, series: seriesSituacao() };
+  }
+
+  function graficoFuncao(st) {
+    var d = dadosFuncao(st);
+    return S.barrasEmpilhadas(d.linhas, d.series, { vazio: VAZIO_FUNCAO });
+  }
+  function graficoDestino(st, marcoAtual) {
+    var d = dadosDestino(st, marcoAtual);
+    return S.barrasEmpilhadas(d.linhas, d.series, { vazio: VAZIO_DESTINO });
+  }
+
+  /* --- levar embora: cada gráfico e cada tabela (imagem.js) ---------------- */
+
+  /**
+   * Os botões no canto do card: PNG em alta resolução e SVG para gráfico;
+   * PNG e Excel para tabela. `data-mostra`: só baixam, então valem também
+   * no visualizador.
+   */
+  function acoesExportacao(card, tipo, info) {
+    if (!global.Imagem) return card;
+    var box = el('div', 'sm-card-acoes');
+    box.setAttribute('data-mostra', '');
+    function botao(rotulo, dica, fn) {
+      var b = el('button', 'btn btn--sm btn--quiet sm-exp', rotulo);
+      b.type = 'button';
+      b.title = dica;
+      b.setAttribute('data-mostra', '');
+      b.addEventListener('click', fn);
+      box.appendChild(b);
+    }
+    var falhou = function (e) {
+      if (global.Log) Log.aviso('resumo', 'não consegui gerar a imagem', (e && e.message) || String(e));
+    };
+    if (tipo === 'grafico') {
+      botao('⤓ PNG', 'Imagem em alta resolução (' + Imagem.ESCALA + '×), com título, legenda e o recorte — para PowerPoint, Word ou e-mail',
+        function () { Imagem.paraPng(Imagem.svgDoGrafico(card, info), Imagem.nomeArquivo(info, card, 'png')).catch(falhou); });
+      botao('⤓ SVG', 'Vetor: não perde nitidez ao ampliar; o Office aceita colado ou inserido',
+        function () { Imagem.paraSvg(Imagem.svgDoGrafico(card, info), Imagem.nomeArquivo(info, card, 'svg')); });
+    } else {
+      botao('⤓ PNG', 'A tabela como imagem em alta resolução (' + Imagem.ESCALA + '×)',
+        function () { Imagem.paraPng(Imagem.svgDaTabela(card, info), Imagem.nomeArquivo(info, card, 'png')).catch(falhou); });
+      botao('⤓ Excel', 'A tabela em planilha .xlsx (números como número), com a aba "Recorte"',
+        function () { Imagem.paraExcel(card, info, Imagem.nomeArquivo(info, card, 'xlsx')); });
+    }
+    card.classList.add('sm-card--exporta');
+    card.insertBefore(box, card.firstChild);
+    return card;
   }
 
   /**
@@ -878,21 +1056,44 @@
     }
     host.appendChild(kpiRow(st));
 
+    /* o que as imagens e as planilhas de cada card dizem de onde vieram */
+    var ditos = S.descreverFiltros(filtros);
+    var info = {
+      escopo: alvo ? 'Marco ' + alvo.marco : 'Todos os marcos',
+      recorte: ditos.length ? ditos.join(' · ') + ' — ' + st.total + ' de ' + st.totalSemFiltro + ' itens' : '',
+      quem: Store.getUser()
+    };
+    var exporta = function (card, tipo) { return acoesExportacao(card, tipo, info); };
+
+    /* os gráficos lado a lado quando a tela tem largura para isso */
+    var graficos = el('div', 'sm-graficos');
+    host.appendChild(graficos);
+
     /* progresso por marco (ou do marco escolhido) */
     var b1 = bloco(alvo ? 'Progresso de ' + alvo.marco : 'Progresso por marco',
       'Itens em “Waiver accepted”, sobre o total de NCRs e DEVs.');
     b1.appendChild(graficoProgresso(escopo));
-    host.appendChild(b1);
+    graficos.appendChild(exporta(b1, 'grafico'));
 
     var b2 = bloco('Situação dos itens',
       'Acompanhamento interno, escolhido item a item no editor. Não sai no PDF do relatório.');
     b2.appendChild(graficoSituacao(escopo));
-    host.appendChild(b2);
+    graficos.appendChild(exporta(b2, 'grafico'));
 
     var b3 = bloco('Itens por sistema',
       'Um item que cita vários sistemas conta em cada um deles.');
     b3.appendChild(graficoSistemas(alvo ? alvo.porSistema : dados.geral.porSistema));
-    host.appendChild(b3);
+    graficos.appendChild(exporta(b3, 'grafico'));
+
+    var b7 = bloco('Função vital × situação',
+      'Itens por Função Vital (o FV do item), cada barra dividida pela situação do waiver.');
+    b7.appendChild(graficoFuncao(st));
+    graficos.appendChild(exporta(b7, 'grafico'));
+
+    var b8 = bloco('Para onde vai o waiver',
+      'Itens pelo marco até onde o waiver vale — o Approved Expiry, ou o Request Expiry enquanto não há aprovação —, divididos pela situação.');
+    b8.appendChild(graficoDestino(st, alvo ? alvo.marco : ''));
+    graficos.appendChild(exporta(b8, 'grafico'));
 
     /* tabelas */
     if (!alvo) {
@@ -914,11 +1115,11 @@
             return m.project.lastEditedBy || '—';
           } }
       ], ordenarPorMarco(dados.porMarco), { vazio: 'Nenhum relatório neste navegador.' }));
-      host.appendChild(b4);
+      host.appendChild(exporta(b4, 'tabela'));
 
       if (dados.geral.parados.length) {
-        host.appendChild(blocoParados(dados.geral.parados,
-          'De todos os marcos. Pendentes sem nenhuma edição há ' + S.DIAS_PARADO + ' dias ou mais.'));
+        host.appendChild(exporta(blocoParados(dados.geral.parados,
+          'De todos os marcos. Pendentes sem nenhuma edição há ' + S.DIAS_PARADO + ' dias ou mais.'), 'tabela'));
       }
     } else {
       var b5 = bloco('Itens de ' + alvo.marco, 'Todas as NCRs e DEVs deste marco.');
@@ -932,11 +1133,11 @@
         { titulo: 'Anexos', num: true, valor: function (r) { return num((r.item.evidence || []).length); } },
         { titulo: 'Arch Status', valor: function (r) { return r.item.archStatus || '—'; } }
       ], alvo.linhas, { vazio: 'Este marco ainda não tem itens.' }));
-      host.appendChild(b5);
+      host.appendChild(exporta(b5, 'tabela'));
 
       if (alvo.parados.length) {
-        host.appendChild(blocoParados(alvo.parados,
-          'Pendentes sem nenhuma edição há ' + S.DIAS_PARADO + ' dias ou mais, do mais esquecido para o menos.'));
+        host.appendChild(exporta(blocoParados(alvo.parados,
+          'Pendentes sem nenhuma edição há ' + S.DIAS_PARADO + ' dias ou mais, do mais esquecido para o menos.'), 'tabela'));
       }
 
       var certs = Object.keys(alvo.certificados).sort();
@@ -946,7 +1147,7 @@
           { titulo: 'Certificado', valor: function (c) { return c; } },
           { titulo: 'Itens', num: true, valor: function (c) { return num(alvo.certificados[c]); } }
         ], certs));
-        host.appendChild(b6);
+        host.appendChild(exporta(b6, 'tabela'));
       }
     }
   }
@@ -991,6 +1192,10 @@
     dadosProgresso: dadosProgresso,
     dadosSituacao: dadosSituacao,
     linhasDeSistemas: linhasDeSistemas,
+    dadosFuncao: dadosFuncao,
+    dadosDestino: dadosDestino,
+    VAZIO_FUNCAO: VAZIO_FUNCAO,
+    VAZIO_DESTINO: VAZIO_DESTINO,
     blocoGrafico: blocoGrafico,
     VAZIO_PROGRESSO: VAZIO_PROGRESSO,
     VAZIO_SITUACAO: VAZIO_SITUACAO,

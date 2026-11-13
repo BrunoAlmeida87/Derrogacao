@@ -587,12 +587,13 @@ X:\36.GTO - RELATÓRIOS GTO\NCR_MILESTONE\00_BD_VISUALIZADOR\   ← visualizador
 
 O caminho da pasta dos dados está gravado no programa
 (`PASTA_VISUALIZADOR`, em `assets/js/config.js`): o visualizador lê de lá
-sem ninguém configurar nada. No **editor**, enquanto ele não estiver ligado a
-essa pasta, fica no alto um aviso com o caminho e o botão **Escolher a
-pasta…** (na primeira vez) ou **Conectar agora** (quando a permissão caiu ou
-a pasta parou de responder). O navegador não abre pasta por caminho — por
-isso a escolha é na janela do Windows, uma vez; depois ele só pede a sua
-confirmação a cada sessão. **Agora não** cala o aviso só até a próxima queda.
+sem ninguém configurar nada. No **editor**, a pasta é escolhida em
+**⋯ Mais → 👁 Publicar para visualizadores** — o navegador não abre pasta por
+caminho, por isso a escolha é na janela do Windows, uma vez; depois ele só
+pede a sua confirmação a cada sessão (pelo chip da barra de cima). Quando o
+editor não está ligado a essa pasta, ou ela para de responder, **não aparece
+aviso na tela**: fica registrado no diário do console (⋯ Mais → 🩺
+Diagnóstico).
 
 ### Onde o visualizador procura os dados
 
@@ -920,13 +921,15 @@ fila, cada uma com quantas NCRs tem) e veja cada NCR num cartão.
 | **Em preenchimento · Waiver requested · Improve justification · Waiver accepted** | os itens NCR do relatório do marco, pela situação |
 | **Encerradas** (abaixo do quadro) | as NCRs do marco fora do Waiver que já estão **fechadas** no banco NCR (*Closed*, *CEDOC Closure*, *7.2 - TA Unfounded*… — a lista da seção "NCR fechada"): saem de "NCR to be closed", que fica só com o que ainda falta fechar. A área recolhe (a escolha fica neste navegador), mas o título mostra sempre quantas são; a primeira coluna e a faixa de números também avisam |
 
-- **Incluir as DEVs.** O botão **Incluir as DEVs (n)** do alto faz a vista
-  geral: as DEVs do marco (o relatório *Waiver DEV* com o mesmo marco) entram
+- **NCR · NCR + DEV · Só DEV.** As três pastilhas do alto escolhem o que o
+  quadro mostra. **NCR + DEV** faz a vista geral: as DEVs do marco (o relatório *Waiver DEV* com o mesmo marco) entram
   nas colunas pela situação delas, com a etiqueta **DEV**. Elas mudam de
   situação como as NCRs (arrastando ou pelo seletor), o número abre a aba
   *Waiver DEV*, e a planilha ganha a coluna *Tipo*. DEV não tem NCR no banco:
-  não há "to be closed" nem alerta para ela. De saída o botão está desligado
-  e o quadro é o de sempre.
+  não há "to be closed" nem alerta para ela. **Só DEV** mostra só as DEVs do
+  marco: some a coluna "NCR to be closed" e a área das encerradas, os botões
+  só de NCR ficam apagados e a faixa de números conta as DEVs. A aba abre em
+  **NCR**, o quadro de sempre.
 - **Cartões compactos.** Recolhido, o cartão é quase uma linha de lista: o
   número, o status da NCR no banco, a função vital em poucas letras (`FV03`),
   os bigramas, o caminho e as ações. O **+** abre a descrição inteira, a
@@ -1072,8 +1075,37 @@ registros com problema.
   padrão **só completa o que está em branco**: reimportar não desfaz o que foi
   corrigido à mão. NCR que ainda não está no banco fica guardada e entra
   sozinha quando aparecer numa importação do banco.
-- **Importar histórico NCR** — o `historico.json` do NCR Control (serve como
-  está). Os eventos são associados pela NCR e só se acrescentam.
+- **Histórico do NCR Integrada…** — a janela do **extrator**: o mesmo script do
+  NCR Control, que se cola no Console (F12) do NCR Integrada, já logado. Ele
+  lê a aba *Histórico* de cada NCR (data, hora e usuário de cada mudança de
+  estado, e o texto das ações) e gera um JSON; **Importar histórico extraído
+  (.json)** o traz para cá. A janela traz o passo a passo, **Copiar extrator**,
+  **Baixar extrator (.js)** e **Copiar links a recapturar** (as abertas e as
+  reabertas, para a atualização seguinte). Vale, por NCR, a captura mais
+  recente; o que já foi capturado no NCR Control continua valendo.
+- **Importar histórico NCR** — alternativa: o `historico.json` do NCR Control
+  (serve como está). Os eventos são associados pela NCR e só se acrescentam.
+
+### De onde sai a trajetória da NCR (o fluxo da ficha)
+
+O Derrogação monta o histórico sozinho, sem o NCR Control:
+
+1. **Colunas datadas do export.** Na importação do banco, colunas como
+   *Data avanço 2.1 - Especialista ICN*, *Data da rejeição 2.2 - TA Specialist*
+   ou *CEDOC Closure Data* são reconhecidas pelo cabeçalho, e a trajetória da
+   NCR entra já na primeira vez. Quando o export só data a saída de uma etapa,
+   a chegada aparece **tracejada** (data estimada).
+2. **Mudanças entre duas importações.** O status que mudou de um export para o
+   outro vira um passo, com a data da foto (deduzida de *Data de criação* +
+   *Tempo de tramitação*, que não muda ao copiar o arquivo).
+3. **O extrator do NCR Integrada** (acima). Até a data da captura vale o
+   caminho exato do sistema; depois dela, o que os exports registrarem. O passo
+   com texto da ação leva um ✎ — passe o mouse para ler.
+
+Nada do histórico é apagado: as capturas ficam num arquivo à parte na pasta
+(`derrogacao-ncr-sistema.json`). O **status** que vale para "fechada", filtros
+e Kanban continua sendo o do export; se a captura for mais nova e disser
+outro, a ficha avisa.
 
 O JSON de correlação tem dados do programa: guarde-o na pasta da equipe,
 **não no repositório** (que é público).
@@ -1288,8 +1320,23 @@ função, e em cada cruzamento quantos produtos. Respeita a busca e os filtros.
 As fichas saem em **imagem**: **⤓ Imagem (A4)**, na ficha do produto e na da
 NCR, baixa um PNG de uma folha A4 a 300 dpi (2480 × 3508), redesenhado para o
 papel — a letra se ajusta ao que cabe, e o que não cabe é dito no rodapé do
-bloco. A da NCR leva os dados do Waiver, os relatórios, os produtos com marcos e
-funções vitais e os campos do banco NCR (o fluxo e o histórico ficam só na tela).
+bloco.
+
+Na ficha da **NCR**, o **⤓ Imagem (A4)…** abre antes uma janela para escolher
+**o que entra**, na ordem da ficha: dados do Waiver, relatórios de Waiver,
+produtos com marcos e funções vitais, dados do banco NCR, as tabelas do export
+(produtos, deliberações…), o **fluxo da NCR** (em *Trajetória* ou *Mapa do
+fluxo*, com a legenda), o **histórico** e a auditoria. O que a NCR não tem vem
+apagado. E o **tamanho**:
+
+| Tamanho | O que sai |
+| --- | --- |
+| **Uma folha só** (o de saída) | Um PNG. A letra diminui para caber; se ainda faltar, o fim das listas longas (campos, histórico…) é cortado — e a janela diz o quê antes de baixar |
+| **Quantas folhas forem precisas** | Tudo, com a letra normal: um PNG por folha (`NCR_…_folha1de3.png`), as tabelas continuando na folha seguinte com "(cont.)". O navegador pode pedir para permitir vários downloads |
+
+A janela lembra as escolhas neste navegador. Um fluxo muito longo
+(trajetória com dezenas de passos) fica pequeno, porque o desenho nunca passa
+de uma folha: nesse caso o *Mapa do fluxo* costuma ler melhor.
 
 Clicar num produto abre a **ficha do produto**: a identificação, os marcos e as
 funções vitais (com o nome que o banco NCR dá a cada número), as **NCRs que o
@@ -1397,7 +1444,9 @@ backup nem em nenhuma página do PDF — relatório é relatório.
 
 ## Aba Resumo
 
-A aba reúne **todos os marcos deste navegador**, não só o relatório aberto.
+A aba reúne **todos os marcos deste navegador**, não só o relatório aberto, e
+ocupa a largura toda da janela: a lateral vira o trilho estreito e, em tela
+larga, os gráficos ficam dois a dois.
 
 No alto, os **marcos em mini cards** — a mesma pastilha do Kanban e da Tabela,
 na ordem da fila: **Todos os marcos** e um card por marco, cada um com o total
@@ -1422,6 +1471,14 @@ fechar a página. A barra logo abaixo diz o escopo por extenso — "Marco J09" o
   sistemas o gráfico continua na folha seguinte, com o título e a legenda
   repetidos — em vez de um gráfico por folha com o resto em branco. Os cinco
   indicadores ficam numa linha só.
+- **Função vital × situação** — quantos itens de cada função vital (`FV03`,
+  `FV12`…) e em que pé estão, na ordem do número. Acima de doze funções o
+  resto vira "Outras funções"; o item sem função (as DEVs, em geral) fica em
+  "Sem função vital".
+- **Para onde vai o waiver** — o marco até onde o waiver vale (*Waiver
+  Approved Expiry*, ou o *Request Expiry* enquanto não há aprovação), na ordem
+  da fila, por situação. "(este marco)" é o waiver que termina ali; "Sem
+  destino" é o item sem nenhuma das duas datas.
 - **Tabela de marcos**, com percentual aceito e quem editou por último.
 - **Parados há 30+ dias** — os itens pendentes em que ninguém toca há um mês ou
   mais, do mais esquecido para o menos, com o número de dias e quem mexeu por
@@ -1461,6 +1518,21 @@ escopo:
 Um texto que comece por `=`, `+`, `-` ou `@` sai da planilha com um apóstrofo à
 frente: sem isso o Excel o trataria como fórmula. O apóstrofo não aparece na
 célula.
+
+### Levar um gráfico ou uma tabela embora
+
+Cada gráfico e cada tabela tem, no canto, os botões de exportar — também no
+visualizador:
+
+| Botão | O que sai |
+| --- | --- |
+| **⤓ PNG** (gráfico ou tabela) | Imagem de 3 600 px de largura, nítida no PowerPoint, no Word e impressa; com título, recorte, legenda e um rodapé dizendo o escopo e a data |
+| **⤓ SVG** (gráfico) | O mesmo desenho em vetor: aumenta sem perder nitidez e abre no Office, no navegador e no Inkscape |
+| **⤓ Excel** (tabela) | A tabela em `.xlsx`, com números que o Excel soma e a aba "Recorte" |
+
+Os filtros valem: o que sai é o que está na tela. O nome do arquivo diz o
+escopo, o gráfico e a data (`resumo_marco-j09_funcao-vital-situacao_2026-10-16.png`).
+Tudo é desenhado aqui, sem biblioteca e sem rede.
 
 Os gráficos são SVG escrito à mão — sem biblioteca externa, imprimem em vetor e
 funcionam com o arquivo aberto direto do disco. A paleta foi validada para
@@ -1699,6 +1771,24 @@ o seu trabalho continua salvo no computador, mas que ninguém mais o está vendo
 Esse aviso não some com "Agora não": ficar horas escrevendo sem saber que se
 está sozinho é justamente o que produz, depois, dois textos no mesmo campo.
 
+### Quando a pasta não deixa gravar um arquivo
+
+Às vezes a pasta responde, mas recusa gravar **um** arquivo — por exemplo o
+`derrogacao-ncr-banco.json`: a sua importação do banco NCR fica só no seu
+computador, e os colegas continuam vendo a anterior. Isso não aparece na tela:
+fica no **diário do console** e no **⋯ Mais → 🩺 Diagnóstico**, na linha
+"gravações recusadas", com **qual arquivo**, desde quando e quantas vezes.
+
+O motivo quase sempre é permissão: o navegador grava um arquivo temporário
+(`.crswap`) e no fim **substitui** o antigo. Substituir um arquivo que outra
+pessoa gravou exige a permissão **"Modificar"** sobre ele — e, como cada
+gravação recria o arquivo, o "dono" é sempre quem gravou por último. Peça à TI
+"Modificar" na pasta para toda a equipe, aplicada a **esta pasta, subpastas e
+arquivos**. Até lá, quem é o dono do arquivo (Propriedades → Segurança →
+Avançado) pode tirá-lo da pasta, com o programa fechado nos dois computadores;
+a próxima gravação do outro cria um novo. Quando a gravação volta a passar, o
+diário registra e o Diagnóstico volta a dizer "nenhuma".
+
 ### O que cada pessoa precisa fazer
 
 **Uma vez, em cada computador:** abrir **⋯ Mais → 🗄 Pasta da rede…**, clicar em
@@ -1888,6 +1978,7 @@ assets/js/herdar.js      leva o item aceito para o marco seguinte
 assets/js/summary.js     apuração, gráficos SVG e a aba de resumo
 assets/js/painel.js      o painel de um marco: o que está chegando nele
 assets/js/xlsx.js        gera a planilha .xlsx (sem biblioteca)
+assets/js/imagem.js      gráfico ou tabela do Resumo em PNG, SVG ou Excel
 assets/js/tabela.js      a aba Tabela: todos os itens, filtros e exportação
 assets/js/chat.js        a conversa da equipe, dentro da pasta da rede
 assets/js/comunicados.js os comunicados para o visualizador: formato, junção e lidos

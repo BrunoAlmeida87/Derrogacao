@@ -97,6 +97,8 @@ assets/js/herdar.js        leva o item aceito para o marco em que o waiver
 assets/js/summary.js       apuração, filtros, gráficos SVG, aba Resumo
 assets/js/painel.js        o painel de um marco: tudo o que está indo para ele
 assets/js/xlsx.js          escreve a planilha .xlsx (ZIP + XML à mão)
+assets/js/imagem.js        leva um gráfico ou uma tabela do Resumo embora:
+                           PNG 3×, SVG autônomo, Excel com "Recorte"
 assets/js/tabela.js        aba Tabela: todos os itens de todos os marcos
 assets/js/chat.js          a conversa da equipe (aba opcional), pela pasta
 assets/js/comunicados.js   os comunicados para o visualizador: formato, chave
@@ -108,6 +110,10 @@ assets/js/correcoes.js     NCR temporária → definitiva, ajustes do administra
                            auditoria e a senha (dados; a tela é o admin.js)
 assets/js/produtos.js      banco de produtos: planilha, casamento com a NCR, pasta
 assets/js/ncrfluxo.js      o fluxo da NCR (trajetória e mapa) do NCR Control
+assets/js/ncrhist.js       o histórico da NCR extraído aqui: colunas datadas do
+                           export, mudanças entre importações e as capturas do
+                           extrator do NCR Integrada (o texto do extrator mora
+                           no index.html, <script id="extratorSrc" type="text/plain">)
 assets/js/cartao.js        a ficha em imagem PNG, numa folha A4 (canvas)
 assets/js/produtosview.js  aba Produtos, ficha do produto, bloco da ficha da NCR
 assets/js/ncrview.js       aba Banco NCR: tabela, filtros, ficha
@@ -128,11 +134,14 @@ exemplos/                  .json prontos para importar
 
 Ordem de carga dos scripts (importa: cada um usa o anterior):
 `log.js → config.js → atualizacao.js → leitura.js → store.js → revisoes.js → pasta.js → publicacao.js → xlsxler.js → ncrs.js →
-correcoes.js → produtos.js → ncrfluxo.js → report.js → fluxo.js → herdar.js → summary.js → painel.js →
-xlsx.js → tabela.js → chat.js → comunicados.js → lado.js → cartao.js → produtosview.js → ncrview.js → kanban.js → admin.js → app.js`.
+correcoes.js → produtos.js → ncrfluxo.js → ncrhist.js → report.js → fluxo.js → herdar.js → summary.js → painel.js →
+xlsx.js → imagem.js → tabela.js → chat.js → comunicados.js → lado.js → cartao.js → produtosview.js → ncrview.js → kanban.js → admin.js → app.js`.
 (`produtos.js` não usa ninguém ao carregar: `Store`, `Ncrs`, `Correcoes` e `Fluxo`
 só na hora da chamada — e `ncrs.js` o chama no backup, na publicação e na
 junção; `produtosview.js` não conhece `NcrView`: a ficha da NCR é que o chama.)
+(`ncrhist.js` usa `Ncrs`, `NcrFluxo` e `Store` só na hora da chamada; `ncrs.js`
+o chama na importação do banco, no backup, na publicação e na junção, e
+`ncrfluxo.js` o chama para montar a sequência.)
 (`ncrs.js` e `correcoes.js` se usam um ao outro só na hora da chamada;
 `fluxo.js`, `herdar.js`, `painel.js` e `kanban.js` usam `Ncrs.chaveCaso` /
 `Ncrs.recDoItem`, que olham as substituições.)
@@ -143,6 +152,7 @@ ninguém**: ele não conhece `Store`, `Pasta` nem `app`. `config.js` e
 `revisoes.js` usa `Store.CAMPOS_MESCLA`, `valorCampo` e `rotuloCampo`;
 `herdar.js` usa `Store`, `Fluxo` e `Report`; `painel.js` usa esses três mais
 `Summary` e `SummaryView.blocoLista`; `xlsx.js` não usa ninguém;
+`imagem.js` usa `Xlsx` só na hora da chamada, e o `summary.js` o chama só no clique;
 `comunicados.js` usa `Config`, `Store` e `Report.marcoOf` só na hora da
 chamada — e `publicacao.js`, que carrega antes, usa `Comunicados.deArquivo`
 também só na hora.)
@@ -606,6 +616,25 @@ em `file://`**. A pasta guarda `derrogacao-dados.json`, `imagens/` e
   diário. Antes disso, uma recusa dessas **perdia a rodada inteira**: nem os
   dados, nem a versão do histórico, nem o diário chegavam na pasta (provado no
   navegador contra a versão anterior).
+- **Gravação recusada vai para o console** (`vigiarGravacao` e
+  `Pasta.gravacoesRecusadas` no `pasta.js`). O navegador grava um `.crswap` e, no fim,
+  **substitui** o arquivo antigo — e numa pasta de rede substituir exige poder
+  apagar aquele arquivo, o que é mais do que criar. Cada gravação recria o
+  arquivo, então o dono vira quem gravou por último; se a pasta só deixa cada
+  um mexer no que criou (ou o arquivo está aberto noutro computador), a troca
+  é recusada toda vez (`InvalidStateError`, o `.crswap` aparece e some, a data
+  não muda). Foi o que deixou o banco NCR do Bruno um dia sem chegar ao colega
+  (15/10) — a causa foi o pingue-pongue do "não consta mais" (§5, Banco NCR),
+  que punha os dois computadores regravando o arquivo grande ao mesmo tempo.
+  Hoje, a partir da segunda recusa seguida do mesmo arquivo, sai um
+  `Log.erro` (um por arquivo, não por rodada) e o Diagnóstico ganha a linha
+  "gravações recusadas" com o arquivo, quantas vezes e desde quando; a volta
+  sai como `Log.ok`. **Nada na tela**: houve uma faixa vermelha, e o Bruno
+  pediu para tirá-la ("não quero mais tantos avisos na tela… deixe no console
+  que eu vejo analisando depois"). Vale para
+  `gravar` (dados), `gravarArquivo` (banco, waiver, correções, produtos,
+  sistema, comunicados) e `escreverJson` (conversa, diário). Teste:
+  `tests/gravacao.test.js`.
 - **Guarda de versão**: lendo dados com `schema` maior que o desta página, a
   sessão para de gravar (só lê) e avisa. Sem isso, a página velha regravaria a
   pasta sem os campos que não conhece. Ver §4.
@@ -1049,7 +1078,14 @@ passam a ver "dados" em centenas de colunas vazias. A folha também diz a
   chave (`chaveNcr`) e o mesmo `grupoSbr`. Aceita também o `ncr.json` do NCR
   Control. **Só SBR4** (`Ncrs.SBR_ALVO`): coluna SBR; vazia, o número
   (`NCR-…-14-…`). Nunca apaga NCR — a que some do export fica com
-  `fonte.presente = false`.
+  `fonte.presente = false`, **com o `importadoEm` desta importação** (e o
+  mesmo ao voltar). Sem o carimbo a marca não viajava (na pasta vale o
+  `importadoEm` maior) e, no empate com marcas diferentes, os dois lados
+  marcavam `localMaisNovo` e regravavam o arquivo grande do banco a cada
+  rodada — foi isso que fez o computador do colega recriar o arquivo e a pasta
+  recusar a gravação do Bruno (15/10, §5 "Gravação recusada fica à vista").
+  O empate que versões anteriores deixaram é resolvido adotando a marca da
+  pasta, sem regravar (`tests/gravacao.test.js`).
 - **Correlação** só preenche o vazio (a menos de "substituir"), e a NCR que
   ainda não está no banco vai para `meta.pendentes`, aplicada quando chegar.
 - **Vínculo NCR ↔ relatório não é gravado à parte**: é lido dos relatórios
@@ -1070,6 +1106,43 @@ passam a ver "dados" em centenas de colunas vazias. A folha também diz a
   de lá. Usa o `cls` do evento quando vem do NCR Control e refaz a
   classificação quando não vem. Cores escritas por extenso (o desenho não
   depende das variáveis CSS de lá); SVG com `width`/`height` (§6).
+- **Histórico extraído aqui** (`ncrhist.js`, pedido do Bruno: "fazer isso
+  diretamente pelo sistema de derrogação"). As três fontes do NCR Control
+  (repositório NCR_Dashboard, branch `…history-extraction-macro…`), portadas:
+  `Marcos` (colunas datadas do export, reconhecidas pelo padrão do
+  cabeçalho), os eventos entre duas fotos do `Importer` e o `SistemaHist`
+  (o JSON do extrator do NCR Integrada).
+  - A reconstrução só roda na NCR **sem trajetória** (nova, ou importada antes
+    desta versão) e sem captura — como lá. Depois disso, só o que mudou: o
+    status (evento `STATUS` na data da foto) e os marcos que ganharam data.
+    Foto mais antiga que a anterior (`fonte.dataFoto`) não gera evento.
+  - **Os eventos gerados pelo export levam `campo` começando por
+    `Status · export`** (`CAMPO_EXPORT`). É a marca da fonte, e vai no
+    `campo` porque ele está na assinatura do evento e nenhuma versão o
+    descarta. `NcrHist.trajetoria` usa a marca: um histórico de fora (o
+    `historico.json` do NCR Control) vale até o último evento dele, e os do
+    export só depois — senão a chegada estimada de uma reconstrução se
+    intercalava, por data, no caminho que o NCR Control registrou (um teste
+    pegou isso). O caminho fecha no status do export quando o export é mais
+    novo que o último passo.
+  - **A captura do sistema não apaga nada.** No NCR Control ela substitui os
+    eventos até a data dela. Aqui o histórico é união na pasta, e o evento
+    apagado voltaria pela cópia do colega. Então as capturas ficam à parte
+    (`ncrmeta:sistema` no `snapshots` e `derrogacao-ncr-sistema.json` na
+    pasta; por NCR vale o `capturadoEm` maior), e a troca é feita **na
+    leitura** (`comCaptura`), dentro de `NcrFluxo.sequencia`.
+  - O **status** do export continua mandando ("fechada", filtros, Kanban). A
+    captura mais nova que diverge só aparece na ficha (`.nb-sis-diverge`).
+  - O extrator é **cópia literal** do NCR Control, em
+    `<script id="extratorSrc" type="text/plain">` no `index.html`: não é
+    executado aqui (por isso o ES2017 dele não fere o §2), e o mesmo banco do
+    navegador (`ncrControlExtrator`) e o mesmo formato
+    (`ncr-control/historico-sistema`) fazem valer o que já foi capturado lá.
+    Mudou lá, copie de novo — não edite só aqui.
+  - A importação das capturas não tem "desfazer": só acrescenta, e o desfazer
+    da última importação do banco continua sendo o dela.
+  - Capturas viajam no backup e na publicação em `ncrBase.sistema`; a
+    publicação republica quando muda a captura mais recente ou a contagem.
 - **A tela** (pedidos do Bruno depois de usar): a tabela é a página, com
   todas as NCRs e cabeçalho `sticky` — **sem `overflow` em caixa
   intermediária**, senão o sticky morre (§6); a lateral vira trilho estreito
@@ -1306,6 +1379,21 @@ passar os dados, e a planilha quase não muda (uma vez, talvez uma atualização
   0,62× se falta; sem caber, o chamador corta (campos, produtos) e tenta de novo
   (`baixarImagemDoProduto`, `NcrView` `baixarImagem`). Desenhada de novo, não
   foto do pop-up (que rola e muda com a janela). Os botões levam `data-mostra`.
+  **Na NCR, escolhe-se o que entra** (pedido do Bruno, 16/10: o fluxo não
+  entrava): `#ncrImgDialog` (sem `data-so-editor` — o visualizador também
+  baixa) lista `SECOES_IMAGEM` na ordem da ficha, apagando a vazia
+  (`conteudoDasSecoes`); `blocosDaImagem(rec, op, desenho, lim)` monta só o
+  marcado. O fluxo é o SVG do `ncrfluxo.js` virado imagem (`Cartao.carregarSvg`,
+  ampliado ×3 para sair nítido; assíncrono) no bloco `img`, com a legenda
+  (`NcrFluxo.itensLegenda`) no bloco `legenda`. Dois tamanhos: **uma folha**
+  (`Cartao.gerar` e o laço de corte, que agora também corta histórico,
+  tabelas do export, auditoria e a altura do fluxo — a prévia diz o que ficou
+  de fora) e **quantas folhas** (`Cartao.paginas`: letra fixa, tabela e pares
+  partidos entre as linhas, título de seção nunca sozinho no pé, "(cont.)",
+  o desenho junto da legenda e encolhendo para ocupar a sobra se ela for de
+  meia folha ou mais; um PNG por folha, baixados com 400 ms entre eles). As
+  escolhas ficam em `derrogacao:fichaImagem`. O padrão é a imagem de antes
+  (Waiver, relatórios, produtos, banco NCR; uma folha).
 - **Mapa de sistemas** (`mapaMarcas`): bigrama × função vital ou marco, com a
   contagem de produtos (pedido do Bruno: só as duas letras, não a marca inteira).
 - **Armadilha.** `NcrView.abrirFicha` usa o `ctx` que o `NcrView.render` guarda:
@@ -1340,12 +1428,18 @@ Deduplicado pela chave da NCR.
   e nunca somados ao marco sem Ind. Cuidado: `Fluxo.marco("J09 Ind")` é o
   J09 (ignora o Ind), então a porta "a caminho" confere o **texto** do
   Expiry (`ehInd`) — senão um waiver até "J09 Ind" cairia no quadro do J09.
-- **DEVs no quadro** (`st.devs`, botão "Incluir as DEVs"): vista geral —
-  as DEVs dos relatórios cujo **marco de DEV** (`Report.marcoOf(p,'dev')`)
+- **DEVs no quadro** (`st.tipo`: três pastilhas **NCR · NCR + DEV · Só
+  DEV**, `#kbSoNcr`/`#kbDevs`/`#kbSoDev`; era o botão "Incluir as DEVs"): as DEVs dos relatórios cujo **marco de DEV** (`Report.marcoOf(p,'dev')`)
   casa com o marco entram como `tipo: 'item', kind: 'dev'`, na coluna da
   situação, sem `rec` (logo sem "to be closed", encerrada nem alerta), com a
   etiqueta `.kb-st-ncr.is-dev`. `ctx.abrir` e `ctx.mudarSituacao` recebem o
-  `kind`. Desligado de saída; não é guardado. A planilha tem a coluna Tipo.
+  `kind`. Sai em "NCR"; não é guardado. A planilha tem a coluna Tipo.
+  **Só DEV** (pedido do Bruno, 16/10) tira as NCRs, as do banco e as que vêm
+  de outros marcos; some a coluna "NCR to be closed" e a área Encerradas (DEV
+  nunca cai nelas), "⚠ Só com alerta" e "vêm de outros marcos" ficam
+  desabilitados com o motivo na dica, e a faixa de números passa a contar as
+  DEVs. `comDevs()`/`soDevs()` são as duas perguntas; ninguém lê `st.tipo`
+  direto.
 - **Cartão compacto** (pedido do Bruno: ver mais NCRs de uma vez). Recolhido:
   número (inteiro — é ele que identifica), ⚠ e o "+" na linha 1; status da
   NCR no banco, função em poucas letras (`Kanban.funcaoCurta`: "FV03 - …" e
@@ -1433,6 +1527,36 @@ indicadores logo abaixo. `summaryFilter` nasce `null`: na primeira vez vale
 escolheu, até fechar a página. "Todos os marcos" ganhou CSV também
 (`toCsvTodos`); o backup continua só por marco, e inteiro. Os gráficos (tela e
 PDF) seguem a mesma fila dos cards.
+
+**A largura toda** (pedido do Bruno, 16/10): a aba entrou no trilho estreito
+(como a Tabela e o Kanban), o `.summary-scroll` perdeu o padding largo e os
+cards o teto de 980 px, e os gráficos ficam em `.sm-graficos`, uma grade
+`auto-fit` de no mínimo 560 px — dois a dois em tela larga, um só abaixo de
+700 px. Tudo escopado em `.summary-scroll`: o resumo em PDF não muda por isso.
+
+**Dois gráficos a mais**, escolhidos pelo Bruno, nas mesmas barras empilhadas
+por situação: **Função vital × situação** (`Summary.funcaoDe`: o número da
+função, "FV03 · nome", ordem do número, até 12 e o resto em "Outras funções",
+"Sem função vital" no fim — onde caem as DEVs) e **Para onde vai o waiver**
+(`Summary.destinoDe` = `Herdar.paraOnde(item).no.rotulo`, o Approved Expiry
+ou o Request Expiry, na fila dos marcos; "(este marco)" quando o waiver acaba
+ali; "Sem destino" no fim). O `no` do `paraOnde` é **objeto** do
+`Fluxo.marco` — use o `.rotulo`, senão sai "[object Object]". `statsDe`
+devolve `porFuncao`/`porDestino` e `compute` os soma no geral; os dois
+gráficos entram também no resumo em PDF (`blocoGrafico`, depois de "Itens por
+sistema"). O nome longo da função é abreviado no rótulo (o inteiro vai no
+`<title>`): rótulo comprido saía cortado à esquerda na imagem exportada.
+
+**Cada gráfico e cada tabela vai embora sozinho** (`imagem.js`): "⤓ PNG" e
+"⤓ SVG" no gráfico, "⤓ PNG" e "⤓ Excel" na tabela, no canto do card
+(`.sm-card-acoes`, `data-mostra` — funcionam no visualizador, só baixam). Sem
+biblioteca: o card vira um **SVG autônomo** (título, recorte, o gráfico com os
+estilos escritos por extenso — fora do programa não há `app.css` —, a
+legenda e o rodapé "Waiver Request · escopo · data"), e o PNG é esse SVG
+desenhado num canvas a 3× (3600 px de largura). A tabela é redesenhada em SVG
+(zebra, a bolinha da situação) e o Excel sai pelo `Xlsx.blob`, número como
+número e a aba "Recorte". A CSP já permite (`img-src data: blob:`); nada sai
+do computador. Nome: `resumo_<escopo>_<card>_<aaaa-mm-dd>.<ext>`.
 
 ### O caminho padrão da pasta
 `Store.CAMINHO_PADRAO` é o caminho combinado pela equipe
@@ -1604,13 +1728,12 @@ como programa separado, feita sobre uma base velha; foi refeita assim.)
   (`localStorage derrogacao:publicarAuto`; após `flushSave` e `sincronizar`,
   no máximo a cada `Publicacao.INTERVALO_MS`, e só se `Publicacao.conteudo`
   mudou — que ignora `updatedAt/lastEditedAt`, renovados a cada gravação).
-  Chip `#pubChip` quando a permissão cai. **Aviso `#pubNotice`** (pedido do
-  Bruno: "sempre linkado; se cair, peça confirmação"): com `pubEstado` fora
-  de `on` — nunca escolhida, sem permissão nesta sessão, erro ao gravar —
-  aparece no alto, com o caminho de `Config.PASTA_VISUALIZADOR` e o botão que
-  escolhe ou reconecta (o gesto que o navegador exige). "Agora não" cala só
-  aquele estado (`pubAvisoCalado`); a próxima queda pergunta de novo. Ao
-  voltar para a janela, `conferirPublicacao` relê a permissão.
+  Chip `#pubChip` quando a permissão cai (é o clique que devolve a permissão).
+  **Sem aviso na tela**: houve o `#pubNotice` no alto ("o editor não está
+  ligado à pasta do visualizador"), e o Bruno pediu para tirar ("esses avisos
+  incomodam"). A situação vai para o diário (`anotarPublicacao`, uma linha por
+  troca: desligada, sem permissão, parou, voltou). Ao voltar para a janela,
+  `conferirPublicacao` relê a permissão.
 - **Conferido no navegador** (scripts fora do repositório, que não tem mais
   suíte): o PDF do editor saiu idêntico, pixel a pixel, antes e depois da
   mudança; o visualizador não deixa nenhum campo editável, não arrasta, não
@@ -1932,6 +2055,11 @@ permissão da pasta entre sessões.
   prateleiras de teste (`ncrs`, `ncrmeta`) para o `snapshots`. **Nunca suba o
   `DB_VERSION` sem necessidade**: a versão anterior do programa deixa de abrir
   o navegador para sempre, e isso não tem volta sem apagar o banco.
+- **Na pasta de rede, substituir não é criar.** "Todos têm permissão na pasta"
+  pode querer dizer criar e editar, e não substituir o arquivo que outra
+  pessoa gravou — e toda gravação do navegador é uma substituição. Quando a
+  sincronização de um arquivo "para" sem erro na tela, olhe o proprietário
+  dele no Windows antes de procurar bug (§5, "Gravação recusada fica à vista").
 - **Dois `function` com o mesmo nome no mesmo arquivo: vale o segundo, sem
   aviso.** O `pasta.js` tinha `carimbo()` (a última leitura, exportada) e
   `carimbo(d)` (o nome datado do histórico); o segundo apagava o primeiro, e
@@ -1975,14 +2103,42 @@ permissão da pasta entre sessões.
   opção do J09 com `/^J09 /` pegava o industrial quando ele vinha primeiro na
   lista, e falhava só às vezes. Use `/^J09 \(/` — ou `Config.ehMarco`.
 
+### Uma falha do IndexedDB não desliga o banco (13/11)
+O Bruno viu `QuotaExceededError` em `derrogacao:projects` a cada gravação e
+nunca ficava sincronizado. A causa: **uma** falha qualquer do IndexedDB punha
+`useIdb = false` até recarregar, e tudo passava a ir para o `localStorage`
+(~5 MB), que não comporta os relatórios. O `lsPut` estourava de forma
+**síncrona** dentro do `Store.save`: "salvando…" parado, e a rodada da pasta
+morria antes de soltar `sincronizando` — que ficava `true` para sempre, e
+toda rodada seguinte entrava "na fila" e nunca rodava.
+
+- `comDb(fn)`: toda operação no banco, se falhar, reabre a conexão e tenta de
+  novo; `db.onclose` esquece a conexão morta. `useIdb` só é `false` sem
+  IndexedDB no navegador.
+- A reserva vale só para aquela operação, recebe a cópia com as fotos, e se
+  não couber o `save` **rejeita** (`GravacaoLocalFalhou`) — nunca lança.
+- `flushSave` que falha ainda agenda a pasta; a rodada da pasta tem um
+  `.then(null, …)` final que sempre solta `sincronizando`.
+- Banco NCR: gravação recusada zera `trocaNcr` e liga `ncrPendente` (a
+  conferência de 20 s roda uma rodada). Sem isso, "relido só quando muda"
+  fazia uma recusa nunca mais ser tentada.
+
+### Mudanças de uma branch que não chegaram à `main`
+A `claude/eloquent-ptolemy-shcx9x` (15–16/10: Kanban "Só DEV", Resumo novo,
+imagem A4 da NCR, histórico pelo extrator, "não consta mais", recusa de
+gravação no Diagnóstico) foi usada pelo Bruno e nunca mesclada; a
+atualização de 3/11 saiu da `main` e as apagou da vista dele. Mesclada em
+13/11. **Antes de publicar, confira se há branch com trabalho que a `main`
+não tem** (`git rev-list --count origin/main..<branch>`).
+
 ## 7. Conferir antes de publicar
 
 A suíte voltou, menor e em Node (`tests/`, ver `tests/README.md`): o Bruno
 pediu testes automatizados para os comportamentos novos. `node tests/rodar.js`
 roda todas (navegação, abertura no marco da vez, Kanban e suas exportações,
-Resumo, atualização automática, Banco NCR, banco de produtos, comunicados — do editor ao pop-up
+Resumo, atualização automática, Banco NCR, banco de produtos, histórico da NCR (export, extrator do NCR Integrada), comunicados — do editor ao pop-up
 do visualizador —, compatibilidade, os arquivos únicos de `file://`, a pasta
-da equipe com três pessoas ao mesmo tempo e a marca "impresso e enviado"). Elas abrem o programa de verdade, semeiam pela API do
+da equipe com três pessoas ao mesmo tempo, a marca "impresso e enviado" e a falha do banco do navegador). Elas abrem o programa de verdade, semeiam pela API do
 programa, conferem arquivos baixados e o número de folhas e o papel dos PDFs.
 Não é o programa: nada ali entra no `derrogacao.html`, e o programa continua
 sem build e sem dependência.
@@ -2139,7 +2295,8 @@ desta máquina às vezes bloqueia `github.io`.
 | Comunicados dentro da publicação, sem relógio próprio | o visualizador só enxerga a publicação; um segundo ciclo concorreria com o da atualização automática |
 | Retenção por contagem (100), não por prazo | o arquivo é relido a cada 5 min por todo visualizador; por contagem o tamanho tem teto |
 | Comunicado é novidade por 4 dias, sempre (`Config.DIAS_COMUNICADO_NOVO`) | pedido do Bruno: quem volta depois de semanas não deve receber a pilha inteira; eles continuam no histórico |
-| Pasta do visualizador em `Config.PASTA_VISUALIZADOR`; o editor avisa e pede para conectar a cada queda | pedido do Bruno: sempre ligado à pasta, com confirmação quando cair |
+| Pasta do visualizador em `Config.PASTA_VISUALIZADOR`; a queda vai para o console, não para a tela | o aviso no alto existiu e o Bruno pediu para tirar: "esses avisos incomodam" |
+| Gravação recusada pela pasta vai para o console e o Diagnóstico, nunca para a tela | pedido do Bruno: "não quero mais tantos avisos na tela… deixe no console que eu vejo analisando depois" |
 | O backup de tudo leva os comunicados | backup pela metade não é backup; versões antigas ignoram a chave |
 | "Novo waiver" = item do relatório Waiver do J09; "Nova NCR" = NCR do banco com Marco Atual J09 | a leitura proposta ao Bruno antes de implementar |
 | NCR fechada = a lista do Bruno em `Config.STATUS_NCR_FECHADA`, mais o critério por palavra de antes | pedido do Bruno ("7.2 - TA Unfounded" não era reconhecido); a palavra fica para não reabrir o que já era fechado |
@@ -2170,3 +2327,13 @@ desta máquina às vezes bloqueia `github.io`.
 | Limpeza de imagens a cada 12 h, lendo o histórico só se houver candidata | com o histórico por tempo, ler todas as versões a cada hora seria dezenas de MB pela rede |
 | "Impresso e enviado" é um campo do item, da equipe (pela pasta), fora do PDF e da publicação | pedido do Bruno ("só para o usuário ou numa extração, não no template"); da equipe para dois não enviarem o mesmo papel |
 | A marca guarda data e nome num texto só | a junção é campo a campo: com dois campos, a data de uma pessoa poderia ficar com o nome de outra |
+| Histórico da NCR extraído pelo próprio Derrogação (colunas datadas, mudanças entre importações, extrator do NCR Integrada); o `historico.json` do NCR Control fica como alternativa | pedido do Bruno; ele escolheu as três fontes e manter a importação antiga |
+| A captura do NCR Integrada fica à parte e substitui o histórico só na leitura | o histórico da pasta é união: apagar eventos, como faz o NCR Control, não sobreviveria à cópia do colega |
+| O status do export continua valendo; a captura divergente só é avisada na ficha | "fechada", filtros e Kanban leem uma fonte só; trocar o status por uma captura poderia esconder o export mais novo |
+| Eventos gerados pelo export marcados no `campo` (`Status · export`) | é o único lugar do evento que entra na assinatura e que nenhuma versão descarta |
+| O extrator mora no `index.html` como texto, cópia literal do NCR Control | não executa aqui; mesmo banco do navegador e mesmo formato, para valer o que já foi capturado |
+| A imagem A4 da NCR pergunta o que entra e o tamanho (uma folha ou várias) | pedido do Bruno: o fluxo não entrava; numa folha só, tudo junto fica ilegível, então quem escolhe muito pode levar em várias folhas |
+| Kanban em três modos: NCR · NCR + DEV · Só DEV, sem guardar | pedido do Bruno; é filtro do quadro, e filtro do Kanban não é guardado |
+| Resumo na largura toda, gráficos dois a dois, só na tela | pedido do Bruno ("mais espaço"); o PDF do resumo tem layout próprio |
+| Gráficos novos do Resumo: Função vital × situação e Para onde vai o waiver | escolha do Bruno entre as opções propostas |
+| Gráfico sai em PNG 3× e SVG; tabela em PNG e Excel, desenhados aqui | "imagem de alta resolução, ou da melhor forma": o PNG cola em qualquer lugar, o SVG não perde nitidez, o Excel deixa refazer a conta; sem biblioteca (§2) |

@@ -21,13 +21,21 @@
      { t: 'texto', rot, texto, linhas }
      { t: 'tab',   cols: [{t, w}], rows: [[celula]] }     celula: texto | {chips} | {tag}
      { t: 'nota',  texto }
+     { t: 'img',   img, w, h, maxH }      um desenho pronto (o fluxo da NCR):
+                                          largura toda, sem passar de maxH
+     { t: 'legenda', itens: [{t, cor, tracejado}] }
    `c` de um chip/tag é uma das chaves de CORES.
+
+   `gerar` põe tudo numa folha; `paginas` (pedido do Bruno: escolher o que
+   entra, o fluxo inclusive) usa quantas folhas forem precisas, com a letra
+   fixa: parte as tabelas e os pares entre as linhas, nunca deixa o título
+   de uma seção sozinho no pé e repete o título com "(cont.)".
    ========================================================================== */
 (function (global) {
   'use strict';
 
   var L = 1240, A = 1754, ZOOM = 2, ESCALA_MIN = 0.62;
-  var MARGEM = 54;
+  var MARGEM = 54, RODAPE = 46;
   var FONTE = '"Segoe UI", "Helvetica Neue", Arial, sans-serif';
   var MONO = 'Consolas, "Courier New", monospace';
 
@@ -196,6 +204,32 @@
         var nl = quebrar(ctx, b.texto, W);
         nl.forEach(function (l) { if (!seco) { ctx.fillStyle = '#6d7383'; ctx.fillText(l, MARGEM, y + fs(14)); } y += fs(19); });
         y += fs(8);
+      } else if (b.t === 'img') {
+        /* o desenho acompanha a letra (encolhe com ela) e nunca passa de uma
+           folha: o que não cabe em altura fica mais estreito */
+        var iw = W * Math.min(1, f), ih = iw * b.h / b.w;
+        var teto = A - RODAPE - 2 * MARGEM - fs(80);
+        if (b.maxH) teto = Math.min(teto, b.maxH);
+        if (ih > teto) { ih = teto; iw = ih * b.w / b.h; }
+        if (!seco) ctx.drawImage(b.img, MARGEM, y, iw, ih);
+        y += ih + fs(10);
+      } else if (b.t === 'legenda') {
+        fonte(13, 400); ctx.textBaseline = 'alphabetic';
+        var lx = MARGEM, ly = y, lh = fs(22);
+        b.itens.forEach(function (it) {
+          var lw = fs(24) + ctx.measureText(it.t).width;
+          if (lx + lw > MARGEM + W && lx > MARGEM) { lx = MARGEM; ly += lh; }
+          if (!seco) {
+            if (it.tracejado) {
+              ctx.fillStyle = it.cor;
+              for (var k = 0; k < 3; k++) ctx.fillRect(lx + k * fs(6.5), ly + fs(8), fs(3.5), fs(4));
+            } else rect(ctx, lx, ly + fs(8), fs(18), fs(4.5), fs(2), it.cor, null);
+            ctx.fillStyle = '#4b5261';
+            ctx.fillText(it.t, lx + fs(24), ly + fs(14));
+          }
+          lx += lw + fs(16);
+        });
+        y = ly + lh + fs(6);
       } else if (b.t === 'tab') {
         var tot = 0;
         b.cols.forEach(function (c) { tot += c.w; });
@@ -279,7 +313,7 @@
     cv.width = L * ZOOM; cv.height = A * ZOOM;
     var ctx = cv.getContext('2d');
     ctx.scale(ZOOM, ZOOM);
-    var reserva = 46;                            /* o rodapé */
+    var reserva = RODAPE;
     var f = 1.3, usado = 0;
     for (; f >= ESCALA_MIN - 0.001; f -= 0.04) {
       usado = desenhar(ctx, blocos, f, true, tema);
@@ -292,6 +326,127 @@
     ctx.font = '400 12px ' + FONTE; ctx.fillStyle = '#8a91a0'; ctx.textBaseline = 'alphabetic';
     ctx.fillText(str(opts.rodape), MARGEM, A - 24);
     return { canvas: cv, coube: coube, escala: f };
+  }
+
+  /**
+   * Os blocos em quantas folhas A4 forem precisas, com a letra fixa
+   * (`opts.escala`, 1 de saída). Devolve { canvases, escala }.
+   */
+  function paginas(blocos, opts) {
+    opts = opts || {};
+    var tema = opts.tema || { cor: '#34506b' };
+    var f = opts.escala || 1;
+    var med = document.createElement('canvas').getContext('2d');
+    function alt(b) { return desenhar(med, [b], f, true, tema) - MARGEM; }
+    var LIMITE = A - RODAPE - MARGEM;
+    var cab = blocos[0] && blocos[0].t === 'cab' ? blocos[0] : null;
+    var contCab = cab ? { t: 'cab', titulo: cab.titulo + ' (cont.)' } : null;
+    var folhas = [], atual, usado, base, ultimaSec = null;
+    function nova(comSecao) {
+      atual = []; usado = 0;
+      folhas.push(atual);
+      if (contCab && folhas.length > 1) { atual.push(contCab); usado += alt(contCab); }
+      if (comSecao && ultimaSec) { var sc = { t: 'sec', titulo: ultimaSec.titulo + ' (cont.)' }; atual.push(sc); usado += alt(sc); }
+      base = atual.length;
+    }
+    function vazia() { return atual.length <= base; }
+    function por(b, h) { atual.push(b); usado += h; }
+    /* as unidades de um bloco que se parte: linhas da tabela, fileiras dos pares */
+    function unidades(b) {
+      if (b.t === 'tab') return b.rows.map(function (r) { return [r]; });
+      if (b.t === 'pares') {
+        var cols = b.cols || 2, out = [];
+        for (var i = 0; i < b.itens.length; i += cols) out.push(b.itens.slice(i, i + cols));
+        return out;
+      }
+      return null;
+    }
+    function pedaco(b, us) {
+      var lista = [];
+      us.forEach(function (u) { lista = lista.concat(u); });
+      return b.t === 'tab' ? { t: 'tab', cols: b.cols, rows: lista } : { t: 'pares', cols: b.cols, itens: lista };
+    }
+    nova(false);
+    for (var i = 0; i < blocos.length; i++) {
+      var b = blocos[i], h = alt(b);
+      if (b.t === 'sec') {
+        ultimaSec = b;
+        var prox = blocos[i + 1], hp = 0;
+        if (prox && prox.t === 'img') hp = Math.min(alt(prox), LIMITE * 0.5);
+        else if (prox) { var up = unidades(prox); hp = alt(up && up.length ? pedaco(prox, [up[0]]) : prox); }
+        if (h + hp > LIMITE - usado && !vazia()) nova(false);
+        por(b, h);
+        continue;
+      }
+      if (b.t === 'img') {
+        /* o desenho e a legenda dele andam juntos; e, sobrando pelo menos meia
+           folha, o desenho encolhe para caber ali em vez de deixar a folha
+           quase vazia */
+        var leg = blocos[i + 1] && blocos[i + 1].t === 'legenda' ? blocos[i + 1] : null;
+        var hl = leg ? alt(leg) : 0;
+        if (h + hl > LIMITE - usado) {
+          var sobra = LIMITE - usado - hl - 10 * f;
+          if (!vazia() && sobra < LIMITE * 0.5) {
+            nova(true);
+            sobra = LIMITE - usado - hl - 10 * f;
+          }
+          b = { t: 'img', img: b.img, w: b.w, h: b.h, maxH: b.maxH ? Math.min(b.maxH, sobra) : sobra };
+          h = alt(b);
+        }
+        por(b, h);
+        if (leg) { por(leg, hl); i++; }
+        continue;
+      }
+      if (h <= LIMITE - usado) { por(b, h); continue; }
+      var us = unidades(b);
+      if (!us || !us.length) {
+        if (!vazia()) nova(true);
+        por(b, h);
+        continue;
+      }
+      var k = 0;
+      while (k < us.length) {
+        var j = k, hj = 0;
+        while (j < us.length) {
+          var hn = alt(pedaco(b, us.slice(k, j + 1)));
+          if (hn > LIMITE - usado && j > k) break;
+          if (hn > LIMITE - usado && !vazia()) break;
+          hj = hn; j++;
+        }
+        if (j === k) { nova(true); continue; }
+        por(pedaco(b, us.slice(k, j)), hj);
+        k = j;
+        if (k < us.length) nova(true);
+      }
+    }
+    var canvases = folhas.map(function (fl, n) {
+      var cv = document.createElement('canvas');
+      cv.width = L * ZOOM; cv.height = A * ZOOM;
+      var ctx = cv.getContext('2d');
+      ctx.scale(ZOOM, ZOOM);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, L, A);
+      desenhar(ctx, fl, f, false, tema);
+      ctx.font = '400 12px ' + FONTE; ctx.fillStyle = '#8a91a0'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(str(opts.rodape) + (folhas.length > 1 ? ' · folha ' + (n + 1) + ' de ' + folhas.length : ''), MARGEM, A - 24);
+      return cv;
+    });
+    return { canvases: canvases, escala: f };
+  }
+
+  /**
+   * Um SVG (texto) como imagem pronta para o canvas. O SVG é ampliado ×3 antes
+   * de virar imagem, para o desenho sair nítido na folha a 300 dpi.
+   */
+  function carregarSvg(svg) {
+    var m = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(svg);
+    var w = m ? parseFloat(m[1]) : 800, h = m ? parseFloat(m[2]) : 400;
+    var grande = svg.replace(/<svg([^>]*?) width="[\d.]+"([^>]*?) height="[\d.]+"/, '<svg$1 width="' + (w * 3) + '"$2 height="' + (h * 3) + '"');
+    return new Promise(function (ok, falha) {
+      var img = new Image();
+      img.onload = function () { ok({ img: img, w: w, h: h }); };
+      img.onerror = function () { falha(new Error('o desenho não pôde ser convertido em imagem')); };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(grande);
+    });
   }
 
   /** Baixa o canvas como PNG. */
@@ -312,5 +467,5 @@
   /** Nome de arquivo seguro. */
   function nomeSeguro(s) { return str(s).replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '') || 'ficha'; }
 
-  global.Cartao = { gerar: gerar, baixar: baixar, nomeSeguro: nomeSeguro, LARGURA: L * ZOOM, ALTURA: A * ZOOM };
+  global.Cartao = { gerar: gerar, paginas: paginas, carregarSvg: carregarSvg, baixar: baixar, nomeSeguro: nomeSeguro, LARGURA: L * ZOOM, ALTURA: A * ZOOM };
 })(window);

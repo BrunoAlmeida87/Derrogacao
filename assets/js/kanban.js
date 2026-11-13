@@ -53,11 +53,16 @@
     soAlertas: false,
     caminho: true,      // mostrar os que vêm de outros marcos
     ind: false,         // mostrar os marcos industriais ("J09 Ind")
-    devs: false,        // incluir as DEVs do marco (vista geral, NCR e DEV juntas)
+    tipo: 'ncr',        // 'ncr' · 'ambos' (NCR e DEV juntas) · 'dev' (só as DEVs)
     abertos: {}         // cartões com a descrição à vista — só tela, nunca gravado
   };
   var ctx = null;
   var host = null;
+
+  /* O que o quadro mostra: só NCR (o de sempre), NCR e DEV juntas (a vista
+     geral) ou só as DEVs (pedido do Bruno: "um botão para só ver DEV"). */
+  function comDevs() { return st.tipo !== 'ncr'; }
+  function soDevs() { return st.tipo === 'dev'; }
 
   function el(tag, cls, text) {
     var n = document.createElement(tag);
@@ -139,8 +144,10 @@
     var daqui = projects.filter(function (p) { return Ncrs.marcoChave(p.marco) === k; });
     var out = [];
     var jaTem = {};
+    /* só as DEVs: nenhuma NCR — nem do relatório, nem do banco, nem a caminho */
+    var ncrs = !soDevs();
 
-    daqui.forEach(function (p) {
+    if (ncrs) daqui.forEach(function (p) {
       (p.ncrs || []).forEach(function (it) {
         var rec = recDoItem(it);
         var chave = chaveDoCaso(rec, it);
@@ -152,7 +159,7 @@
     /* As DEVs do marco (pedido do Bruno: uma vista geral com DEV incluída).
        DEV não tem NCR no banco, então não há "to be closed" nem alerta: cada
        uma cai direto na coluna da sua situação, com a etiqueta "DEV". */
-    if (st.devs) {
+    if (comDevs()) {
       projects.forEach(function (p) {
         if (Ncrs.marcoChave(Report.marcoOf(p, 'dev')) !== k) return;
         (p.devs || []).forEach(function (it) {
@@ -161,7 +168,7 @@
       });
     }
 
-    Ncrs.lista().forEach(function (rec) {
+    if (ncrs) Ncrs.lista().forEach(function (rec) {
       if (Ncrs.marcoChave(rec.waiver.marcoAtual) !== k || jaTem[rec.key]) return;
       /* temporária já substituída: quem continua o caso é a definitiva */
       if (Ncrs.substituidaPor(rec)) return;
@@ -170,7 +177,7 @@
         relatorio: daqui[0] || null });
     });
 
-    if (st.caminho && alvo) {
+    if (ncrs && st.caminho && alvo) {
       projects.forEach(function (p) {
         if (Ncrs.marcoChave(p.marco) === k) return;
         (p.ncrs || []).forEach(function (it) {
@@ -233,7 +240,8 @@
   }
 
   function passa(c) {
-    if (st.soAlertas && !c.alerta) return false;
+    /* o alerta é de NCR fechada: em "Só DEV" o filtro não se aplica */
+    if (st.soAlertas && !soDevs() && !c.alerta) return false;
     if (!st.busca) return true;
     var hay = textoBusca(c);
     return Ncrs.norm(st.busca).split(' ').filter(Boolean).every(function (t) { return hay.indexOf(t) >= 0; });
@@ -249,9 +257,12 @@
   }
 
   function colunasDef() {
+    var situacoes = Store.STATUS.map(function (s) { return { id: s.id, nome: s.nome, ajuda: s.ajuda }; });
+    /* DEV nunca cai em "NCR to be closed" (não tem NCR no banco): só as DEVs, só as situações */
+    if (soDevs()) return situacoes;
     return [{ id: FORA, nome: 'NCR to be closed',
       ajuda: 'NCRs deste marco que não estão no Waiver dele: sem waiver, precisam ser fechadas até o marco' }]
-      .concat(Store.STATUS.map(function (s) { return { id: s.id, nome: s.nome, ajuda: s.ajuda }; }));
+      .concat(situacoes);
   }
 
   var AREA_ENCERRADAS = { id: ENCERRADA, nome: 'Encerradas',
@@ -295,7 +306,7 @@
     raiz.appendChild(cabecalho(e.lista, projects, e.todos, e.vis));
     raiz.appendChild(resumo(e.todos));
     raiz.appendChild(quadro(e.vis, e.todos));
-    raiz.appendChild(areaEncerradas(e.vis, e.todos));
+    if (!soDevs()) raiz.appendChild(areaEncerradas(e.vis, e.todos));
     host.scrollTop = topo;
     if (buscando) {
       var b = document.getElementById('kbBusca');
@@ -332,26 +343,47 @@
       function () { st.soAlertas = !st.soAlertas; render(host, ctx); },
       'Mostra só as NCRs fechadas no banco com o waiver ainda não aceito');
     ba.setAttribute('aria-pressed', st.soAlertas ? 'true' : 'false');
-    ba.disabled = !nAlerta && !st.soAlertas;
+    ba.disabled = soDevs() || (!nAlerta && !st.soAlertas);
+    if (soDevs()) ba.title = 'Só vale para NCR (o alerta é de NCR fechada no banco); o quadro está mostrando só as DEVs';
     ferr.appendChild(ba);
 
     var bc = botao('Incluir as que vêm de outros marcos', 'btn--sm kb-toggle' + (st.caminho ? ' is-on' : ''),
       function () { st.caminho = !st.caminho; render(host, ctx); },
       'Itens de outros relatórios cujo waiver vale até este marco (Approved Expiry, ou Request Expiry) e ainda não foram levados');
     bc.setAttribute('aria-pressed', st.caminho ? 'true' : 'false');
+    bc.disabled = soDevs();
+    if (soDevs()) bc.title = 'Só vale para NCR; o quadro está mostrando só as DEVs';
     ferr.appendChild(bc);
 
     var nDevs = 0;
     projects.forEach(function (p) {
       if (Ncrs.marcoChave(Report.marcoOf(p, 'dev')) === Ncrs.marcoChave(st.marco)) nDevs += (p.devs || []).length;
     });
-    var bd = botao('Incluir as DEVs' + (nDevs ? ' (' + nDevs + ')' : ''), 'btn--sm kb-toggle' + (st.devs ? ' is-on' : ''),
-      function () { st.devs = !st.devs; render(host, ctx); },
-      'Vista geral: as DEVs deste marco entram no quadro, nas colunas da situação do waiver delas (etiqueta “DEV”)');
-    bd.id = 'kbDevs';
-    bd.setAttribute('aria-pressed', st.devs ? 'true' : 'false');
-    bd.disabled = !nDevs && !st.devs;
-    ferr.appendChild(bd);
+    /* NCR · NCR + DEV · Só DEV — escolha única, as pastilhas de sempre */
+    var tipos = el('div', 'kb-tipos');
+    tipos.setAttribute('role', 'group');
+    tipos.setAttribute('aria-label', 'O que o quadro mostra');
+    [['ncr', 'NCR', 'kbSoNcr', 'Só as NCRs (o quadro de sempre)'],
+     ['ambos', 'NCR + DEV' + (nDevs ? ' (' + nDevs + ')' : ''), 'kbDevs',
+      'Vista geral: as DEVs deste marco entram no quadro, nas colunas da situação do waiver delas (etiqueta “DEV”)'],
+     ['dev', 'Só DEV' + (nDevs ? ' (' + nDevs + ')' : ''), 'kbSoDev',
+      'Só as DEVs deste marco, nas colunas da situação do waiver delas']].forEach(function (t) {
+      var on = st.tipo === t[0];
+      var b = el('button', 'tb-chip kb-tipo' + (on ? ' is-on' : ''), t[1]);
+      b.type = 'button';
+      b.id = t[2];
+      b.title = t[3];
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.disabled = t[0] !== 'ncr' && !nDevs && !on;
+      b.addEventListener('click', function () {
+        st.tipo = t[0];
+        render(host, ctx);
+        var nb = document.getElementById(t[2]);
+        if (nb) nb.focus();
+      });
+      tipos.appendChild(b);
+    });
+    ferr.appendChild(tipos);
 
     var nInd = marcos.todos(projects).filter(ehInd).length;
     if (nInd) {
@@ -449,10 +481,19 @@
   /** Os números da faixa — os mesmos na tela e na folha impressa. */
   function numerosDoResumo(todos) {
     var devs = todos.filter(ehDev);
+    if (soDevs()) {
+      var aceitas = devs.filter(function (c) { return c.coluna === Store.STATUS_CONCLUIDO; }).length;
+      return [
+        { n: String(devs.length), rot: 'DEVs neste marco' },
+        { n: String(aceitas), rot: 'aceitas' },
+        { n: devs.length ? Math.round(aceitas * 100 / devs.length) + '%' : '—', rot: 'aceitas (%)' },
+        { n: String(devs.length - aceitas), rot: 'em andamento' }
+      ];
+    }
     todos = todos.filter(function (c) { return !ehDev(c); });
     var noRel = todos.filter(function (c) { return c.tipo === 'item'; });
     var aceitos = noRel.filter(function (c) { return c.coluna === Store.STATUS_CONCLUIDO; }).length;
-    return (st.devs ? [{ n: String(devs.length), rot: 'DEVs incluídas (' +
+    return (comDevs() ? [{ n: String(devs.length), rot: 'DEVs incluídas (' +
       devs.filter(function (c) { return c.coluna === Store.STATUS_CONCLUIDO; }).length + ' aceitas)' }] : []).concat([
       { n: String(todos.length), rot: 'NCRs neste marco' },
       { n: String(noRel.length), rot: 'no relatório' },
@@ -832,8 +873,12 @@
   function descricaoDosFiltros() {
     var partes = [];
     if (st.busca) partes.push('busca: “' + st.busca + '”');
+    if (soDevs()) {
+      partes.push('só as DEVs');
+      return partes.join(' · ');
+    }
     if (st.soAlertas) partes.push('só com alerta (NCR fechada com waiver pendente)');
-    if (st.devs) partes.push('com as DEVs');
+    if (comDevs()) partes.push('com as DEVs');
     partes.push(st.caminho ? 'com as que vêm de outros marcos' : 'sem as que vêm de outros marcos');
     return partes.join(' · ');
   }
